@@ -334,7 +334,8 @@ const FaceAttendance = () => {
         }
       });
 
-      console.log('Camera stream obtained:', stream);
+      // console.log('Camera stream obtained:', stream);
+      console.log('Camera stream obtained:');
 
       // Step 4: Attach stream to video element (should exist now)
       let retries = 0;
@@ -488,7 +489,8 @@ const FaceAttendance = () => {
     try {
       // Get location
       const loc = await getLocation();
-      console.log('Location obtained:', loc);
+      console.log('Location obtained:');
+      // console.log('Location obtained:', loc);
 
       const videoEl = videoRef.current;
       if (!videoEl) {
@@ -508,11 +510,12 @@ const FaceAttendance = () => {
         });
       }
 
-      console.log('Detecting face...', {
-        videoWidth: videoEl.videoWidth,
-        videoHeight: videoEl.videoHeight,
-        readyState: videoEl.readyState
-      });
+      console.log('Detecting face...');
+      // console.log('Detecting face...', {
+      //   videoWidth: videoEl.videoWidth,
+      //   videoHeight: videoEl.videoHeight,
+      //   readyState: videoEl.readyState
+      // });
 
       // Optimized detection options for better accuracy
       const detectionOptions = new faceapi.SsdMobilenetv1Options({
