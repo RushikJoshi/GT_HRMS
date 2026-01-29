@@ -330,7 +330,8 @@ const FaceAttendance = () => {
       if (!imageData) {
         throw new Error('Failed to capture image. Please ensure camera is working.');
       }
-      console.log('📍 Location obtained:', loc);
+      console.log('Location obtained');
+      // console.log('Location obtained:', loc);
 
       const videoEl = videoRef.current;
       if (!videoEl) {
