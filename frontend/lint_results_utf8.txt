@@ -1,0 +1,524 @@
+﻿
+> frontend@0.0.0 lint
+> eslint .
+
+node.exe : 
+(node:21352) 
+ESLintEnvWarning: /* 
+eslint-env */ 
+comments are no 
+longer recognized 
+when linting with 
+flat config and will 
+be reported as errors 
+as of v10.0.0. 
+Replace them with /* 
+global */ comments or 
+define globals in 
+your config file. See 
+https://eslint.org/doc
+s/latest/use/configure
+/migration-guide#eslin
+t-env-configuration-co
+mments for details. 
+Found in 
+C:\Users\baldaniya nit
+esh\Github\frontend\ta
+ilwind.config.js at 
+line 1.
+At C:\Program Files\no
+dejs\npm.ps1:29 char:3
++   & $NODE_EXE 
+$NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: ((node:2135   
+ 2) ES...g.js at l    
+ine 1.:String) []    
+, RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+(Use `node 
+--trace-warnings ...` 
+to show where the 
+warning was created)
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\ApplyLeaveForm.jsx
+   58:57  error  'existingLeaves' is assigned a value but never used                                   no-unused-vars
+  296:19  error  'dStr' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\AssignSalaryModal.jsx
+  25:12  error    'loading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                        no-unused-vars
+  67:8   warning  React Hook useEffect has a missing dependency: 'loadSalary'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\AttendanceCalendar.jsx
+   29:11  warning  The 'weeklyOffDays' logical expression could make the dependencies of useMemo Hook (at line 63) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'weeklyOffDays' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  109:82  error    'isFuture' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                          no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\AttendanceClock.jsx
+  55:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  53 |             interval = setInterval(calculateTime, 1000);
+  54 |         } else if (!isCheckedIn) {
+> 55 |             setElapsed("00:00:00");
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  56 |             setProgress(0);
+  57 |         } else if (isCheckedOut) {
+  58 |             // If checked out, we might want to show the final progress if we had the checkout time,   react-hooks/set-state-in-effect
+  82:9   error  'statusText' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          no-unused-vars
+  83:9   error  'statusColor' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+  86:30  error  'strokeColorClass' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\Compensation\CompensationTab.jsx
+  27:8  warning  React Hook useEffect has a missing dependency: 'loadCurrentSalary'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\Compensation\SalaryHistory.jsx
+  21:8  warning  React Hook useEffect has a missing dependency: 'loadHistory'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\DynamicFormBuilder.jsx
+   5:27  error  'setActiveSection' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  73:43  error  'uiId' is defined but never used                                                                  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\EmployeeProfileView.jsx
+  276:33  error  Unnecessary escape character: \/  no-useless-escape
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\MyAttendanceView.jsx
+  10:12  error    'loading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                             no-unused-vars
+  20:8   warning  React Hook useEffect has a missing dependency: 'fetchAttendance'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\NotificationDropdown.jsx
+  30:9  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  28 |
+  29 |     useEffect(() => {
+> 30 |         fetchNotifications();
+     |         ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  31 |         const interval = setInterval(fetchNotifications, 300000); // Poll every 5 minutes instead of 1 minute
+  32 |         return () => clearInterval(interval);
+  33 |     }, []);  react-hooks/set-state-in-effect
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\OfferLetterPreview.jsx
+  27:9   error  'hasHeader' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                no-unused-vars
+  28:9   error  'hasFooter' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                no-unused-vars
+  76:88  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  74 |   </div>
+  75 |   <div class="text-right mb-6 text-xs text-slate-500">
+> 76 |     Ref: ${companyInfo?.refPrefix || 'OFFER'}/${new Date().getFullYear()}/${Math.floor(Math.random() * 10000)}
+     |                                                                                        ^^^^^^^^^^^^^ Cannot call impure function
+  77 |   </div>
+  78 |   <div class="mb-6">
+  79 |     <p class="font-semibold">Ms./Mr. ${applicant?.name}</p>  react-hooks/purity
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\Payroll\ExcelUploader.jsx
+  21:16  error  'e' is defined but never used  no-unused-vars
+  21:19  error  Empty block statement          no-empty
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\Payroll\SalaryAssignmentModal.jsx
+  19:8  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array   react-hooks/exhaustive-deps
+  30:8  warning  React Hook useEffect has a missing dependency: 'ctcAmount'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\Payroll\SalaryAssignmentModal_Enhanced.jsx
+  19:8  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array   react-hooks/exhaustive-deps
+  30:8  warning  React Hook useEffect has a missing dependency: 'ctcAmount'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\TeamAttendanceView.jsx
+  11:12  error    'loading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                   no-unused-vars
+  20:25  error    'setCurrentYear' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                            no-unused-vars
+  28:8   warning  React Hook useEffect has a missing dependency: 'fetchTeamAttendance'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+  44:8   warning  React Hook useEffect has a missing dependency: 'fetchEmployeeRegister'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\candidate\Sidebar.jsx
+  12:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  10 |     useEffect(() => {
+  11 |         if (user?.companyName) {
+> 12 |             setCompanyName(user.companyName);
+     |             ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  13 |         } else {
+  14 |             const comp = localStorage.getItem('companyName');
+  15 |             if (comp) setCompanyName(comp);  react-hooks/set-state-in-effect
+
+C:\Users\baldaniya nitesh\Github\frontend\src\components\common\CommentSection.jsx
+  27:8  warning  React Hook useEffect has a missing dependency: 'fetchComments'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\context\AuthContext.jsx
+   66:22  error  'e' is defined but never used  no-unused-vars
+  128:18  error  'e' is defined but never used  no-unused-vars
+  221:16  error  'e' is defined but never used  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\layouts\CandidateLayout.jsx
+   9:12  error  'companyName' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+  13:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  11 |     useEffect(() => {
+  12 |         if (user?.companyName) {
+> 13 |             setCompanyName(user.companyName);
+     |             ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  14 |         } else {
+  15 |             const comp = localStorage.getItem('companyName');
+  16 |             if (comp) setCompanyName(comp);  react-hooks/set-state-in-effect
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\Admin\IdConfiguration.jsx
+   26:12  error    'selectedEntity' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                     no-unused-vars
+   26:28  error    'setSelectedEntity' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                  no-unused-vars
+   27:12  error    'previewId' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                          no-unused-vars
+  228:8   warning  React Hook useEffect has a missing dependency: 'onPreview'. Either include it or remove the dependency array. If 'onPreview' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\CandidateDashboard.jsx
+  38:8  warning  React Hook useEffect has a missing dependency: 'candidate'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\Candidate\CandidateDashboard.jsx
+  15:12  error  'activeTab' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u        no-unused-vars
+  20:12  error  'tenantId' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+  20:22  error  'setTenantId' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u      no-unused-vars
+  24:11  error  'handleTabChange' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\Candidate\CandidateProfile.jsx
+  13:12  error  'uploading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  13:23  error  'setUploading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\Employee\EmployeeDashboard.jsx
+   1:38  error  'useContext' is defined but never used. Allowed unused vars must match /^[A-Z_]/u              no-unused-vars
+   4:28  error  'useNavigate' is defined but never used. Allowed unused vars must match /^[A-Z_]/u             no-unused-vars
+   9:30  error  'formatDateTimeDDMMYYYY' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  26:11  error  'user' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u           no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\Employee\FaceAttendance.jsx
+  12:11  error  'user' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u      no-unused-vars
+  16:10  error  'location' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\Employee\FaceAttendanceAdvanced.jsx
+  19:46  error  'useCallback' is defined but never used. Allowed unused vars must match /^[A-Z_]/u           no-unused-vars
+  56:11  error  'user' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+  62:10  error  'location' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  95:9   error  'faceMeshRef' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\Employee\InternalJobs.jsx
+  14:32  error  Error: Cannot access variable before it is declared
+
+`fetchInternalJobs` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  12 |         const loadData = async () => {
+  13 |             setLoading(true);
+> 14 |             await Promise.all([fetchInternalJobs(), fetchAppliedJobs()]);
+     |                                ^^^^^^^^^^^^^^^^^ `fetchInternalJobs` accessed before it is declared
+  15 |             setLoading(false);
+  16 |         };
+  17 |         loadData();
+
+  18 |     }, []);
+  19 |
+> 20 |     async function fetchInternalJobs() {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 21 |         try {
+     | ^^^^^^^^^^^^^
+> 22 |             const res = await api.get('/requirements/internal-jobs');
+     | ^^^^^^^^^^^^^
+> 23 |             setJobs(res.data);
+     | ^^^^^^^^^^^^^
+> 24 |         } catch (error) {
+     | ^^^^^^^^^^^^^
+> 25 |             console.error("Failed to load internal jobs", error);
+     | ^^^^^^^^^^^^^
+> 26 |         }
+     | ^^^^^^^^^^^^^
+> 27 |     }
+     | ^^^^^^ `fetchInternalJobs` is declared here
+  28 |
+  29 |     async function fetchAppliedJobs() {
+  30 |         try {                                                                                                                                                                                                                                                                                    react-hooks/immutability
+  14:53  error  Error: Cannot access variable before it is declared
+
+`fetchAppliedJobs` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  12 |         const loadData = async () => {
+  13 |             setLoading(true);
+> 14 |             await Promise.all([fetchInternalJobs(), fetchAppliedJobs()]);
+     |                                                     ^^^^^^^^^^^^^^^^ `fetchAppliedJobs` accessed before it is declared
+  15 |             setLoading(false);
+  16 |         };
+  17 |         loadData();
+
+  27 |     }
+  28 |
+> 29 |     async function fetchAppliedJobs() {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 30 |         try {
+     | ^^^^^^^^^^^^^
+> 31 |             const res = await api.get('/requirements/my-applications');
+     | ^^^^^^^^^^^^^
+> 32 |             const ids = new Set(res.data.map(app => app.requirementId ? app.requirementId._id : null).filter(id => id));
+     | ^^^^^^^^^^^^^
+> 33 |             setAppliedJobIds(ids);
+     | ^^^^^^^^^^^^^
+> 34 |         } catch (error) {
+     | ^^^^^^^^^^^^^
+> 35 |             console.error("Failed to load applications", error);
+     | ^^^^^^^^^^^^^
+> 36 |         }
+     | ^^^^^^^^^^^^^
+> 37 |     }
+     | ^^^^^^ `fetchAppliedJobs` is declared here
+  38 |
+  39 |     const handleApply = async (jobId) => {
+  40 |         if (!window.confirm("Are you sure you want to apply for this position internally? HR will be notified.")) return;  react-hooks/immutability
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Applicants.jsx
+   154:8   warning  React Hook useEffect has a missing dependency: 'navigate'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+   205:8   warning  React Hook useEffect has a missing dependency: 'activeTab'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+   341:12  error    'uploading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                       no-unused-vars
+   343:11  error    'triggerFileUpload' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u               no-unused-vars
+   351:11  error    'handleFileSelect' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                no-unused-vars
+   405:12  error    'showReviewModal' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                 no-unused-vars
+   406:12  error    'reviewForm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                      no-unused-vars
+   406:24  error    'setReviewForm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+   466:25  error    'setCompanyInfo' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                  no-unused-vars
+   627:11  error    'openReviewPrompt' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                no-unused-vars
+   730:8   warning  React Hook useEffect has a missing dependency: 'refreshData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   735:11  error    'areAllDocumentsVerified' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+   796:13  error    'fileInput' is not defined                                                                                      no-undef
+   796:24  error    'fileInput' is not defined                                                                                      no-undef
+  1111:11  error    'downloadResume' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                  no-unused-vars
+  1142:11  error    'openSalaryPreview' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u               no-unused-vars
+  1151:11  error    'confirmSalary' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+  2707:55  error    'e' is defined but never used                                                                                   no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\ApplicantsDocumentFunctions.jsx
+   14:5   error  'setDocumentApplicant' is not defined                                                no-undef
+   15:5   error  'setUploadedDocuments' is not defined                                                no-undef
+   16:5   error  'setDocumentName' is not defined                                                     no-undef
+   17:5   error  'setDocumentFile' is not defined                                                     no-undef
+   18:5   error  'setShowDocumentModal' is not defined                                                no-undef
+   28:13  error  'message' is not defined                                                             no-undef
+   34:13  error  'message' is not defined                                                             no-undef
+   38:9   error  'setDocumentFile' is not defined                                                     no-undef
+   44:10  error  'documentName' is not defined                                                        no-undef
+   45:9   error  'message' is not defined                                                             no-undef
+   49:10  error  'documentFile' is not defined                                                        no-undef
+   50:9   error  'message' is not defined                                                             no-undef
+   55:15  error  'documentName' is not defined                                                        no-undef
+   56:19  error  'documentFile' is not defined                                                        no-undef
+   57:19  error  'documentFile' is not defined                                                        no-undef
+   58:19  error  'documentFile' is not defined                                                        no-undef
+   59:15  error  'documentFile' is not defined                                                        no-undef
+   64:5   error  'setUploadedDocuments' is not defined                                                no-undef
+   65:5   error  'setDocumentName' is not defined                                                     no-undef
+   66:5   error  'setDocumentFile' is not defined                                                     no-undef
+   72:5   error  'message' is not defined                                                             no-undef
+   77:5   error  'setUploadedDocuments' is not defined                                                no-undef
+   82:9   error  'uploadedDocuments' is not defined                                                   no-undef
+   83:9   error  'message' is not defined                                                             no-undef
+   90:9   error  'uploadedDocuments' is not defined                                                   no-undef
+   97:15  error  'res' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   97:27  error  'api' is not defined                                                                 no-undef
+   98:41  error  'documentApplicant' is not defined                                                   no-undef
+  105:9   error  'message' is not defined                                                             no-undef
+  106:9   error  'setShowDocumentModal' is not defined                                                no-undef
+  107:9   error  'loadApplicants' is not defined                                                      no-undef
+  110:9   error  'message' is not defined                                                             no-undef
+  117:15  error  'api' is not defined                                                                 no-undef
+  121:9   error  'message' is not defined                                                             no-undef
+  122:9   error  'loadApplicants' is not defined                                                      no-undef
+  125:9   error  'message' is not defined                                                             no-undef
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\AttendanceAdmin.jsx
+  29:25  error    'setCurrentYear' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                            no-unused-vars
+  53:8   warning  React Hook useEffect has a missing dependency: 'fetchStats'. Either include it or remove the dependency array             react-hooks/exhaustive-deps
+  69:8   warning  React Hook useEffect has a missing dependency: 'fetchEmployeeRegister'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\AttendanceHistory.jsx
+   12:25  error    'setSelectedMonth' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                  no-unused-vars
+   17:10  error    'attendance' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                        no-unused-vars
+   52:11  error    'totalWeeklyOffs' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+   65:9   error    'getAttendanceColor' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                no-unused-vars
+  199:9   error    'handleRegisterFace' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                no-unused-vars
+  490:28  error    Do not access Object.prototype method 'hasOwnProperty' from target object                                         no-prototype-builtins
+  495:6   warning  React Hook useEffect has a missing dependency: 'faceStatusMap'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\AttendanceSettings.jsx
+  55:18  error  'err' is defined but never used  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\CalendarManagement.jsx
+   22:12  error    'settings' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                      no-unused-vars
+   37:8   warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  394:47  error    'holidayYear' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\CandidateStatusTracker\CandidateTimeline.jsx
+  59:8   warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  73:11  error    'getStatusIcon' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\EmployeeForm.jsx
+    6:10  error    'formatDateDDMMYYYY' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                     no-unused-vars
+   80:6   warning  React Hook useCallback has a missing dependency: 'selectedTemplateDetails'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  211:6   warning  React Hook useEffect has a missing dependency: 'loadPolicies'. Either include it or remove the dependency array               react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Employees.jsx
+     3:10  error    'formatDateDDMMYYYY' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                        no-unused-vars
+   759:6   warning  React Hook useEffect has a missing dependency: 'loadPolicies'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  1301:7   error    'notification' is not defined                                                                                    no-undef
+  1427:7   error    'notification' is not defined                                                                                    no-undef
+  1431:7   error    'notification' is not defined                                                                                    no-undef
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\HRDashboard.jsx
+  12:10  error  'formatDateDDMMYYYY' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\LeaveApprovals.jsx
+  23:8  warning  React Hook useEffect has a missing dependency: 'fetchRequests'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\LeavePolicies.jsx
+  165:18  error  'err' is defined but never used  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\OrgStructure.jsx
+  41:8   warning  React Hook useEffect has a missing dependency: 'getTopLevelEmployees'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  76:39  error    'isRoot' is assigned a value but never used                                                                              no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Payroll\BenefitsList.jsx
+  13:113  error  'e' is defined but never used  no-unused-vars
+  13:115  error  Empty block statement          no-empty
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Payroll\Deductions\NewDeduction.jsx
+  62:26  error  'err' is defined but never used  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Payroll\NewBenefit.jsx
+    1:38  error    'useContext' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                               no-unused-vars
+   50:16  error    'e' is defined but never used                                                                                                                                                                                   no-unused-vars
+   50:19  error    Empty block statement                                                                                                                                                                                           no-empty
+   79:18  error    'err' is defined but never used                                                                                                                                                                                 no-unused-vars
+   85:6   warning  React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array. You can also do a functional update 'setForm(f => ...)' if you only need 'form' in the 'setForm' call  react-hooks/exhaustive-deps
+  122:9   error    'handleEPFChange' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                 no-unused-vars
+  123:9   error    'handleEPFRuleChange' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                             no-unused-vars
+  124:9   error    'handleESIChange' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                 no-unused-vars
+  153:13  error    'genCode' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                         no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Payroll\NewEarning.jsx
+  59:22  error  'e' is defined but never used    no-unused-vars
+  84:26  error  'err' is defined but never used  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Payroll\NewSalaryTemplate.jsx
+  155:15  error  'matches' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  309:15  error  'monthlyCTC' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Payroll\PayrollDashboard.jsx
+  63:55  error  'Icon' is defined but never used  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Payroll\PayrollReport.jsx
+  31:8   warning  React Hook useEffect has a missing dependency: 'fetchPayrollRuns'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  51:18  error    'err' is defined but never used                                                                                      no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Payroll\ProcessPayroll.jsx
+   40:8   warning  React Hook useEffect has a missing dependency: 'fetchEmployees'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  103:11  error    'fetchPreviewForEmployee' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u            no-unused-vars
+  119:18  error    'err' is defined but never used                                                                                    no-unused-vars
+  270:54  warning  React Hook React.useMemo has a missing dependency: 'columns'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\Payroll\RunPayroll.jsx
+  18:8  warning  React Hook useEffect has a missing dependency: 'loadRuns'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\RegularizationApprovals.jsx
+  23:8  warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\RequirementPage.jsx
+  40:8   warning  React Hook useEffect has a missing dependency: 'loadRequirements'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  53:14  error    'openNew' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                       no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\RevisionApproval.jsx
+  22:8  warning  React Hook useEffect has a missing dependency: 'loadPendingRevisions'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\SalaryStructure.jsx
+   52:18  error    'e' is defined but never used                                                                                                                 no-unused-vars
+  128:8   warning  React Hook useEffect has missing dependencies: 'handleCalculate' and 'salaryData.locked'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  201:18  error    'err' is defined but never used                                                                                                               no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\TemplatePreview.jsx
+  18:8  warning  React Hook useEffect has a missing dependency: 'loadTemplateAndGeneratePDF'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\HR\UserManagement.jsx
+  1:38  error  'useContext' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\JobApplication\JobApplication.jsx
+  43:6  warning  React Hook useEffect has a missing dependency: 'fetchRequirementDetails'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  54:6  warning  React Hook useEffect has a missing dependency: 'formData.name'. Either include it or remove the dependency array            react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\JobApplication\JobsList.jsx
+  90:8  warning  React Hook useEffect has a missing dependency: 'resolvedTenantId'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\Jobs.jsx
+  27:10  error    'activeTenantId' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                       no-unused-vars
+  27:26  error    'setActiveTenantId' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                    no-unused-vars
+  88:6   warning  React Hook useEffect has a missing dependency: 'params.companyId'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\Leaves\RegularizationRequest.jsx
+   5:10  error    'formatDateDDMMYYYY' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                     no-unused-vars
+  19:12  error    'loading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                       no-unused-vars
+  40:8   warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\PSA\AddCompany.jsx
+  73:26  error  'e' is defined but never used  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\PSA\CompanyList.jsx
+  46:18  error  'error' is defined but never used  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\PSA\Dashboard.jsx
+  33:18  error  'r2err' is defined but never used  no-unused-vars
+  33:25  error  Empty block statement              no-empty
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\PSA\EditCompany.jsx
+   57:8   warning  React Hook useEffect has a missing dependency: 'loadCompany'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  130:26  error    'e' is defined but never used                                                                                   no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\PSA\ModuleConfig.jsx
+  23:10  error  'error' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  26:9   error  'navigate' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\pages\PSA\ViewCompany.jsx
+  32:8  warning  React Hook useEffect has a missing dependency: 'loadCompany'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\baldaniya nitesh\Github\frontend\src\router\AppRoutes.jsx
+  1:17  error  'useEffect' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\utils\api.js
+  64:12  error  'e' is defined but never used  no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\utils\auth.js
+   30:14  error  'error' is defined but never used  no-unused-vars
+   47:14  error  'e' is defined but never used      no-unused-vars
+   78:14  error  'e' is defined but never used      no-unused-vars
+  102:14  error  'e' is defined but never used      no-unused-vars
+
+C:\Users\baldaniya nitesh\Github\frontend\src\utils\authDebug.js
+  29:53  error  Unexpected constant truthiness on the left-hand side of a `||` expression  no-constant-binary-expression
+  42:19  error  'require' is not defined                                                   no-undef
+
+Γ£û 203 problems (159 errors, 44 warnings)
+

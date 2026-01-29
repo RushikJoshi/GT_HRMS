@@ -1,0 +1,1426 @@
+const Tenant = require("../models/Tenant");
+const CounterSchema = require("../models/Counter");
+const mongoose = require("mongoose");
+const CompanyIdConfig = require('../models/CompanyIdConfig');
+
+// Global counter model (stored in main connection, not tenant databases)
+let GlobalCounter;
+function getGlobalCounter() {
+  if (!GlobalCounter) {
+    try {
+      GlobalCounter = mongoose.model("GlobalCounter");
+    } catch (e) {
+      GlobalCounter = mongoose.model("GlobalCounter", CounterSchema);
+    }
+  }
+  return GlobalCounter;
+}
+
+/* ---------------------------------------------
+   HELPER → Get models from tenantDB
+   Models are already registered by dbManager, just retrieve them
+--------------------------------------------- */
+function getModels(req) {
+  if (!req.tenantDB) {
+    throw new Error("Tenant database connection not available");
+  }
+  const db = req.tenantDB;
+  try {
+    // Models are already registered by dbManager, just retrieve them
+    // Do NOT pass schema - use connection.model(name) only
+    return {
+      Employee: db.model("Employee"),
+      LeavePolicy: db.model("LeavePolicy"),
+      LeaveBalance: db.model("LeaveBalance")
+      // Counter is now global, not per-tenant
+    };
+  } catch (err) {
+    console.error("[getModels] Error retrieving models:", err.message);
+    console.error("[getModels] Error stack:", err.stack);
+    throw new Error(`Failed to retrieve models from tenant database: ${err.message}`);
+  }
+}
+
+/* ---------------------------------------------
+   HELPER: Get next sequence per-tenant (using global counter)
+--------------------------------------------- */
+async function getNextSeq(key) {
+  const Counter = getGlobalCounter();
+  const doc = await Counter.findOneAndUpdate(
+    { key },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+  return doc.seq;
+}
+
+/* ---------------------------------------------
+   EMPLOYEE ID FORMATTER
+--------------------------------------------- */
+/* ---------------------------------------------
+   EMPLOYEE ID FORMATTER (Using CompanyIdConfig)
+--------------------------------------------- */
+async function generateEmployeeId({ req, tenantId, department, firstName, lastName }) {
+  try {
+    // 1. Get Configuration for EMPLOYEE
+    let config = await CompanyIdConfig.findOne({ companyId: tenantId, entityType: 'EMPLOYEE' });
+
+    // Fallback: If no config exists, create default starting at 1000
+    if (!config) {
+      config = await CompanyIdConfig.create({
+        companyId: tenantId,
+        entityType: 'EMPLOYEE',
+        prefix: 'EMP',
+        startFrom: 1000,
+        currentSeq: 1000,
+        padding: 4
+      });
+    }
+
+    // 2. Determine Parts
+    const now = new Date();
+    const parts = [];
+
+    // Prefix
+    if (config.prefix) parts.push(config.prefix);
+
+    // Date Parts
+    if (config.includeYear) parts.push(now.getFullYear());
+    if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
+
+    // Department
+    if (config.includeDepartment) {
+      const depCode = (department || "GEN").substring(0, 3).toUpperCase();
+      parts.push(depCode);
+    }
+
+    // 3. Atomically Get and Increment Sequence
+    // We use findOneAndUpdate to ensure atomic operation.
+    // We want the current value, then increment it.
+    // { new: false } (default) returns the document BEFORE update, so we get '1000' and db becomes '1001'.
+    const updatedConfig = await CompanyIdConfig.findOneAndUpdate(
+      { _id: config._id },
+      { $inc: { currentSeq: 1 } },
+      { new: false }
+    );
+
+    // Safety check just in case config was deleted in between
+    const seq = updatedConfig ? updatedConfig.currentSeq : (config.currentSeq || 1);
+
+    // 4. Format Sequence
+    const seqStr = String(seq).padStart(config.padding || 4, '0');
+
+    // 5. Join
+    const separator = config.separator === undefined ? '-' : config.separator; // Handle empty string separator
+    let idPrefix = parts.join(separator);
+
+    if (idPrefix) {
+      return `${idPrefix}${separator}${seqStr}`;
+    }
+    return seqStr;
+
+  } catch (error) {
+    console.error("Error generating employee ID:", error);
+    // Emergency Fallback to timestamp
+    return `EMP-${Date.now()}`;
+  }
+
+  return empId;
+}
+
+async function initializeBalances(req, employeeId, policyId) {
+  if (!policyId) return;
+  const { LeavePolicy, LeaveBalance } = getModels(req);
+  const policy = await LeavePolicy.findOne({ _id: policyId, tenant: req.tenantId });
+  if (!policy) return;
+
+  const year = new Date().getFullYear();
+  await LeaveBalance.deleteMany({ employee: employeeId, year });
+
+  const balancePromises = policy.rules.map(rule => {
+    return new LeaveBalance({
+      tenant: req.tenantId,
+      employee: employeeId,
+      policy: policyId,
+      leaveType: rule.leaveType,
+      year,
+      total: rule.totalPerYear
+    }).save();
+  });
+  await Promise.all(balancePromises);
+}
+
+/* ---------------------------------------------
+   PREVIEW ID (Does NOT increase counter)
+--------------------------------------------- */
+exports.preview = async (req, res) => {
+  try {
+    console.log("!!! PREVIEW ENDPOINT CALLED - NEW LOGIC !!!");
+    const tenantId = req.tenantId;
+    const { department } = req.body;
+
+    // 1. Get Configuration
+    let config = await CompanyIdConfig.findOne({ companyId: tenantId, entityType: 'EMPLOYEE' });
+
+    // Mock default if missing
+    if (!config) {
+      config = {
+        prefix: 'EMP',
+        separator: '', // Default from schema is usually empty or dash, aligning with defaults
+        includeYear: false,
+        includeMonth: false,
+        includeDepartment: false,
+        padding: 4,
+        startFrom: 1000,
+        currentSeq: 1000
+      };
+    }
+
+    // 2. Determine Parts
+    const now = new Date();
+    const parts = [];
+
+    if (config.prefix) parts.push(config.prefix);
+    if (config.includeYear) parts.push(now.getFullYear());
+    if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
+    if (config.includeDepartment) {
+      const depCode = (department || "GEN").substring(0, 3).toUpperCase();
+      parts.push(depCode);
+    }
+
+    // 3. Get Next Sequence (Preview only, do not increment)
+    const seq = config.currentSeq !== undefined ? config.currentSeq : (config.startFrom || 1);
+    const seqStr = String(seq).padStart(config.padding || 4, '0');
+
+    // 4. Join
+    const separator = config.separator === undefined ? '-' : config.separator;
+    let preview = parts.join(separator);
+
+    if (preview) {
+      preview = `${preview}${separator}${seqStr}`;
+    } else {
+      preview = seqStr;
+    }
+
+    res.json({ preview });
+
+  } catch (err) {
+    console.error("Preview error:", err);
+    res.status(500).json({ error: "preview_failed" });
+  }
+};
+
+/* ---------------------------------------------
+   LIST EMPLOYEES (tenant-wise)
+--------------------------------------------- */
+exports.list = async (req, res) => {
+  try {
+    console.log(`[EMPLOYEE_LIST] ${req.method} ${req.path} - Starting employee list request`);
+
+    // Step 1: Validate user authentication
+    if (!req.user) {
+      console.error("[EMPLOYEE_LIST] ERROR: req.user is missing. Auth middleware may not be applied correctly.");
+      return res.status(401).json({
+        success: false,
+        error: "unauthorized",
+        message: "User authentication required"
+      });
+    }
+
+    console.log(`[EMPLOYEE_LIST] User authenticated: ${req.user.id}, role: ${req.user.role}`);
+
+    // Step 2: Validate tenant context
+    const tenantId = req.user.tenantId || req.tenantId;
+    if (!tenantId) {
+      console.error("[EMPLOYEE_LIST] ERROR: tenantId not found in req.user.tenantId or req.tenantId");
+      console.error("[EMPLOYEE_LIST] req.user:", JSON.stringify(req.user, null, 2));
+      return res.status(400).json({
+        success: false,
+        error: "tenant_missing",
+        message: "Tenant ID is required. Please ensure user is associated with a tenant."
+      });
+    }
+
+    console.log(`[EMPLOYEE_LIST] Tenant ID: ${tenantId}`);
+
+    // Step 3: Ensure tenantDB is available
+    if (!req.tenantDB) {
+      console.warn("[EMPLOYEE_LIST] WARNING: req.tenantDB missing. Attempting lazy load...");
+      if (req.user && (req.user.tenantId || req.user.tenant)) {
+        try {
+          const tid = req.user.tenantId || req.user.tenant;
+          const getTenantDB = require('../utils/tenantDB');
+          req.tenantDB = await getTenantDB(tid);
+          req.tenantId = tid; // Sync
+          console.log(`[EMPLOYEE_LIST] Lazy loaded tenantDB for ${tid}`);
+        } catch (e) {
+          console.error("[EMPLOYEE_LIST] Lazy load failed:", e);
+          return res.status(500).json({
+            success: false,
+            error: "lazy_load_failed",
+            message: `Lazy load of tenant DB failed: ${e.message}`,
+            stack: e.stack
+          });
+        }
+      }
+
+      if (!req.tenantDB) {
+        console.error("[EMPLOYEE_LIST] ERROR: req.tenantDB is not available.");
+        return res.status(500).json({
+          success: false,
+          error: "tenant_db_unavailable",
+          message: "Tenant database connection not available despite lazy load attempt.",
+          details: {
+            userTenant: req.user?.tenantId,
+            reqTenant: req.tenantId
+          }
+        });
+      }
+    }
+
+    console.log(`[EMPLOYEE_LIST] Tenant DB connection available`);
+
+    // Step 4: Get models with error handling
+    let Employee;
+    try {
+      const models = getModels(req);
+      Employee = models.Employee;
+      if (!Employee) {
+        throw new Error("Employee model is not available");
+      }
+      console.log(`[EMPLOYEE_LIST] Employee model loaded successfully`);
+    } catch (modelError) {
+      console.error("[EMPLOYEE_LIST] ERROR: Failed to get Employee model:", modelError.message);
+      console.error("[EMPLOYEE_LIST] Model error stack:", modelError.stack);
+      return res.status(500).json({
+        success: false,
+        error: "model_error",
+        message: `Failed to load Employee model: ${modelError.message}`,
+        stack: modelError.stack
+      });
+    }
+
+    // Step 5: Build query filter with tenant isolation
+    const { department, status } = req.query || {};
+    const filter = { tenant: tenantId }; // Employee schema uses 'tenant' field, not 'tenantId'
+
+    if (department) {
+      filter.department = department;
+      console.log(`[EMPLOYEE_LIST] Filtering by department: ${department}`);
+    }
+
+    // Default to hiding drafts unless specifically asked for
+    if (!status) {
+      filter.status = { $ne: 'Draft' };
+      console.log(`[EMPLOYEE_LIST] Default filter: excluding Draft status`);
+    } else {
+      filter.status = status;
+      console.log(`[EMPLOYEE_LIST] Filtering by status: ${status}`);
+    }
+
+    console.log(`[EMPLOYEE_LIST] Query filter:`, JSON.stringify(filter, null, 2));
+
+    // Step 6: Execute query with safe populate
+    let items;
+    try {
+      const query = Employee.find(filter)
+        .select("_id firstName lastName middleName email department departmentId role manager employeeId contactNo joiningDate profilePic status lastStep gender dob maritalStatus bloodGroup nationality fatherName motherName emergencyContactName emergencyContactNumber tempAddress permAddress experience jobType bankDetails education documents salaryAssigned salaryLocked currentSnapshotId")
+        .sort({ createdAt: -1 });
+
+      // Safe populate - will not crash if references are missing
+      query.populate('departmentId', 'name');
+      query.populate('manager', 'firstName lastName employeeId');
+
+      items = await query.lean();
+
+      console.log(`[EMPLOYEE_LIST] Query successful. Found ${items.length} employees`);
+    } catch (queryError) {
+      console.error("[EMPLOYEE_LIST] ERROR: Database query failed:", queryError.message);
+      console.error("[EMPLOYEE_LIST] Query error stack:", queryError.stack);
+      console.error("[EMPLOYEE_LIST] Query error name:", queryError.name);
+      return res.status(500).json({
+        success: false,
+        error: "query_failed",
+        message: "Failed to fetch employees from database. Please check database connection and schema."
+      });
+    }
+
+    // Step 7: Return success response
+    console.log(`[EMPLOYEE_LIST] Returning ${items.length} employees to client`);
+    return res.json({ success: true, data: items });
+
+  } catch (err) {
+    // Catch-all for any unexpected errors
+    console.error("[EMPLOYEE_LIST] UNEXPECTED ERROR:", err);
+    console.error("[EMPLOYEE_LIST] Error name:", err.name);
+    console.error("[EMPLOYEE_LIST] Error message:", err.message);
+    console.error("[EMPLOYEE_LIST] Error stack:", err.stack);
+
+    // Ensure we always return a response
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        error: "internal_server_error",
+        message: err.message || "An unexpected error occurred while fetching employees"
+      });
+    }
+  }
+};
+
+/* ---------------------------------------------
+   CREATE EMPLOYEE
+--------------------------------------------- */
+exports.create = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { Employee } = getModels(req);
+    const tenant = await Tenant.findById(tenantId);
+
+    if (!tenant) {
+      return res.status(400).json({
+        success: false,
+        error: "tenant_not_found",
+        message: "Tenant not found"
+      });
+    }
+
+    const digits = tenant?.meta?.empCodeDigits || 3;
+    const format = tenant?.meta?.empCodeFormat || "COMP_DEPT_NUM";
+    const allowOverride = tenant?.meta?.empCodeAllowOverride || false;
+
+    const { firstName, lastName, department, customEmployeeId, departmentId, joiningDate, status, lastStep, applicantId, ...restBody } = req.body;
+
+    let finalEmployeeId;
+
+    if (customEmployeeId && allowOverride) {
+      const exists = await Employee.findOne({ employeeId: customEmployeeId });
+      if (exists)
+        return res.status(400).json({
+          success: false,
+          error: "employeeId_exists",
+          message: "Employee ID already in use"
+        });
+
+      finalEmployeeId = customEmployeeId;
+
+    } else {
+      finalEmployeeId = await generateEmployeeId({
+        req,
+        tenantId,
+        format,
+        digits,
+        department,
+        firstName,
+        lastName
+      });
+    }
+
+    // Build create data with proper departmentId and joiningDate handling
+    const createData = {
+      ...restBody,
+      firstName,
+      lastName,
+      employeeId: finalEmployeeId,
+      tenant: tenantId,
+      status: status || 'Active',
+      lastStep: lastStep || 6
+    };
+
+    if (departmentId) {
+      createData.departmentId = departmentId;
+    }
+    if (department) {
+      createData.department = department;
+    }
+    if (joiningDate) {
+      createData.joiningDate = new Date(joiningDate);
+    } else {
+      createData.joiningDate = new Date(); // Default to now
+    }
+
+    // --- NEW: Copy Salary Info from Applicant (Onboarding) ---
+    let applicantSnapshotId = null;
+    if (applicantId) {
+      try {
+        const Applicant = req.tenantDB.model('Applicant');
+        const applicant = await Applicant.findById(applicantId);
+
+        if (applicant) {
+          // 1. Copy Template ID
+          if (applicant.salaryTemplateId) {
+            createData.salaryTemplateId = applicant.salaryTemplateId;
+          }
+          // 2. Copy Snapshot Link (The immutable snapshot created during assignment)
+          if (applicant.salarySnapshot && applicant.salarySnapshot._id) {
+            applicantSnapshotId = applicant.salarySnapshot._id;
+            createData.currentSalarySnapshotId = applicantSnapshotId;
+            createData.currentSnapshotId = applicantSnapshotId; // Redundant field in schema, keeping sync
+            createData.salarySnapshots = [applicantSnapshotId];
+            createData.salaryAssigned = true;
+            createData.salaryLocked = true;
+          }
+        }
+      } catch (appErr) {
+        console.error("Error fetching applicant for onboarding:", appErr);
+      }
+    }
+
+    const emp = await Employee.create(createData);
+
+    // --- NEW: Update Snapshot Ownership ---
+    if (applicantSnapshotId && emp) {
+      try {
+        const EmployeeSalarySnapshot = req.tenantDB.model('EmployeeSalarySnapshot');
+        await EmployeeSalarySnapshot.findByIdAndUpdate(applicantSnapshotId, {
+          employee: emp._id
+        });
+        console.log(`[ONBOARDING] Linked Snapshot ${applicantSnapshotId} to Employee ${emp._id}`);
+      } catch (snapErr) {
+        console.error("Failed to update snapshot ownership:", snapErr);
+      }
+    }
+
+    // --- NEW: Link Applicant if exists (Mark Onboarded) ---
+    if (applicantId && emp) {
+      try {
+        const Applicant = req.tenantDB.model('Applicant');
+        await Applicant.findByIdAndUpdate(applicantId, {
+          isOnboarded: true,
+          employeeId: emp._id
+        });
+        console.log(`[ONBOARDING] Linked Applicant ${applicantId} to Employee ${emp._id} (Marked Onboarded)`);
+      } catch (linkErr) {
+        console.error("Failed to link applicant:", linkErr);
+      }
+    }
+
+    // Initialize Leave Balances if policy provided
+    if (restBody.leavePolicy) {
+      try {
+        await initializeBalances(req, emp._id, restBody.leavePolicy);
+      } catch (balErr) {
+        console.error("Failed to initialize balances:", balErr);
+      }
+    }
+
+    res.json({ success: true, data: emp });
+
+  } catch (err) {
+    console.error('Employee create error:', err);
+
+    // Duplicate employeeId or other unique index issues
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern || {})[0] || 'field';
+      return res.status(400).json({
+        success: false,
+        error: "employee_duplicate",
+        message: `Employee with this ${field} already exists.`
+      });
+    }
+
+    // Mongoose validation errors
+    if (err.name === 'ValidationError') {
+      const details = Object.values(err.errors || {}).map(e => e.message).join(', ');
+      return res.status(400).json({
+        success: false,
+        error: "validation_failed",
+        message: details || "Employee validation failed."
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: "create_failed",
+      message: err.message || "Failed to create employee",
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+};
+
+/* ---------------------------------------------
+   GET EMPLOYEE
+--------------------------------------------- */
+exports.get = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+
+    const emp = await Employee.findOne({ _id: req.params.id, tenant: tenantId });
+    if (!emp) return res.status(404).json({ error: "not_found" });
+
+    res.json(emp);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "get_failed" });
+  }
+};
+
+/* ---------------------------------------------
+   CURRENT LOGGED-IN EMPLOYEE
+--------------------------------------------- */
+exports.me = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+    const userId = req.user?.id;
+
+    const emp = await Employee.findOne({ _id: userId, tenant: tenantId });
+
+    if (!emp) return res.status(404).json({ error: "not_found" });
+
+    res.json(emp);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "me_failed" });
+  }
+};
+
+/* ---------------------------------------------
+   UPDATE EMPLOYEE
+--------------------------------------------- */
+exports.update = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+
+    const updatePayload = { ...req.body };
+    // delete updatePayload.employeeId; <= MODIFIED: Allow update if Draft
+    delete updatePayload.tenant;
+
+    // Handle joiningDate conversion if provided
+    if (updatePayload.joiningDate) {
+      updatePayload.joiningDate = new Date(updatePayload.joiningDate);
+    }
+
+    // 1. Fetch Existing Employee to check Status
+    const existing = await Employee.findOne({ _id: req.params.id, tenant: tenantId });
+    if (!existing) return res.status(404).json({ error: "not_found", message: "Employee not found" });
+
+    // 2. Safeguard: Only allow employeeId update if status is 'Draft'
+    if (existing.status !== 'Draft') {
+      delete updatePayload.employeeId;
+    } else {
+      // If it is Draft, allow employeeId update. 
+      // If user didn't send employeeId, preserve existing one (handled by spread)
+      // If user sent employeeId, it will update.
+    }
+
+    const emp = await Employee.findOneAndUpdate(
+      { _id: req.params.id, tenant: tenantId },
+      updatePayload,
+      { new: true, runValidators: true }
+    );
+
+    if (!emp) return res.status(404).json({ error: "not_found", message: "Employee not found" });
+
+    res.json({ success: true, data: emp });
+
+    // Re-initialize balances if policy changed
+    if (req.body.leavePolicy) {
+      try {
+        await initializeBalances(req, emp._id, req.body.leavePolicy);
+      } catch (balErr) {
+        console.error("Failed to re-initialize balances:", balErr);
+      }
+    }
+
+  } catch (err) {
+    console.error('Employee update error:', err);
+
+    // Mongoose validation errors
+    if (err.name === 'ValidationError') {
+      const details = Object.values(err.errors || {}).map(e => e.message).join(', ');
+      return res.status(400).json({
+        success: false,
+        error: "validation_failed",
+        message: details || "Employee validation failed."
+      });
+    }
+
+    // Duplicate key error
+    if (err.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: "employee_duplicate",
+        message: "Employee with this unique field already exists."
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: "update_failed",
+      message: err.message || "Failed to update employee"
+    });
+  }
+};
+
+/* ---------------------------------------------
+   DELETE EMPLOYEE
+--------------------------------------------- */
+exports.remove = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+
+    const emp = await Employee.findOneAndDelete({
+      _id: req.params.id,
+      tenant: tenantId
+    });
+
+    if (!emp)
+      return res.status(404).json({ error: "not_found" });
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "delete_failed" });
+  }
+};
+
+/* ---------------------------------------------
+   ORG / REPORTING: Set manager, list direct reports, reporting chain, org tree
+   IMPROVED: Better validation, cycle prevention, tenant checks, optimized queries
+--------------------------------------------- */
+
+/**
+ * SET MANAGER - Improved with comprehensive validation
+ * - Prevents self-assignment
+ * - Prevents circular chains
+ * - Validates tenant match
+ * - Optimized queries with lean() and projection
+ */
+exports.setManager = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+    const empId = req.params.id;
+    const { managerId } = req.body; // may be null to clear manager
+
+    // Validate id formats early to avoid cast errors
+    const ObjectId = mongoose.Types.ObjectId;
+    if (!ObjectId.isValid(empId)) {
+      console.warn(`setManager: invalid employee id received: ${empId}`);
+      return res.status(400).json({ error: 'invalid_employee_id', message: 'Invalid employee id' });
+    }
+    if (managerId && managerId !== null && managerId !== '') {
+      if (!ObjectId.isValid(managerId)) {
+        console.warn(`setManager: invalid manager id received: ${managerId}`);
+        return res.status(400).json({ error: 'invalid_manager_id', message: 'Invalid manager id' });
+      }
+    }
+
+    // Validation 1: Prevent employee from becoming their own manager
+    if (managerId && String(managerId) === String(empId)) {
+      return res.status(400).json({ error: 'cannot_set_self_manager', message: 'Employee cannot be their own manager' });
+    }
+
+    // Get employee with minimal projection for performance
+    const emp = await Employee.findOne({ _id: empId, tenant: tenantId })
+      .select('_id manager tenant department role')
+      .lean();
+
+    if (!emp) {
+      return res.status(404).json({ error: 'employee_not_found', message: 'Employee not found' });
+    }
+
+    // If clearing manager (setting to null)
+    if (!managerId || managerId === null || managerId === '') {
+      await Employee.updateOne(
+        { _id: empId, tenant: tenantId },
+        { $set: { manager: null } }
+      );
+
+      // Return updated employee with full details
+      const updated = await Employee.findOne({ _id: empId, tenant: tenantId })
+        .select('-password')
+        .lean();
+
+      return res.json({
+        success: true,
+        employee: updated,
+        message: 'Manager removed successfully'
+      });
+    }
+
+    // Validation 2: Manager must exist and be from same tenant
+    const mgr = await Employee.findOne({ _id: managerId, tenant: tenantId })
+      .select('_id manager tenant department role')
+      .lean();
+
+    if (!mgr) {
+      return res.status(404).json({
+        error: 'manager_not_found',
+        message: 'Manager not found or belongs to different tenant'
+      });
+    }
+
+    // Validation 3: Prevent circular management chain
+    // Walk up the manager's chain to ensure we don't create a cycle
+    const visited = new Set([String(empId)]); // Track visited nodes to prevent cycles
+    let current = mgr;
+    const MAX_DEPTH = 1000; // Safety limit for very deep hierarchies
+    let depth = 0;
+
+    while (current && current.manager) {
+      const currentManagerId = String(current.manager);
+
+      // If we encounter the employee in the manager's chain, it's a cycle
+      if (visited.has(currentManagerId)) {
+        return res.status(400).json({
+          error: 'cycle_detected',
+          message: 'This assignment would create a circular management chain'
+        });
+      }
+
+      visited.add(currentManagerId);
+
+      // If the manager's manager is the employee, it's a cycle
+      if (currentManagerId === String(empId)) {
+        return res.status(400).json({
+          error: 'cycle_detected',
+          message: 'This assignment would create a circular management chain'
+        });
+      }
+
+      // Get next manager in chain
+      current = await Employee.findOne({ _id: current.manager, tenant: tenantId })
+        .select('_id manager')
+        .lean();
+
+      depth++;
+      if (depth > MAX_DEPTH) {
+        console.warn('Max depth reached while checking for cycles');
+        break;
+      }
+    }
+
+    // Validation 4: Manager/Department check
+    // NOTE: previously we rejected assignments where employee and manager had different department values.
+    // That constraint caused many valid assignments to fail when departments are stored as names/codes or when
+    // managers span departments. Relaxing to WARN only — we keep the check logged for diagnostics.
+    try {
+      if (emp.department && mgr.department && String(emp.department) !== String(mgr.department)) {
+        console.warn(`setManager: department mismatch for emp=${empId} (empDept=${emp.department}) vs mgr=${managerId} (mgrDept=${mgr.department}). Allowing assignment.`);
+      }
+    } catch (e) {
+      // Defensive: if dept fields are unexpected, don't block the operation
+      console.warn('setManager: department comparison failed', e && e.message);
+    }
+
+    // Debug log: input summary (helpful when reproducing client 400/500)
+    console.debug(`setManager: emp=${empId} manager=${managerId} tenant=${tenantId}`);
+
+    // All validations passed - update manager
+    await Employee.updateOne(
+      { _id: empId, tenant: tenantId },
+      { $set: { manager: managerId } }
+    );
+
+    // Return updated employee with populated manager details
+    const updated = await Employee.findOne({ _id: empId, tenant: tenantId })
+      .select('-password')
+      .populate('manager', 'firstName lastName employeeId role department')
+      .lean();
+
+    res.json({
+      success: true,
+      employee: updated,
+      message: 'Manager assigned successfully'
+    });
+
+  } catch (err) {
+    console.error('setManager error:', err);
+    res.status(500).json({ error: 'set_manager_failed', message: err.message });
+  }
+};
+
+/**
+ * REMOVE MANAGER - Dedicated endpoint to clear manager
+ */
+exports.removeManager = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+    const empId = req.params.id;
+
+    const emp = await Employee.findOne({ _id: empId, tenant: tenantId })
+      .select('_id manager')
+      .lean();
+
+    if (!emp) {
+      return res.status(404).json({ error: 'employee_not_found' });
+    }
+
+    await Employee.updateOne(
+      { _id: empId, tenant: tenantId },
+      { $set: { manager: null } }
+    );
+
+    const updated = await Employee.findOne({ _id: empId, tenant: tenantId })
+      .select('-password')
+      .lean();
+
+    res.json({
+      success: true,
+      employee: updated,
+      message: 'Manager removed successfully'
+    });
+
+  } catch (err) {
+    console.error('removeManager error:', err);
+    res.status(500).json({ error: 'remove_manager_failed', message: err.message });
+  }
+};
+
+/**
+ * GET DIRECT REPORTS - Optimized with projection
+ */
+exports.directReports = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+    const managerId = req.params.id;
+
+    // Optimized query with projection - only fetch needed fields
+    const items = await Employee.find({ tenant: tenantId, manager: managerId })
+      .select('firstName lastName employeeId role department email profilePic')
+      .sort({ firstName: 1, lastName: 1 })
+      .lean();
+
+    res.json(items);
+  } catch (err) {
+    console.error('directReports error:', err);
+    res.status(500).json({ error: 'direct_reports_failed', message: err.message });
+  }
+};
+
+/**
+ * GET MANAGER - Optimized with projection
+ */
+exports.getManager = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+    const empId = req.params.id;
+
+    const emp = await Employee.findOne({ _id: empId, tenant: tenantId })
+      .select('manager')
+      .populate('manager', 'firstName lastName employeeId role department email profilePic')
+      .lean();
+
+    if (!emp) {
+      return res.status(404).json({ error: 'not_found', message: 'Employee not found' });
+    }
+
+    res.json(emp.manager || null);
+  } catch (err) {
+    console.error('getManager error:', err);
+    res.status(500).json({ error: 'get_manager_failed', message: err.message });
+  }
+};
+
+/**
+ * GET REPORTING CHAIN - Walk up the management chain
+ * Optimized: Uses projection and handles null managers gracefully
+ */
+exports.reportingChain = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+    const empId = req.params.id;
+
+    const chain = [];
+    const visited = new Set(); // Prevent infinite loops
+    let current = await Employee.findOne({ _id: empId, tenant: tenantId })
+      .select('manager')
+      .lean();
+
+    if (!current) {
+      return res.status(404).json({ error: 'not_found', message: 'Employee not found' });
+    }
+
+    const MAX_DEPTH = 200;
+    let depth = 0;
+
+    // Walk up the chain
+    while (current && current.manager) {
+      const managerId = String(current.manager);
+
+      // Prevent infinite loops
+      if (visited.has(managerId)) {
+        console.warn('Circular reference detected in reporting chain');
+        break;
+      }
+      visited.add(managerId);
+
+      // Get manager details with optimized projection
+      const mgr = await Employee.findOne({ _id: managerId, tenant: tenantId })
+        .select('firstName lastName employeeId role department email profilePic manager')
+        .lean();
+
+      if (!mgr) break;
+
+      chain.push(mgr);
+      current = mgr;
+      depth++;
+
+      if (depth > MAX_DEPTH) {
+        console.warn('Max depth reached in reporting chain');
+        break;
+      }
+    }
+
+    res.json(chain);
+  } catch (err) {
+    console.error('reportingChain error:', err);
+    res.status(500).json({ error: 'reporting_chain_failed', message: err.message });
+  }
+};
+
+/**
+ * BUILD SUBTREE - Optimized recursive function for org tree
+ * - Uses lean() for performance
+ * - Uses projection to fetch only needed fields
+ * - Handles null managers gracefully
+ * - Prevents infinite recursion
+ */
+async function buildSubtree(Employee, tenantId, empId, depthLeft, visited = new Set()) {
+  // Prevent infinite recursion
+  const empIdStr = String(empId);
+  if (visited.has(empIdStr)) {
+    console.warn(`Circular reference detected for employee ${empIdStr}`);
+    return [];
+  }
+  visited.add(empIdStr);
+
+  // Base case: depth limit reached
+  if (depthLeft <= 0) {
+    // Still fetch direct reports but mark as leaf nodes
+    const subs = await Employee.find({ tenant: tenantId, manager: empId })
+      .select('firstName lastName employeeId role department email profilePic')
+      .sort({ firstName: 1, lastName: 1 })
+      .lean();
+
+    return subs.map(s => ({ ...s, reports: [] }));
+  }
+
+  // Fetch direct reports with optimized projection
+  const subs = await Employee.find({ tenant: tenantId, manager: empId })
+    .select('firstName lastName employeeId role department email profilePic')
+    .sort({ firstName: 1, lastName: 1 })
+    .lean();
+
+  if (!subs || subs.length === 0) {
+    return [];
+  }
+
+  // Recursively build subtree for each direct report
+  const results = [];
+  for (const sub of subs) {
+    const reports = await buildSubtree(Employee, tenantId, sub._id, depthLeft - 1, new Set(visited));
+    results.push({ ...sub, reports });
+  }
+
+  return results;
+}
+
+/**
+ * GET ORG TREE - Get organizational tree starting from a specific employee
+ * Improved: Better error handling, optimized queries, null manager handling
+ */
+exports.orgTree = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+    const empId = req.params.id;
+    const depth = Math.min(parseInt(req.query.depth || '5', 10), 20); // Cap at 20 for performance
+
+    // Get root employee with optimized projection
+    const root = await Employee.findOne({ _id: empId, tenant: tenantId })
+      .select('firstName lastName employeeId role department email profilePic manager')
+      .lean();
+
+    if (!root) {
+      return res.status(404).json({ error: 'not_found', message: 'Employee not found' });
+    }
+
+    // Build subtree recursively
+    const reports = await buildSubtree(Employee, tenantId, root._id, depth);
+
+    res.json({
+      root,
+      reports,
+      depth: depth,
+      totalReports: reports.length
+    });
+  } catch (err) {
+    console.error('orgTree error:', err);
+    res.status(500).json({ error: 'org_tree_failed', message: err.message });
+  }
+};
+
+exports.getOrgRoot = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const tenant = await Tenant.findById(tenantId).lean();
+    if (!tenant) return res.status(404).json({ error: 'tenant_not_found' });
+    const rootId = tenant?.meta?.orgRootEmployeeId || null;
+    if (!rootId) return res.json(null);
+    const { Employee } = getModels(req);
+    const emp = await Employee.findOne({ _id: rootId, tenant: tenantId }).select('-password').lean();
+    res.json(emp || null);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'get_org_root_failed' });
+  }
+};
+
+exports.setOrgRoot = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { employeeId } = req.body;
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'tenant_not_found' });
+    const { Employee } = getModels(req);
+    const emp = await Employee.findOne({ _id: employeeId, tenant: tenantId }).select('-password');
+    if (!emp) return res.status(404).json({ error: 'employee_not_found' });
+    tenant.meta = tenant.meta || {};
+    tenant.meta.orgRootEmployeeId = String(emp._id);
+    await tenant.save();
+    res.json(emp);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'set_org_root_failed' });
+  }
+};
+
+/**
+ * GET COMPANY ORG TREE - Get full company organizational tree from root
+ * Improved: Better error handling, fallback to top-level employees if root not set
+ */
+exports.companyOrgTree = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const depth = Math.min(parseInt(req.query.depth || '10', 10), 20); // Cap at 20
+    const { Employee } = getModels(req);
+
+    // Try to get org root from tenant meta
+    const tenant = await Tenant.findById(tenantId).lean();
+    if (!tenant) {
+      return res.status(404).json({ error: 'tenant_not_found', message: 'Tenant not found' });
+    }
+
+    const rootId = tenant?.meta?.orgRootEmployeeId || null;
+
+    // If root is set, use it
+    if (rootId) {
+      const root = await Employee.findOne({ _id: rootId, tenant: tenantId })
+        .select('firstName lastName employeeId role department email profilePic')
+        .lean();
+
+      if (root) {
+        const reports = await buildSubtree(Employee, tenantId, root._id, depth);
+        return res.json({
+          root,
+          reports,
+          depth: depth,
+          totalReports: reports.length,
+          source: 'org_root'
+        });
+      }
+    }
+
+    // Fallback: Get all top-level employees (no manager)
+    const topLevelEmployees = await Employee.find({
+      tenant: tenantId,
+      manager: null
+    })
+      .select('firstName lastName employeeId role department email profilePic')
+      .sort({ firstName: 1, lastName: 1 })
+      .lean();
+
+    if (topLevelEmployees.length === 0) {
+      return res.status(404).json({
+        error: 'org_root_not_set',
+        message: 'No organizational root set and no top-level employees found'
+      });
+    }
+
+    // Build trees for all top-level employees
+    const allReports = [];
+    for (const topLevel of topLevelEmployees) {
+      const reports = await buildSubtree(Employee, tenantId, topLevel._id, depth);
+      allReports.push({ ...topLevel, reports });
+    }
+
+    res.json({
+      root: null, // Multiple roots
+      roots: topLevelEmployees,
+      reports: allReports,
+      depth: depth,
+      totalReports: allReports.reduce((sum, r) => sum + r.reports.length, 0),
+      source: 'top_level_employees'
+    });
+
+  } catch (err) {
+    console.error('companyOrgTree error:', err);
+    res.status(500).json({ error: 'company_org_tree_failed', message: err.message });
+  }
+};
+
+/**
+ * GET TOP-LEVEL EMPLOYEES - Employees with no manager (CEO/Founders)
+ * New endpoint for better UX
+ */
+exports.getTopLevelEmployees = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    const tenantId = req.tenantId;
+
+    // Get all employees with no manager (top-level)
+    const topLevel = await Employee.find({
+      tenant: tenantId,
+      manager: null
+    })
+      .select('firstName lastName employeeId role department email profilePic')
+      .sort({ firstName: 1, lastName: 1 })
+      .lean();
+
+    res.json({
+      employees: topLevel,
+      count: topLevel.length
+    });
+  } catch (err) {
+    console.error('getTopLevelEmployees error:', err);
+    res.status(500).json({ error: 'get_top_level_failed', message: err.message });
+  }
+};
+
+/* ---------------------------------------------
+   GET FULL HIERARCHY (CEO → HR → Employees)
+   Returns complete nested structure
+   IMPROVED: Optimized queries, better null handling, depth limiting
+--------------------------------------------- */
+exports.getHierarchy = async (req, res) => {
+  try {
+    // Validate tenant context
+    if (!req.user || !req.user.tenantId) {
+      console.error("getHierarchy ERROR: Missing user or tenantId in request");
+      return res.status(401).json({
+        success: false,
+        error: 'unauthorized',
+        message: 'User context or tenant not found'
+      });
+    }
+
+    const tenantId = req.user.tenantId || req.tenantId;
+    if (!tenantId) {
+      console.error("getHierarchy ERROR: tenantId not available");
+      return res.status(400).json({
+        success: false,
+        error: 'tenant_missing',
+        message: 'Tenant ID is required'
+      });
+    }
+
+    // Safe depth parsing: default 10, min 1, max 20
+    const depth = Math.min(Math.max(parseInt(req.query.depth || '10', 10) || 10, 1), 20);
+
+    // Ensure tenantDB is available
+    if (!req.tenantDB) {
+      try {
+        const getTenantDB = require('../utils/tenantDB');
+        req.tenantDB = await getTenantDB(tenantId);
+        // Models are already registered by dbManager, no need to register here
+      } catch (e) {
+        console.error('getHierarchy: failed to get tenantDB', e.message);
+        return res.status(500).json({
+          success: false,
+          error: 'tenant_db_missing',
+          message: 'Tenant database connection not available'
+        });
+      }
+    }
+
+    // Get Employee model
+    let Employee;
+    try {
+      const models = getModels(req);
+      Employee = models.Employee;
+      if (!Employee || typeof Employee.aggregate !== 'function') {
+        throw new Error('Employee model is not properly initialized');
+      }
+    } catch (e) {
+      console.error('getHierarchy: failed to get models', e.message);
+      return res.status(500).json({
+        success: false,
+        error: 'model_error',
+        message: 'Failed to load employee model'
+      });
+    }
+
+    // Normalize tenantId to string for queries
+    const tenantIdStr = typeof tenantId === 'string' ? tenantId : tenantId.toString();
+
+    // Use MongoDB aggregation with $graphLookup for safe hierarchy building
+    try {
+      // First, get all employees to build hierarchy manually (more reliable than $graphLookup with tenant filtering)
+      const allEmployees = await Employee.find({ tenant: tenantIdStr })
+        .select('firstName lastName employeeId role department departmentId email profilePic manager')
+        .lean();
+
+      // Handle empty result
+      if (!allEmployees || allEmployees.length === 0) {
+        return res.json({
+          success: true,
+          hierarchy: [],
+          stats: {
+            total: 0,
+            roots: 0,
+            withManager: 0,
+            withoutManager: 0,
+            inTree: 0
+          }
+        });
+      }
+
+      // Helper: safe manager ID extraction
+      const getManagerId = (emp) => {
+        if (!emp || !emp.manager) return null;
+        if (typeof emp.manager === 'string') return emp.manager;
+        if (emp.manager && emp.manager._id) return String(emp.manager._id);
+        if (emp.manager && typeof emp.manager.toString === 'function') return String(emp.manager);
+        return null;
+      };
+
+      // Build employee map
+      const employeeMap = new Map();
+      allEmployees.forEach(emp => {
+        if (!emp || !emp._id) return;
+        const empId = String(emp._id);
+        employeeMap.set(empId, {
+          _id: emp._id,
+          firstName: emp.firstName || '',
+          lastName: emp.lastName || '',
+          employeeId: emp.employeeId || '',
+          role: emp.role || '',
+          department: emp.department || '',
+          departmentId: emp.departmentId || null,
+          email: emp.email || '',
+          profilePic: emp.profilePic || null,
+          manager: getManagerId(emp),
+          subordinates: []
+        });
+      });
+
+      // Build hierarchy tree
+      const roots = [];
+      employeeMap.forEach((emp, empId) => {
+        const managerId = emp.manager;
+
+        // Null checks: if no manager or manager is self, it's a root
+        if (!managerId || managerId === empId || managerId === '') {
+          roots.push(emp);
+          return;
+        }
+
+        // Try to find manager in map
+        const manager = employeeMap.get(managerId);
+        if (manager) {
+          // Add to manager's subordinates (avoid duplicates)
+          if (!manager.subordinates.some(sub => String(sub._id) === empId)) {
+            manager.subordinates.push(emp);
+          }
+        } else {
+          // Manager not found (orphaned), treat as root
+          roots.push(emp);
+        }
+      });
+
+      // Limit depth recursively
+      function limitDepth(node, currentDepth, visited = new Set()) {
+        const id = String(node._id);
+        if (visited.has(id)) return; // Cycle detected
+        visited.add(id);
+
+        if (currentDepth >= depth) {
+          node.subordinates = [];
+          return;
+        }
+
+        if (node.subordinates && node.subordinates.length > 0) {
+          node.subordinates.forEach(sub => limitDepth(sub, currentDepth + 1, new Set(visited)));
+        }
+      }
+
+      roots.forEach(root => limitDepth(root, 0));
+
+      // Count employees in tree
+      function countInTree(node, visited = new Set()) {
+        const id = String(node._id);
+        if (visited.has(id)) return 0;
+        visited.add(id);
+        let count = 1;
+        if (node.subordinates && node.subordinates.length > 0) {
+          node.subordinates.forEach(sub => {
+            count += countInTree(sub, new Set(visited));
+          });
+        }
+        return count;
+      }
+
+      const totalInTree = roots.reduce((sum, root) => sum + countInTree(root), 0);
+      const withManager = allEmployees.filter(e => {
+        const mgrId = getManagerId(e);
+        return mgrId && mgrId !== String(e._id) && mgrId !== '';
+      }).length;
+
+      return res.json({
+        success: true,
+        hierarchy: roots,
+        stats: {
+          total: allEmployees.length,
+          roots: roots.length,
+          withManager: withManager,
+          withoutManager: allEmployees.length - withManager,
+          inTree: totalInTree
+        }
+      });
+
+    } catch (dbError) {
+      console.error('getHierarchy: database query error', dbError);
+      console.error('Error:', dbError.message);
+      if (dbError.stack) console.error('Stack:', dbError.stack);
+
+      // Fallback: return empty hierarchy on error
+      return res.json({
+        success: true,
+        hierarchy: [],
+        stats: {
+          total: 0,
+          roots: 0,
+          withManager: 0,
+          withoutManager: 0,
+          inTree: 0
+        }
+      });
+    }
+
+  } catch (err) {
+    console.error('getHierarchy: unexpected error', err);
+    console.error('Error name:', err.name);
+    console.error('Error message:', err.message);
+    if (err.stack) {
+      console.error('Error stack:', err.stack);
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'hierarchy_failed',
+      message: err.message || 'Unknown error occurred while building hierarchy'
+    });
+  }
+};

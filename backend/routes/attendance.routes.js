@@ -1,0 +1,35 @@
+const express = require('express');
+const router = express.Router();
+const auth = require('../middleware/auth.jwt');
+const attendCtrl = require('../controllers/attendance.controller');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
+
+// --- Employee Self Service ---
+router.post('/punch', auth.authenticate, attendCtrl.punch);
+router.get('/my', auth.authenticate, attendCtrl.getMyAttendance);
+router.get('/today-summary', auth.authenticate, attendCtrl.getTodaySummary);
+router.post('/validateAttendance', auth.authenticate, attendCtrl.validateLocation);
+
+// --- Face Authentication Routes ---
+router.post('/face/register', auth.authenticate, attendCtrl.registerFace);
+router.post('/face/verify', auth.authenticate, attendCtrl.verifyFaceAttendance);
+router.get('/face/status', auth.authenticate, attendCtrl.getFaceStatus);
+router.delete('/face/delete', auth.authenticate, attendCtrl.deleteFace);
+
+// --- Manager Routes ---
+router.get('/team', auth.authenticate, attendCtrl.getTeamAttendance);
+
+// --- HR / Admin Routes ---
+router.get('/stats', auth.authenticate, auth.requireHr, attendCtrl.getHRStats);
+router.get('/all', auth.authenticate, auth.requireHr, attendCtrl.getAllAttendance);
+router.get('/settings', auth.authenticate, attendCtrl.getSettings);
+router.put('/settings', auth.authenticate, auth.requireHr, attendCtrl.updateSettings);
+router.post('/override', auth.authenticate, auth.requireHr, attendCtrl.override);
+router.post('/upload-excel', auth.authenticate, auth.requireHr, upload.single('file'), attendCtrl.uploadExcel);
+router.post('/bulk-upload', auth.authenticate, auth.requireHr, attendCtrl.bulkUpload);
+router.get('/calendar', auth.authenticate, attendCtrl.getCalendar); // All authenticated users can view calendar
+// Attendance by date for admin/HR - shows employees list + summary for the date
+router.get('/by-date', auth.authenticate, auth.requireHr, attendCtrl.getByDate);
+
+module.exports = router;

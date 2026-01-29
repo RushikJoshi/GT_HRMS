@@ -1,0 +1,52 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npx kill-port 5001 && nodemon server.js",
+    "start:dev": "NODE_ENV=development npx kill-port 5001 && nodemon server.js",
+    "docs": "node -e \"console.log('Open http://localhost:' + (process.env.PORT||5000) + '/api/docs')\"",
+    "tunnel": "ngrok http 5000",
+    "ngrok": "taskkill /f /im ngrok.exe && ngrok http 5000"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tensorflow/tfjs-core": "^4.22.0",
+    "@vladmandic/face-api": "^1.7.15",
+    "axios": "^1.7.7",
+    "bcryptjs": "^3.0.3",
+    "canvas": "^3.2.1",
+    "cors": "^2.8.5",
+    "dayjs": "^1.11.19",
+    "docx": "^9.5.1",
+    "docx2pdf": "^0.0.4",
+    "docxtemplater": "^3.67.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.1",
+    "face-api.js": "^0.22.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^7.0.0",
+    "mongoose": "^8.8.0",
+    "mongoose-schema-extend": "^0.2.2",
+    "multer": "^2.0.2",
+    "nodemailer": "^6.9.16",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.17.2",
+    "pizzip": "^3.2.0",
+    "puppeteer": "^23.6.0",
+    "tesseract.js": "^7.0.0",
+    "sharp": "^0.34.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "kill-port": "^2.0.1",
+    "ngrok": "^5.0.0-beta.2",
+    "nodemon": "^3.1.11"
+  }
+}
