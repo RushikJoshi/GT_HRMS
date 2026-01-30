@@ -75,6 +75,10 @@ import Payslips from '../pages/HR/Payroll/Payslips';
 import ProcessPayroll from '../pages/HR/Payroll/ProcessPayroll';
 import PayrollDashboard from '../pages/HR/Payroll/PayrollDashboard';
 
+// Employee Self-Service
+import ESSPayslips from '../pages/ESS/Payslips';
+
+
 // Employee
 import EmployeeDashboard from '../pages/Employee/EmployeeDashboard';
 import FaceAttendance from '../pages/Employee/FaceAttendance';
@@ -197,6 +201,7 @@ export default function HrmsRoutes() {
         }
       >
         <Route index element={<EmployeeDashboard />} />
+        <Route path="payslips" element={<ESSPayslips />} />
         <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
         <Route path="my-requests" element={<MyRequests />} />
         <Route path="face-attendance" element={<FaceAttendance />} />

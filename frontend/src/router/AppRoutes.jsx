@@ -82,6 +82,8 @@ import PayslipTemplates from '../pages/HR/Payroll/PayslipTemplates';
 
 // Employee
 import EmployeeDashboard from '../pages/Employee/EmployeeDashboard';
+import ESSPayslips from '../pages/ESS/Payslips';
+
 
 // Global
 import EntityDetail from '../pages/Global/EntityDetail';
@@ -330,10 +332,12 @@ export default function AppRoutes() {
             >
                 <Route index element={<Navigate to="/employee/dashboard" replace />} />
                 <Route path="dashboard" element={<EmployeeDashboard />} />
+                <Route path="payslips" element={<ESSPayslips />} />
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
                 <Route path="my-requests" element={<MyRequests />} />
                 <Route path="face-attendance" element={<FaceAttendance />} />
             </Route>
+
 
             <Route path="/verify-company/:token" element={<VerifyCompany />} />
             <Route path="*" element={<NotFound />} />
