@@ -694,14 +694,6 @@ export default function EmployeeDashboard() {
         <EmployeeProfileView profile={profile} balances={balances} />
       )}
 
-      {/* PAYSLIPS TAB */}
-      {activeTab === 'payslips' && (
-        <div className="flex flex-col items-center justify-center h-96 text-slate-400">
-          <FileText size={64} className="mb-4 opacity-30" />
-          <p className="text-lg">Payslips module coming soon...</p>
-        </div>
-      )}
-
       {/* REGULARIZATION TAB */}
       {activeTab === 'regularization' && (
         <RegularizationRequest />

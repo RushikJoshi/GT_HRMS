@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import EmployeeSidebar from '../components/EmployeeSidebar';
 import NotificationDropdown from '../components/NotificationDropdown';
@@ -11,8 +11,39 @@ import { Sun, Moon, LogOut, Menu, ArrowLeft } from 'lucide-react';
 export default function EssLayout() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('essActiveTab') || 'dashboard');
+
+  // Sync activeTab with current route
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.includes('/payslips')) {
+      setActiveTab('payslips');
+    } else if (path.includes('/dashboard') || path === '/employee' || path === '/employee/') {
+      setActiveTab('dashboard');
+    } else if (path.includes('/attendance')) {
+      setActiveTab('attendance');
+    } else if (path.includes('/leaves')) {
+      setActiveTab('leaves');
+    } else if (path.includes('/regularization')) {
+      setActiveTab('regularization');
+    } else if (path.includes('/profile')) {
+      setActiveTab('profile');
+    } else if (path.includes('/team-leaves')) {
+      setActiveTab('team-leaves');
+    } else if (path.includes('/team-attendance')) {
+      setActiveTab('team-attendance');
+    } else if (path.includes('/team-regularization')) {
+      setActiveTab('team-regularization');
+    } else if (path.includes('/internal-jobs')) {
+      setActiveTab('internal-jobs');
+    } else if (path.includes('/my-applications')) {
+      setActiveTab('my-applications');
+    } else if (path.includes('/face-attendance')) {
+      setActiveTab('face-attendance');
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     localStorage.setItem('essActiveTab', activeTab);
