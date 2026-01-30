@@ -31,7 +31,7 @@ export default function CareerBuilder() {
 
     const fetchJobs = async () => {
         try {
-            const res = await api.get('/hrms/requirements');
+            const res = await api.get('/requirements');
             if (res.data && res.data.requirements) {
                 setJobs(res.data.requirements);
             } else if (Array.isArray(res.data)) {
@@ -45,7 +45,7 @@ export default function CareerBuilder() {
     const fetchConfig = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/hrms/hr/career/customize');
+            const res = await api.get('/hr/career/customize');
             if (res.data) {
                 setConfig(res.data);
                 if (res.data.lastPublishedAt) setLastPublished(res.data.lastPublishedAt);
@@ -108,7 +108,7 @@ export default function CareerBuilder() {
 
             // Atomic Publish: Send config directly to publish endpoint
             // This ensures exactly what is in the editor goes live immediately
-            const res = await api.post('/hrms/hr/career/publish', config);
+            const res = await api.post('/hr/career/publish', config);
 
             if (res.data && res.data.success) {
                 message.success("Career Page Published Live!");

@@ -174,7 +174,7 @@ app.use('/api/compensation', compensationRoutes);
 /* ===============================
    HRMS ALIAS ROUTES (For Frontend Inconsistencies)
 ================================ */
-// Mount all main routers under /api/hrms as well (for frontend calls like /hrms/requirements)
+// Mount all main routers under /api/hrms as well (for frontend calls like /requirements)
 const hrmsPrefix = '/api/hrms';
 app.use(hrmsPrefix + '/requirements', requirementRoutes);
 app.use(hrmsPrefix + '/holidays', holidayRoutes);
@@ -194,7 +194,7 @@ app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {
     return letterRoutes(req, res, next);
 });
 
-// Alias /hrms/hr/ -> hrRoutes (handles /hrms/hr/employees etc)
+// Alias /hr/ -> hrRoutes (handles /hr/employees etc)
 // Since hrRoutes already prefixes routes with /hr, we mount it at the root of /api/hrms
 app.use(hrmsPrefix, hrRoutes);
 
@@ -216,7 +216,7 @@ app.use(hrmsPrefix + '/hr', salaryRevisionRoutes);
 
 try {
     app.use('/api/tracker', require('./routes/tracker.routes'));
-    app.use('/api/hrms/tracker', require('./routes/tracker.routes'));
+    app.use('/api/tracker', require('./routes/tracker.routes'));
     app.use('/api/hr/candidate-status', require('./routes/tracker.routes'));
 } catch (e) {
     console.warn("Tracker routes skipped:", e.message);

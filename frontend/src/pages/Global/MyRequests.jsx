@@ -15,7 +15,7 @@ export default function MyRequests() {
         const fetchMyRequests = async () => {
             try {
                 setLoading(true);
-                const res = await api.get('/hrms/notifications/my-requests');
+                const res = await api.get('/notifications/my-requests');
                 setRequests(res.data);
             } catch (error) {
                 console.error("Failed to fetch my requests", error);

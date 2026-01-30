@@ -62,7 +62,7 @@ export default function EmployeeDashboard() {
       danger: true,
       onConfirm: async () => {
         try {
-          await api.post(`/hrms/employee/leaves/cancel/${id}`);
+          await api.post(`/employee/leaves/cancel/${id}`);
           showToast('success', 'Success', 'Leave request cancelled successfully');
           fetchDashboardData();
         } catch (err) {
@@ -81,18 +81,20 @@ export default function EmployeeDashboard() {
       setLoading(true);
       const t = new Date().getTime(); // Anti-cache
       const [profileRes, attRes, leaveRes, balanceRes, holidayRes, settingsRes, summaryRes] = await Promise.all([
-        api.get(`/hrms/employee/profile?t=${t}`).catch(err => ({ data: null, error: err })),
-        api.get(`/hrms/attendance/my?t=${t}`).catch(err => ({ data: [], error: err })),
-        api.get(`/hrms/employee/leaves/history?t=${t}`).catch(err => ({ data: [], error: err })),
-        api.get(`/hrms/employee/leaves/balances?t=${t}`).catch(err => ({ data: [], error: err })),
-        api.get(`/hrms/holidays?t=${t}`).catch(() => ({ data: [] })),
-        api.get(`/hrms/attendance/settings?t=${t}`).catch(() => ({ data: null })),
-        api.get(`/hrms/attendance/today-summary?t=${t}`).catch(() => ({ data: null }))
+        api.get(`/employee/profile?t=${t}`).catch(err => ({ data: null, error: err })),
+        api.get(`/attendance/my?t=${t}`).catch(err => ({ data: [], error: err })),
+        api.get(`/employee/leaves/history?t=${t}`).catch(err => ({ data: [], error: err })),
+        api.get(`/employee/leaves/balances?t=${t}`).catch(err => ({ data: [], error: err })),
+        api.get(`/holidays?t=${t}`).catch(() => ({ data: [] })),
+        api.get(`/attendance/settings?t=${t}`).catch(() => ({ data: null })),
+        api.get(`/attendance/today-summary?t=${t}`).catch(() => ({ data: null }))
       ]);
 
       setProfile(profileRes.data);
-      setAttendance(attRes.data);
-      setLeaves(leaveRes.data);
+      const attendanceArray = Array.isArray(attRes.data) ? attRes.data : [];
+      setAttendance(attendanceArray);
+      const leavesArray = Array.isArray(leaveRes.data) ? leaveRes.data : [];
+      setLeaves(leavesArray);
       const balanceData = balanceRes.data?.balances || (Array.isArray(balanceRes.data) ? balanceRes.data : []);
       setBalances(balanceData);
       // Prefer authoritative value from profile.leavePolicy, fallback to balances response
@@ -121,7 +123,7 @@ export default function EmployeeDashboard() {
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
 
-      const presentDays = (Array.isArray(attRes.data) ? attRes.data : []).filter(a => {
+      const presentDays = attendanceArray.filter(a => {
         const d = new Date(a.date);
         const status = (a.status || '').toLowerCase();
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear &&
@@ -129,7 +131,7 @@ export default function EmployeeDashboard() {
       }).length;
 
       // Calculate YTD leaves taken from approved leave requests of the current year
-      const leavesTaken = leaveRes.data
+      const leavesTaken = leavesArray
         .filter(l => l.status === 'Approved')
         .filter(l => {
           const startYear = new Date(l.startDate).getFullYear();
@@ -138,7 +140,7 @@ export default function EmployeeDashboard() {
           return startYear === currentYear || endYear === currentYear;
         })
         .reduce((sum, l) => sum + (l.daysCount || 0), 0);
-      const pendingRequests = leaveRes.data.filter(l => l.status === 'Pending').length;
+      const pendingRequests = leavesArray.filter(l => l.status === 'Pending').length;
 
       // Find next holiday (string based comparison to avoid timezone issues)
       const todayStr = new Date().toISOString().split('T')[0];
@@ -226,7 +228,7 @@ export default function EmployeeDashboard() {
 
       // Use unified punch endpoint
       // Use unified punch endpoint
-      const res = await api.post('/hrms/attendance/punch', payload);
+      const res = await api.post('/attendance/punch', payload);
       showToast('success', 'Success', res.data?.message || 'Attendance Updated');
 
       await fetchDashboardData();
@@ -713,7 +715,7 @@ export default function EmployeeDashboard() {
       {/* TEAM LEAVES TAB */}
       {activeTab === 'team-leaves' && (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
-          <LeaveApprovals isManagerView={true} endpoint="/hrms/employee/leaves/team-requests" actionEndpoint="/hrms/employee/leaves/requests" />
+          <LeaveApprovals isManagerView={true} endpoint="/employee/leaves/team-requests" actionEndpoint="/employee/leaves/requests" />
         </div>
       )}
 
@@ -725,8 +727,8 @@ export default function EmployeeDashboard() {
             <RegularizationApprovals
               isManagerView={true}
               category="Attendance"
-              endpoint="/hrms/employee/regularization/team-requests"
-              actionEndpoint="/hrms/employee/regularization/requests"
+              endpoint="/employee/regularization/team-requests"
+              actionEndpoint="/employee/regularization/requests"
             />
           </div>
 
@@ -735,8 +737,8 @@ export default function EmployeeDashboard() {
             <RegularizationApprovals
               isManagerView={true}
               category="Leave"
-              endpoint="/hrms/employee/regularization/team-requests"
-              actionEndpoint="/hrms/employee/regularization/requests"
+              endpoint="/employee/regularization/team-requests"
+              actionEndpoint="/employee/regularization/requests"
             />
           </div>
         </div>

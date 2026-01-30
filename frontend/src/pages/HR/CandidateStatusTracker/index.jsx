@@ -13,7 +13,7 @@ export default function CandidateStatusTracker() {
     const loadCandidates = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/hrms/hr/candidate-status');
+            const res = await api.get('/hr/candidate-status');
             setCandidates(res.data || []);
         } catch (err) {
             console.error('[CANDIDATE_LOAD_ERR]', err);
@@ -27,7 +27,7 @@ export default function CandidateStatusTracker() {
         if (!confirm('This will seed sample candidates. Continue?')) return;
         setLoading(true);
         try {
-            await api.post('/hrms/hr/candidate-status/seed');
+            await api.post('/hr/candidate-status/seed');
             await loadCandidates();
         } catch (err) {
             console.error('[SEED_ERR]', err);
@@ -254,7 +254,7 @@ export default function CandidateStatusTracker() {
                                         </td>
                                         <td className="px-6 py-5 text-center">
                                             <button
-                                                onClick={() => navigate(`/hrms/hr/candidate-status/${candidate._id}`)}
+                                                onClick={() => navigate(`/hr/candidate-status/${candidate._id}`)}
                                                 className="group/btn relative inline-flex items-center justify-center p-2 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all active:scale-95"
                                             >
                                                 <span className="sr-only">View Details</span>
