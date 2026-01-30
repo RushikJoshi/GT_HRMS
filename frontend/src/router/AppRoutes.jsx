@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getToken, isValidToken } from '../utils/token';
 
@@ -24,6 +24,11 @@ import Activities from '../pages/PSA/Activities';
 import Login from '../pages/Auth/Login';
 import HRLogin from '../pages/Auth/HRLogin';
 import EmployeeLogin from '../pages/Auth/EmployeeLogin';
+
+// New Role-Specific Login Pages (for new URL structure)
+import SuperAdminLogin from '../pages/Auth/SuperAdminLogin';
+import TenantLogin from '../pages/Auth/TenantLogin';
+import EmployeeLoginPage from '../pages/Auth/EmployeeLoginPage';
 
 // HR Pages
 import HRDashboard from '../pages/HR/HRDashboard';
@@ -104,10 +109,15 @@ export default function AppRoutes() {
         <Routes>
             <Route path="/" element={<AutoHome />} />
 
-            {/* --- PUBLIC AUTH ROUTES --- */}
+            {/* --- PUBLIC AUTH ROUTES (EXISTING - KEEP FOR BACKWARD COMPATIBILITY) --- */}
             <Route path="/login" element={<Login />} />
             <Route path="/login/hr" element={<HRLogin />} />
             <Route path="/login/employee" element={<EmployeeLogin />} />
+
+            {/* --- NEW ROLE-SPECIFIC LOGIN ROUTES --- */}
+            <Route path="/super-admin/login" element={<SuperAdminLogin />} />
+            <Route path="/tenant/login" element={<TenantLogin />} />
+            <Route path="/employee/login" element={<EmployeeLoginPage />} />
 
             {/* --- PUBLIC CANDIDATE ROUTES --- */}
             <Route path="/candidate/login" element={<CandidateLogin />} />
@@ -135,7 +145,27 @@ export default function AppRoutes() {
             {/* --- HRMS REDIRECTION (For Backward Compatibility) --- */}
             <Route path="/hrms/*" element={<HrmsRedirectHandler />} />
 
-            {/* --- PSA ROUTES --- */}
+            {/* --- NEW SUPER ADMIN ROUTES --- */}
+            <Route
+                path="/super-admin"
+                element={
+                    <ProtectedRoute allowedRoles={['psa']}>
+                        <PsaLayout />
+                    </ProtectedRoute>
+                }
+            >
+                <Route index element={<Navigate to="/super-admin/dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="companies" element={<CompanyList />} />
+                <Route path="companies/add" element={<AddCompany />} />
+                <Route path="companies/edit/:id" element={<EditCompany />} />
+                <Route path="companies/view/:id" element={<ViewCompany />} />
+                <Route path="modules" element={<ModuleConfig />} />
+                <Route path="modules/:id" element={<ModuleConfig />} />
+                <Route path="activities" element={<Activities />} />
+            </Route>
+
+            {/* --- PSA ROUTES (EXISTING - KEEP FOR BACKWARD COMPATIBILITY) --- */}
             <Route
                 path="/psa"
                 element={
@@ -154,7 +184,74 @@ export default function AppRoutes() {
                 <Route path="activities" element={<Activities />} />
             </Route>
 
-            {/* --- HR ROUTES --- */}
+            {/* --- NEW TENANT ROUTES --- */}
+            <Route path="/tenant" element={
+                <ProtectedRoute allowedRoles={['hr', 'admin']}>
+                    <HrLayout />
+                </ProtectedRoute>
+            }>
+                <Route index element={<Navigate to="/tenant/dashboard" replace />} />
+                <Route path="dashboard" element={<HRDashboard />} />
+                <Route path="employees" element={<Employees />} />
+                <Route path="users" element={<UserManagement />} />
+                <Route path="departments" element={<Departments />} />
+                <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
+                <Route path="leave-approvals" element={<LeaveApprovals />} />
+                <Route path="leave-approvals/regularization" element={<RegularizationApprovals category="Leave" />} />
+                <Route path="attendance" element={<AttendanceAdmin />} />
+                <Route path="attendance/correction" element={<RegularizationApprovals category="Attendance" />} />
+                <Route path="attendance-calendar" element={<CalendarManagement />} />
+                <Route path="leave-policies" element={<LeavePolicies />} />
+                <Route path="requirements" element={<RequirementPage />} />
+                <Route path="create-requirement" element={<CreateRequirement />} />
+                <Route path="applicants" element={<Applicants />} />
+                <Route path="internal-applicants" element={<Applicants internalMode={true} />} />
+                <Route path="candidate-status" element={<CandidateStatusTracker />} />
+                <Route path="candidate-status/:id" element={<CandidateTimeline />} />
+                <Route path="org" element={<OrgStructure />} />
+                <Route path="org-tree" element={<CeoOrg />} />
+                <Route path="access" element={<AccessControl />} />
+                <Route path="offer-templates" element={<OfferTemplates />} />
+                <Route path="attendance-history" element={<AttendanceHistory />} />
+
+                {/* Letters */}
+                <Route path="letter-templates" element={<LetterTemplates />} />
+                <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
+                <Route path="letter-settings" element={<LetterSettings />} />
+
+                {/* Career Builder */}
+                <Route path="career-builder" element={<CareerBuilder />} />
+                <Route path="apply-builder" element={<ApplyPageBuilder />} />
+
+                {/* Payroll */}
+                <Route path="salary-structure/:candidateId" element={<SalaryStructure />} />
+                <Route path="payroll/dashboard" element={<PayrollDashboard />} />
+                <Route path="payroll/salary-components" element={<SalaryComponents />} />
+                <Route path="payroll/earnings/new" element={<NewEarning />} />
+                <Route path="payroll/earnings/edit/:id" element={<NewEarning />} />
+                <Route path="payroll/deductions/new" element={<NewDeduction />} />
+                <Route path="payroll/deductions/edit/:id" element={<NewDeduction />} />
+                <Route path="payroll/benefits/new" element={<NewBenefit />} />
+                <Route path="payroll/benefits/edit/:id" element={<NewBenefit />} />
+                <Route path="payroll/salary-templates/new" element={<NewSalaryTemplate />} />
+                <Route path="payroll/rules" element={<PayrollRules />} />
+                <Route path="payroll/process" element={<ProcessPayroll />} />
+                <Route path="payroll/compensation" element={<Compensation />} />
+                <Route path="payroll/run" element={<RunPayroll />} />
+                <Route path="payroll/payslips" element={<Payslips />} />
+                <Route path="payroll/payslip-design" element={<PaySlipDesign />} />
+                <Route path="payslip-templates" element={<PayslipTemplates />} />
+
+                {/* Settings */}
+                <Route path="settings/company" element={<CompanySettings />} />
+
+                {/* Global inside Tenant */}
+                <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
+                <Route path="my-requests" element={<MyRequests />} />
+                <Route path="face-attendance" element={<FaceAttendance />} />
+            </Route>
+
+            {/* --- HR ROUTES (EXISTING - KEEP FOR BACKWARD COMPATIBILITY) --- */}
             <Route path="/hr" element={
                 <ProtectedRoute allowedRoles={['hr', 'admin']}>
                     <HrLayout />
@@ -221,6 +318,7 @@ export default function AppRoutes() {
                 <Route path="face-attendance" element={<FaceAttendance />} />
             </Route>
 
+
             {/* --- EMPLOYEE / MANAGER ROUTES --- */}
             <Route
                 path="/employee"
@@ -230,7 +328,8 @@ export default function AppRoutes() {
                     </ProtectedRoute>
                 }
             >
-                <Route index element={<EmployeeDashboard />} />
+                <Route index element={<Navigate to="/employee/dashboard" replace />} />
+                <Route path="dashboard" element={<EmployeeDashboard />} />
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
                 <Route path="my-requests" element={<MyRequests />} />
                 <Route path="face-attendance" element={<FaceAttendance />} />
@@ -247,9 +346,12 @@ function AutoHome() {
     if (!isInitialized) return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
     const token = getToken();
     if (!isValidToken(token)) return <Navigate to="/login" replace />;
-    if (user?.role === 'hr' || user?.role === 'admin') return <Navigate to="/hr" replace />;
-    if (user?.role === 'employee' || user?.role === 'manager') return <Navigate to="/employee" replace />;
-    if (user?.role === 'psa') return <Navigate to="/psa" replace />;
+
+    // Redirect to new role-specific dashboard URLs
+    if (user?.role === 'psa') return <Navigate to="/super-admin/dashboard" replace />;
+    if (user?.role === 'hr' || user?.role === 'admin') return <Navigate to="/tenant/dashboard" replace />;
+    if (user?.role === 'employee' || user?.role === 'manager') return <Navigate to="/employee/dashboard" replace />;
+
     return <Navigate to="/login" replace />;
 }
 
