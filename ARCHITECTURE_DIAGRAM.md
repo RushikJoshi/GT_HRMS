@@ -1,3 +1,5 @@
+<!-- @format -->
+
 # HRMS + Job Portal - System Architecture Diagram
 
 ## 🎯 High-Level Architecture
@@ -40,7 +42,7 @@
               Protected Pages     │ Auth   │  │ Protected Pages │
               /hrms/psa/*        └────────┘  │ /jobs/*         │
               /hrms/hr/*         Job Portal  │                 │
-              /hrms/employee/*   Layout      │ /jobs/dashboard │
+              /employee/*   Layout      │ /jobs/dashboard │
                                             │ /jobs/profile   │
                                             └─────────────────┘
 ```
@@ -187,7 +189,7 @@ ROOT: /
 │  │  ├─ requirements
 │  │  └─ ...
 │  │
-│  └─ /hrms/employee/                [HRMS Auth + Role=employee]
+│  └─ /employee/                [HRMS Auth + Role=employee]
 │     ├─ dashboard
 │     ├─ my-requests
 │     └─ face-attendance
@@ -368,7 +370,7 @@ Frontend                          Backend                  Database
 │  Requires: Valid JWT + HRMS Role           │
 │  /hrms/psa/*       (role=psa)              │
 │  /hrms/hr/*        (role=hr/admin)         │
-│  /hrms/employee/*  (role=employee)         │
+│  /employee/*  (role=employee)         │
 │  /api/hrms/*                               │
 └────────────────────────────────────────────┘
                     │

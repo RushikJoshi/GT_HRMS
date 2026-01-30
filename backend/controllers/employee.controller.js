@@ -46,12 +46,48 @@ exports.getProfile = async (req, res) => {
     // MANDATORY POLICY ENFORCEMENT
     // Ensure employee always has a policy (auto-assign if missing)
     const { ensureLeavePolicy } = require('../config/dbManager');
-    emp = await ensureLeavePolicy(emp, req.tenantDB);
+    emp = await ensureLeavePolicy(emp, req.tenantDB, req.tenantId);
 
     res.json(emp);
   } catch (err) {
     console.error("Get profile error:", err);
     res.status(500).json({ error: "Failed to fetch profile" });
+  }
+};
+
+// Allow employee to request auto-assignment of default policy (self-heal)
+exports.ensureMyPolicy = async (req, res) => {
+  try {
+    const { Employee } = getModels(req);
+    let emp = await Employee.findOne({ _id: req.user.id, tenant: req.tenantId });
+    if (!emp) return res.status(404).json({ error: 'Employee not found' });
+
+    const { ensureLeavePolicy } = require('../config/dbManager');
+    emp = await ensureLeavePolicy(emp, req.tenantDB, req.tenantId);
+
+    // Return fresh profile and structured response
+    const updated = await Employee.findById(emp._id).populate('leavePolicy', 'name rules description status');
+    console.log('[ENSURE_MY_POLICY] Result for employee', emp._id.toString(), 'leavePolicy:', updated.leavePolicy ? updated.leavePolicy._id.toString() : 'NONE');
+
+    // Also fetch current year balances so UI can rely on this response directly
+    try {
+      const LeaveBalance = req.tenantDB.model('LeaveBalance');
+      const AttendanceSettings = req.tenantDB.model('AttendanceSettings');
+      const settings = await AttendanceSettings.findOne({ tenant: req.tenantId }).catch(() => null);
+      const startMonth = settings?.leaveCycleStartMonth || 0;
+      const now = new Date();
+      let year = now.getFullYear();
+      if (now.getMonth() < startMonth) year--;
+
+      const balances = await LeaveBalance.find({ tenant: req.tenantId, employee: updated._id, year });
+      return res.json({ success: true, assigned: Boolean(updated.leavePolicy), leavePolicy: updated.leavePolicy, profile: updated, balances, hasLeavePolicy: Boolean(updated.leavePolicy) });
+    } catch (e) {
+      console.error('[ENSURE_MY_POLICY] Failed to fetch balances:', e);
+      return res.json({ success: true, assigned: Boolean(updated.leavePolicy), leavePolicy: updated.leavePolicy, profile: updated });
+    }
+  } catch (err) {
+    console.error('[ENSURE_MY_POLICY] Error:', err);
+    res.status(500).json({ error: err.message || 'Failed to ensure policy' });
   }
 };
 

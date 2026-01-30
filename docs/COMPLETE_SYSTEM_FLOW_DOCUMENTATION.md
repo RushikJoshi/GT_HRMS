@@ -1,4 +1,7 @@
+<!-- @format -->
+
 # COMPLETE HRMS SYSTEM FLOW - DETAILED DOCUMENTATION
+
 **Generated:** January 2025  
 **Project:** Multi-Tenant MERN HRMS SaaS Application  
 **Scope:** Complete System Flow from Recruitment to Payroll
@@ -23,6 +26,7 @@
 ## 1️⃣ **SYSTEM ARCHITECTURE OVERVIEW**
 
 ### **Technology Stack**
+
 - **Backend:** Node.js + Express.js
 - **Database:** MongoDB (Multi-tenant architecture)
 - **Frontend:** React.js + TailwindCSS
@@ -30,6 +34,7 @@
 - **File Processing:** LibreOffice (DOCX to PDF conversion), Docxtemplater (Word template rendering)
 
 ### **Architecture Pattern**
+
 - **Multi-Tenant SaaS:** Each tenant (company) has isolated database connection
 - **RESTful API:** Standard REST endpoints for all operations
 - **Service Layer:** Business logic separated from controllers
@@ -40,6 +45,7 @@
 ## 2️⃣ **MULTI-TENANT ARCHITECTURE**
 
 ### **How It Works:**
+
 1. **Main Database:** Stores `Tenant` records (company registrations)
 2. **Tenant Databases:** Each tenant has a separate MongoDB database
 3. **Middleware Flow:**
@@ -49,6 +55,7 @@
 4. **Data Isolation:** All queries are tenant-scoped via `tenantId` field
 
 ### **Key Files:**
+
 - `backend/config/dbManager.js` - Manages tenant DB connections and model registration
 - `backend/middleware/tenant.middleware.js` - Tenant resolution middleware
 - `backend/middleware/auth.jwt.js` - Authentication middleware
@@ -63,6 +70,7 @@
 **Location:** Frontend - HR Dashboard → Job Postings
 
 **Process:**
+
 1. HR creates a **Requirement** (Job Posting)
    - Job Title
    - Department
@@ -83,6 +91,7 @@
 **Location:** Public Career Page
 
 **Process:**
+
 1. Candidate visits public career page (`/careers/:tenantId`)
 2. Views available job postings
 3. Clicks "Apply" for a position
@@ -98,6 +107,7 @@
 **Status:** `'Applied'` (default)
 
 **Data Flow:**
+
 ```
 Public Form → POST /api/public/apply → Applicant Schema → Tenant DB → Status: 'Applied'
 ```
@@ -110,6 +120,7 @@ Public Form → POST /api/public/apply → Applicant Schema → Tenant DB → St
 **Location:** Frontend - HR Dashboard → Applicants
 
 **Process:**
+
 1. HR views list of applicants (`GET /api/applicants`)
 2. Filters by status: Applied, Shortlisted, Selected, Rejected
 3. Reviews applicant details:
@@ -121,11 +132,13 @@ Public Form → POST /api/public/apply → Applicant Schema → Tenant DB → St
    - **Selected** → Ready for offer letter
    - **Rejected** → Not selected
 
-**API:** 
+**API:**
+
 - `GET /api/applicants` - List all applicants
 - `PUT /api/applicants/:id` - Update applicant (including status)
 
 **Status Flow:**
+
 ```
 Applied → Shortlisted → Selected → (Offer Letter) → (Joining Letter) → Employee
                 ↓
@@ -140,10 +153,12 @@ Applied → Shortlisted → Selected → (Offer Letter) → (Joining Letter) →
 **Location:** Frontend - HR Dashboard → Applicants → Generate Offer Letter
 
 **Prerequisites:**
+
 - Applicant status must be at least "Selected"
 - Offer Letter Template must exist (Word or HTML template)
 
 **Process:**
+
 1. HR selects applicant → Clicks "Generate Offer Letter"
 2. Modal opens with form:
    - **Template Selection:** Choose from available offer letter templates
@@ -198,11 +213,13 @@ Applied → Shortlisted → Selected → (Offer Letter) → (Joining Letter) →
 **Location:** Frontend - HR Dashboard → Applicants → Generate Joining Letter
 
 **Prerequisites:**
+
 - Offer Letter must be generated first (`applicant.offerLetterPath` must exist)
 - Joining Letter Template must exist (Word template only)
 - **IMPORTANT:** Currently, salary template is NOT linked (this is a known gap)
 
 **Process:**
+
 1. HR selects applicant → Clicks "Generate Joining Letter"
 2. System validates Offer Letter exists
 3. Modal opens (or auto-generates based on settings)
@@ -245,6 +262,7 @@ Applied → Shortlisted → Selected → (Offer Letter) → (Joining Letter) →
 **Location:** Frontend - HR Dashboard → Employees → Add Employee
 
 **Process:**
+
 1. HR creates Employee record (can be from applicant or manual entry)
 2. Employee form includes:
    - **Personal Details:** Name, DOB, Gender, Contact, Email
@@ -303,6 +321,7 @@ Created → Active → (Attendance/Leaves) → Payroll Processing → Payslip Ge
    - Used for payroll calculations
 
 **API Endpoints:**
+
 - `GET /api/hr/employees` - List all employees
 - `POST /api/hr/employees` - Create employee
 - `PUT /api/hr/employees/:id` - Update employee
@@ -325,6 +344,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 **Location:** Frontend - HR Dashboard → Payroll → Salary Templates
 
 **Process:**
+
 1. HR creates Salary Template
 2. Defines:
    - **Annual CTC:** Total cost to company per year
@@ -352,6 +372,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 ### **Step 2: Employee Salary Assignment**
 
 **Process:**
+
 1. HR assigns Salary Template to Employee
 2. Employee record updated: `employee.salaryTemplateId = templateId`
 3. Template locked: `template.isAssigned = true`
@@ -367,6 +388,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 **Location:** Frontend - HR Dashboard → Payroll → Payroll Runs
 
 **Process:**
+
 1. HR initiates Payroll Run for a specific month/year
 2. Backend creates `PayrollRun` record:
    - `tenantId`
@@ -388,6 +410,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 **Location:** Frontend - Payroll Runs → Calculate
 
 **Process:**
+
 1. HR clicks "Calculate" for Payroll Run
 2. Backend process (`payroll.service.js:runPayroll`):
    - Fetches all active employees with salary templates
@@ -426,6 +449,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 **Models:** `PayrollRun`, `Payslip`, `Employee`, `SalaryTemplate`, `Attendance`, `EmployeeDeduction`
 
 **Calculation Order (Mandatory):**
+
 ```
 1. Gross Earnings (with pro-rata)
 2. Pre-Tax Deductions
@@ -443,6 +467,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 **Location:** Frontend - Payroll Runs → Review → Approve
 
 **Process:**
+
 1. HR reviews calculated payroll
 2. Can view individual payslips
 3. Clicks "Approve"
@@ -463,6 +488,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 **Location:** Frontend - Payroll Runs → Mark Paid
 
 **Process:**
+
 1. After salary disbursement, HR clicks "Mark as Paid"
 2. Backend updates PayrollRun:
    - `status: 'PAID'`
@@ -477,6 +503,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 ### **Step 7: Payslip Generation & Distribution**
 
 **Process:**
+
 1. Payslips are automatically generated during calculation (Step 4)
 2. Employee can view payslips:
    - Employee Self-Service portal → My Payslips
@@ -490,6 +517,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
    - Downloadable by employee and HR
 
 **API:**
+
 - `GET /api/payroll/payslips/my` - Employee's payslips
 - `GET /api/payroll/payslips` - All payslips (HR)
 - `GET /api/payroll/payslips/:id/download` - Download PDF
@@ -506,6 +534,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 **Location:** Frontend - HR Dashboard → Letter Templates
 
 **Process:**
+
 1. HR creates Letter Template:
    - **Type:** Offer / Joining / Relieving / Experience
    - **Template Type:** LETTER_PAD / BLANK / WORD
@@ -527,6 +556,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 ### **Letter Generation Flow:**
 
 **Common Flow:**
+
 1. Select Template
 2. Prepare Data (from Applicant/Employee)
 3. Replace Placeholders
@@ -535,6 +565,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 6. Return PDF URL
 
 **Placeholders Supported:**
+
 - Basic: `{{employee_name}}`, `{{designation}}`, `{{joining_date}}`, etc.
 - **⚠️ Salary placeholders NOT currently supported in Joining Letter**
 
@@ -545,6 +576,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 ### **Attendance Marking:**
 
 **Process:**
+
 1. Employee marks attendance (Employee Self-Service portal)
 2. System records:
    - Check-in time
@@ -563,6 +595,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 ### **Leave Management:**
 
 **Process:**
+
 1. **Leave Policy Creation:**
    - HR creates Leave Policy
    - Defines leave types (Sick, Casual, Earned, etc.)
@@ -579,9 +612,26 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
    - Used in payroll (LOP calculation)
 
 **API:**
+
 - `POST /api/leaves/policies` - Create leave policy
 - `POST /api/leaves/requests` - Apply for leave
 - `PUT /api/leaves/requests/:id/approve` - Approve leave
+- `GET /api/employees/leaves/policies` - Get leave policies applicable to the authenticated employee (includes per-rule eligibility and balances)
+
+Example:
+
+```
+GET /api/employees/leaves/policies
+Headers: Authorization: Bearer <token>
+Response: [
+  {
+    _id: "...",
+    name: "Standard Leave Policy",
+    applicableTo: "All",
+    rules: [ { leaveType: 'Casual Leave', totalPerYear: 12, eligible: true, balance: { total: 12, used: 0, available: 12 } } ]
+  }
+]
+```
 
 **Models:** `LeavePolicy`, `LeaveBalance`, `LeaveRequest`
 
@@ -647,26 +697,25 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 ## 9️⃣ **API ENDPOINTS OVERVIEW**
 
 ### **Public APIs (No Auth):**
+
 - `GET /api/public/requirements` - List job postings
 - `POST /api/public/apply` - Submit job application
 
 ### **HR APIs (Require HR Role):**
+
 - **Applicants:**
   - `GET /api/applicants` - List applicants
   - `PUT /api/applicants/:id` - Update applicant
-  
 - **Employees:**
   - `GET /api/hr/employees` - List employees
   - `POST /api/hr/employees` - Create employee
   - `PUT /api/hr/employees/:id` - Update employee
-  
 - **Letter Templates:**
   - `GET /api/letters/templates` - List templates
   - `POST /api/letters/templates` - Create template
   - `POST /api/letters/upload-word-template` - Upload Word template
   - `POST /api/letters/generate-offer` - Generate offer letter
   - `POST /api/letters/generate-joining` - Generate joining letter
-  
 - **Payroll:**
   - `POST /api/payroll/salary-templates` - Create salary template
   - `GET /api/payroll/salary-templates` - List templates
@@ -676,6 +725,7 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
   - `GET /api/payroll/payslips` - List payslips
 
 ### **Employee APIs (Require Employee Role):**
+
 - `GET /api/attendance/my` - My attendance
 - `POST /api/attendance/punch` - Mark attendance
 - `GET /api/payroll/payslips/my` - My payslips
@@ -732,23 +782,23 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 └─────────────────────────────────────────────────────────────────┘
 
 1. RECRUITMENT FLOW:
-   Job Posting → Candidate Application → Review → Shortlist → 
+   Job Posting → Candidate Application → Review → Shortlist →
    Select → Offer Letter → Joining Letter → Employee Creation
 
 2. EMPLOYEE MANAGEMENT:
-   Employee Creation → Department Assignment → Manager Assignment → 
+   Employee Creation → Department Assignment → Manager Assignment →
    Salary Template Assignment → Leave Policy Assignment
 
 3. PAYROLL FLOW:
-   Salary Template Creation → Employee Assignment → Monthly Payroll Run → 
+   Salary Template Creation → Employee Assignment → Monthly Payroll Run →
    Calculate (with Attendance) → Approve → Mark Paid → Payslip Generation
 
 4. LETTER GENERATION:
-   Template Creation → Data Preparation → Placeholder Replacement → 
+   Template Creation → Data Preparation → Placeholder Replacement →
    PDF Generation → Storage → Download
 
 5. ATTENDANCE & LEAVES:
-   Attendance Marking → Leave Application → Approval → 
+   Attendance Marking → Leave Application → Approval →
    Balance Update → Payroll Integration
 ```
 
@@ -779,4 +829,3 @@ Salary Template Creation → Employee Assignment → Payroll Run Initiation → 
 
 **Document Status:** ✅ **COMPLETE**  
 **Last Updated:** January 2025
-

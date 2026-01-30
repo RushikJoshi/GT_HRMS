@@ -1694,7 +1694,7 @@ export default function Applicants({ internalMode = false }) {
                             leavePolicy: null,
                         };
 
-                        await api.post('/hrms/employees', payload);
+                        await api.post('/employees', payload);
                         showToast('success', 'Onboarding Started', `${applicant.name} is now an Active Employee.`);
                         loadApplicants();
                     } catch (err) {

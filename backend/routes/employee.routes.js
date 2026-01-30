@@ -4,10 +4,12 @@ const auth = require('../middleware/auth.jwt');
 const empCtrl = require('../controllers/employee.controller');
 const employeeSalaryController = require('../controllers/employeeSalary.controller');
 const requestCtrl = require('../controllers/leaveRequest.controller');
+const leavePolicyCtrl = require('../controllers/leavePolicy.controller');
 const attendCtrl = require('../controllers/attendance.controller'); // Import Attendance Controller
 
 // profile
 router.get('/profile', auth.authenticate, empCtrl.getProfile);
+router.post('/profile/ensure-policy', auth.authenticate, empCtrl.ensureMyPolicy);
 
 // attendance
 router.post('/attendance/toggle', auth.authenticate, attendCtrl.punch); // Use robust punch controller
@@ -20,6 +22,9 @@ router.post('/leaves/cancel/:id', auth.authenticate, requestCtrl.cancelLeave);
 router.get('/leaves/history', auth.authenticate, requestCtrl.getMyLeaves);
 router.get('/leaves/balances', auth.authenticate, requestCtrl.getMyBalances);
 router.get('/leaves/approved-dates', auth.authenticate, requestCtrl.getApprovedDates);
+
+// leave policies applicable to the current employee
+router.get('/leaves/policies', auth.authenticate, leavePolicyCtrl.getMyPolicies);
 // Regularization
 const regCtrl = require('../controllers/regularization.controller');
 router.post('/regularization', auth.authenticate, regCtrl.createRequest);

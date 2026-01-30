@@ -38,7 +38,7 @@ function RootHome() {
 
   // HRMS system routes based on role
   if (user?.role === 'hr' || user?.role === 'admin') return <Navigate to="/hrms/hr" replace />;
-  if (user?.role === 'employee' || user?.role === 'manager') return <Navigate to="/hrms/employee" replace />;
+  if (user?.role === 'employee' || user?.role === 'manager') return <Navigate to="/employee" replace />;
   if (user?.role === 'psa') return <Navigate to="/hrms/psa" replace />;
   if (user?.role === 'candidate') return <Navigate to="/jobs/dashboard" replace />;
 
@@ -58,8 +58,8 @@ export default function RootRouter() {
       {/* BACKWARD COMPATIBILITY: Redirect old HRMS routes to new HRMS routes */}
       <Route path="/hr" element={<Navigate to="/hrms/hr" replace />} />
       <Route path="/hr/*" element={<Navigate to="/hrms/hr" replace />} />
-      <Route path="/employee" element={<Navigate to="/hrms/employee" replace />} />
-      <Route path="/employee/*" element={<Navigate to="/hrms/employee" replace />} />
+      <Route path="/employee" element={<Navigate to="/employee" replace />} />
+      <Route path="/employee/*" element={<Navigate to="/employee" replace />} />
       <Route path="/psa" element={<Navigate to="/hrms/psa" replace />} />
       <Route path="/psa/*" element={<Navigate to="/hrms/psa" replace />} />
       <Route path="/login" element={<Navigate to="/hrms/login" replace />} />

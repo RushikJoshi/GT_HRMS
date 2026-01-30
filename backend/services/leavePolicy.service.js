@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
  */
 function calculateProRatedBalance(rule, joiningDate, year, leaveCycleStartMonth = 0) {
     const { totalPerYear, monthlyAccrual, accrualType } = rule;
-    
+
     // If no accrual or yearly, return full amount
     if (!monthlyAccrual && accrualType !== 'monthly') {
         return totalPerYear;
@@ -20,14 +20,14 @@ function calculateProRatedBalance(rule, joiningDate, year, leaveCycleStartMonth 
     // Calculate leave cycle start date for the year
     const cycleStart = new Date(year, leaveCycleStartMonth, 1);
     const cycleEnd = new Date(year + 1, leaveCycleStartMonth, 0);
-    
+
     // If employee joined after cycle start, calculate pro-rated balance
     if (joiningDate && joiningDate > cycleStart) {
         const monthsRemaining = Math.max(1, Math.ceil((cycleEnd - joiningDate) / (1000 * 60 * 60 * 24 * 30)));
         const totalMonths = 12;
         return Math.ceil((totalPerYear / totalMonths) * monthsRemaining);
     }
-    
+
     return totalPerYear;
 }
 
@@ -35,7 +35,52 @@ function calculateProRatedBalance(rule, joiningDate, year, leaveCycleStartMonth 
  * Sync policy rules to employee leave balances
  * Preserves existing used/pending leaves and only updates totals
  */
-async function syncPolicyToEmployee(employee, policy, LeaveBalance, tenantId, year, leaveCycleStartMonth = 0) {
+async function isEmployeeEligibleForRule(employee, policy, rule) {
+    // Normalize strings for comparison
+    const normalize = s => (s || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const empType = normalize(employee.jobType || employee.jobType || employee.role || '');
+
+    // Company / policy level min tenure
+    const policyMinMonths = policy.minimumTenureRequiredMonths || 0;
+    const ruleMinMonths = rule.minimumTenureMonths || 0;
+    const requiredMonths = Math.max(policyMinMonths, ruleMinMonths);
+
+    let monthsSinceJoin = 0;
+    if (employee.joiningDate) {
+        const diff = Date.now() - new Date(employee.joiningDate).getTime();
+        monthsSinceJoin = Math.floor(diff / (1000 * 60 * 60 * 24 * 30));
+    }
+
+    // Check employee type applicability if defined
+    if (Array.isArray(policy.applicableEmployeeTypes) && policy.applicableEmployeeTypes.length > 0) {
+        const allowed = policy.applicableEmployeeTypes.map(a => normalize(a));
+        if (!allowed.includes(empType)) {
+            // Not eligible due to contract/type
+            // No eligibleFrom date unless rule defines, so return false
+            return { applicable: false, eligibleFrom: null, reason: 'Employee type not eligible' };
+        }
+    }
+
+    // Check tenure-based eligibility
+    if (requiredMonths > 0 && monthsSinceJoin < requiredMonths) {
+        // Eligible from joiningDate + requiredMonths
+        const eligibleFrom = new Date(employee.joiningDate);
+        eligibleFrom.setMonth(eligibleFrom.getMonth() + requiredMonths);
+        return { applicable: false, eligibleFrom, reason: 'Minimum tenure required' };
+    }
+
+    // Probation rule: if rule.disallows during probation and employee tenure < some threshold
+    if (!rule.allowDuringProbation && rule.minimumTenureMonths && monthsSinceJoin < rule.minimumTenureMonths) {
+        const eligibleFrom = new Date(employee.joiningDate);
+        eligibleFrom.setMonth(eligibleFrom.getMonth() + rule.minimumTenureMonths);
+        return { applicable: false, eligibleFrom, reason: 'Probation restriction' };
+    }
+
+    // All checks passed
+    return { applicable: true, eligibleFrom: null, reason: 'Eligible' };
+}
+
+async function syncPolicyToEmployee(employee, policy, LeaveBalance, tenantId, year, leaveCycleStartMonth = 0, session = null) {
     if (!employee || !policy || !policy.rules || !Array.isArray(policy.rules)) {
         throw new Error('Invalid employee, policy, or rules');
     }
@@ -43,7 +88,7 @@ async function syncPolicyToEmployee(employee, policy, LeaveBalance, tenantId, ye
     // Ensure employee has policy assigned
     if (!employee.leavePolicy || employee.leavePolicy.toString() !== policy._id.toString()) {
         employee.leavePolicy = policy._id;
-        await employee.save();
+        if (session) await employee.save({ session }); else await employee.save();
     }
 
     // Get existing balances for this employee and year
@@ -51,7 +96,7 @@ async function syncPolicyToEmployee(employee, policy, LeaveBalance, tenantId, ye
         employee: employee._id,
         tenant: tenantId,
         year
-    });
+    }).session ? await LeaveBalance.find({ employee: employee._id, tenant: tenantId, year }).session(session) : await LeaveBalance.find({ employee: employee._id, tenant: tenantId, year });
 
     // Create a map of existing balances by leaveType
     const balanceMap = new Map();
@@ -59,7 +104,6 @@ async function syncPolicyToEmployee(employee, policy, LeaveBalance, tenantId, ye
         balanceMap.set(b.leaveType, b);
     });
 
-    // Process each rule in the policy
     // Defensive check: ensure rules is an array
     if (!Array.isArray(policy.rules) || policy.rules.length === 0) {
         console.warn(`[SYNC_POLICY] Policy ${policy._id} has no valid rules array`);
@@ -73,7 +117,8 @@ async function syncPolicyToEmployee(employee, policy, LeaveBalance, tenantId, ye
     }
 
     const balancePromises = [];
-    
+    let updatedCount = 0;
+
     for (const rule of policy.rules) {
         if (!rule || typeof rule !== 'object' || !rule.leaveType || rule.totalPerYear === undefined) {
             console.warn(`[SYNC_POLICY] Skipping invalid rule:`, rule);
@@ -81,7 +126,39 @@ async function syncPolicyToEmployee(employee, policy, LeaveBalance, tenantId, ye
         }
 
         const existingBalance = balanceMap.get(rule.leaveType);
-        
+
+        // Eligibility check
+        const eligibility = await isEmployeeEligibleForRule(employee, policy, rule);
+
+        // If not eligible, set eligibleFrom and locked flag, total = 0
+        if (!eligibility.applicable) {
+            if (existingBalance) {
+                existingBalance.eligibleFrom = eligibility.eligibleFrom || existingBalance.eligibleFrom;
+                existingBalance.locked = true;
+                existingBalance.policy = policy._id;
+                // keep used/pending intact
+                if (session) balancePromises.push(existingBalance.save({ session })); else balancePromises.push(existingBalance.save());
+                updatedCount++;
+            } else {
+                const newBalance = new LeaveBalance({
+                    tenant: tenantId,
+                    employee: employee._id,
+                    policy: policy._id,
+                    leaveType: rule.leaveType,
+                    year,
+                    total: 0,
+                    used: 0,
+                    pending: 0,
+                    available: 0,
+                    eligibleFrom: eligibility.eligibleFrom || null,
+                    locked: true
+                });
+                if (session) balancePromises.push(newBalance.save({ session })); else balancePromises.push(newBalance.save());
+                updatedCount++;
+            }
+            continue;
+        }
+
         // Calculate pro-rated balance if needed
         const calculatedTotal = calculateProRatedBalance(
             rule,
@@ -92,19 +169,20 @@ async function syncPolicyToEmployee(employee, policy, LeaveBalance, tenantId, ye
 
         if (existingBalance) {
             // Update existing balance - preserve used/pending, update total
-            const oldTotal = existingBalance.total || 0;
             const used = existingBalance.used || 0;
             const pending = existingBalance.pending || 0;
-            
+
             // If total changed, adjust available balance proportionally
             // But never reduce below used + pending
             const newTotal = Math.max(calculatedTotal, used + pending);
-            
+
             existingBalance.total = newTotal;
             existingBalance.policy = policy._id;
             existingBalance.available = newTotal - used - pending;
-            
-            balancePromises.push(existingBalance.save());
+            existingBalance.locked = false;
+            existingBalance.eligibleFrom = null;
+            if (session) balancePromises.push(existingBalance.save({ session })); else balancePromises.push(existingBalance.save());
+            updatedCount++;
         } else {
             // Create new balance
             const newBalance = new LeaveBalance({
@@ -116,32 +194,33 @@ async function syncPolicyToEmployee(employee, policy, LeaveBalance, tenantId, ye
                 total: calculatedTotal,
                 used: 0,
                 pending: 0,
-                available: calculatedTotal
+                available: calculatedTotal,
+                locked: false
             });
-            balancePromises.push(newBalance.save());
+            if (session) balancePromises.push(newBalance.save({ session })); else balancePromises.push(newBalance.save());
+            updatedCount++;
         }
     }
 
     // Remove balances for leave types that no longer exist in policy
-    // Defensive: ensure rules is array before mapping
     const currentLeaveTypes = new Set(
         (Array.isArray(policy.rules) ? policy.rules : [])
             .filter(r => r && r.leaveType)
             .map(r => r.leaveType)
     );
     const balancesToRemove = existingBalances.filter(b => !currentLeaveTypes.has(b.leaveType));
-    
+
     if (balancesToRemove.length > 0) {
         const idsToRemove = balancesToRemove.map(b => b._id);
-        await LeaveBalance.deleteMany({ _id: { $in: idsToRemove } });
+        if (session) await LeaveBalance.deleteMany({ _id: { $in: idsToRemove } }).session(session); else await LeaveBalance.deleteMany({ _id: { $in: idsToRemove } });
     }
 
-    await Promise.all(balancePromises);
-    
+    if (balancePromises.length > 0) await Promise.all(balancePromises);
+
     return {
         employeeId: employee._id,
         employeeName: `${employee.firstName} ${employee.lastName}`,
-        balancesUpdated: balancePromises.length,
+        balancesUpdated: updatedCount,
         balancesRemoved: balancesToRemove.length
     };
 }
@@ -160,7 +239,7 @@ async function syncPolicyToAllEmployees(policy, models, tenantId, year, leaveCyc
     if (policy.applicableTo === 'All') {
         employees = await Employee.find({ tenant: tenantId, status: 'Active' });
     } else if (policy.applicableTo === 'Department' && policy.departmentIds && policy.departmentIds.length > 0) {
-        const deptObjectIds = policy.departmentIds.map(id => 
+        const deptObjectIds = policy.departmentIds.map(id =>
             mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id
         );
         employees = await Employee.find({
@@ -178,7 +257,7 @@ async function syncPolicyToAllEmployees(policy, models, tenantId, year, leaveCyc
         // For specific employees, check if policy has specificEmployeeIds field
         // or find employees already assigned to this policy
         if (policy.specificEmployeeIds && Array.isArray(policy.specificEmployeeIds) && policy.specificEmployeeIds.length > 0) {
-            const empObjectIds = policy.specificEmployeeIds.map(id => 
+            const empObjectIds = policy.specificEmployeeIds.map(id =>
                 mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id
             );
             employees = await Employee.find({
@@ -227,9 +306,9 @@ async function syncPolicyToAllEmployees(policy, models, tenantId, year, leaveCyc
  */
 async function recalculateEmployeeBalances(employeeId, policyId, models, tenantId, year, leaveCycleStartMonth = 0) {
     const { Employee, LeaveBalance, LeavePolicy } = models;
-    
+
     const session = await models.LeaveBalance.db.startSession();
-    
+
     try {
         await session.withTransaction(async () => {
             const employee = await Employee.findById(employeeId).session(session);
@@ -244,7 +323,8 @@ async function recalculateEmployeeBalances(employeeId, policyId, models, tenantI
                 LeaveBalance,
                 tenantId,
                 year,
-                leaveCycleStartMonth
+                leaveCycleStartMonth,
+                session
             );
         });
     } finally {
