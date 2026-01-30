@@ -127,11 +127,9 @@ const NAV_GROUPS = [
     title: 'Payroll',
     items: [
       { to: '/hr/payroll/dashboard', label: 'Dashboard', icon: ICONS.dashboard },
-      { to: '/hr/payroll/salary-components?tab=earnings', label: 'Salary Components', icon: ICONS.payroll },
-      { to: '/hr/payroll/salary-components?tab=templates', label: 'Salary Templates', icon: ICONS.payroll },
+      { to: '/hr/payroll/salary-components', label: 'Salary Components', icon: ICONS.payroll },
       { to: '/hr/payroll/compensation', label: 'Employee Compensation', icon: ICONS.payroll },
       { to: '/hr/payroll/process', label: 'Process Payroll', icon: ICONS.play },
-
       { to: '/hr/payroll/run', label: 'Run History', icon: ICONS.calendar },
       { to: '/hr/payroll/payslips', label: 'Payslips', icon: ICONS.document },
       { to: '/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.document }
@@ -316,10 +314,18 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                   to={item.to}
                   end={item.end}
                   onClick={() => onNavigate && onNavigate()}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                     ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`
-                  }
+                  className={({ isActive }) => {
+                    // Custom active check for links with query parameters
+                    let active = isActive;
+                    if (item.to.includes('?')) {
+                      const [path, query] = item.to.split('?');
+                      const currentPath = location.pathname;
+                      const currentQuery = location.search.substring(1);
+                      active = currentPath === path && currentQuery === query;
+                    }
+                    return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
+                     ${active ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`;
+                  }}
                 >
                   {item.icon}
                   {!collapsed && <span>{item.label}</span>}

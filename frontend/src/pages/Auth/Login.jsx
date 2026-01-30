@@ -24,9 +24,9 @@ export default function Login() {
 
     // User is already logged in - redirect to dashboard
     if (user && user.role) {
-      if (user.role === 'psa') navigate('/psa', { replace: true });
-      else if (user.role === 'hr') navigate('/hr', { replace: true });
-      else if (user.role === 'employee') navigate('/employee', { replace: true });
+      if (user.role === 'psa') navigate('/super-admin/dashboard', { replace: true });
+      else if (user.role === 'hr' || user.role === 'admin') navigate('/tenant/dashboard', { replace: true });
+      else if (user.role === 'employee' || user.role === 'manager') navigate('/employee/dashboard', { replace: true });
       else if (user.role === 'candidate') navigate('/candidate/dashboard', { replace: true });
     }
   }, [isInitialized, user, navigate]);
@@ -41,7 +41,7 @@ export default function Login() {
       if (activeTab === 'psa') {
         res = await login(email, password);
         if (res.success) {
-          navigate('/psa', { replace: true });
+          navigate('/super-admin/dashboard', { replace: true });
           return;
         }
       }
@@ -49,7 +49,7 @@ export default function Login() {
       if (activeTab === 'hr') {
         res = await loginHR(companyCode, email, password);
         if (res.success) {
-          navigate('/hr', { replace: true });
+          navigate('/tenant/dashboard', { replace: true });
           return;
         }
       }
@@ -57,7 +57,7 @@ export default function Login() {
       if (activeTab === 'employee') {
         res = await loginEmployee(companyCode, employeeId, password);
         if (res.success) {
-          navigate('/employee', { replace: true });
+          navigate('/employee/dashboard', { replace: true });
           return;
         }
       }
@@ -79,9 +79,27 @@ export default function Login() {
           <div className="p-10 w-full">
             <div className="flex justify-center mb-6">
               <div className="inline-flex bg-slate-100 rounded-full p-1 shadow-sm">
-                <button type="button" onClick={() => setActiveTab('psa')} className={`px-4 py-2 rounded-full text-sm font-medium ${activeTab==='psa' ? 'bg-white shadow' : 'text-slate-600'}`}>Super Admin</button>
-                <button type="button" onClick={() => setActiveTab('hr')} className={`px-4 py-2 rounded-full text-sm font-medium ${activeTab==='hr' ? 'bg-white shadow' : 'text-slate-600'}`}>Tenant</button>
-                <button type="button" onClick={() => setActiveTab('employee')} className={`px-4 py-2 rounded-full text-sm font-medium ${activeTab==='employee' ? 'bg-white shadow' : 'text-slate-600'}`}>Employee</button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/super-admin/login')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium ${activeTab === 'psa' ? 'bg-white shadow' : 'text-slate-600'}`}
+                >
+                  Super Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/tenant/login')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium ${activeTab === 'hr' ? 'bg-white shadow' : 'text-slate-600'}`}
+                >
+                  Tenant
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/employee/login')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium ${activeTab === 'employee' ? 'bg-white shadow' : 'text-slate-600'}`}
+                >
+                  Employee
+                </button>
               </div>
             </div>
 
