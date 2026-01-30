@@ -1,0 +1,96 @@
+# Quick Reference: URL Structure
+
+## 🔐 Login URLs
+
+| Role | New URL | Old URL (Still Works) |
+|------|---------|----------------------|
+| Super Admin | `/super-admin/login` | `/login` (with PSA tab) |
+| Tenant (HR) | `/tenant/login` | `/login/hr` |
+| Employee | `/employee/login` | `/login/employee` |
+
+## 🏠 Dashboard URLs
+
+| Role | New URL | Old URL (Still Works) |
+|------|---------|----------------------|
+| Super Admin | `/super-admin/dashboard` | `/psa` |
+| Tenant (HR) | `/tenant/dashboard` | `/hr` |
+| Employee | `/employee/dashboard` | `/employee` |
+
+## 📍 Full Route Structure
+
+### Super Admin Routes (`/super-admin/*`)
+```
+/super-admin/login           → Login page
+/super-admin/dashboard       → Main dashboard
+/super-admin/companies       → Company list
+/super-admin/companies/add   → Add company
+/super-admin/modules         → Module config
+/super-admin/activities      → Activity logs
+```
+
+### Tenant Routes (`/tenant/*`)
+```
+/tenant/login                      → Login page
+/tenant/dashboard                  → Main dashboard
+/tenant/employees                  → Employee management
+/tenant/departments                → Department management
+/tenant/leave-approvals            → Leave approvals
+/tenant/attendance                 → Attendance management
+/tenant/payroll/dashboard          → Payroll dashboard
+/tenant/payroll/salary-components  → Salary components
+/tenant/payroll/process            → Process payroll
+/tenant/payroll/run                → Run payroll
+/tenant/payroll/payslips           → View payslips
+/tenant/requirements               → Job requirements
+/tenant/applicants                 → Applicant management
+/tenant/settings/company           → Company settings
+```
+
+### Employee Routes (`/employee/*`)
+```
+/employee/login              → Login page
+/employee/dashboard          → Main dashboard
+/employee/my-requests        → My requests
+/employee/face-attendance    → Face attendance
+```
+
+## 🔄 Auto-Redirects
+
+| Scenario | Redirect |
+|----------|----------|
+| Root URL `/` (logged in as PSA) | → `/super-admin/dashboard` |
+| Root URL `/` (logged in as HR) | → `/tenant/dashboard` |
+| Root URL `/` (logged in as Employee) | → `/employee/dashboard` |
+| Root URL `/` (not logged in) | → `/login` |
+
+## 🚫 Access Control
+
+| User Role | Can Access | Cannot Access |
+|-----------|-----------|---------------|
+| Super Admin (PSA) | `/super-admin/*` | `/tenant/*`, `/employee/*` |
+| Tenant (HR/Admin) | `/tenant/*` | `/super-admin/*`, `/employee/*` |
+| Employee/Manager | `/employee/*` | `/super-admin/*`, `/tenant/*` |
+
+## 💡 Quick Tips
+
+1. **Bookmarking**: Users can bookmark role-specific login URLs
+2. **Direct Access**: All dashboard URLs can be accessed directly (if authorized)
+3. **Tab Navigation**: Login page tabs redirect to role-specific URLs
+4. **Backward Compatible**: Old URLs still work for existing users
+5. **SEO Friendly**: Descriptive URLs improve search engine indexing
+
+## 🧪 Test URLs
+
+### Local Development
+```
+http://localhost:5173/super-admin/login
+http://localhost:5173/tenant/login
+http://localhost:5173/employee/login
+```
+
+### Production
+```
+https://yourdomain.com/super-admin/login
+https://yourdomain.com/tenant/login
+https://yourdomain.com/employee/login
+```

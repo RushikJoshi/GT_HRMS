@@ -62,25 +62,25 @@ export default function Compensation() {
     const mapSalaryData = (applicant) => {
         // Get salary snapshot from populated salarySnapshotId field
         const salarySnapshot = applicant?.salarySnapshotId || {};
-        
+
         // Safe extraction from snapshot with fallbacks
         // CTC from snapshot is annual, divide by 12 for monthly gross components
         const annualCTC = salarySnapshot?.ctc || 0;
         const monthlyCTC = salarySnapshot?.monthlyCTC || 0;
-        
+
         // Extract earnings breakdown from snapshot
         // grossA = total earnings, grossB = total deductions, grossC = total benefits
         const grossA = salarySnapshot?.summary?.grossEarnings || salarySnapshot?.breakdown?.totalEarnings || 0;
         const grossB = salarySnapshot?.summary?.totalDeductions || salarySnapshot?.breakdown?.totalDeductions || 0;
         const grossC = salarySnapshot?.summary?.totalBenefits || salarySnapshot?.breakdown?.totalBenefits || 0;
-        
+
         // Check if salary is actually set
         const isCTCSet = annualCTC > 0 && Object.keys(salarySnapshot).length > 0;
-        
+
         return {
             // Preserve original applicant data
             ...applicant,
-            
+
             // Map to activeVersion format for backward compatibility with table rendering
             activeVersion: isCTCSet ? {
                 grossA,
@@ -93,7 +93,7 @@ export default function Compensation() {
                 components: salarySnapshot?.earnings || [],
                 reason: salarySnapshot?.reason || 'ASSIGNMENT'
             } : null,
-            
+
             // CTC status indicator
             ctcStatus: isCTCSet ? 'Active' : 'Not Set'
         };
@@ -104,13 +104,13 @@ export default function Compensation() {
             setLoading(true);
             // Call /requirements/applicants - Returns array of applicants with populated salarySnapshotId
             const res = await api.get('/requirements/applicants');
-            
+
             console.log('Raw API Response:', res.data);
-            
+
             // Map each applicant's salarySnapshotId to activeVersion format
             const applicantsArray = res.data && Array.isArray(res.data) ? res.data : (res.data?.data || []);
             console.log(`Processing ${applicantsArray.length} applicants`);
-            
+
             const mappedEmployees = applicantsArray.map((applicant, idx) => {
                 const mapped = mapSalaryData(applicant);
                 if (idx < 2) { // Log first 2 for debugging
@@ -124,7 +124,7 @@ export default function Compensation() {
                 }
                 return mapped;
             });
-            
+
             setEmployees(mappedEmployees);
             setFilteredEmployees(mappedEmployees);
         } catch (error) {
@@ -174,7 +174,7 @@ export default function Compensation() {
             alert('⚠️ Salary Structure Not Set\n\nPlease configure the salary structure before creating an increment.');
             return;
         }
-        
+
         setSelectedEmployee(emp);
         const active = emp.activeVersion;
         setIncrementData({
@@ -286,25 +286,25 @@ export default function Compensation() {
                                     const nameArray = fullName.trim().split(' ');
                                     const firstName = nameArray[0] || 'N';
                                     const lastName = nameArray.slice(1).join(' ') || 'A';
-                                    
+
                                     // Get email as identifier (applicant doesn't have employeeId)
                                     const email = emp?.email || 'N/A';
-                                    
+
                                     // Get job title/role from the populated requirementId
                                     const jobTitle = emp?.requirementId?.jobTitle || 'N/A';
-                                    
+
                                     return (
                                         <tr key={emp._id} className="hover:bg-slate-50/50 transition-colors group">
                                             <td className="px-6 py-5">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600 uppercase">
+                                                    <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600 uppercase flex-shrink-0">
                                                         {firstName.charAt(0)}{lastName.charAt(0)}
                                                     </div>
-                                                    <div>
-                                                        <div className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors uppercase truncate max-w-[150px]">
+                                                    <div className="min-w-0 flex-1 max-w-[180px]">
+                                                        <div className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors uppercase break-words line-clamp-2 leading-tight">
                                                             {fullName}
                                                         </div>
-                                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight truncate">
                                                             {email}
                                                         </div>
                                                     </div>
@@ -340,7 +340,7 @@ export default function Compensation() {
                                             </td>
                                             <td className="px-6 py-5">
                                                 <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${emp.ctcStatus === 'Active' ? 'bg-emerald-50 text-emerald-600' :
-                                                        emp.ctcStatus === 'Blocked' ? 'bg-rose-50 text-rose-600' : 'bg-amber-100 text-amber-700'
+                                                    emp.ctcStatus === 'Blocked' ? 'bg-rose-50 text-rose-600' : 'bg-amber-100 text-amber-700'
                                                     }`}>
                                                     {emp.ctcStatus}
                                                 </span>
