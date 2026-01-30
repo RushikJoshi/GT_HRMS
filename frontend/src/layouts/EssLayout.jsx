@@ -24,7 +24,7 @@ export default function EssLayout() {
 
   useEffect(() => {
     if (user) {
-      api.get('/hrms/employee/profile').then(res => setProfile(res.data)).catch(() => { });
+      api.get('/employee/profile').then(res => setProfile(res.data)).catch(() => { });
     }
   }, [user]);
 

@@ -21,7 +21,7 @@ export default function InternalApplicants() {
     const loadApplicants = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/hrms/requirements/applicants');
+            const res = await api.get('/requirements/applicants');
             // Filter initially for internal sources or internal jobs
             const allApps = res.data || [];
             const internalApps = allApps.filter(app =>
@@ -123,7 +123,7 @@ export default function InternalApplicants() {
                     onClick={() => {
                         // Navigate to main applicants page with filters to find this specific applicant
                         // Or open a details modal (for now redirecting to main list for full management)
-                        navigate('/hrms/hr/applicants', { state: { applicantId: record._id } });
+                        navigate('/hr/applicants', { state: { applicantId: record._id } });
                     }}
                 >
                     View

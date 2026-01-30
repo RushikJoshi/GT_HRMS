@@ -13,7 +13,7 @@ export default function CommentSection({ entityType, entityId }) {
 
     const fetchComments = async () => {
         try {
-            const res = await api.get(`/hrms/comments/${entityType}/${entityId}`);
+            const res = await api.get(`/comments/${entityType}/${entityId}`);
             setComments(res.data);
             setError(null);
         } catch (error) {
@@ -32,7 +32,7 @@ export default function CommentSection({ entityType, entityId }) {
 
         setLoading(true);
         try {
-            const res = await api.post(`/hrms/comments/${entityType}/${entityId}`, { message: newMessage });
+            const res = await api.post(`/comments/${entityType}/${entityId}`, { message: newMessage });
             setComments([...comments, res.data]);
             setNewMessage('');
         } catch (error) {

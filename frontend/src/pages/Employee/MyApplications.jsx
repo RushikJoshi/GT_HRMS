@@ -13,7 +13,7 @@ export default function MyApplications() {
 
     async function fetchMyApplications() {
         try {
-            const res = await api.get('/hrms/requirements/my-applications');
+            const res = await api.get('/requirements/my-applications');
             if (Array.isArray(res.data)) {
                 setApps(res.data);
             } else {

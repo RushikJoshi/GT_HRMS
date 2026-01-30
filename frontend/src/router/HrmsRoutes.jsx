@@ -91,7 +91,7 @@ const OutletProxy = () => <Outlet />;
 
 /**
  * HRMS Routes - PSA + HR + Employee
- * Prefix: /hrms/*
+ * Prefix: /*
  */
 export default function HrmsRoutes() {
   return (

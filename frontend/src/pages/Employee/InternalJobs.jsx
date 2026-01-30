@@ -34,7 +34,7 @@ export default function InternalJobs() {
 
     async function fetchInternalJobs() {
         try {
-            const res = await api.get('/hrms/requirements/internal-jobs');
+            const res = await api.get('/requirements/internal-jobs');
             // The API returns { requirements: [], pagination: {} }
             if (res.data && Array.isArray(res.data.requirements)) {
                 setJobs(res.data.requirements);
@@ -52,7 +52,7 @@ export default function InternalJobs() {
 
     async function fetchAppliedJobs() {
         try {
-            const res = await api.get('/hrms/requirements/my-applications');
+            const res = await api.get('/requirements/my-applications');
             if (Array.isArray(res.data)) {
                 const ids = new Set(res.data.map(app => app.requirementId ? app.requirementId._id : null).filter(id => id));
                 setAppliedJobIds(ids);
@@ -66,7 +66,7 @@ export default function InternalJobs() {
         if (!window.confirm("Are you sure you want to apply for this position internally? HR will be notified.")) return;
 
         try {
-            await api.post(`/hrms/requirements/internal-apply/${jobId}`);
+            await api.post(`/requirements/internal-apply/${jobId}`);
             setAppliedJobIds(prev => new Set(prev).add(jobId));
             alert("Successfully applied! HR has been notified.");
             if (selectedJob) setSelectedJob(null);
