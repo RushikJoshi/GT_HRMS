@@ -55,7 +55,7 @@ export default function AttendanceAdmin() {
     const fetchStats = async () => {
         try {
             setLoading(true);
-            const res = await api.get(`/hrms/attendance/all?date=${date}`);
+            const res = await api.get(`/attendance/all?date=${date}`);
             setAttendance(res.data);
         } catch (err) {
             console.error(err);
@@ -71,9 +71,9 @@ export default function AttendanceAdmin() {
     const fetchEmployeeRegister = async () => {
         try {
             const [attRes, holidayRes, settingsRes] = await Promise.all([
-                api.get(`/hrms/attendance/my?employeeId=${viewingEmployee._id}&month=${currentMonth + 1}&year=${currentYear}`),
-                api.get('/hrms/holidays'),
-                api.get('/hrms/attendance/settings')
+                api.get(`/attendance/my?employeeId=${viewingEmployee._id}&month=${currentMonth + 1}&year=${currentYear}`),
+                api.get('/holidays'),
+                api.get('/attendance/settings')
             ]);
             setEmployeeAttendance(attRes.data);
             setHolidays(holidayRes.data || []);
@@ -105,7 +105,7 @@ export default function AttendanceAdmin() {
                 payload.checkOut = new Date(editForm.checkOut).toISOString();
             }
 
-            await api.post('/hrms/attendance/override', payload);
+            await api.post('/attendance/override', payload);
             setEditingAttendance(null);
             fetchStats(); // Refresh the attendance list
             alert('Attendance updated successfully');
@@ -611,7 +611,7 @@ export default function AttendanceAdmin() {
                                     try {
                                         setUploading(true);
                                         console.log('Uploading', uploadedData.fullData.length, 'records');
-                                        const res = await api.post('/hrms/attendance/bulk-upload', {
+                                        const res = await api.post('/attendance/bulk-upload', {
                                             records: uploadedData.fullData
                                         });
                                         alert(`✅ ${res.data.uploadedCount} records uploaded successfully${res.data.failedCount > 0 ? `\n⚠️ ${res.data.failedCount} records failed` : ''}`);

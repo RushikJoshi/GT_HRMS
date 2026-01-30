@@ -132,8 +132,8 @@ export default function AppRoutes() {
 
             <Route path="/apply-job/:requirementId" element={<JobApplication />} />
 
-            {/* --- HRMS REDIRECTION (For Backward Compatibility) --- */}
-            <Route path="/hrms/*" element={<HrmsRedirectHandler />} />
+            {/* --- HRMS REDIRECTION (For Backward Compatibility) ---
+            <Route path="/*" element={<HrmsRedirectHandler />} /> */}
 
             {/* --- PSA ROUTES --- */}
             <Route
@@ -253,11 +253,3 @@ function AutoHome() {
     return <Navigate to="/login" replace />;
 }
 
-/**
- * Handles redirection from old /hrms paths to new root paths
- */
-function HrmsRedirectHandler() {
-    const { pathname, search } = useLocation();
-    const newPath = pathname.replace(/^\/hrms/, '') || '/';
-    return <Navigate to={`${newPath}${search}`} replace />;
-}

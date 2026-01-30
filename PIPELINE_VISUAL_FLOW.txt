@@ -310,7 +310,7 @@ HR Manager in INTERVIEW Tab (Technical Round)
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  GET /tracker/candidates/{id}         → Candidate Data         │
-│  GET /hrms/interviews/{id}            → Interview Data          │
+│  GET /interviews/{id}            → Interview Data          │
 │  GET /tracker/candidates/{id}/timeline → Timeline History        │
 │                                                                  │
 │  POST /tracker/candidates/{id}/status → Update Status           │

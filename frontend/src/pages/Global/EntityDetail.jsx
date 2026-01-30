@@ -16,7 +16,7 @@ export default function EntityDetail() {
         const fetchDetails = async () => {
             try {
                 setLoading(true);
-                const res = await api.get(`/hrms/entities/${entityType}/${entityId}`);
+                const res = await api.get(`/entities/${entityType}/${entityId}`);
                 setEntity(res.data);
             } catch (err) {
                 console.error("Failed to fetch entity details", err);

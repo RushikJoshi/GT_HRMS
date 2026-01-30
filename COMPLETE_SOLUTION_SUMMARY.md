@@ -4,7 +4,7 @@
 
 Your MERN HRMS system has been completely separated into two isolated subsystems:
 
-1. **HRMS Panel** (`/hrms/*`) - For SuperAdmin, HR, and Employees
+1. **HRMS Panel** (`/*`) - For SuperAdmin, HR, and Employees
 2. **Job Portal** (`/jobs/*`) - For Candidates to apply for jobs
 
 **Guarantee:** These systems will NEVER mix, refresh each other, or share sessions.
@@ -52,8 +52,8 @@ OLD (Mixed):
 /psa, /hr, /employee      ← All in same routing tree
 
 NEW (Separated):
-/hrms/login               ← HRMS only
-/hrms/psa, /hrms/hr, etc  ← HRMS tree
+/login               ← HRMS only
+/psa, /hr, etc  ← HRMS tree
 /jobs/login               ← Job Portal only
 /jobs/dashboard, etc      ← Job Portal tree
 ```
@@ -61,7 +61,7 @@ NEW (Separated):
 ### How Auth Works
 
 **HRMS System:**
-- User logs in at `/hrms/login`
+- User logs in at `/login`
 - Backend validates against Tenant collection
 - Returns JWT with role: `psa`, `hr`, `admin`, or `employee`
 - Stored in `localStorage.token`
@@ -82,7 +82,7 @@ NEW (Separated):
 User visits website
   ↓
 RootRouter checks:
-  - Is there /hrms/* in URL? → Load HrmsRoutes
+  - Is there /* in URL? → Load HrmsRoutes
   - Is there /jobs/* in URL? → Load JobPortalRoutes
   - Just /? → Redirect based on user role
 ```
@@ -91,7 +91,7 @@ Each system has its own:
 - Auth context
 - Layout
 - Protected routes
-- API endpoints (`/api/hrms/*` vs `/api/jobs/*`)
+- API endpoints (`/api/*` vs `/api/jobs/*`)
 
 ---
 
@@ -118,7 +118,7 @@ Files to update:
 **In ALL HRMS components** (HR, PSA, Employee pages):
 ```javascript
 ❌ await api.get('/api/hr/employees')
-✅ await api.get('/api/hrms/hr/employees')
+✅ await api.get('/api/hr/employees')
 ```
 
 **In ALL Job Portal components** (Candidate pages):
@@ -129,7 +129,7 @@ Files to update:
 
 ### Step 3: Test (10 min)
 
-1. Test HRMS: http://localhost:5173/hrms/login
+1. Test HRMS: http://localhost:5173/login
 2. Test Job Portal: http://localhost:5173/jobs/login
 3. Verify no cross-system issues
 
@@ -169,7 +169,7 @@ Problem 5: Middleware conflicts
 ```
 ┌─────────────────────────────────────────┐
 │          Frontend Router                 │
-│  (/hrms/* vs /jobs/*)                   │
+│  (/* vs /jobs/*)                   │
 └────────────┬────────────────────────────┘
              │
       ┌──────┴──────┐
@@ -183,7 +183,7 @@ Problem 5: Middleware conflicts
       │             │
   ┌───▼─────────────▼──┐
   │ Backend Routes     │
-  │ /api/hrms/* vs     │
+  │ /api/* vs     │
   │ /api/jobs/*        │
   └───┬─────────────┬──┘
       │             │
@@ -269,16 +269,16 @@ backend/
 
 After implementation, verify:
 
-- [ ] `/hrms/login` works - HRMS SuperAdmin login
-- [ ] `/hrms/psa` accessible after HRMS login
+- [ ] `/login` works - HRMS SuperAdmin login
+- [ ] `/psa` accessible after HRMS login
 - [ ] `/jobs/login` works - Job Portal candidate login
 - [ ] `/jobs/dashboard` accessible after Job Portal login
-- [ ] Logging out from `/hrms/` doesn't affect `/jobs/` session
+- [ ] Logging out from `/` doesn't affect `/jobs/` session
 - [ ] localStorage has separate keys: `token` vs `jobPortalToken`
-- [ ] API calls use `/api/hrms/*` for HRMS
+- [ ] API calls use `/api/*` for HRMS
 - [ ] API calls use `/api/jobs/*` for Job Portal
 - [ ] Cannot access `/jobs/*` with HRMS token
-- [ ] Cannot access `/hrms/hr/*` with Job Portal token
+- [ ] Cannot access `/hr/*` with Job Portal token
 - [ ] Refresh page maintains correct session
 - [ ] Browser back/forward buttons work correctly
 
@@ -289,7 +289,7 @@ After implementation, verify:
 ### For Development
 1. Backend running: `npm start` in `backend/`
 2. Frontend running: `npm run dev` in `frontend/`
-3. Test HRMS: http://localhost:5173/hrms/login
+3. Test HRMS: http://localhost:5173/login
 4. Test Job Portal: http://localhost:5173/jobs/login
 
 ### For Deployment
@@ -300,7 +300,7 @@ After implementation, verify:
 5. Restart backend
 
 ### For Future Enhancements
-- Add more HRMS roles? Update `/hrms/` routes
+- Add more HRMS roles? Update `/` routes
 - Add job portal features? Update `/jobs/` routes
 - Scale to microservices? Each system can run independently
 - Add new modules? Keep them in their respective routing trees
@@ -310,10 +310,10 @@ After implementation, verify:
 ## 💡 Best Practices Going Forward
 
 1. **Always prefix Job Portal routes with `/jobs/`**
-2. **Always prefix HRMS routes with `/hrms/`**
+2. **Always prefix HRMS routes with `/`**
 3. **Always use `useJobPortalAuth` in Candidate pages**
 4. **Always use `useAuth` in HRMS pages**
-5. **API calls: `/api/jobs/*` for Job Portal, `/api/hrms/*` for HRMS**
+5. **API calls: `/api/jobs/*` for Job Portal, `/api/*` for HRMS**
 6. **Never import HRMS context in Job Portal components**
 7. **Never import Job Portal context in HRMS components**
 8. **Keep storage keys separate: `token` vs `jobPortalToken`**
@@ -326,7 +326,7 @@ After implementation, verify:
 |---------|----------|
 | "useAuth must be used within AuthProvider" | Use `useJobPortalAuth` in Candidate pages |
 | Job Portal login not working | Check API calls are `/api/jobs/*` |
-| HRMS pages not loading | Check API calls are `/api/hrms/*` |
+| HRMS pages not loading | Check API calls are `/api/*` |
 | Token validation error | Verify token storage key (token vs jobPortalToken) |
 | Both systems interfering | Check that routes are properly separated in app.js |
 | Logout not working | Ensure correct context method is called |

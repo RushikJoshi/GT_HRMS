@@ -17,7 +17,7 @@
                 ┌──────────────┴──────────────┐
                 │                             │
         ┌───────▼────────────┐      ┌────────▼──────────┐
-        │  /hrms/*           │      │  /jobs/*          │
+        │  /*           │      │  /jobs/*          │
         │  HRMS Routes       │      │  Job Portal Routes│
         │  (HrmsRoutes.jsx)  │      │ (JobPortalRoutes) │
         └───────┬────────────┘      └────────┬──────────┘
@@ -38,9 +38,9 @@
 │Auth      │  │  Auth        │  │ by Job  │  │ Job Portal Auth │
 └──────────┘  └──────────────┘  │ Portal  │  │                 │
               Protected Pages     │ Auth   │  │ Protected Pages │
-              /hrms/psa/*        └────────┘  │ /jobs/*         │
-              /hrms/hr/*         Job Portal  │                 │
-              /hrms/employee/*   Layout      │ /jobs/dashboard │
+              /psa/*        └────────┘  │ /jobs/*         │
+              /hr/*         Job Portal  │                 │
+              /employee/*   Layout      │ /jobs/dashboard │
                                             │ /jobs/profile   │
                                             └─────────────────┘
 ```
@@ -72,7 +72,7 @@
 ### HRMS Authentication
 
 ```
-User navigates to /hrms/login
+User navigates to /login
          │
          ▼
     ┌──────────────────┐
@@ -108,8 +108,8 @@ User navigates to /hrms/login
              │
              ▼
     ┌──────────────────────────────┐
-    │ Redirect to /hrms/psa        │
-    │ or /hrms/hr (based on role)  │
+    │ Redirect to /psa        │
+    │ or /hr (based on role)  │
     └──────────────────────────────┘
 ```
 
@@ -168,26 +168,26 @@ User navigates to /jobs/signup
 ```
 ROOT: /
 │
-├─ /hrms/
+├─ /
 │  │
-│  ├─ /hrms/login                    [Public]
-│  ├─ /hrms/login/hr                 [Public]
-│  ├─ /hrms/login/employee           [Public]
+│  ├─ /login                    [Public]
+│  ├─ /login/hr                 [Public]
+│  ├─ /login/employee           [Public]
 │  │
-│  ├─ /hrms/psa/                     [HRMS Auth + Role=psa]
+│  ├─ /psa/                     [HRMS Auth + Role=psa]
 │  │  ├─ dashboard
 │  │  ├─ companies
 │  │  ├─ modules
 │  │  └─ activities
 │  │
-│  ├─ /hrms/hr/                      [HRMS Auth + Role=hr/admin]
+│  ├─ /hr/                      [HRMS Auth + Role=hr/admin]
 │  │  ├─ dashboard
 │  │  ├─ employees
 │  │  ├─ payroll/
 │  │  ├─ requirements
 │  │  └─ ...
 │  │
-│  └─ /hrms/employee/                [HRMS Auth + Role=employee]
+│  └─ /employee/                [HRMS Auth + Role=employee]
 │     ├─ dashboard
 │     ├─ my-requests
 │     └─ face-attendance
@@ -227,7 +227,7 @@ Backend API Routes
 │  ├─ PUT  /candidate/profile            [Auth Required]
 │  └─ GET  /candidate/dashboard          [Auth Required]
 │
-└─ /api/hrms/                (HRMS System - Tenant Middleware)
+└─ /api/                (HRMS System - Tenant Middleware)
    │
    ├─ /psa/                  [Auth + Role=psa]
    │  ├─ GET  /companies
@@ -255,9 +255,9 @@ Backend API Routes
 ### HRMS Request Processing
 
 ```
-Request: GET /api/hrms/hr/employees
+Request: GET /api/hr/employees
   │
-  ├─ Match /api/hrms/* route
+  ├─ Match /api/* route
   │
   ├─ Apply Tenant Middleware
   │  └─ Extract tenantId from JWT
@@ -320,8 +320,8 @@ Frontend                          Backend                  Database
     │                              │                          │
     ├─ AuthContext.setUser()       │                          │
     │                              │                          │
-    └─ Redirect to /hrms/psa       │                          │
-       or /hrms/hr                 │                          │
+    └─ Redirect to /psa       │                          │
+       or /hr                 │                          │
 ```
 
 ### Complete Job Application Flow - Job Portal
@@ -354,8 +354,8 @@ Frontend                          Backend                  Database
 ```
 ┌────────────────────────────────────────────┐
 │  Public Routes (No Auth Required)          │
-│  /hrms/login                               │
-│  /hrms/login/hr                            │
+│  /login                               │
+│  /login/hr                            │
 │  /jobs/login                               │
 │  /jobs/signup                              │
 │  /jobs/:companyId (browse jobs)            │
@@ -366,10 +366,10 @@ Frontend                          Backend                  Database
 ┌────────────────────────────────────────────┐
 │  HRMS Protected Routes                     │
 │  Requires: Valid JWT + HRMS Role           │
-│  /hrms/psa/*       (role=psa)              │
-│  /hrms/hr/*        (role=hr/admin)         │
-│  /hrms/employee/*  (role=employee)         │
-│  /api/hrms/*                               │
+│  /psa/*       (role=psa)              │
+│  /hr/*        (role=hr/admin)         │
+│  /employee/*  (role=employee)         │
+│  /api/*                               │
 └────────────────────────────────────────────┘
                     │
                     ▼

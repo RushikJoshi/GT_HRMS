@@ -53,7 +53,7 @@ const { candidate, loginCandidate } = useJobPortalAuth();
 
 **For HRMS Components (HR, PSA, Employee pages):**
 - Add `/hrms` prefix to all API calls
-- Example: `/api/hr/employees` → `/api/hrms/hr/employees`
+- Example: `/api/hr/employees` → `/api/hr/employees`
 
 **For Job Portal Components (Candidate pages):**
 - Add `/jobs` prefix to all API calls  
@@ -68,7 +68,7 @@ After making these updates:
 # Frontend should be running
 
 # Test HRMS
-curl http://localhost:5173/hrms/login
+curl http://localhost:5173/login
 
 # Test Job Portal
 curl http://localhost:5173/jobs/login
@@ -107,7 +107,7 @@ curl http://localhost:5173/jobs/login
 
 | System | Prefix | Auth Context | Storage Key | Route Prefix |
 |--------|--------|--------------|------------|--------------|
-| HRMS | /hrms/ | AuthContext | `token` | /api/hrms/ |
+| HRMS | / | AuthContext | `token` | /api/ |
 | Job Portal | /jobs/ | JobPortalAuthContext | `jobPortalToken` | /api/jobs/ |
 
 ---

@@ -153,8 +153,8 @@ if (res.success) {
 
 ### Behavior:
 - ✅ Candidate login → `/jobs/dashboard`
-- ✅ HR login → `/hrms/hr`
-- ✅ Employee login → `/hrms/employee`
+- ✅ HR login → `/hr`
+- ✅ Employee login → `/employee`
 - ✅ No cross-contamination between systems
 
 ---
@@ -271,7 +271,7 @@ try {
 ### Architecture:
 - **Separation of Concerns**: Job Portal completely isolated from HRMS
 - **Context Isolation**: `JobPortalAuthContext` separate from `AuthContext`
-- **Route Isolation**: `/jobs/*` routes independent from `/hrms/*`
+- **Route Isolation**: `/jobs/*` routes independent from `/*`
 
 ### State Management:
 - React hooks (useState, useEffect, useCallback)

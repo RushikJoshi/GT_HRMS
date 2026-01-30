@@ -42,17 +42,17 @@ export default function CandidateTimeline() {
         setLoading(true);
         try {
             // Fetch candidate directly by ID
-            const cRes = await api.get(`/hrms/hr/candidate-status/${id}`);
+            const cRes = await api.get(`/hr/candidate-status/${id}`);
             const found = cRes.data;
             setCandidate(found);
 
             // Get timeline
-            const tRes = await api.get(`/hrms/hr/candidate-status/${id}/timeline`);
+            const tRes = await api.get(`/hr/candidate-status/${id}/timeline`);
             setTimeline(tRes.data || []);
 
             // Fetch interview if exists
             try {
-                const iRes = await api.get(`/hrms/interviews/${id}`);
+                const iRes = await api.get(`/interviews/${id}`);
                 if (iRes.data) {
                     setInterview(iRes.data);
                 }
@@ -86,7 +86,7 @@ export default function CandidateTimeline() {
     const handleUpdateStatus = async (e) => {
         e.preventDefault();
         try {
-            await api.post(`/hrms/hr/candidate-status/${id}/status`, formData);
+            await api.post(`/hr/candidate-status/${id}/status`, formData);
             setShowUpdateModal(false);
             loadData();
         } catch (err) {
@@ -99,7 +99,7 @@ export default function CandidateTimeline() {
         setSelectedButtonLoading('selected');
         try {
             // Call existing update API
-            await api.post(`/hrms/hr/candidate-status/${candidateId}/status`, {
+            await api.post(`/hr/candidate-status/${candidateId}/status`, {
                 status: 'Selected',
                 stage: 'HR Round',
                 remarks: 'Candidate selected and moved to HR Round',
@@ -121,7 +121,7 @@ export default function CandidateTimeline() {
         setSelectedButtonLoading('rejected');
         try {
             // Call existing update API
-            await api.post(`/hrms/hr/candidate-status/${candidateId}/status`, {
+            await api.post(`/hr/candidate-status/${candidateId}/status`, {
                 status: 'Rejected',
                 stage: 'Final',
                 remarks: 'Candidate rejected after interview',
@@ -152,7 +152,7 @@ export default function CandidateTimeline() {
             const newStatus = roundMap[round.id] || 'Interview Scheduled';
 
             // Call existing update API
-            await api.post(`/hrms/hr/candidate-status/${candidate._id}/status`, {
+            await api.post(`/hr/candidate-status/${candidate._id}/status`, {
                 status: newStatus,
                 stage: round.label,
                 remarks: `Candidate moved to ${round.label}`,
@@ -422,7 +422,7 @@ export default function CandidateTimeline() {
     if (!candidate) return (
         <div className="p-12 text-center">
             <div className="text-slate-400 mb-4 font-bold text-xl uppercase">404 - Not Found</div>
-            <button onClick={() => navigate('/hrms/hr/candidate-status')} className="text-blue-600 hover:underline">Return to list</button>
+            <button onClick={() => navigate('/hr/candidate-status')} className="text-blue-600 hover:underline">Return to list</button>
         </div>
     );
 
@@ -433,7 +433,7 @@ export default function CandidateTimeline() {
                 <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <button
-                            onClick={() => navigate('/hrms/hr/candidate-status')}
+                            onClick={() => navigate('/hr/candidate-status')}
                             className="p-2 hover:bg-slate-100 rounded-full transition text-slate-500"
                         >
                             <ArrowLeft size={20} />

@@ -18,7 +18,7 @@ frontend/src/
 │
 ├── router/
 │   ├── RootRouter.jsx                  // Master router - separates both systems
-│   ├── HrmsRoutes.jsx                  // All HRMS routes (/hrms/*)
+│   ├── HrmsRoutes.jsx                  // All HRMS routes (/*)
 │   └── JobPortalRoutes.jsx             // All Job Portal routes (/jobs/*)
 │
 ├── layouts/
@@ -69,26 +69,26 @@ ROOT ROUTER (RootRouter.jsx)
 │
 ├── /           → AutoRedirect based on user role
 │
-├── /hrms/*     → HrmsRoutes (HRMS SYSTEM)
+├── /*     → HrmsRoutes (HRMS SYSTEM)
 │   │
-│   ├── /hrms/login                     → Login page
-│   ├── /hrms/login/hr                  → HR login
-│   ├── /hrms/login/employee            → Employee login
+│   ├── /login                     → Login page
+│   ├── /login/hr                  → HR login
+│   ├── /login/employee            → Employee login
 │   │
-│   ├── /hrms/psa/*                     → SuperAdmin routes (with AuthContext)
-│   │   ├── /hrms/psa                   → Dashboard
-│   │   ├── /hrms/psa/companies         → Company management
+│   ├── /psa/*                     → SuperAdmin routes (with AuthContext)
+│   │   ├── /psa                   → Dashboard
+│   │   ├── /psa/companies         → Company management
 │   │   └── ... (other PSA routes)
 │   │
-│   ├── /hrms/hr/*                      → HR Admin routes (with AuthContext)
-│   │   ├── /hrms/hr                    → HR Dashboard
-│   │   ├── /hrms/hr/employees          → Employee management
-│   │   ├── /hrms/hr/payroll/*          → Payroll management
+│   ├── /hr/*                      → HR Admin routes (with AuthContext)
+│   │   ├── /hr                    → HR Dashboard
+│   │   ├── /hr/employees          → Employee management
+│   │   ├── /hr/payroll/*          → Payroll management
 │   │   └── ... (other HR routes)
 │   │
-│   └── /hrms/employee/*                → Employee routes (with AuthContext)
-│       ├── /hrms/employee              → Employee dashboard
-│       ├── /hrms/employee/my-requests  → Leave/Attendance requests
+│   └── /employee/*                → Employee routes (with AuthContext)
+│       ├── /employee              → Employee dashboard
+│       ├── /employee/my-requests  → Leave/Attendance requests
 │       └── ... (other employee routes)
 │
 └── /jobs/*     → JobPortalRoutes (JOB PORTAL SYSTEM)
@@ -111,9 +111,9 @@ ROOT ROUTER (RootRouter.jsx)
 HRMS API ENDPOINTS (Use AuthContext)
 ├── POST   /api/auth/login              → HRMS login
 ├── GET    /api/auth/me                 → Get HRMS user
-├── GET    /api/hrms/hr/*               → HR routes
-├── GET    /api/hrms/psa/*              → PSA routes
-├── GET    /api/hrms/employee/*         → Employee routes
+├── GET    /api/hr/*               → HR routes
+├── GET    /api/psa/*              → PSA routes
+├── GET    /api/employee/*         → Employee routes
 └── (All tenant-aware routes)
 
 JOB PORTAL API ENDPOINTS (Use JobPortalAuthContext)
@@ -129,7 +129,7 @@ JOB PORTAL API ENDPOINTS (Use JobPortalAuthContext)
 ═══════════════════════════════════════════════════════════════════════════ */
 
 HRMS AUTHENTICATION:
-1. User visits /hrms/login
+1. User visits /login
 2. Enters credentials (email + password for SuperAdmin)
 3. Backend validates against Tenant collection
 4. Returns JWT token with role: 'psa' | 'hr' | 'employee' | 'manager'
@@ -174,9 +174,9 @@ IMPORTANT: They NEVER mix!
 ═══════════════════════════════════════════════════════════════════════════ */
 
 HRMS Request Flow:
-GET /api/hrms/hr/employees
+GET /api/hr/employees
   ↓
-Express app.js routes request to /api/hrms/*
+Express app.js routes request to /api/*
   ↓
 Tenant Middleware (tenant.middleware.js)
   - Extracts tenantId from user token
@@ -217,9 +217,9 @@ Frontend:
 ✓ Verify JobPortalLayout.jsx exists
 ✓ Verify HrmsRoutes.jsx exists
 ✓ Verify RootRouter.jsx exists
-✓ Update all API calls to use /api/hrms/* or /api/jobs/*
+✓ Update all API calls to use /api/* or /api/jobs/*
 ✓ Clear localStorage (old keys might conflict)
-✓ Test HRMS login (/hrms/login)
+✓ Test HRMS login (/login)
 ✓ Test Job Portal login (/jobs/login)
 ✓ Verify no cross-system navigation
 
@@ -229,9 +229,9 @@ Backend:
 ✓ Create jobPortal.routes.js
 ✓ Update app.js to separate routes
 ✓ Rename candidate.routes.js → DEPRECATED (use jobPortal.routes.js)
-✓ Test HRMS endpoints: /api/hrms/*
+✓ Test HRMS endpoints: /api/*
 ✓ Test Job Portal endpoints: /api/jobs/*
-✓ Verify tenant middleware only applies to /api/hrms/*
+✓ Verify tenant middleware only applies to /api/*
 ✓ Test cross-domain requests (if applicable)
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -239,9 +239,9 @@ Backend:
 ═══════════════════════════════════════════════════════════════════════════ */
 
 Scenario 1: HRMS User Session
-1. Open /hrms/login
+1. Open /login
 2. Login as HR admin
-3. Navigate to /hrms/hr/employees
+3. Navigate to /hr/employees
 4. Check: HRMS layout visible, not Job Portal
 5. Open /jobs/login in new tab
 6. Verify: Different layout, different auth
@@ -255,7 +255,7 @@ Scenario 2: Job Portal User Session
 4. Browse /jobs/:companyId
 5. Apply for job
 6. Check: Job Portal layout visible, not HRMS
-7. Open /hrms/login in new tab
+7. Open /login in new tab
 8. Verify: Different system, different auth
 9. Go back to Jobs tab
 10. Verify: Still in Job Portal, not refreshed
@@ -263,14 +263,14 @@ Scenario 2: Job Portal User Session
 Scenario 3: Token Expiry
 1. Login to HRMS
 2. Wait for token expiry (or manually delete token)
-3. Try to access /hrms/hr/employees
-4. Verify: Redirected to /hrms/login
+3. Try to access /hr/employees
+4. Verify: Redirected to /login
 5. SEPARATE: Do same for Job Portal
 6. Verify: Redirected to /jobs/login
 
 Scenario 4: Role Validation
 1. Login as HRMS Employee
-2. Try to access /hrms/psa
+2. Try to access /psa
 3. Verify: 403 Forbidden or redirected
 4. SEPARATE: Job Portal candidate cannot access HRMS routes
 
@@ -305,17 +305,17 @@ Old Structure:
 
 New Structure:
 /                       → RootRouter (redirects to /hrms or /jobs)
-├── /hrms/login         → HRMS login
-├── /hrms/psa           → PSA routes
-├── /hrms/hr            → HR routes
-├── /hrms/employee      → Employee routes
+├── /login         → HRMS login
+├── /psa           → PSA routes
+├── /hr            → HR routes
+├── /employee      → Employee routes
 └── /jobs/              → Job Portal
     ├── /jobs/login     → Candidate login
     ├── /jobs/signup    → Candidate signup
     └── /jobs/*         → Candidate protected routes
 
 Old Candidate routes → Move to /jobs/*
-Old Auth routes → Move to /hrms/login
+Old Auth routes → Move to /login
 
 END OF DOCUMENTATION
 ═══════════════════════════════════════════════════════════════════════════

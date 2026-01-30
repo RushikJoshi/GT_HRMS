@@ -389,7 +389,7 @@ const response = await api.post(`tracker/candidates/${id}/status`, {
 
 4. Fetch Interview Data:
 ────────────────────────
-const interview = await api.get(`/hrms/interviews/${candidateId}`);
+const interview = await api.get(`/interviews/${candidateId}`);
 // Response: { _id, scheduledDate, scheduledTime, ... }
 
 5. Fetch Candidate Data:
