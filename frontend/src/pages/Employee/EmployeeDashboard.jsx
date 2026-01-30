@@ -5,7 +5,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { UIContext } from '../../context/UIContext';
-import { FileText, Calendar as CalendarIcon, Users, Clock, CheckCircle, AlertCircle, RefreshCw, LogIn, LogOut, Briefcase } from 'lucide-react';
+import { FileText, Edit2, X, Calendar as CalendarIcon, Users, Clock, CheckCircle, AlertCircle, RefreshCw, LogIn, LogOut, Briefcase } from 'lucide-react';
 import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/dateUtils';
 
 import RegularizationRequest from '../Leaves/RegularizationRequest';
@@ -33,6 +33,7 @@ export default function EmployeeDashboard() {
   const [leaves, setLeaves] = useState([]);
   const [balances, setBalances] = useState([]);
   const [hasLeavePolicy, setHasLeavePolicy] = useState(true); // Default true to avoid flash
+  const [policyRequesting, setPolicyRequesting] = useState(false);
   const [stats, setStats] = useState({
     presentDays: 0,
     leavesTaken: 0,
@@ -96,7 +97,25 @@ export default function EmployeeDashboard() {
       setLeaves(leavesArray);
       const balanceData = balanceRes.data?.balances || (Array.isArray(balanceRes.data) ? balanceRes.data : []);
       setBalances(balanceData);
-      setHasLeavePolicy(balanceRes.data?.hasLeavePolicy ?? (balanceData.length > 0));
+      // Prefer authoritative value from profile.leavePolicy, fallback to balances response
+      const profileHasPolicy = Boolean(profileRes.data?.leavePolicy);
+      const computedHasPolicy = profileHasPolicy || (balanceRes.data?.hasLeavePolicy ?? (balanceData.length > 0));
+      setHasLeavePolicy(computedHasPolicy);
+
+      // Auto-attempt self-assignment if no policy found (helps when admin created policies but sync didn't reach this employee)
+      if (!computedHasPolicy) {
+        try {
+          const autoRes = await api.post('/hrms/employee/profile/ensure-policy');
+          if (autoRes?.data?.assigned || autoRes?.data?.hasLeavePolicy) {
+            setHasLeavePolicy(true);
+            if (autoRes.data.balances) setBalances(autoRes.data.balances);
+            if (autoRes.data.profile) setProfile(autoRes.data.profile);
+            showToast('success', 'Policy Assigned', autoRes.data?.message || (autoRes.data?.leavePolicy ? `Assigned policy ${autoRes.data.leavePolicy.name}` : 'Policy assigned'));
+          }
+        } catch (e) {
+          console.warn('[AUTO_ENSURE_POLICY] Auto-assign failed:', e?.response?.data || e.message || e);
+        }
+      }
       setAttendanceSettings(settingsRes?.data);
       setTodaySummary(summaryRes?.data); // New Stats Data
 
@@ -505,6 +524,31 @@ export default function EmployeeDashboard() {
               </div>
               <h4 className="text-sm font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest">Policy Restriction</h4>
               <p className="text-xs font-medium text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-tight">No leave policy assigned yet. Please contact your HR administrator.</p>
+
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <button className={`px-4 py-2 bg-amber-600 text-white rounded-lg font-bold ${policyRequesting ? 'opacity-60 cursor-wait' : 'hover:bg-amber-700'}`} disabled={policyRequesting} onClick={async () => {
+                  try {
+                    setPolicyRequesting(true);
+                    const res = await api.post('/hrms/employee/profile/ensure-policy');
+
+                    // Immediately reflect assignment in UI if API confirms
+                    if (res.data?.assigned || res.data?.leavePolicy) {
+                      setHasLeavePolicy(true);
+                      if (res.data?.balances) setBalances(res.data.balances);
+                    }
+
+                    // Prefer response message if present
+                    const msg = res.data?.message || (res.data?.leavePolicy ? `Assigned policy: ${res.data.leavePolicy.name}` : 'Policy assignment attempted');
+                    showToast('success', 'Policy Assigned', msg);
+
+                    // Still refresh authoritative data from server
+                  } finally {
+                    setPolicyRequesting(false);
+                  }
+                }}>{policyRequesting ? 'Requesting...' : 'Request Policy Assignment'}</button>
+
+                <button className="px-4 py-2 border border-amber-600 text-amber-700 rounded-lg font-bold bg-white/50" onClick={() => { navigator.clipboard ? navigator.clipboard.writeText('Please contact HR to assign your leave policy') : null; showToast('info', 'Contact HR', 'Message copied to clipboard.'); }}>Contact HR</button>
+              </div>
             </div>
           )}
 
@@ -515,11 +559,8 @@ export default function EmployeeDashboard() {
                 balances={balances}
                 existingLeaves={leaves}
                 editData={editLeave}
-                onCancelEdit={() => setEditLeave(null)}
-                onSuccess={() => {
-                  setEditLeave(null);
-                  fetchDashboardData();
-                }}
+                hasLeavePolicy={hasLeavePolicy}
+                leavePolicy={profile?.leavePolicy || null}
               />
             </div>
 
@@ -601,19 +642,27 @@ export default function EmployeeDashboard() {
                                   className="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors border border-transparent hover:border-indigo-100 dark:hover:border-indigo-800/40"
                                   title="Edit Request"
                                 >
-                                  <FileText size={16} />
+                                  <Edit2 size={16} />
                                 </button>
                                 <button
                                   onClick={() => handleCancelLeave(l._id)}
                                   className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors border border-transparent hover:border-rose-100 dark:hover:border-rose-800/40"
                                   title="Cancel Request"
                                 >
-                                  <AlertCircle size={16} />
+                                  <X size={16} />
                                 </button>
                               </div>
                             ) : (
-                              <div className="text-[10px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest italic pr-2">
-                                Locked
+                              <div className="pr-2">
+                                {l.status === 'Approved' ? (
+                                  <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-200">Approved</span>
+                                ) : l.status === 'Rejected' ? (
+                                  <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-rose-50 text-rose-600 border border-rose-200">Rejected</span>
+                                ) : l.status === 'Cancelled' ? (
+                                  <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200">Cancelled</span>
+                                ) : (
+                                  <div className="text-[10px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest italic pr-2">Locked</div>
+                                )}
                               </div>
                             )}
                           </td>

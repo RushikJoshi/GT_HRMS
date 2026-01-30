@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications';
 import api from '../../utils/api';
-import { Plus, Trash2, Edit2, Save, X, Check, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 
 export default function LeavePolicies() {
     const [policies, setPolicies] = useState([]);
@@ -125,8 +125,10 @@ export default function LeavePolicies() {
                 });
             } else {
                 // Create
-                await api.post('/hr/leave-policies', form);
-                showToast('success', 'Success', "Policy created successfully.");
+                const res = await api.post('/hr/leave-policies', form);
+                const syncCount = Array.isArray(res.data?.syncResults) ? res.data.syncResults.length : 0;
+                const msg = syncCount > 0 ? `Policy created and assigned to ${syncCount} employees` : 'Policy created (no employees assigned yet)';
+                showToast('success', 'Success', msg);
                 setShowModal(false);
                 fetchPolicies();
             }
@@ -164,6 +166,19 @@ export default function LeavePolicies() {
             showToast('success', 'Success', `Policy ${!currentStatus ? 'Activated' : 'Deactivated'}`);
         } catch (err) {
             showToast('error', 'Error', "Failed to update status");
+        }
+    };
+
+    const handleSync = async (id) => {
+        try {
+            showToast('info', 'Syncing', 'Sync in progress...');
+            const res = await api.post(`/hr/leave-policies/${id}/sync`);
+            const count = Array.isArray(res.data?.results) ? res.data.results.length : 0;
+            showToast('success', 'Synced', `Policy synced to ${count} employees`);
+            fetchPolicies();
+        } catch (err) {
+            console.error('[SYNC] Error', err);
+            showToast('error', 'Failed', err.response?.data?.error || err.message || 'Failed to sync policy');
         }
     };
 
@@ -209,6 +224,11 @@ export default function LeavePolicies() {
                                         <button onClick={() => handleEdit(p)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition">
                                             <Edit2 size={16} />
                                         </button>
+
+                                        <button onClick={() => handleSync(p._id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md transition" title="Sync policy to employees">
+                                            <RefreshCw size={16} />
+                                        </button>
+
                                         <button onClick={() => handleDelete(p._id)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-md transition">
                                             <Trash2 size={16} />
                                         </button>
