@@ -22,24 +22,76 @@ async function getEmployeeCompensation(db, tenantId, employeeId) {
     try {
         const Applicant = db.model('Applicant');
         const Employee = db.model('Employee');
+        const EmployeeCompensation = db.model('EmployeeCompensation');
 
+        let applicant = null;
+        let mainComp = null;
         const employee = await Employee.findById(employeeId);
-        if (!employee) return { found: false, message: 'Employee not found' };
 
-        const applicant = await Applicant.findOne({
-            tenant: tenantId,
-            $or: [
-                { email: employee.email?.toLowerCase() },
-                { employeeId: employee._id }
-            ]
-        })
-            .populate('salarySnapshotId')
-            .lean();
+        if (employee) {
+            // Priority 1: Check EmployeeCompensation model (Master source)
+            mainComp = await EmployeeCompensation.findOne({
+                employeeId: employee._id,
+                isActive: true,
+                status: 'ACTIVE'
+            }).lean();
+
+            if (mainComp) {
+                return {
+                    found: true,
+                    source: 'EMPLOYEE_COMPENSATION',
+                    employeeId,
+                    compensation: {
+                        annualCTC: mainComp.totalCTC || 0,
+                        monthlyCTC: Math.round((mainComp.totalCTC || 0) / 12),
+                        grossEarnings: mainComp.grossA || 0,
+                        totalDeductions: 0, // Simplified for preview
+                        totalBenefits: mainComp.grossB || 0,
+                        earnings: mainComp.components?.filter(c => c.type === 'EARNING').map(e => ({
+                            name: e.name,
+                            monthlyAmount: e.monthlyAmount,
+                            yearlyAmount: e.annualAmount
+                        })) || [],
+                        employeeDeductions: mainComp.components?.filter(c => c.type === 'DEDUCTION').map(d => ({
+                            name: d.name,
+                            monthlyAmount: d.monthlyAmount,
+                            yearlyAmount: d.annualAmount
+                        })) || [],
+                        benefits: mainComp.components?.filter(c => c.type === 'BENEFIT').map(b => ({
+                            name: b.name,
+                            monthlyAmount: b.monthlyAmount,
+                            yearlyAmount: b.annualAmount
+                        })) || [],
+                        effectiveFrom: mainComp.effectiveFrom,
+                        reason: 'ACTIVE_STRUCTURE'
+                    }
+                };
+            }
+
+            // Priority 2: Find applicant linked to this employee
+            applicant = await Applicant.findOne({
+                tenant: tenantId,
+                $or: [
+                    { email: employee.email?.toLowerCase() },
+                    { employeeId: employee._id }
+                ]
+            })
+                .populate('salarySnapshotId')
+                .lean();
+        } else {
+            // Not found as employee, try finding as Applicant directly
+            applicant = await Applicant.findOne({
+                _id: employeeId,
+                tenant: tenantId
+            })
+                .populate('salarySnapshotId')
+                .lean();
+        }
 
         if (!applicant || !applicant.salarySnapshotId) {
             return {
                 found: false,
-                message: 'No compensation record found for employee'
+                message: 'No compensation record found for this person'
             };
         }
 
