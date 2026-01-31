@@ -206,50 +206,129 @@ exports.getCompensationList = async (req, res) => {
 /**
  * POST /api/compensation/increment
  * Allows safe increments via versioning, never edits historical data
+ * 
+ * ENHANCED: Now uses salaryIncrement service for:
+ * - Proper validation
+ * - Status management (ACTIVE/SCHEDULED/EXPIRED)
+ * - Audit trail
+ * - Auto-activation based on effectiveFrom date
  */
 exports.createIncrement = async (req, res) => {
     try {
-        const { Employee, EmployeeCtcVersion, EmployeeSalarySnapshot } = getModels(req);
-        const { employeeId, effectiveFrom, totalCTC, components, grossA, grossB, grossC } = req.body;
+        const salaryIncrementService = require('../services/salaryIncrement.service');
 
-        if (!employeeId) return res.status(400).json({ success: false, message: "Employee ID is required" });
-
-        // 1. Deactivate old versions
-        await EmployeeCtcVersion.updateMany(
-            { employeeId, isActive: true },
-            { $set: { isActive: false } }
-        );
-
-        // 2. Find latest version number
-        const lastVersion = await EmployeeCtcVersion.findOne({ employeeId }).sort({ version: -1 });
-        const newVersionNum = lastVersion ? lastVersion.version + 1 : 1;
-
-        // 3. Create new version
-        const newVersion = new EmployeeCtcVersion({
-            companyId: req.user.tenantId,
+        const {
             employeeId,
-            version: newVersionNum,
-            effectiveFrom: effectiveFrom || new Date(),
-            grossA: grossA || 0,
-            grossB: grossB || 0,
-            grossC: grossC || 0,
+            effectiveFrom,
             totalCTC,
+            grossA,
+            grossB,
+            grossC,
             components,
-            isActive: true,
-            createdBy: req.user.id || req.user._id
-        });
+            incrementType,
+            reason,
+            notes
+        } = req.body;
 
-        await newVersion.save();
+        // Validation
+        if (!employeeId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Employee ID is required'
+            });
+        }
+
+        if (!effectiveFrom) {
+            return res.status(400).json({
+                success: false,
+                message: 'Effective From date is required'
+            });
+        }
+
+        if (!totalCTC || totalCTC <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Valid Total CTC is required'
+            });
+        }
+
+        // Validate user context
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User authentication required'
+            });
+        }
+
+        const userId = req.user.id || req.user._id;
+        const tenantId = req.user.tenantId || req.user.companyId;
+
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'User ID not found in request'
+            });
+        }
+
+        if (!tenantId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Tenant ID not found in request'
+            });
+        }
+
+        // Create increment using service
+        const result = await salaryIncrementService.createIncrement(req.tenantDB, {
+            employeeId,
+            effectiveFrom,
+            totalCTC,
+            grossA,
+            grossB,
+            grossC,
+            components,
+            incrementType: incrementType || 'INCREMENT',
+            reason,
+            notes,
+            createdBy: userId,
+            companyId: tenantId
+        });
 
         res.json({
             success: true,
-            message: "Compensation version created successfully",
-            data: newVersion
+            message: `Salary ${result.status === 'ACTIVE' ? 'increment activated' : 'increment scheduled'} successfully`,
+            data: {
+                newVersion: {
+                    version: result.newCtcVersion.version,
+                    totalCTC: result.newCtcVersion.totalCTC,
+                    grossA: result.newCtcVersion.grossA,
+                    effectiveFrom: result.newCtcVersion.effectiveFrom,
+                    status: result.status,
+                    isActive: result.newCtcVersion.isActive
+                },
+                change: {
+                    absolute: result.change.absolute,
+                    percentage: result.change.percentage
+                },
+                status: result.status,
+                statusMessage: result.status === 'ACTIVE'
+                    ? 'Increment is now active and will be used for payroll'
+                    : `Increment scheduled for ${new Date(effectiveFrom).toLocaleDateString()}`
+            }
         });
 
     } catch (error) {
         console.error("Create Increment Error:", error);
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Error details:", {
+            message: error.message,
+            stack: error.stack,
+            user: req.user ? { id: req.user.id || req.user._id, tenantId: req.user.tenantId } : 'No user',
+            body: req.body
+        });
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to create increment',
+            error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 
@@ -258,20 +337,28 @@ exports.createIncrement = async (req, res) => {
  */
 exports.getCompensationHistory = async (req, res) => {
     try {
-        const { EmployeeCtcVersion } = getModels(req);
         const { employeeId } = req.params;
+        const Applicant = req.tenantDB.model('Applicant');
 
-        const history = await EmployeeCtcVersion.find({ employeeId })
-            .sort({ version: -1 })
-            .populate('createdBy', 'firstName lastName');
+        const applicant = await Applicant.findById(employeeId).select('salaryHistory');
+
+        if (!applicant) {
+            return res.status(404).json({
+                success: false,
+                message: 'Employee not found'
+            });
+        }
 
         res.json({
             success: true,
-            data: history
+            data: applicant.salaryHistory || []
         });
 
     } catch (error) {
-        console.error("Get Compensation History Error:", error);
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Get History Error:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to fetch history'
+        });
     }
 };

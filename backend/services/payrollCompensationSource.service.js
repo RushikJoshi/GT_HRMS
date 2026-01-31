@@ -20,25 +20,31 @@ const mongoose = require('mongoose');
  */
 async function getEmployeeCompensation(db, tenantId, employeeId) {
     try {
-        // Try to get applicant with populated salarySnapshotId
         const Applicant = db.model('Applicant');
-        
+        const Employee = db.model('Employee');
+
+        const employee = await Employee.findById(employeeId);
+        if (!employee) return { found: false, message: 'Employee not found' };
+
         const applicant = await Applicant.findOne({
             tenant: tenantId,
-            // Could match by email or other identifier if employee email available
+            $or: [
+                { email: employee.email?.toLowerCase() },
+                { employeeId: employee._id }
+            ]
         })
-        .populate('salarySnapshotId')
-        .lean();
-        
+            .populate('salarySnapshotId')
+            .lean();
+
         if (!applicant || !applicant.salarySnapshotId) {
             return {
                 found: false,
                 message: 'No compensation record found for employee'
             };
         }
-        
+
         const snapshot = applicant.salarySnapshotId;
-        
+
         return {
             found: true,
             source: 'COMPENSATION',
@@ -77,7 +83,7 @@ function convertCompensationToTemplate(compensation) {
         source: 'COMPENSATION',
         annualCTC: compensation.annualCTC,
         monthlyCTC: compensation.monthlyCTC,
-        
+
         // Convert earnings array to template format
         earnings: (compensation.earnings || []).map(e => ({
             name: e.name,
@@ -86,20 +92,20 @@ function convertCompensationToTemplate(compensation) {
             proRata: false, // Snapshot doesn't track proRata, assume false
             taxable: true // Conservative assumption
         })),
-        
+
         // Convert deductions to template format
         employerDeductions: (compensation.benefits || []).map(b => ({
             name: b.name,
             monthlyAmount: b.monthlyAmount || 0
         })),
-        
+
         // Default settings (can be expanded based on compensation data)
         settings: {
             includePensionScheme: true,
             pfWageRestriction: true,
             includeESI: true
         },
-        
+
         // Track source for audit
         _compensationSnapshot: {
             ctc: compensation.annualCTC,
@@ -117,23 +123,23 @@ function convertCompensationToTemplate(compensation) {
  */
 function validateCompensationSource(compensationData) {
     const issues = [];
-    
+
     if (!compensationData.found) {
         issues.push('No compensation record found');
     }
-    
+
     if (compensationData.compensation?.annualCTC <= 0) {
         issues.push('Annual CTC not set or invalid');
     }
-    
+
     if (compensationData.compensation?.monthlyCTC <= 0) {
         issues.push('Monthly CTC not calculated');
     }
-    
+
     if (!compensationData.compensation?.earnings || compensationData.compensation.earnings.length === 0) {
         issues.push('No earnings components defined in compensation');
     }
-    
+
     return {
         valid: issues.length === 0,
         issues
@@ -153,14 +159,14 @@ async function selectPayrollSource(db, tenantId, employeeId, useCompensationSour
             message: 'Using Salary Template (compensation source disabled)'
         };
     }
-    
+
     // Try to fetch compensation
     const compensationData = await getEmployeeCompensation(db, tenantId, employeeId);
-    
+
     // If compensation found and valid, use it
     if (compensationData.found) {
         const validation = validateCompensationSource(compensationData);
-        
+
         if (validation.valid) {
             return {
                 source: 'COMPENSATION',
@@ -181,7 +187,7 @@ async function selectPayrollSource(db, tenantId, employeeId, useCompensationSour
             };
         }
     }
-    
+
     // No compensation found, fallback to template
     return {
         source: 'TEMPLATE',
@@ -203,21 +209,21 @@ function extractCompensationBreakdown(compensation) {
             yearlyAmount: e.yearlyAmount,
             calculationType: e.calculationType
         })),
-        
+
         employeeDeductions: (compensation.employeeDeductions || []).map(d => ({
             name: d.name,
             monthlyAmount: d.monthlyAmount,
             yearlyAmount: d.yearlyAmount,
             calculationType: d.calculationType
         })),
-        
+
         benefits: (compensation.benefits || []).map(b => ({
             name: b.name,
             monthlyAmount: b.monthlyAmount,
             yearlyAmount: b.yearlyAmount,
             calculationType: b.calculationType
         })),
-        
+
         summary: {
             grossEarnings: compensation.grossEarnings,
             totalDeductions: compensation.totalDeductions,

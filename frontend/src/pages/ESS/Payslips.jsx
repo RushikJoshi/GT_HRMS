@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import { formatDateDDMMYYYY } from '../../utils/dateUtils';
-import { FileText, Download, Calendar, Eye, X, DollarSign } from 'lucide-react';
+import { FileText, Download, Calendar, Eye, X, IndianRupee } from 'lucide-react';
 
 export default function Payslips() {
   const [payslips, setPayslips] = useState([]);
