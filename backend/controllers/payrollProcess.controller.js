@@ -56,8 +56,10 @@ exports.getProcessEmployees = async (req, res) => {
 
         // Add employees first (Master records)
         employees.forEach(emp => {
-            employeeMap.set(emp.email?.toLowerCase(), {
-                _id: emp._id,
+            const emailKey = emp.email?.toLowerCase();
+            const key = emailKey || emp._id.toString();
+            employeeMap.set(key, {
+                _id: emp._id.toString(),
                 name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Unnamed Employee',
                 employeeId: emp.employeeId,
                 email: emp.email,
@@ -70,11 +72,13 @@ exports.getProcessEmployees = async (req, res) => {
 
         // Add applicants if not already present as employees
         applicants.forEach(app => {
-            const email = app.email?.toLowerCase();
-            // Only add if not already present OR if applicant is the one linked to employeeId
-            if (!employeeMap.has(email)) {
-                employeeMap.set(email, {
-                    _id: app._id,
+            const emailKey = app.email?.toLowerCase();
+            const key = emailKey || app._id.toString();
+
+            // Only add if not already present via same email
+            if (!employeeMap.has(key)) {
+                employeeMap.set(key, {
+                    _id: app._id.toString(),
                     name: app.name || 'Unnamed Applicant',
                     employeeId: app.employeeId ? 'LINKED' : 'UNASSIGNED',
                     email: app.email,
@@ -110,8 +114,8 @@ exports.getProcessEmployees = async (req, res) => {
 
             return {
                 ...person,
-                key: person._id, // Required for Ant Design table
-                salaryTemplateId: templateId,
+                key: person._id, // Required for Ant Design table (ID is now string)
+                salaryTemplateId: templateId?.toString(),
                 attendanceParams: {
                     presentDays: attendanceCount,
                     totalDays: endDate.getDate()
