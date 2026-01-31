@@ -83,28 +83,30 @@ export default function InterviewScheduleModal({
                                 value={interviewData.time ? dayjs(interviewData.time, 'h:mm a') : null}
                                 onChange={(time, timeString) => handleChange('time', timeString)}
                                 minuteStep={5}
-                                disabledHours={() => {
-                                    const hours = [];
-                                    const isToday = interviewData.date && dayjs(interviewData.date).isSame(dayjs(), 'day');
-                                    if (isToday) {
-                                        const currentHour = dayjs().hour();
-                                        for (let i = 0; i < currentHour; i++) {
-                                            hours.push(i);
+                                disabledTime={() => ({
+                                    disabledHours: () => {
+                                        const hours = [];
+                                        const isToday = interviewData.date && dayjs(interviewData.date).isSame(dayjs(), 'day');
+                                        if (isToday) {
+                                            const currentHour = dayjs().hour();
+                                            for (let i = 0; i < currentHour; i++) {
+                                                hours.push(i);
+                                            }
                                         }
-                                    }
-                                    return hours;
-                                }}
-                                disabledMinutes={(selectedHour) => {
-                                    const minutes = [];
-                                    const isToday = interviewData.date && dayjs(interviewData.date).isSame(dayjs(), 'day');
-                                    if (isToday && selectedHour === dayjs().hour()) {
-                                        const currentMinute = dayjs().minute();
-                                        for (let i = 0; i < currentMinute; i++) {
-                                            minutes.push(i);
+                                        return hours;
+                                    },
+                                    disabledMinutes: (selectedHour) => {
+                                        const minutes = [];
+                                        const isToday = interviewData.date && dayjs(interviewData.date).isSame(dayjs(), 'day');
+                                        if (isToday && selectedHour === dayjs().hour()) {
+                                            const currentMinute = dayjs().minute();
+                                            for (let i = 0; i < currentMinute; i++) {
+                                                minutes.push(i);
+                                            }
                                         }
+                                        return minutes;
                                     }
-                                    return minutes;
-                                }}
+                                })}
                             />
                         </div>
                         <div>

@@ -14,6 +14,13 @@ router.get('/', controller.getConfigurations);
 // POST/PUT save configurations
 router.post('/', controller.saveConfigurations);
 
+// DELETE configuration
+// DELETE configuration - Deprecated in Enterprise Engine
+// router.delete('/:id', controller.deleteConfiguration);
+
+// POST get next ID (optionally increment)
+router.post('/next', controller.getNextId);
+
 // Add a test status endpoint if needed
 router.get('/status', (req, res) => res.json({ status: 'active' }));
 

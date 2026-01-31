@@ -82,6 +82,7 @@ try {
     mongoose.model('Regularization', require('./models/Regularization'));
     mongoose.model('Applicant', require('./models/Applicant'));
     mongoose.model('Requirement', require('./models/Requirement'));
+    mongoose.model('Position', require('./models/Position'));
     mongoose.model('Candidate', require('./models/Candidate'));
     mongoose.model('Interview', require('./models/Interview'));
     mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
@@ -125,6 +126,7 @@ const payrollAdjustmentRoutes = require('./routes/payrollAdjustment.routes');
 
 // Company ID Configuration
 const companyIdConfigRoutes = require('./routes/companyIdConfig.routes');
+const positionRoutes = require('./routes/position.routes');
 
 /* ===============================
    ROUTES (NO TENANT)
@@ -174,6 +176,7 @@ app.use('/api/activities', activityRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
+app.use('/api/positions', positionRoutes);
 /* ===============================
    HRMS ALIAS ROUTES (For Frontend Inconsistencies)
 ================================ */
@@ -191,6 +194,8 @@ app.use(hrmsPrefix + '/compensation', compensationRoutes);
 app.use(hrmsPrefix + '/entities', entityRoutes);
 app.use(hrmsPrefix + '/notifications', notificationRoutes);
 app.use(hrmsPrefix + '/comments', commentRoutes);
+app.use(hrmsPrefix + '/positions', positionRoutes);
+app.use(hrmsPrefix + '/employee', employeeRoutes);
 
 // Special case for letter_templates (plural vs singular)
 app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {

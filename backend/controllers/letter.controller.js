@@ -1437,6 +1437,51 @@ exports.generateJoiningLetter = async (req, res) => {
 
         console.log("salaryComponents (FINAL STRICT) =>", salaryComponents);
 
+        // --- GENERATE APPOINTMENT REFERENCE NUMBER ---
+        let generatedRefNo = null;
+        try {
+            const companyIdConfig = require('./companyIdConfig.controller');
+            const tenantId = req.user?.tenantId || req.tenantId;
+
+            // Fetch Company Profile for company code and branch code
+            const { CompanyProfile } = getModels(req);
+            const companyProfile = await CompanyProfile.findOne({ tenantId: tenantId });
+
+            const companyCode = companyProfile?.companyCode || 'GTPL';
+            const branchCode = companyProfile?.branchCode || 'AHM';
+
+            // Get department code for reference number
+            const deptName = targetType === 'employee' ? (target.department || 'GEN') : (target.requirementId?.department?.name || 'GEN');
+            const deptCode = deptName.substring(0, 3).toUpperCase();
+
+            console.log('🔍 [JOINING LETTER] ID Generation Context:', {
+                companyCode,
+                branchCode,
+                deptCode,
+                targetType,
+                department: deptName
+            });
+
+            // Generate APPOINTMENT ID with all replacements
+            const appointmentIdResult = await companyIdConfig.generateIdInternal({
+                tenantId: tenantId,
+                entityType: 'APPOINTMENT',
+                increment: true,
+                extraReplacements: {
+                    '{{COMPANY}}': companyCode,
+                    '{{BRANCH}}': branchCode,
+                    '{{DEPT}}': deptCode
+                }
+            });
+
+            generatedRefNo = appointmentIdResult.id;
+            console.log('✅ [JOINING LETTER] Generated Reference Number:', generatedRefNo);
+        } catch (idErr) {
+            console.warn("⚠️ [JOINING LETTER] Could not generate reference number:", idErr.message);
+            console.error("⚠️ [JOINING LETTER] ID Generation Error Stack:", idErr.stack);
+            generatedRefNo = `APPT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(5, '0')}`;
+        }
+
         // A. Basic Placeholders
         // Normalize target for mapOfferToJoiningData
         const normalizedTarget = {
@@ -1475,11 +1520,13 @@ exports.generateJoiningLetter = async (req, res) => {
             salary_table_text_block: salaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n'),
             SALARY_TABLE: salaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n'),
 
-            // Custom Overrides for Ref No and Issue Date
-            ref_no: refNo || basicData.ref_no,
-            refNo: refNo || basicData.ref_no,
-            ref_code: refNo || basicData.ref_no,
-            reference_number: refNo || basicData.ref_no,
+            // Custom Overrides for Ref No and Issue Date (Use generated APPOINTMENT ID)
+            ref_no: refNo || generatedRefNo || basicData.ref_no,
+            refNo: refNo || generatedRefNo || basicData.ref_no,
+            ref_code: refNo || generatedRefNo || basicData.ref_no,
+            reference_number: refNo || generatedRefNo || basicData.ref_no,
+            appointment_id: generatedRefNo,
+            APPOINTMENT_ID: generatedRefNo,
             issued_date: issueDate ? new Date(issueDate).toLocaleDateString('en-IN') : (basicData.issued_date || new Date().toLocaleDateString('en-IN')),
             issuedDate: issueDate ? new Date(issueDate).toLocaleDateString('en-IN') : (basicData.issued_date || new Date().toLocaleDateString('en-IN')),
             issue_date: issueDate ? new Date(issueDate).toLocaleDateString('en-IN') : (basicData.issued_date || new Date().toLocaleDateString('en-IN')),
@@ -1568,6 +1615,19 @@ exports.generateJoiningLetter = async (req, res) => {
         });
 
         await generated.save();
+
+        // Increment Appointment ID Sequence (Consume the ID)
+        try {
+            const companyIdConfigController = require('./companyIdConfig.controller');
+            await companyIdConfigController.generateIdInternal({
+                tenantId: req.user.tenantId,
+                entityType: 'APPOINTMENT',
+                increment: true
+            });
+            console.log('✅ [JOINING LETTER] Incremented Appointment ID sequence');
+        } catch (seqError) {
+            console.warn('⚠️ [JOINING LETTER] Failed to increment sequence:', seqError.message);
+        }
 
         // Update Applicant/Employee
         if (targetType === 'applicant') {
@@ -1933,6 +1993,25 @@ exports.generateOfferLetter = async (req, res) => {
             });
 
             await updatedApplicant.save();
+
+            // --- INCREMENT OFFER COUNTER ---
+            try {
+                const companyIdConfig = require('./companyIdConfig.controller');
+                const deptName = updatedApplicant.requirementId?.department?.name || 'GEN';
+                const deptCode = deptName.substring(0, 3).toUpperCase();
+
+                await companyIdConfig.generateIdInternal({
+                    tenantId: req.user?.tenantId || req.tenantId,
+                    entityType: 'OFFER',
+                    increment: true,
+                    extraReplacements: {
+                        '{{DEPT}}': deptCode
+                    }
+                });
+                console.log('✅ [OFFER LETTER] Incrementing sequence for OFFER');
+            } catch (idErr) {
+                console.warn("⚠️ [OFFER LETTER] Could not increment sequence:", idErr.message);
+            }
         }
 
         res.json({

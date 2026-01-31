@@ -57,6 +57,7 @@ import LetterSettings from '../pages/HR/LetterSettings';
 import TemplatePreview from '../pages/HR/TemplatePreview';
 import SalaryStructure from '../pages/HR/SalaryStructure';
 import CreateRequirement from '../pages/HR/CreateRequirement';
+import PositionMaster from '../pages/HR/PositionMaster';
 
 // Career Builder
 import CareerBuilder from '../pages/HR/CareerBuilder/CareerBuilder';
@@ -272,7 +273,10 @@ export default function AppRoutes() {
                 <Route path="leave-policies" element={<LeavePolicies />} />
                 <Route path="requirements" element={<RequirementPage />} />
                 <Route path="create-requirement" element={<CreateRequirement />} />
+                <Route path="positions" element={<PositionMaster />} />
                 <Route path="applicants" element={<Applicants />} />
+                <Route path="applicants/all" element={<Applicants />} />
+                <Route path="job/:jobId/candidates" element={<Applicants jobSpecific={true} />} />
                 <Route path="internal-applicants" element={<Applicants internalMode={true} />} />
                 <Route path="candidate-status" element={<CandidateStatusTracker />} />
                 <Route path="candidate-status/:id" element={<CandidateTimeline />} />
