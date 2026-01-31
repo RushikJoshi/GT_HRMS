@@ -2309,7 +2309,12 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         {app.salarySnapshotId || app.salarySnapshot || app.salaryAssigned ? (
-                                                            <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={10} /> Locked</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={10} /> Locked</span>
+                                                                <button onClick={() => navigate(`/hr/salary-structure/${app._id}`)} className="p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-white border border-transparent hover:border-blue-100 transition-all" title="Edit Salary Structure">
+                                                                    <Edit2 size={12} />
+                                                                </button>
+                                                            </div>
                                                         ) : (
                                                             <button onClick={() => navigate(`/hr/salary-structure/${app._id}`)} className="w-full py-2 sm:py-3 bg-white border border-slate-200 text-slate-600 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:border-indigo-400 hover:text-indigo-600 transition shadow-sm uppercase tracking-widest whitespace-nowrap">ASSIGN SALARY</button>
                                                         )}
@@ -2322,6 +2327,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                     <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
                                                                     <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
                                                                 </div>
+                                                                <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Offer">
+                                                                    <Edit2 size={12} />
+                                                                </button>
                                                             </div>
                                                         ) : (
                                                             <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="w-full py-2 sm:py-3 bg-blue-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest">GENERATE</button>
@@ -2335,6 +2343,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                     <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">JOINING</span>
                                                                     <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
                                                                 </div>
+                                                                <button onClick={() => openJoiningModal(app)} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Joining Letter">
+                                                                    <Edit2 size={12} />
+                                                                </button>
                                                             </div>
                                                         ) : (
                                                             <button onClick={() => openJoiningModal(app)} className="w-full py-2 sm:py-3 bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 uppercase tracking-widest">GENERATE</button>
