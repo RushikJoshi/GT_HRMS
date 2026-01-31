@@ -422,7 +422,7 @@ exports.create = async (req, res) => {
       }
     }
 
-    const emp = await Employee.create(createData);
+    let emp = await Employee.create(createData);
 
     // --- NEW: Update Snapshot Ownership ---
     if (applicantSnapshotId && emp) {
@@ -435,6 +435,24 @@ exports.create = async (req, res) => {
       } catch (snapErr) {
         console.error("Failed to update snapshot ownership:", snapErr);
       }
+    }
+
+    // --- NEW: Auto-assign default leave policy if none assigned ---
+    try {
+      const { ensureLeavePolicy } = require('../config/dbManager');
+      emp = await ensureLeavePolicy(emp, req.tenantDB, req.tenantId);
+
+      // If a policy was auto-assigned and no explicit policy was provided in create body,
+      // ensure leave balances are initialized for the current year if none exist.
+      if (emp && emp.leavePolicy && !restBody.leavePolicy) {
+        const LeaveBalance = req.tenantDB.model('LeaveBalance');
+        const existing = await LeaveBalance.findOne({ employee: emp._id });
+        if (!existing) {
+          await initializeBalances(req, emp._id, emp.leavePolicy._id || emp.leavePolicy);
+        }
+      }
+    } catch (autoErr) {
+      console.error('[AUTO_POLICY_ASSIGN] Error while auto-assigning policy:', autoErr);
     }
 
     // --- NEW: Link Applicant if exists (Mark Onboarded) ---

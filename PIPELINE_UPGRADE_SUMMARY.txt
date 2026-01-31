@@ -86,7 +86,7 @@ POST /tracker/candidates/{id}/status
 GET /tracker/candidates/{id}
 └─ Fetch candidate details
 
-GET /hrms/interviews/{id}
+GET /interviews/{id}
 └─ Fetch interview data (if exists)
 
 GET /tracker/candidates/{id}/timeline

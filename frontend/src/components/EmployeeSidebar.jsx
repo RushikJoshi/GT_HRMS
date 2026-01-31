@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Calendar, FileText, User, RefreshCw, ChevronDown, Users, Briefcase, Settings, Landmark } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -15,6 +16,7 @@ const ICONS = {
 
 export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const isManager = user?.role === 'manager';
 
     const [expandedGroups, setExpandedGroups] = useState({
@@ -88,6 +90,21 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
     };
 
     const handleTabClick = (id) => {
+        // Special handling for payslips - navigate to dedicated route
+        if (id === 'payslips') {
+            navigate('/employee/payslips');
+            if (onClose) onClose();
+            return;
+        }
+
+        // Special handling for dashboard - navigate to dashboard route
+        if (id === 'dashboard') {
+            navigate('/employee/dashboard');
+            if (onClose) onClose();
+            return;
+        }
+
+        // For other tabs, use the existing tab switching behavior
         setActiveTab(id);
         if (onClose) onClose();
     };

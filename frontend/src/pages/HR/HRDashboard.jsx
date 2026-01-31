@@ -59,10 +59,10 @@ export default function HRDashboard() {
         setCounts({
           employees: employees.length,
           departments: formattedDepartments.length,
-          managers: employees.filter(emp => (emp.role || '').toLowerCase().includes('manager')).length,
-          pendingLeaves: leavesData.filter(l => (l.status || '').toLowerCase() === 'pending').length,
-          activeHRs: employees.filter(emp => (emp.role || '').toLowerCase().includes('hr')).length,
-          topLevel: hierarchyStats.roots || employees.filter(emp => !emp.manager).length,
+          managers: employees.filter(emp => String(emp?.role || '').toLowerCase().includes('manager')).length,
+          pendingLeaves: leavesData.filter(l => String(l?.status || '').toLowerCase() === 'pending').length,
+          activeHRs: employees.filter(emp => String(emp?.role || '').toLowerCase().includes('hr')).length,
+          topLevel: hierarchyStats.roots || employees.filter(emp => !emp?.manager).length,
         });
       } catch (err) {
         console.error('Failed to load HR dashboard data', err);
@@ -320,17 +320,21 @@ export default function HRDashboard() {
               <p className="text-slate-500 text-sm mt-1">No pending leave requests at the moment.</p>
             </div>
           ) : leaves.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(l => {
-            const empName = typeof l.employee === 'object'
-              ? `${l.employee.firstName || ''} ${l.employee.lastName || ''}`.trim() || 'Unknown'
-              : l.employee || 'Unknown';
-            const empInitial = empName.charAt(0).toUpperCase();
-            const isPending = l.status === 'pending';
+            const empName = l.employee
+              ? (typeof l.employee === 'object' && l.employee !== null
+                ? `${l.employee.firstName || ''} ${l.employee.lastName || ''}`.trim() || 'Unknown'
+                : String(l.employee))
+              : 'Unknown';
+            const empInitial = empName ? empName.charAt(0).toUpperCase() : '?';
+            const isPending = String(l.status || '').toLowerCase() === 'pending';
+            const statusStr = String(l.status || '');
+            const statusLower = statusStr.toLowerCase();
 
             return (
               <div key={l._id} className="group bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-indigo-100 transition-all duration-300 relative overflow-hidden">
                 {/* Status Color Bar */}
-                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${l.leaveType?.toLowerCase().includes('sick') ? 'bg-rose-500' :
-                    l.leaveType?.toLowerCase().includes('casual') ? 'bg-blue-500' : 'bg-indigo-500'
+                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${String(l.leaveType || '').toLowerCase().includes('sick') ? 'bg-rose-500' :
+                  String(l.leaveType || '').toLowerCase().includes('casual') ? 'bg-blue-500' : 'bg-indigo-500'
                   }`}></div>
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pl-4">
@@ -350,11 +354,11 @@ export default function HRDashboard() {
                   <div className="flex flex-wrap items-center gap-6 flex-1">
                     <div className="flex flex-col">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Leave Type</span>
-                      <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${l.leaveType?.toLowerCase().includes('sick') ? 'bg-rose-50 text-rose-700' :
-                          l.leaveType?.toLowerCase().includes('casual') ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-700'
+                      <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${String(l.leaveType || '').toLowerCase().includes('sick') ? 'bg-rose-50 text-rose-700' :
+                        String(l.leaveType || '').toLowerCase().includes('casual') ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-700'
                         }`}>
-                        <div className={`w-2 h-2 rounded-full ${l.leaveType?.toLowerCase().includes('sick') ? 'bg-rose-500' :
-                            l.leaveType?.toLowerCase().includes('casual') ? 'bg-blue-500' : 'bg-slate-500'
+                        <div className={`w-2 h-2 rounded-full ${String(l.leaveType || '').toLowerCase().includes('sick') ? 'bg-rose-500' :
+                          String(l.leaveType || '').toLowerCase().includes('casual') ? 'bg-blue-500' : 'bg-slate-500'
                           }`}></div>
                         {l.leaveType}
                       </span>
@@ -389,11 +393,11 @@ export default function HRDashboard() {
                         </button>
                       </>
                     ) : (
-                      <div className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 ${l.status === 'Approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                          l.status === 'Rejected' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-slate-50 text-slate-500'
+                      <div className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 ${statusLower === 'approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                        statusLower === 'rejected' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-slate-50 text-slate-500'
                         }`}>
-                        {l.status === 'Approved' ? <CheckCircle size={16} /> : <XCircle size={16} />}
-                        {l.status}
+                        {statusLower === 'approved' ? <CheckCircle size={16} /> : <XCircle size={16} />}
+                        {statusStr}
                       </div>
                     )}
                   </div>

@@ -113,6 +113,24 @@ const ApplicantSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
   }],
 
+  // Audited Salary Revisions
+  salaryHistory: [{
+    version: Number,
+    effectiveFrom: Date,
+    totalCTC: Number,
+    grossA: Number,
+    grossB: Number,
+    grossC: Number,
+    components: [Object],
+    incrementType: String,
+    reason: String,
+    notes: String,
+    status: String,
+    isActive: Boolean,
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

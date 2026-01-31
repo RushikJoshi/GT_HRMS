@@ -6,11 +6,11 @@ export default function CreateRequirement() {
     const navigate = useNavigate();
 
     const handleSuccess = () => {
-        navigate('/hrms/hr/requirements');
+        navigate('/hr/requirements');
     };
 
     const handleClose = () => {
-        navigate('/hrms/hr/requirements');
+        navigate('/hr/requirements');
     };
 
     return (

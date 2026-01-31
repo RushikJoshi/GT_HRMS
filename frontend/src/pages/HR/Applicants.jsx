@@ -67,7 +67,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         const fetchHolidays = async () => {
             try {
                 const year = new Date().getFullYear();
-                const res = await api.get(`/hrms/holidays?year=${year}`);
+                const res = await api.get(`/holidays?year=${year}`);
                 if (res.data) {
                     setCompanyHolidays(res.data.map(h => dayjs(h.date).format('YYYY-MM-DD')));
                 }
@@ -146,12 +146,12 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         if (!selectedRequirement) return;
         try {
             setLoading(true);
-            await api.put(`/hrms/requirements/${selectedRequirement._id}`, {
+            await api.put(`/requirements/${selectedRequirement._id}`, {
                 workflow: editingWorkflow
             });
 
             // Refresh requirements to reflect changes
-            const res = await api.get('/hrms/requirements');
+            const res = await api.get('/requirements');
             const data = res.data.requirements || res.data || [];
             setRequirements(data);
 
@@ -177,7 +177,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         // Fetch Requirements for dropdown
         async function fetchReqs() {
             try {
-                const res = await api.get('/hrms/requirements');
+                const res = await api.get('/requirements');
                 if (res.data.requirements) {
                     setRequirements(res.data.requirements);
                 } else {
@@ -202,7 +202,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 openJoiningModal(applicant);
             }
             // Clear the state to prevent re-triggering
-            navigate('/hrms/hr/applicants', { replace: true });
+            navigate('/hr/applicants', { replace: true });
         }
     }, [applicants, location.state]);
 
@@ -630,7 +630,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
         setUploading(true);
         try {
-            await api.post(`/hrms/requirements/applicants/${selectedApplicant._id}/upload-salary-excel`, formData, {
+            await api.post(`/requirements/applicants/${selectedApplicant._id}/upload-salary-excel`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             showToast('success', 'Success', "Excel uploaded successfully! Variables are now available for Letter Templates.");
@@ -818,8 +818,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         setLoading(true);
         try {
             const url = isReschedule
-                ? `/hrms/requirements/applicants/${selectedApplicant._id}/interview/reschedule`
-                : `/hrms/requirements/applicants/${selectedApplicant._id}/interview/schedule`;
+                ? `/requirements/applicants/${selectedApplicant._id}/interview/reschedule`
+                : `/requirements/applicants/${selectedApplicant._id}/interview/schedule`;
 
             const method = isReschedule ? 'put' : 'post';
 
@@ -838,7 +838,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 const currentIndex = workflowTabs.indexOf(activeTab);
                 const nextStage = workflowTabs[currentIndex + 1];
                 if (nextStage && nextStage !== 'Finalized') {
-                    await api.patch(`/hrms/requirements/applicants/${selectedApplicant._id}/status`, { status: nextStage });
+                    await api.patch(`/requirements/applicants/${selectedApplicant._id}/status`, { status: nextStage });
                 }
             }
 
@@ -862,7 +862,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             onConfirm: async () => {
                 setLoading(true);
                 try {
-                    await api.put(`/hrms/requirements/applicants/${applicant._id}/interview/complete`);
+                    await api.put(`/requirements/applicants/${applicant._id}/interview/complete`);
                     // showToast('success', 'Success', "Interview Marked Completed");
                     loadApplicants();
                 } catch (err) {
@@ -884,7 +884,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 payload.scorecard = review.scorecard; // Added scorecard
                 payload.stageName = activeTab;
             }
-            await api.patch(`/hrms/requirements/applicants/${applicant._id}/status`, payload);
+            await api.patch(`/requirements/applicants/${applicant._id}/status`, payload);
             showToast('success', 'Success', `Status updated to ${status}`);
             loadApplicants();
             return true;
@@ -977,7 +977,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         try {
             // 1. If finishing interview, mark it complete in DB first
             if (isFinishingInterview) {
-                await api.put(`/hrms/requirements/applicants/${selectedApplicant._id}/interview/complete`);
+                await api.put(`/requirements/applicants/${selectedApplicant._id}/interview/complete`);
             }
 
             // 2. Update status with review and full scorecard
@@ -1015,7 +1015,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         setLoading(true);
         try {
             // Uses centralized api instance - automatically includes Authorization & X-Tenant-ID headers
-            const res = await api.get('/hrms/requirements/applicants');
+            const res = await api.get('/requirements/applicants');
             setApplicants(res.data || []);
         } catch (err) {
             console.error(err);
@@ -1028,7 +1028,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     async function fetchTemplates() {
         // Fetch Offer Templates
         try {
-            const offerRes = await api.get('/hrms/letters/templates?type=offer');
+            const offerRes = await api.get('/letters/templates?type=offer');
             setTemplates(offerRes.data || []);
         } catch (err) {
             console.error("Failed to load offer templates", err);
@@ -1036,7 +1036,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
         // Fetch Joining Templates (independently)
         try {
-            const joiningRes = await api.get('/hrms/letters/templates?type=joining');
+            const joiningRes = await api.get('/letters/templates?type=joining');
             setJoiningTemplates(joiningRes.data || []);
         } catch (err) {
             // Non-critical, just log
@@ -1187,7 +1187,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             });
 
             await api.post(
-                `/hrms/requirements/applicants/${documentApplicant._id}/documents`,
+                `/requirements/applicants/${documentApplicant._id}/documents`,
                 formData,
                 {
                     headers: { 'Content-Type': 'multipart/form-data' }
@@ -1207,7 +1207,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const verifyDocument = async (applicantId, documentIndex) => {
         try {
             await api.patch(
-                `/hrms/requirements/applicants/${applicantId}/documents/${documentIndex}/verify`
+                `/requirements/applicants/${applicantId}/documents/${documentIndex}/verify`
             );
 
             notification.success({ message: 'Success', description: 'Document verified', placement: 'topRight' });
@@ -1324,7 +1324,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     preview: true // Tell backend this is just a preview
                 };
 
-                const res = await api.post('/hrms/letters/generate-offer', payload, { timeout: 30000 });
+                const res = await api.post('/letters/generate-offer', payload, { timeout: 30000 });
 
                 if (res.data.downloadUrl) {
                     const url = `${API_ROOT}${res.data.downloadUrl}`;
@@ -1336,7 +1336,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 const msg = err.response?.data?.message || err.message || "Failed to generate preview";
 
                 if (err.response?.status === 404 && !err.response?.data?.message) {
-                    notification.error({ message: 'Error', description: `Preview failed: Server endpoint not found (404). Please ensure the backend server is running and the route '/api/hrms/letters/generate-offer' exists.`, placement: 'topRight' });
+                    notification.error({ message: 'Error', description: `Preview failed: Server endpoint not found (404). Please ensure the backend server is running and the route '/api/letters/generate-offer' exists.`, placement: 'topRight' });
                 } else {
                     notification.error({ message: 'Error', description: `Preview failed: ${msg}`, placement: 'topRight' });
                 }
@@ -1376,7 +1376,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 // Pass other fields if needed for specific templates
             };
 
-            const res = await api.post('/hrms/letters/generate-offer', payload, { timeout: 30000 });
+            const res = await api.post('/letters/generate-offer', payload, { timeout: 30000 });
 
             if (res.data.downloadUrl) {
                 const url = `${API_ROOT}${res.data.downloadUrl}`;
@@ -1515,7 +1515,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
         try {
             // Using Blob approach to handle Authentication Headers in new tab
-            const response = await api.get(`/hrms/hr/resume/${filename}`, {
+            const response = await api.get(`/hr/resume/${filename}`, {
                 responseType: 'blob'
             });
 
@@ -1550,8 +1550,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         setLoading(true);
         try {
             // Fetch full applicant/candidate details using the ID
-            // Using the verified endpoint /hrms/requirements/applicants/:id
-            const res = await api.get(`/hrms/requirements/applicants/${applicant._id}`);
+            // Using the verified endpoint /requirements/applicants/:id
+            const res = await api.get(`/requirements/applicants/${applicant._id}`);
             const fullData = res.data?.data || res.data;
 
             setSelectedApplicant(fullData);
@@ -1567,7 +1567,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     filename = filename.split(/[/\\]/).pop();
                 }
                 try {
-                    const response = await api.get(`/hrms/hr/resume/${filename}`, { responseType: 'blob' });
+                    const response = await api.get(`/hr/resume/${filename}`, { responseType: 'blob' });
                     const type = response.headers['content-type'] || 'application/pdf';
                     const blob = new Blob([response.data], { type });
                     const url = window.URL.createObjectURL(blob);
@@ -1648,7 +1648,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         if (!confirm("Confirm and Lock this salary structure? This will create an immutable snapshot and enable letter generation.")) return;
         try {
             setLoading(true);
-            await api.post('/hrms/payroll-engine/salary/confirm', {
+            await api.post('/payroll-engine/salary/confirm', {
                 applicantId: applicant._id,
                 reason: 'JOINING'
             });
@@ -1670,7 +1670,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
         setGenerating(true);
         try {
-            const res = await api.post('/hrms/letters/preview-joining', {
+            const res = await api.post('/letters/preview-joining', {
                 applicantId: selectedApplicant._id,
                 templateId: joiningTemplateId,
                 refNo: joiningRefNo,
@@ -1705,7 +1705,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
         setGenerating(true);
         try {
-            const res = await api.post('/hrms/letters/generate-joining', {
+            const res = await api.post('/letters/generate-joining', {
                 applicantId: selectedApplicant._id,
                 templateId: joiningTemplateId,
                 refNo: joiningRefNo,

@@ -197,7 +197,7 @@ function clearCache() {
  * @param {mongoose.Connection} db The tenant database connection
  * @returns {Promise<Object>} The updated (or original) employee document
  */
-async function ensureLeavePolicy(employee, db) {
+async function ensureLeavePolicy(employee, db, tenantIdOverride = null) {
   if (!employee) return null;
 
   const LeavePolicy = db.model("LeavePolicy");
@@ -208,7 +208,7 @@ async function ensureLeavePolicy(employee, db) {
     try {
       const existingPolicy = await LeavePolicy.findOne({
         _id: employee.leavePolicy._id || employee.leavePolicy,
-        tenant: new mongoose.Types.ObjectId(employee.tenant)
+        tenant: new mongoose.Types.ObjectId(tenantIdOverride || employee.tenant)
       });
 
       // A policy is only "valid" if it exists AND has at least one rule
@@ -229,8 +229,16 @@ async function ensureLeavePolicy(employee, db) {
   }
 
   try {
-    // Ensure tenant is an ObjectId for consistent matching
-    const tenantId = new mongoose.Types.ObjectId(employee.tenant);
+    // Determine tenant id: prefer override, else employee.tenant, else infer from db name
+    let tenantStr = tenantIdOverride || employee.tenant;
+    if (!tenantStr && db && db.name) {
+      // db.name is like 'company_<tenantId>' for our multi-tenant pattern
+      tenantStr = db.name.replace(/^company_/, '');
+      console.log(`[POLICY_ENFORCEMENT] Inferred tenant from DB name: ${tenantStr}`);
+    }
+
+    if (!tenantStr) throw new Error('Tenant id not available to enforce policy');
+    const tenantId = new mongoose.Types.ObjectId(tenantStr);
 
     // Find latest active 'All' policy for this tenant that HAS rules
     let globalPolicy = await LeavePolicy.findOne({
@@ -251,6 +259,50 @@ async function ensureLeavePolicy(employee, db) {
       if (fallbackPolicy) {
         console.log(`[POLICY_ENFORCEMENT] No global 'All' policy with rules found. Using fallback policy '${fallbackPolicy.name}'`);
         globalPolicy = fallbackPolicy;
+      }
+    }
+
+    // STILL no policy? Create a default 'Standard Leave Policy' for this tenant
+    if (!globalPolicy) {
+      try {
+        console.log('[POLICY_ENFORCEMENT] No active policy found. Creating default Standard Leave Policy...');
+        const defaultPolicy = new LeavePolicy({
+          tenant: tenantId,
+          name: 'Standard Leave Policy',
+          applicableTo: 'All',
+          isActive: true,
+          rules: [
+            { leaveType: 'Casual Leave', totalPerYear: 12, color: '#f59e0b' },
+            { leaveType: 'Sick Leave', totalPerYear: 7, color: '#ef4444' },
+            { leaveType: 'Privilege Leave', totalPerYear: 15, color: '#10b981' }
+          ]
+        });
+        await defaultPolicy.save();
+        globalPolicy = defaultPolicy;
+        console.log('[POLICY_ENFORCEMENT] Default policy created:', defaultPolicy._id);
+
+        // Initialize balances for the employee for current year
+        const LeaveBalance = db.model('LeaveBalance');
+        const year = new Date().getFullYear();
+        for (const rule of globalPolicy.rules) {
+          const exists = await LeaveBalance.findOne({ tenant: tenantId, employee: employee._id, leaveType: rule.leaveType, year });
+          if (!exists) {
+            await new LeaveBalance({
+              tenant: tenantId,
+              employee: employee._id,
+              policy: globalPolicy._id,
+              leaveType: rule.leaveType,
+              year,
+              total: rule.totalPerYear,
+              used: 0,
+              pending: 0,
+              available: rule.totalPerYear
+            }).save();
+            console.log(`[POLICY_ENFORCEMENT] Created balance ${rule.leaveType} (${rule.totalPerYear}) for employee ${employee.employeeId}`);
+          }
+        }
+      } catch (createErr) {
+        console.error('[POLICY_ENFORCEMENT] Error creating default policy:', createErr);
       }
     }
 

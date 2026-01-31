@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../utils/api';
 import { formatDateDDMMYYYY } from '../../../utils/dateUtils';
-import { Play, CheckCircle, AlertTriangle, FileText, Loader } from 'lucide-react';
-import { Modal, notification } from 'antd';
+import { Modal, notification, Tooltip } from 'antd';
+import PayrollCorrectionModal from '../../../components/Payroll/PayrollCorrectionModal';
+import { Play, CheckCircle, AlertTriangle, Loader, Settings2 } from 'lucide-react';
 
 export default function RunPayroll() {
     const [loading, setLoading] = useState(false);
@@ -12,6 +13,9 @@ export default function RunPayroll() {
     const [calculating, setCalculating] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+
+    // Correction Modal
+    const [correctionState, setCorrectionState] = useState({ visible: false, run: null });
 
     useEffect(() => {
         loadRuns();
@@ -175,6 +179,17 @@ export default function RunPayroll() {
                                                 Approve
                                             </button>
                                         )}
+                                        {(run.status === 'APPROVED' || run.status === 'PAID') && (
+                                            <Tooltip title="Safe Payroll Correction / Adjustments">
+                                                <button
+                                                    onClick={() => setCorrectionState({ visible: true, run })}
+                                                    className="text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 mr-2 text-xs flex items-center gap-1 inline-flex"
+                                                >
+                                                    <Settings2 className="h-3 w-3" />
+                                                    Correct
+                                                </button>
+                                            </Tooltip>
+                                        )}
                                         {run.status === 'APPROVED' && (
                                             <span className="text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded text-xs">Ready for Payment</span>
                                         )}
@@ -185,7 +200,13 @@ export default function RunPayroll() {
                     </table>
                 )}
             </div>
-        </div>
+
+            <PayrollCorrectionModal
+                visible={correctionState.visible}
+                onCancel={() => setCorrectionState({ visible: false, run: null })}
+                payrollRun={correctionState.run}
+            />
+        </div >
     );
 }
 

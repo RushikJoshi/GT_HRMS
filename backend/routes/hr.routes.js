@@ -77,9 +77,17 @@ router.post('/hr/leave-policies', auth.authenticate, auth.requireHr, policyCtrl.
 router.get('/hr/leave-policies', auth.authenticate, auth.requireHr, policyCtrl.getPolicies);
 router.get('/hr/leave-policies/:id', auth.authenticate, auth.requireHr, policyCtrl.getPolicyById);
 router.put('/hr/leave-policies/:id', auth.authenticate, auth.requireHr, policyCtrl.updatePolicy);
+router.post('/hr/leave-policies/:id/sync', auth.authenticate, auth.requireHr, policyCtrl.syncPolicy);
 router.patch('/hr/leave-policies/:id/status', auth.authenticate, auth.requireHr, policyCtrl.togglePolicyStatus);
 router.delete('/hr/leave-policies/:id', auth.authenticate, auth.requireHr, policyCtrl.deletePolicy);
 router.post('/hr/assign-policy', auth.authenticate, auth.requireHr, policyCtrl.assignPolicyToEmployee);
+
+// DEBUG: Create & assign default policy to all employees (HR only)
+router.post('/hr/leave-policies/ensure-default', auth.authenticate, auth.requireHr, policyCtrl.ensureDefaultPolicyForTenant);
+
+// Accrual Endpoints (HR only)
+router.post('/hr/leave-policies/accrual/run-monthly', auth.authenticate, auth.requireHr, policyCtrl.accrueMonthly);
+router.post('/hr/leave-policies/accrual/run-carryforward', auth.authenticate, auth.requireHr, policyCtrl.carryForward);
 
 /* -----------------------------------------
    REGULARIZATION (Admin)

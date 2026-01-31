@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import api from "../utils/api";
+import api, { parseAxiosError } from "../utils/api";
 import { setToken, getToken, removeToken } from "../utils/token";
 import { jwtDecode } from 'jwt-decode';
 
@@ -94,17 +94,31 @@ export function AuthProvider({ children }) {
 
     initializeAuth();
 
-    // Listen for 401 Unauthorized events
+    // Listen for 401 Unauthorized events (safeguarded)
+    let _authMounted = true; // guard to avoid state updates after unmount
+
     const handleUnauthorized = () => {
+      // If component unmounted or no token/user present, ignore the event
+      if (!_authMounted) return;
+      if (!getToken()) return;
+
       console.warn("Session expired. Logging out.");
-      removeToken();
-      localStorage.removeItem("candidate");
-      setUser(null);
-      delete api.defaults.headers.common["Authorization"];
+      try {
+        // Use the centralized logout semantics (manual here to avoid dependency churn)
+        removeToken();
+        sessionStorage.removeItem('tenantId');
+        localStorage.removeItem("candidate");
+        localStorage.removeItem("companyName");
+        setUser(null);
+        delete api.defaults.headers.common["Authorization"];
+      } catch (e) {
+        console.error('Error while handling unauthorized event:', e);
+      }
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     return () => {
+      _authMounted = false; // Prevent future handler execution
       window.removeEventListener('auth:unauthorized', handleUnauthorized);
     };
   }, []);
@@ -136,10 +150,8 @@ export function AuthProvider({ children }) {
       setUser(userData);
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message
-        || (error.code === 'ERR_NETWORK' || error.message?.includes('timeout')
-          ? "Server unreachable. Please check your connection."
-          : "Invalid credentials");
+      const parsed = error.hrms || parseAxiosError(error);
+      const message = parsed?.message || 'Invalid credentials';
       return { success: false, message };
     } finally {
       setIsLoading(false);
@@ -168,7 +180,9 @@ export function AuthProvider({ children }) {
 
       return { success: true };
     } catch (error) {
-      return { success: false, message: error.response?.data?.message || 'Invalid credentials' };
+      const parsed = error.hrms || parseAxiosError(error);
+      const message = parsed?.message || 'Invalid credentials';
+      return { success: false, message };
     } finally {
       setIsLoading(false);
     }
@@ -196,7 +210,9 @@ export function AuthProvider({ children }) {
 
       return { success: true };
     } catch (error) {
-      return { success: false, message: error.response?.data?.message || 'Invalid credentials' };
+      const parsed = error.hrms || parseAxiosError(error);
+      const message = parsed?.message || 'Invalid credentials';
+      return { success: false, message };
     } finally {
       setIsLoading(false);
     }

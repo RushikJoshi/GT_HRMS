@@ -22,7 +22,7 @@ export default function ApplyPageBuilder() {
     const fetchConfig = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/hrms/hr/career/customize');
+            const res = await api.get('/hr/career/customize');
             // We assume the backend stores a generic JSON. 
             // We'll look for `applyPageConfig` within it, or if it's not structured, we might have to improvise.
             // Requirement says "Copy ALL UI patterns".
@@ -134,7 +134,7 @@ export default function ApplyPageBuilder() {
             // Remove our internal helper
             delete fullPayload.applyPage._fullConfig;
 
-            await api.post('/hrms/hr/career/customize', fullPayload);
+            await api.post('/hr/career/customize', fullPayload);
             message.success("Apply Page published successfully!");
 
             // Update internal state reference
