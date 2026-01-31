@@ -6,7 +6,7 @@ import {
     Check,
     Briefcase,
     Users,
-    DollarSign,
+    IndianRupee,
     Clock,
     Activity,
     Cpu,
@@ -37,7 +37,7 @@ export default function EditCompany() {
     // Modules
     const availableModules = [
         { id: 'hr', name: 'HR Management', icon: Users, desc: 'Employees & Depts' },
-        { id: 'payroll', name: 'Payroll', icon: DollarSign, desc: 'Salary & Tax' },
+        { id: 'payroll', name: 'Payroll', icon: IndianRupee, desc: 'Salary & Tax' },
         { id: 'attendance', name: 'Attendance', icon: Clock, desc: 'Time & Shifts' },
         { id: 'recruitment', name: 'Recruitment', icon: Briefcase, desc: 'Hiring Pipeline' },
         { id: 'performance', name: 'Performance', icon: Activity, desc: 'Goals & Reviews' },

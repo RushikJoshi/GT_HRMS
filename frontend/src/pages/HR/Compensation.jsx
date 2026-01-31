@@ -28,6 +28,8 @@ import {
     Lock, Calendar, User, ShieldCheck, ArrowRight
 } from 'lucide-react';
 import api from '../../utils/api';
+import SalaryIncrementModal from '../../components/Compensation/SalaryIncrementModal';
+
 
 export default function Compensation() {
     const [loading, setLoading] = useState(true);
@@ -141,10 +143,11 @@ export default function Compensation() {
         let result = employees;
         if (search) {
             const s = search.toLowerCase();
-            result = result.filter(emp =>
-                `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(s) ||
-                emp.employeeId.toLowerCase().includes(s)
-            );
+            result = result.filter(emp => {
+                const fullName = (emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`).toLowerCase();
+                const identifier = (emp.employeeId || emp.email || '').toLowerCase();
+                return fullName.includes(s) || identifier.includes(s);
+            });
         }
         if (statusFilter) {
             result = result.filter(emp => emp.status === statusFilter);
@@ -169,11 +172,26 @@ export default function Compensation() {
     };
 
     const handleOpenIncrement = (emp) => {
+        // Validate employee ID exists
+        const employeeId = emp._id || emp.id;
+        if (!employeeId) {
+            alert('⚠️ Employee ID Not Found\n\nPlease refresh the page and try again.');
+            console.error('Employee object missing ID:', emp);
+            return;
+        }
+
         // Check if CTC is set before opening increment modal
         if (!emp.activeVersion) {
             alert('⚠️ Salary Structure Not Set\n\nPlease configure the salary structure before creating an increment.');
             return;
         }
+
+        const displayName = emp?.name || `${emp?.firstName || ''} ${emp?.lastName || ''}`.trim() || 'N/A';
+        console.log('Opening increment modal for employee:', {
+            id: employeeId,
+            name: displayName,
+            activeVersion: emp.activeVersion
+        });
 
         setSelectedEmployee(emp);
         const active = emp.activeVersion;
@@ -190,8 +208,9 @@ export default function Compensation() {
 
     const handleApplyIncrement = async () => {
         try {
+            const employeeId = selectedEmployee._id || selectedEmployee.id;
             await api.post('/compensation/increment', {
-                employeeId: selectedEmployee._id,
+                employeeId,
                 ...incrementData
             });
             setShowIncrementModal(false);
@@ -386,13 +405,13 @@ export default function Compensation() {
                     <div className="relative bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
                         <div className="p-8 bg-slate-50/50 flex items-center justify-between border-b border-slate-100">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-black text-xl">
-                                    {selectedEmployee.firstName[0]}
+                                <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-black text-xl uppercase">
+                                    {(selectedEmployee?.name || selectedEmployee?.firstName || 'E')[0]}
                                 </div>
                                 <div>
                                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Compensation Details</h3>
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                        {selectedEmployee.firstName} {selectedEmployee.lastName} • {selectedEmployee.employeeId}
+                                        {selectedEmployee?.name || `${selectedEmployee?.firstName || ''} ${selectedEmployee?.lastName || ''}`.trim() || 'N/A'} • {selectedEmployee?.employeeId || selectedEmployee?.email || 'N/A'}
                                     </p>
                                 </div>
                             </div>
@@ -474,84 +493,26 @@ export default function Compensation() {
                 </div>
             )}
 
-            {/* Increment Modal */}
-            {showIncrementModal && selectedEmployee && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setShowIncrementModal(false)} />
-                    <div className="relative bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
-                        <div className="p-8 bg-emerald-50/50 flex items-center justify-between border-b border-emerald-100">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center font-black">
-                                    <TrendingUp size={24} />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">New Salary Revision</h3>
-                                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mt-0.5">Increment / CTC Update</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setShowIncrementModal(false)} className="p-3 hover:bg-white rounded-2xl border border-transparent hover:border-emerald-200 transition-all text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                        </div>
+            {/* Increment Modal - Enhanced */}
+            {showIncrementModal && selectedEmployee && selectedEmployee.activeVersion && (
+                <SalaryIncrementModal
+                    employee={selectedEmployee}
+                    currentVersion={selectedEmployee.activeVersion}
+                    onClose={() => setShowIncrementModal(false)}
+                    onSuccess={(result) => {
+                        setShowIncrementModal(false);
+                        fetchData(); // Refresh data
 
-                        <div className="p-8 space-y-6">
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Effective From</label>
-                                    <input
-                                        type="date"
-                                        value={incrementData.effectiveFrom}
-                                        onChange={(e) => setIncrementData({ ...incrementData, effectiveFrom: e.target.value })}
-                                        className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-bold text-slate-900"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Annual Total CTC (₹)</label>
-                                    <input
-                                        type="number"
-                                        value={incrementData.totalCTC}
-                                        onChange={(e) => setIncrementData({ ...incrementData, totalCTC: e.target.value })}
-                                        className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-bold text-slate-900"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="p-6 bg-slate-50 rounded-3xl space-y-4">
-                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quick Breakup (Editable)</h4>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black text-slate-400 uppercase pl-1">Gross A (mo)</label>
-                                        <input type="number" value={incrementData.grossA} onChange={(e) => setIncrementData({ ...incrementData, grossA: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold text-xs outline-none" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black text-slate-400 uppercase pl-1">Gross B (yr)</label>
-                                        <input type="number" value={incrementData.grossB} onChange={(e) => setIncrementData({ ...incrementData, grossB: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold text-xs outline-none" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black text-slate-400 uppercase pl-1">Gross C (yr)</label>
-                                        <input type="number" value={incrementData.grossC} onChange={(e) => setIncrementData({ ...incrementData, grossC: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold text-xs outline-none" />
-                                    </div>
-                                </div>
-                                <p className="text-[9px] font-medium text-slate-400 italic">Note: These values will be saved as the new active version. Historical versions remain untouched.</p>
-                            </div>
-
-                            <div className="flex gap-4 pt-4">
-                                <button
-                                    onClick={() => setShowIncrementModal(false)}
-                                    className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-black text-xs transition-all"
-                                >
-                                    CANCEL
-                                </button>
-                                <button
-                                    onClick={handleApplyIncrement}
-                                    className="flex-[2] py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs transition-all shadow-lg shadow-emerald-200"
-                                >
-                                    CREATE AND ACTIVATE v{selectedEmployee.activeVersion ? selectedEmployee.activeVersion.version + 1 : 1}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                        // Show success message
+                        alert(`✅ ${result.message}\n\n` +
+                            `Version: v${result.data.newVersion.version}\n` +
+                            `New CTC: ₹${result.data.newVersion.totalCTC.toLocaleString('en-IN')}\n` +
+                            `Change: ${result.data.change.absolute > 0 ? '+' : ''}₹${Math.abs(result.data.change.absolute).toLocaleString('en-IN')} (${result.data.change.percentage}%)\n` +
+                            `Status: ${result.data.status}\n\n` +
+                            result.data.statusMessage
+                        );
+                    }}
+                />
             )}
 
             {/* History Modal */}
