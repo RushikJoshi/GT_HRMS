@@ -62,70 +62,27 @@ async function getNextSeq(key) {
 --------------------------------------------- */
 async function generateEmployeeId({ req, tenantId, department, firstName, lastName }) {
   try {
-    // 1. Get Configuration for EMPLOYEE
-    let config = await CompanyIdConfig.findOne({ companyId: tenantId, entityType: 'EMPLOYEE' });
+    const companyIdConfig = require('./companyIdConfig.controller');
 
-    // Fallback: If no config exists, create default starting at 1000
-    if (!config) {
-      config = await CompanyIdConfig.create({
-        companyId: tenantId,
-        entityType: 'EMPLOYEE',
-        prefix: 'EMP',
-        startFrom: 1000,
-        currentSeq: 1000,
-        padding: 4
-      });
-    }
+    // 1. Get next ID via centralized utility
+    const result = await companyIdConfig.generateIdInternal({
+      tenantId: tenantId,
+      entityType: 'EMPLOYEE',
+      increment: true,
+      extraReplacements: {
+        '{{DEPT}}': (department || 'GEN').substring(0, 3).toUpperCase(),
+        '{{FIRSTNAME}}': (firstName || '').toUpperCase(),
+        '{{LASTNAME}}': (lastName || '').toUpperCase()
+      }
+    });
 
-    // 2. Determine Parts
-    const now = new Date();
-    const parts = [];
-
-    // Prefix
-    if (config.prefix) parts.push(config.prefix);
-
-    // Date Parts
-    if (config.includeYear) parts.push(now.getFullYear());
-    if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
-
-    // Department
-    if (config.includeDepartment) {
-      const depCode = (department || "GEN").substring(0, 3).toUpperCase();
-      parts.push(depCode);
-    }
-
-    // 3. Atomically Get and Increment Sequence
-    // We use findOneAndUpdate to ensure atomic operation.
-    // We want the current value, then increment it.
-    // { new: false } (default) returns the document BEFORE update, so we get '1000' and db becomes '1001'.
-    const updatedConfig = await CompanyIdConfig.findOneAndUpdate(
-      { _id: config._id },
-      { $inc: { currentSeq: 1 } },
-      { new: false }
-    );
-
-    // Safety check just in case config was deleted in between
-    const seq = updatedConfig ? updatedConfig.currentSeq : (config.currentSeq || 1);
-
-    // 4. Format Sequence
-    const seqStr = String(seq).padStart(config.padding || 4, '0');
-
-    // 5. Join
-    const separator = config.separator === undefined ? '-' : config.separator; // Handle empty string separator
-    let idPrefix = parts.join(separator);
-
-    if (idPrefix) {
-      return `${idPrefix}${separator}${seqStr}`;
-    }
-    return seqStr;
+    return result.id;
 
   } catch (error) {
     console.error("Error generating employee ID:", error);
-    // Emergency Fallback to timestamp
+    // Emergency Fallback
     return `EMP-${Date.now()}`;
   }
-
-  return empId;
 }
 
 async function initializeBalances(req, employeeId, policyId) {

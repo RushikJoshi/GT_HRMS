@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext';
+import JobPortalAuthProvider from './context/JobPortalAuthContext';
 
 // DEV: auto-inject a dev HR token into localStorage to help local development
 /*
@@ -22,8 +23,10 @@ try {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <AuthProvider>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <JobPortalAuthProvider>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </JobPortalAuthProvider>
   </AuthProvider>
 );

@@ -21,5 +21,6 @@ router.get('/tenant/:tenantId', publicController.getTenantBasicDetails); // New 
 router.get('/jobs/:companyCode', publicController.getPublicJobsByCompanyCode);
 router.get('/job/:id', publicController.getPublicJobById);
 router.post('/apply-job', publicController.applyJob);
+router.post('/resume/parse', publicController.parseResumePublic);
 
 module.exports = router;

@@ -10,47 +10,62 @@ class RecruitmentService {
         return {
             Requirement: db.model('Requirement'),
             Applicant: db.model('Applicant'),
+            Position: db.model('Position'),
             // Interview: db.model('Interview'),
             // Candidate: db.model('Candidate')
         };
     }
 
     // Helper to generate next Job ID
-    async generateJobId(tenantId) {
-        const db = await getTenantDB(tenantId);
-        let Counter;
-        if (db.models.Counter) {
-            Counter = db.model('Counter');
-        } else {
-            const CounterSchema = require('../models/Counter');
-            Counter = db.model('Counter', CounterSchema);
+    async generateJobId(tenantId, data = {}) {
+        try {
+            const companyIdConfig = require('../controllers/companyIdConfig.controller');
+            const result = await companyIdConfig.generateIdInternal({
+                tenantId: tenantId,
+                entityType: 'JOB',
+                increment: true,
+                extraReplacements: {
+                    '{{DEPT}}': data.department || 'GEN'
+                }
+            });
+            return result.id;
+        } catch (err) {
+            console.error('Error generating Job ID:', err);
+            // Fallback
+            return `JOB-${Date.now()}`;
         }
-
-        const counter = await Counter.findOneAndUpdate(
-            { key: `job_opening_id_${tenantId}` }, // Tenant-scoped key
-            { $inc: { seq: 1 } },
-            { new: true, upsert: true }
-        );
-
-        return `JOB-${counter.seq.toString().padStart(4, '0')}`;
     }
 
     async createRequirement(tenantId, data, userId) {
         try {
             console.log('[DEBUG] createRequirement START', { tenantId, userId });
-            const { Requirement } = await this.getModels(tenantId);
+            const { Requirement, Position } = await this.getModels(tenantId);
 
-            // Auto-generate Job ID via helper
-            const jobOpeningId = await this.generateJobId(tenantId);
+            // 1. Resolve Position details if positionId provided
+            let finalData = { ...data };
+            if (data.positionId) {
+                const pos = await Position.findById(data.positionId);
+                if (pos) {
+                    finalData.position = pos.jobTitle;
+                    finalData.jobTitle = pos.jobTitle;
+                    finalData.department = pos.department;
+                    // Auto-link hiring status?
+                    await Position.findByIdAndUpdate(data.positionId, { hiringStatus: 'Open' });
+                }
+            }
+
+            // 2. Auto-generate Job ID via helper
+            const jobOpeningId = await this.generateJobId(tenantId, finalData);
             console.log('[DEBUG] Generated Job ID:', jobOpeningId);
 
             const requirement = new Requirement({
-                ...data,
+                ...finalData,
                 tenant: tenantId,
                 jobOpeningId,
                 createdBy: userId
             });
             return await requirement.save();
+
         } catch (err) {
             console.error('[CRITICAL ERROR] createRequirement failed:', err);
             throw err; // Re-throw to controller

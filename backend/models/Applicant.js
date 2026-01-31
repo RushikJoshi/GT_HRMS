@@ -39,6 +39,13 @@ const ApplicantSchema = new mongoose.Schema({
 
   resume: { type: String, trim: true },
 
+  // AI Parsing Fields
+  rawOCRText: { type: String }, // Raw text from Tesseract
+  aiParsedData: { type: Object }, // JSON from AI (Education, Exp, etc.)
+  matchPercentage: { type: Number, default: 0 },
+  parsedSkills: [{ type: String }],
+  parsingStatus: { type: String, enum: ['Pending', 'Processing', 'Completed', 'Failed'], default: 'Pending' },
+
   status: { type: String, default: 'Applied' },
   timeline: [
     {
