@@ -7,6 +7,13 @@ const { authenticateCandidate } = require('../middleware/jobPortalAuthMiddleware
 router.post('/register', candidateCtrl.registerCandidate);
 router.post('/login', candidateCtrl.loginCandidate);
 
+
+// Profile update and photo upload
+const { profilePicUpload } = require('../utils/upload');
+router.get('/profile', authenticateCandidate, candidateCtrl.getCandidateProfile);
+router.put('/profile', authenticateCandidate, candidateCtrl.updateCandidateProfile);
+router.post('/profile/upload-photo', authenticateCandidate, profilePicUpload.single('profileImage'), candidateCtrl.uploadProfilePhoto);
+
 // Protected routes
 router.get('/me', authenticateCandidate, candidateCtrl.getCandidateMe);
 router.get('/dashboard', authenticateCandidate, candidateCtrl.getCandidateDashboard);

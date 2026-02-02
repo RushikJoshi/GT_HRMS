@@ -107,25 +107,26 @@ export default function CandidateDashboard() {
     return (
         <div className="space-y-12 animate-in fade-in duration-500 pb-20">
             {/* Luxury Header Section */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-violet-700 to-indigo-900 rounded-[2.5rem] p-12 lg:p-16 text-white shadow-2xl shadow-indigo-100">
-                {/* Decorative Background Elements */}
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-indigo-500/20 to-purple-500/0 rounded-full blur-[100px] -mr-32 -mt-32"></div>
-                <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[80px] -ml-24 -mb-24"></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px]"></div>
+            {/* Luxury Header Section */}
+            {/* Luxury Header Section */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-premium-blue to-premium-blue-dark rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl shadow-blue-200/50">
+                {/* Minimal Background Elements */}
+                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-[80px] -mr-32 -mt-32"></div>
+                <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-mint-aqua/10 rounded-full blur-[60px] -ml-24 -mb-24"></div>
 
                 <div className="relative z-10">
-                    <div className="flex items-center gap-3 bg-white/5 backdrop-blur-xl w-fit px-5 py-2 rounded-full mb-8 border border-white/10 shadow-inner">
-                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse"></div>
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200">Executive Dashboard</span>
+                    <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md w-fit px-4 py-1.5 rounded-full mb-6 border border-white/20">
+                        <div className="w-1.5 h-1.5 bg-mint-aqua rounded-full"></div>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/90">Executive Dashboard</span>
                     </div>
 
                     <div className="max-w-3xl">
                         <h1 className="text-5xl lg:text-7xl font-black tracking-tight leading-tight mb-6">
-                            Welcome back, <span className="bg-gradient-to-r from-indigo-300 via-blue-200 to-indigo-300 bg-clip-text text-transparent">{candidate?.name?.split(' ')[0] || 'Candidate'}</span><span className="text-white">.</span>
+                            Welcome back, <span className="text-emerald-300">{candidate?.name?.split(' ')[0] || 'Candidate'}</span><span className="text-white">.</span>
                         </h1>
-                        <p className="text-slate-400 font-medium text-xl leading-relaxed max-w-2xl">
+                        <p className="text-white/80 font-medium text-xl leading-relaxed max-w-2xl">
                             You're doing great. You have <span className="text-white font-bold">{stats.total}</span> active applications
-                            at <span className="text-indigo-400 font-bold">{companyName || 'our firm'}</span>.
+                            at <span className="text-white font-bold">{companyName || 'our firm'}</span>.
                             Let's find your next big opportunity today.
                         </p>
                     </div>
@@ -133,13 +134,13 @@ export default function CandidateDashboard() {
                     <div className="flex flex-wrap gap-4 mt-12">
                         <button
                             onClick={() => navigate('/candidate/open-positions')}
-                            className="px-8 py-4 bg-white text-indigo-600 hover:bg-indigo-50 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-indigo-900/20 flex items-center gap-3 active:scale-95"
+                            className="px-8 py-4 bg-white hover:bg-slate-50 text-premium-blue rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-900/5 flex items-center gap-3 active:scale-95 border border-transparent"
                         >
                             View Openings <ArrowRight size={16} />
                         </button>
                         <button
                             onClick={() => navigate('/candidate/profile')}
-                            className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest transition-all backdrop-blur-md active:scale-95"
+                            className="px-8 py-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-2xl font-black text-xs uppercase tracking-widest transition-all backdrop-blur-md active:scale-95"
                         >
                             Update Profile
                         </button>
@@ -148,29 +149,29 @@ export default function CandidateDashboard() {
             </div>
 
             {/* Stats Grid - Luxury Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                    { label: 'Total Applied', value: stats.total, icon: Layers, gradient: 'from-indigo-50 to-white', iconBg: 'bg-indigo-600', iconText: 'text-white', shadow: 'shadow-indigo-100/50' },
-                    { label: 'In Progress', value: stats.inProgress, icon: TrendingUp, gradient: 'from-amber-50 to-white', iconBg: 'bg-amber-500', iconText: 'text-white', shadow: 'shadow-amber-100/50' },
-                    { label: 'Shortlisted', value: stats.selected, icon: CheckCircle2, gradient: 'from-emerald-50 to-white', iconBg: 'bg-emerald-500', iconText: 'text-white', shadow: 'shadow-emerald-100/50' },
-                    { label: 'Not Proceeded', value: stats.rejected, icon: XCircle, gradient: 'from-rose-50 to-white', iconBg: 'bg-rose-500', iconText: 'text-white', shadow: 'shadow-rose-100/50' },
+                    { label: 'Total Applied', value: stats.total, icon: Layers },
+                    { label: 'In Progress', value: stats.inProgress, icon: TrendingUp },
+                    { label: 'Shortlisted', value: stats.selected, icon: CheckCircle2 },
+                    { label: 'Not Proceeded', value: stats.rejected, icon: XCircle },
                 ].map((stat, idx) => (
                     <div
                         key={idx}
-                        className={`group bg-gradient-to-br ${stat.gradient} p-10 rounded-[2.5rem] border border-white shadow-xl ${stat.shadow} hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 relative overflow-hidden`}
+                        className="group bg-white p-6 rounded-[1.5rem] border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_30px_rgba(74,143,231,0.1)] hover:-translate-y-1 transition-all duration-300 relative overflow-hidden"
                     >
-                        {/* Subtle decorative number background */}
-                        <span className="absolute -right-4 -bottom-4 text-9xl font-black text-indigo-900/5 select-none pointer-events-none group-hover:scale-110 transition-transform duration-500">
-                            {stat.value}
-                        </span>
+                        {/* Subtle Gradient Backlight on Hover */}
+                        <div className="absolute -right-6 -top-6 w-24 h-24 bg-gradient-to-br from-premium-blue/10 to-transparent rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
 
-                        <div className={`w-14 h-14 ${stat.iconBg} ${stat.iconText} rounded-2xl flex items-center justify-center mb-8 shadow-lg group-hover:scale-110 group-hover:rotate-6 transition-all duration-300`}>
-                            <stat.icon className="w-7 h-7" />
-                        </div>
+                        <div className="flex items-start justify-between">
+                            <div className="relative z-10">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">{stat.label}</p>
+                                <h3 className="text-4xl font-extrabold text-deep-navy tracking-tight">{stat.value}</h3>
+                            </div>
 
-                        <div className="relative z-10">
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{stat.label}</p>
-                            <h3 className="text-5xl font-black text-slate-900 tracking-tight">{stat.value}</h3>
+                            <div className="w-14 h-14 bg-icon-bg/50 group-hover:bg-premium-blue group-hover:text-white text-premium-blue rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 ease-out">
+                                <stat.icon className="w-6 h-6" />
+                            </div>
                         </div>
                     </div>
                 ))}

@@ -14,8 +14,13 @@ const CandidateProfileMenu = ({ isTransparent = false }) => {
     const toggleMenu = () => setIsOpen(!isOpen);
 
     const handleLogout = () => {
+        const tid = candidate?.tenantId || localStorage.getItem('tenantId');
         logoutCandidate();
-        navigate('/');
+        if (tid) {
+            navigate(`/jobs/${tid}`);
+        } else {
+            navigate('/');
+        }
     };
 
     const initial = candidate?.name ? candidate.name.charAt(0).toUpperCase() : 'C';

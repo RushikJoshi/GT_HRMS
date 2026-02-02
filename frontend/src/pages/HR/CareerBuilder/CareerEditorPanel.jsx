@@ -230,17 +230,26 @@ export default function CareerEditorPanel({
                                 <div className="space-y-3 pt-2 border-t border-gray-100">
                                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Background Style</label>
                                     <div className="flex p-1 bg-gray-100 rounded-lg">
-                                        {['gradient', 'image'].map(type => (
+                                        {['gradient', 'solid', 'image'].map(type => (
                                             <button
                                                 key={type}
-                                                onClick={() => updateContent({ bgType: type })}
+                                                onClick={() => {
+                                                    let newBgColor = selectedBlock.content?.bgColor;
+                                                    // Set defaults if switching types and current color format is wrong
+                                                    if (type === 'gradient' && (!newBgColor || !newBgColor.includes('from-'))) {
+                                                        newBgColor = 'from-[#4F46E5] via-[#9333EA] to-[#EC4899]';
+                                                    } else if (type === 'solid' && (!newBgColor || newBgColor.includes('from-'))) {
+                                                        newBgColor = '#4F46E5';
+                                                    }
+                                                    updateContent({ bgType: type, bgColor: newBgColor });
+                                                }}
                                                 className={`flex-1 py-1.5 rounded-md text-xs font-bold capitalize transition-all ${selectedBlock.content?.bgType === type ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                             >
                                                 {type}
                                             </button>
                                         ))}
                                     </div>
-                                    {selectedBlock.content?.bgType === 'gradient' ? (
+                                    {selectedBlock.content?.bgType === 'gradient' && (
                                         <div className="space-y-4">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex-1 space-y-1">
@@ -294,7 +303,32 @@ export default function CareerEditorPanel({
                                                 placeholder="Tailwind gradient classes"
                                             />
                                         </div>
-                                    ) : (
+                                    )}
+
+                                    {selectedBlock.content?.bgType === 'solid' && (
+                                        <div className="space-y-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-gray-400">Color</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="color"
+                                                        value={selectedBlock.content?.bgColor?.startsWith('#') ? selectedBlock.content?.bgColor : '#4F46E5'}
+                                                        onChange={(e) => updateContent({ bgColor: e.target.value })}
+                                                        className="h-10 w-12 rounded cursor-pointer border-none bg-transparent p-0"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={selectedBlock.content?.bgColor || ''}
+                                                        onChange={(e) => updateContent({ bgColor: e.target.value })}
+                                                        className="flex-1 px-3 py-2 bg-gray-50 rounded-lg border-none text-sm font-mono text-gray-600"
+                                                        placeholder="#hex or color name"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {selectedBlock.content?.bgType === 'image' && (
                                         <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer relative">
                                             {uploading ? (
                                                 <div className="flex flex-col items-center">

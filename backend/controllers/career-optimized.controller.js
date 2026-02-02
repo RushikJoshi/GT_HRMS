@@ -179,79 +179,92 @@ exports.saveSections = async (req, res) => {
 // ============= PUBLISH LIVE (Step 3 - Final) =============
 exports.publishLive = async (req, res) => {
     try {
+        console.log(`[Publish] Starting for tenant: ${req.tenantId}`);
         if (!req.tenantId) return res.status(400).json({ error: 'Tenant ID required' });
 
         const db = await getTenantDB(req.tenantId);
         const CompanyProfile = db.model('CompanyProfile');
         const company = await CompanyProfile.findOne({});
-        if (!company) return res.status(404).json({ error: 'Company not found' });
+        if (!company) {
+            console.error(`[Publish] Company profile not found for tenant ${req.tenantId}`);
+            return res.status(404).json({ error: 'Company not found' });
+        }
         const companyId = company._id.toString();
 
-        // 1. Fetch Draft Data (Use lean() for pure JSON to avoid Mongoose overhead)
+        // 1. Fetch Draft Data
+        console.log(`[Publish] Fetching drafts for company: ${companyId}`);
         const [seo, sections, layout] = await Promise.all([
             CareerSEO.findOne({ tenantId: req.tenantId, companyId }).lean(),
             CareerSection.find({ tenantId: req.tenantId, companyId }).sort({ sectionOrder: 1 }).lean(),
             CareerLayout.findOne({ tenantId: req.tenantId, companyId }).lean()
         ]);
 
-        // 2. Validate Completeness
-        if (!seo || !seo.seoTitle || !seo.seoSlug) {
-            return res.status(400).json({ error: 'Incomplete SEO settings. Please configure SEO.' });
-        }
-        // Allow publishing even with empty sections if needed, but warn
-        // if (!sections || sections.length === 0) { ... }
+        console.log(`[Publish] Drafts fetched. SEO: ${!!seo}, Sections: ${sections?.length}, Layout: ${!!layout}`);
 
-        // 3. Prepare Published Data (Lightweight)
-        const baseUrl = `https://careers.gtachrms.com/${req.tenantId}`; // Adjust base domain as needed
-        const fullUrl = `${baseUrl}/${seo.seoSlug}`;
+        // 3. Prepare Published Data
+        const baseUrl = `https://careers.gtachrms.com/${req.tenantId}`;
+        const defaultSlug = 'careers';
+        const fullUrl = `${baseUrl}/${seo?.seoSlug || defaultSlug}`;
 
+        // SAFE DATA PREPARATION
         const publishedDoc = {
             tenantId: req.tenantId,
             companyId,
             seo: {
-                title: seo.seoTitle,
-                description: seo.seoDescription,
-                keywords: seo.seoKeywords,
-                slug: seo.seoSlug,
-                ogImage: seo.seoOgImageUrl,
+                title: seo?.seoTitle || "Career Page",
+                description: seo?.seoDescription || "Join our team",
+                keywords: seo?.seoKeywords || [],
+                slug: seo?.seoSlug || defaultSlug,
+                ogImage: seo?.seoOgImageUrl || "",
                 canonicalUrl: fullUrl,
                 metaHtml: {
-                    title: `<title>${escapeHTML(seo.seoTitle)}</title>`,
-                    description: `<meta name="description" content="${escapeHTML(seo.seoDescription)}">`,
-                    keywords: `<meta name="keywords" content="${escapeHTML(seo.seoKeywords?.join(', ') || '')}">`,
-                    ogTitle: `<meta property="og:title" content="${escapeHTML(seo.seoTitle)}">`,
-                    ogDescription: `<meta property="og:description" content="${escapeHTML(seo.seoDescription)}">`,
-                    ogImage: seo.seoOgImageUrl ? `<meta property="og:image" content="${seo.seoOgImageUrl}">` : '',
+                    title: `<title>${escapeHTML(seo?.seoTitle || "Career Page")}</title>`,
+                    description: `<meta name="description" content="${escapeHTML(seo?.seoDescription || "Join our team")}">`,
+                    keywords: `<meta name="keywords" content="${escapeHTML(seo?.seoKeywords?.join(', ') || '')}">`,
+                    ogTitle: `<meta property="og:title" content="${escapeHTML(seo?.seoTitle || "Career Page")}">`,
+                    ogDescription: `<meta property="og:description" content="${escapeHTML(seo?.seoDescription || "Join our team")}">`,
+                    ogImage: seo?.seoOgImageUrl ? `<meta property="og:image" content="${seo.seoOgImageUrl}">` : '',
                     ogType: `<meta property="og:type" content="website">`,
                     ogUrl: `<meta property="og:url" content="${fullUrl}">`,
                     canonical: `<link rel="canonical" href="${fullUrl}">`
                 }
             },
-            // Map strictly to ensure no Mongoose metadata leaks
-            sections: sections.map(s => ({
+            sections: (sections || []).map(s => ({
                 id: s.sectionId,
                 type: s.sectionType,
-                content: s.content,
-                order: s.sectionOrder
+                content: s.content || {},
+                order: s.sectionOrder || 0
             })),
             theme: layout?.layoutConfig?.theme || { primaryColor: '#4F46E5' },
             publishedAt: new Date(),
             version: Date.now()
         };
 
-        // 4. Save to PublishedCareerPage Collection (Single fast document)
+        console.log("[Publish] Saving to PublishedCareerPage...");
         const savedPub = await PublishedCareerPage.findOneAndUpdate(
             { tenantId: req.tenantId, companyId },
             publishedDoc,
             { upsert: true, new: true }
         );
+        console.log(`[Publish] Saved PublishedCareerPage ID: ${savedPub._id}`);
 
         // 5. Update Drafts to 'Published' status
-        await Promise.all([
-            CareerSEO.updateOne({ _id: seo._id }, { isPublished: true, publishedAt: new Date() }),
-            CareerLayout.updateOne({ _id: layout?._id }, { isPublished: true, publishedAt: new Date() }),
-            CareerSection.updateMany({ tenantId: req.tenantId, companyId }, { isPublished: true, publishedAt: new Date() })
-        ]);
+        const updatePromises = [];
+        // Always try to update sections if any exist
+        if (sections && sections.length > 0) {
+            updatePromises.push(CareerSection.updateMany({ tenantId: req.tenantId, companyId }, { isPublished: true, publishedAt: new Date() }));
+        }
+
+        // Only update SEO/Layout if they exist
+        if (seo && seo._id) {
+            updatePromises.push(CareerSEO.updateOne({ _id: seo._id }, { isPublished: true, publishedAt: new Date() }));
+        }
+
+        if (layout && layout._id) {
+            updatePromises.push(CareerLayout.updateOne({ _id: layout._id }, { isPublished: true, publishedAt: new Date() }));
+        }
+
+        await Promise.all(updatePromises);
 
         console.log(`✅ [Publish] Success for ${req.tenantId}`);
 
@@ -263,37 +276,40 @@ exports.publishLive = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ [publishLive] Error:', error);
-        res.status(500).json({ error: error.message });
+        console.error('❌ [publishLive] CRITICAL ERROR:', error);
+        res.status(500).json({ error: 'Server error during publishing: ' + error.message });
     }
 };
+
+// ============= GET PUBLIC PAGE (Fast Read) =============
+
 
 // ============= GET PUBLIC PAGE (Fast Read) =============
 exports.getPublicPage = async (req, res) => {
     try {
         const { tenantId } = req.params;
-        if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
+        if (!tenantId) {
+            return res.status(400).json({ error: 'Tenant ID param required' });
+        }
 
-        // 1. Try fetching from PublishedCareerPage (Fastest)
         const publishedPage = await PublishedCareerPage.findOne({ tenantId });
 
         if (publishedPage) {
             return res.json({
                 success: true,
                 seoSettings: {
-                    seo_title: publishedPage.seo.title,
-                    seo_description: publishedPage.seo.description,
-                    seo_keywords: publishedPage.seo.keywords,
-                    seo_slug: publishedPage.seo.slug,
-                    seo_og_image: publishedPage.seo.ogImage
+                    seo_title: publishedPage.seo?.title || "Careers",
+                    seo_description: publishedPage.seo?.description || "",
+                    seo_keywords: publishedPage.seo?.keywords || [],
+                    seo_slug: publishedPage.seo?.slug || "careers",
+                    seo_og_image: publishedPage.seo?.ogImage || ""
                 },
-                sections: publishedPage.sections,
-                theme: publishedPage.theme,
-                metaTags: publishedPage.seo.metaHtml // Pre-built HTML tags
+                sections: publishedPage.sections || [],
+                theme: publishedPage.theme || { primaryColor: '#4F46E5' },
+                metaTags: publishedPage.seo?.metaHtml || {}
             });
         }
 
-        // 2. Fallback: Return empty structure if not found
         return res.json({
             success: false,
             message: 'No published career page found',

@@ -60,45 +60,37 @@ export default function CandidateOpenPositions() {
     return (
         <div className="space-y-10 animate-in fade-in duration-200">
             {/* Header / Search - Luxury Style */}
-            <div className="relative overflow-hidden bg-white p-12 lg:p-20 rounded-[3rem] border border-slate-100 shadow-[0px_40px_80px_-20px_rgba(0,0,0,0.04)]">
-                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-50/50 rounded-full blur-[100px] -mr-32 -mt-32"></div>
-                <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-violet-50/50 rounded-full blur-[80px] -ml-24 -mb-24"></div>
-
-                <div className="relative z-10">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-10 mb-16">
-                        <div className="max-w-xl">
-                            <div className="inline-flex items-center gap-2 bg-indigo-50 px-4 py-1.5 rounded-xl mb-6">
-                                <Globe size={14} className="text-indigo-600" />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Active Opportunities</span>
-                            </div>
-                            <h1 className="text-5xl lg:text-7xl font-black text-slate-900 tracking-tight leading-[0.9] mb-6">
-                                Find your <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">milestone</span>.
-                            </h1>
-                            <p className="text-slate-500 font-medium text-lg leading-relaxed">
-                                Join a team of visionaries and builders. We're looking for passionate minds to shape the future together.
-                            </p>
+            {/* Header / Search - Corporate Style */}
+            <div className="bg-white p-10 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden">
+                <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-8">
+                    <div className="max-w-xl">
+                        <div className="inline-flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-lg mb-4">
+                            <Globe size={12} className="text-premium-blue" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Active Opportunities</span>
                         </div>
-                        <div className="relative w-full lg:w-[500px] group">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-violet-500 rounded-[2.5rem] blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-                            <div className="relative">
-                                <Search className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6 pointer-events-none" />
-                                <input
-                                    type="text"
-                                    placeholder="Search by title, category..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full bg-white border border-slate-100 focus:ring-4 focus:ring-indigo-500/10 px-20 py-7 rounded-[2.5rem] text-lg font-bold text-slate-800 outline-none transition-all placeholder:text-slate-400 shadow-xl shadow-slate-200/50"
-                                />
-                            </div>
-                        </div>
+                        <h1 className="text-3xl font-bold text-deep-navy tracking-tight mb-3">
+                            Find your <span className="text-premium-blue">milestone</span>.
+                        </h1>
+                        <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                            Join a team of visionaries and builders. Shape the future with us.
+                        </p>
                     </div>
-
+                    <div className="relative w-full lg:w-[450px]">
+                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Search by title, category..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-soft-bg border border-gray-100 focus:ring-2 focus:ring-premium-blue/20 focus:bg-white px-14 py-4 rounded-[1.5rem] text-sm font-bold text-deep-navy outline-none transition-all placeholder:text-slate-400"
+                        />
+                    </div>
                 </div>
             </div>
 
             {/* Grid */}
             {filteredJobs.length === 0 ? (
-                <div className="bg-white p-20 rounded-[2.5rem] border border-slate-100 text-center shadow-sm">
+                <div className="bg-white p-20 rounded-[2.5rem] border border-gray-100 text-center shadow-sm">
                     <div className="bg-slate-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6">
                         <Search size={32} className="text-slate-300" />
                     </div>
@@ -110,53 +102,45 @@ export default function CandidateOpenPositions() {
                     {filteredJobs.map((job) => (
                         <div
                             key={job._id}
-                            className="group bg-white p-10 rounded-[3rem] border border-slate-50 shadow-[0px_30px_60px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0px_50px_100px_-20px_rgba(0,0,0,0.1)] hover:-translate-y-3 transition-all duration-500 relative flex flex-col h-full overflow-hidden"
+                            className="group bg-white p-6 rounded-[1.5rem] border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all duration-300 relative flex flex-col h-full overflow-hidden"
                         >
-                            {/* Accent line on hover */}
-                            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-violet-500 transform -translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
-
-                            <div className="flex justify-between items-start mb-10">
-                                <div className="h-20 w-20 rounded-[2rem] bg-slate-50 flex items-center justify-center text-indigo-600 shadow-inner group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 overflow-hidden relative">
-                                    <div className="absolute inset-0 bg-indigo-600 opacity-0 group-hover:opacity-5 transition-opacity"></div>
-                                    <Building2 size={32} />
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="h-14 w-14 rounded-[1.2rem] bg-icon-bg flex items-center justify-center text-premium-blue shadow-sm group-hover:scale-105 transition-all duration-300 relative">
+                                    <Building2 size={22} />
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="px-5 py-2 rounded-xl bg-emerald-50 text-emerald-600 font-bold text-[10px] uppercase tracking-widest ring-4 ring-emerald-500/5">New</span>
-                                    <button className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:text-rose-400 hover:bg-rose-50 transition-all">
-                                        <Star size={20} />
+                                <div className="flex items-center gap-2">
+                                    <span className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-[10px] uppercase tracking-wide">New</span>
+                                    <button className="h-9 w-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-warning-red hover:bg-red-50 transition-all">
+                                        <Star size={16} />
                                     </button>
                                 </div>
                             </div>
 
-                            <h3 className="text-3xl font-black text-slate-900 tracking-tight mb-3 leading-tight group-hover:text-indigo-600 transition-colors">
+                            <h3 className="text-xl font-bold text-deep-navy tracking-tight mb-2 leading-tight group-hover:text-premium-blue transition-colors">
                                 {job?.jobTitle}
                             </h3>
-                            <p className="text-slate-400 font-black text-[11px] uppercase tracking-[0.25em] mb-8">
+                            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mb-6">
                                 {job?.department || 'General'}
                             </p>
 
-                            <div className="grid grid-cols-1 gap-4 mb-10">
-                                <div className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-2xl">
-                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-indigo-400 shadow-sm">
-                                        <MapPin size={18} />
-                                    </div>
-                                    <span className="text-slate-600 font-bold text-sm">Remote / Global</span>
+                            <div className="grid grid-cols-1 gap-3 mb-8">
+                                <div className="flex items-center gap-3">
+                                    <MapPin size={16} className="text-slate-400" />
+                                    <span className="text-slate-600 font-medium text-sm">Remote / Global</span>
                                 </div>
-                                <div className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-2xl">
-                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-indigo-400 shadow-sm">
-                                        <Briefcase size={18} />
-                                    </div>
-                                    <span className="text-slate-600 font-bold text-sm">Full Time</span>
+                                <div className="flex items-center gap-3">
+                                    <Briefcase size={16} className="text-slate-400" />
+                                    <span className="text-slate-600 font-medium text-sm">Full Time</span>
                                 </div>
                             </div>
 
                             <div className="mt-auto">
                                 <button
                                     onClick={() => navigate(`/apply-job/${job._id}?tenantId=${tenantId || getTenantId()}`)}
-                                    className="w-full relative overflow-hidden bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-600 text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-4 active:scale-95 shadow-xl shadow-indigo-100"
+                                    className="w-full bg-premium-blue hover:bg-premium-blue-dark text-white py-4 rounded-[1.2rem] font-bold text-xs uppercase tracking-[0.15em] transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md shadow-blue-200"
                                 >
-                                    <span className="relative z-10">Apply Position</span>
-                                    <ArrowRight size={18} className="relative z-10 group-hover:translate-x-1 transition-transform" />
+                                    <span>Apply Position</span>
+                                    <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                                 </button>
                             </div>
                         </div>

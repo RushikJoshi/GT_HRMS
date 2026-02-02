@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search } from 'lucide-react';
+import { API_ROOT } from '../../../../utils/api';
 
 export default function CareerBlockHero({ content, onSearch, searchTerm, previewMode = 'desktop' }) {
     const isMobile = previewMode === 'mobile';
@@ -13,9 +14,47 @@ export default function CareerBlockHero({ content, onSearch, searchTerm, preview
         showSearchBar = true
     } = content || {};
 
-    const heroStyle = bgType === 'image' && imageUrl
-        ? { backgroundImage: `url(${imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-        : {};
+    const getFullImageUrl = (url) => {
+        if (!url) return '';
+        if (url.startsWith('http')) return url;
+        if (url.startsWith('data:')) return url;
+        if (url.startsWith('/')) return `${API_ROOT}${url}`;
+        return url;
+    };
+
+    const isGradient = bgType === 'gradient';
+    const isSolid = bgType === 'solid';
+    const isImage = bgType === 'image';
+
+    // Robust Fallback: If gradient mode but invalid classes, force default
+    let safeBgColor = bgColor;
+    if (isGradient && (!safeBgColor || !safeBgColor.includes('from-'))) {
+        safeBgColor = "from-[#4F46E5] via-[#9333EA] to-[#EC4899]";
+    }
+
+    let gradientStyle = {};
+    let gradientClass = '';
+
+    if (isGradient) {
+        const from = safeBgColor.match(/from-\[([^\]]+)\]/)?.[1];
+        const via = safeBgColor.match(/via-\[([^\]]+)\]/)?.[1];
+        const to = safeBgColor.match(/to-\[([^\]]+)\]/)?.[1];
+
+        if (from && to) {
+            const stops = [from, via, to].filter(Boolean).join(', ');
+            gradientStyle.backgroundImage = `linear-gradient(to right, ${stops})`;
+        } else {
+            gradientClass = `bg-gradient-to-r ${safeBgColor}`;
+        }
+    }
+
+    const heroStyle = {
+        ...(isImage && imageUrl ? { backgroundImage: `url(${getFullImageUrl(imageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+        ...(isSolid ? { backgroundColor: bgColor } : {}),
+        ...gradientStyle
+    };
+
+    const fallbackClass = !isGradient && !isSolid && !isImage ? 'bg-gray-900' : '';
 
     const handleSearch = (e) => {
         if (onSearch) onSearch(e.target.value);
@@ -25,7 +64,7 @@ export default function CareerBlockHero({ content, onSearch, searchTerm, preview
         <section className="relative">
             {/* Main Hero Content */}
             <div
-                className={`relative ${isMobile ? 'pt-16 pb-24' : 'pt-32 pb-44'} overflow-hidden ${bgType === 'gradient' ? `bg-gradient-to-r ${bgColor}` : 'bg-gray-900'}`}
+                className={`relative ${isMobile ? 'pt-16 pb-24' : 'pt-32 pb-44'} overflow-hidden ${gradientClass} ${fallbackClass}`}
                 style={heroStyle}
             >
                 {bgType === 'image' && <div className="absolute inset-0 bg-black/50"></div>}

@@ -103,17 +103,17 @@ export default function CandidateSignup() {
     return (
         <div className="min-h-screen bg-[#F8FAFC] font-sans flex flex-col items-center justify-center py-12 px-6 relative overflow-hidden selection:bg-indigo-100 selection:text-indigo-600">
             {/* Background Decorations */}
-            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-50 rounded-full blur-[100px] -z-10 translate-x-1/3 -translate-y-1/3"></div>
-            <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-violet-50 rounded-full blur-[100px] -z-10 -translate-x-1/3 translate-y-1/3"></div>
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-slate-100/50 rounded-full blur-[80px] -z-10 translate-x-1/3 -translate-y-1/3"></div>
+            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-50/50 rounded-full blur-[80px] -z-10 -translate-x-1/3 translate-y-1/3"></div>
 
             <div className="w-full max-w-[540px] z-10 animate-in fade-in duration-300">
                 {/* Header Section */}
-                <div className="text-center mb-12">
-                    <div className="mx-auto w-16 h-16 bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-800 rounded-3xl flex items-center justify-center shadow-xl shadow-indigo-200 mb-8 transform hover:-rotate-6 transition-transform">
-                        <Briefcase className="text-white w-8 h-8" />
+                <div className="text-center mb-10">
+                    <div className="mx-auto w-14 h-14 bg-gradient-to-br from-premium-blue to-premium-blue-dark rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 mb-6">
+                        <Briefcase className="text-white w-7 h-7" />
                     </div>
-                    <h1 className="text-4xl font-bold text-slate-800 tracking-tight mb-3">Create Account</h1>
-                    <p className="text-slate-500 font-medium">Join <span className="text-indigo-600 font-bold">{company.name}</span>'s talent network</p>
+                    <h1 className="text-3xl font-bold text-deep-navy tracking-tight mb-2">Create Account</h1>
+                    <p className="text-slate-500 font-medium text-sm">Join <span className="text-premium-blue font-bold">{company.name}</span>'s talent network</p>
                 </div>
 
                 {/* Card */}
@@ -202,11 +202,11 @@ export default function CandidateSignup() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-800 text-white py-5 rounded-full font-bold shadow-xl shadow-indigo-100 hover:shadow-2xl hover:translate-y-[-2px] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-[11px] uppercase tracking-[0.2em]"
+                            className="w-full bg-premium-blue hover:bg-premium-blue-dark text-white py-4 rounded-[1.2rem] font-bold shadow-lg shadow-blue-100/50 hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-xs uppercase tracking-widest"
                         >
                             {loading ? 'Creating Account...' : (
                                 <>
-                                    Complete Selection <ArrowRight size={20} />
+                                    Complete Selection <ArrowRight size={18} />
                                 </>
                             )}
                         </button>

@@ -490,7 +490,7 @@ exports.getResumeFile = async (req, res) => {
     try {
         const { filename } = req.params;
         console.log('📥 [RESUME DOWNLOAD] Filename requested:', filename);
-        
+
         if (!filename) return res.status(400).json({ message: "Filename required" });
 
         // Secure path resolution to prevent directory traversal
@@ -502,14 +502,14 @@ exports.getResumeFile = async (req, res) => {
 
         if (!fs.existsSync(resumePath)) {
             console.warn('⚠️ [RESUME DOWNLOAD] File not found at:', resumePath);
-            
+
             // Try legacy path (root uploads) just in case
             const legacyPath = path.join(__dirname, '../uploads', safeFilename);
             if (fs.existsSync(legacyPath)) {
                 console.log('✅ [RESUME DOWNLOAD] Found in legacy path:', legacyPath);
                 return res.sendFile(legacyPath);
             }
-            
+
             // Fallback: if specific file not found, serve ANY resume file in the directory
             console.log('📂 [RESUME DOWNLOAD] Fallback: Checking for any resume files...');
             if (fs.existsSync(resumesDir)) {
@@ -521,7 +521,7 @@ exports.getResumeFile = async (req, res) => {
                     return res.sendFile(fallbackPath);
                 }
             }
-            
+
             return res.status(404).json({ message: "Resume file not found" });
         }
 

@@ -1,7 +1,18 @@
+
 const express = require('express');
 const router = express.Router();
 const careerController = require('../controllers/career-optimized.controller');
 const payloadValidator = require('../middleware/payloadValidator');
+// === ALIAS ROUTES for legacy/frontend compatibility ===
+router.post('/career/seo/save', payloadValidator(10), careerController.saveSEOSettings);
+router.post('/career/sections/save', payloadValidator(10), careerController.saveSections);
+
+// ============= PUBLIC ENDPOINTS (NO MIDDDLEWARE) =============
+// Get public published career page (for frontend display)
+// EXEMPT from tenantMiddleware because it receives ID in params, not headers
+router.get('/public/:tenantId', careerController.getPublicPage);
+router.get('/public-customization/:tenantId', careerController.getPublicPage);
+
 
 // Tenant detection middleware (gets tenantId from X-Tenant-ID header)
 const tenantMiddleware = (req, res, next) => {
@@ -31,13 +42,5 @@ router.get('/draft', careerController.getDraftData);
 
 // Publish all draft data to live (merges from 3 collections)
 router.post('/publish', careerController.publishLive);
-
-// ============= PUBLIC ENDPOINTS =============
-
-// Get public published career page (for frontend display)
-router.get('/public/:tenantId', careerController.getPublicPage);
-
-// Keep old endpoint for backward compatibility
-router.get('/public-customization/:tenantId', careerController.getPublicPage);
 
 module.exports = router;

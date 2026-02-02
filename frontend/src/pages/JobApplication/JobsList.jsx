@@ -207,16 +207,17 @@ export default function JobsList() {
     return (
         <div className="min-h-screen bg-white font-sans selection:bg-indigo-100 selection:text-indigo-600">
             {/* Header / Navigation */}
+            {/* Header / Navigation */}
             <nav className={`absolute top-0 left-0 right-0 z-50 transition-all duration-300 border-b border-gray-100 bg-white/80 backdrop-blur-md`}>
-                <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-                    <Link to="/" className="flex items-center gap-4 group">
+                <div className="w-full px-8 h-20 flex items-center justify-between">
+                    <div className="flex items-center gap-4 group cursor-default">
                         <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-100">
                             <Briefcase size={20} />
                         </div>
                         <span className="text-xl font-black tracking-tight text-gray-900">
                             {companyName || 'GT HRMS'}
                         </span>
-                    </Link>
+                    </div>
 
                     <div className="flex items-center gap-6">
                         {candidate ? (

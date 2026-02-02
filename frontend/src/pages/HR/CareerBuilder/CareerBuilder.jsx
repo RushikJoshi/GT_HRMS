@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Save, ArrowLeft, Loader2, CheckCircle2, Globe, LayoutTemplate } from 'lucide-react';
+import { Save, ArrowLeft, Loader2, CheckCircle2, LayoutTemplate } from 'lucide-react';
 import CareerPreview from './CareerPreview';
 import CareerEditorPanel from './CareerEditorPanel';
 import CareerLayerPanel from './CareerLayerPanel';
-import SEOSettings from './SEOSettings';
+
 import api from '../../../utils/api';
 import { message } from 'antd';
 
@@ -11,22 +11,13 @@ export default function CareerBuilder() {
     const [loading, setLoading] = useState(true);
     const [publishing, setPublishing] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [savingSEO, setSavingSEO] = useState(false);
     const [lastPublished, setLastPublished] = useState(null);
-    const [showSEOPanel, setShowSEOPanel] = useState(false);
     const [previewMode, setPreviewMode] = useState("desktop");
 
     // Core State
     const [config, setConfig] = useState({
         sections: [],
-        theme: { primaryColor: '#4F46E5' },
-        seoSettings: {
-            seo_title: '',
-            seo_description: '',
-            seo_keywords: [],
-            seo_og_image: '',
-            seo_slug: ''
-        }
+        theme: { primaryColor: '#4F46E5' }
     });
 
     const [selectedBlockId, setSelectedBlockId] = useState(null);
@@ -61,14 +52,7 @@ export default function CareerBuilder() {
                 // Ensure defaulting if fields missing
                 const configData = {
                     sections: res.data.sections || [],
-                    theme: res.data.theme || { primaryColor: '#4F46E5' },
-                    seoSettings: res.data.seoSettings || {
-                        seo_title: '',
-                        seo_description: '',
-                        seo_keywords: [],
-                        seo_og_image: '',
-                        seo_slug: ''
-                    }
+                    theme: res.data.theme || { primaryColor: '#4F46E5' }
                 };
                 setConfig(configData);
                 if (res.data.lastPublishedAt) setLastPublished(res.data.lastPublishedAt);
@@ -132,14 +116,7 @@ export default function CareerBuilder() {
                         }
                     }
                 ],
-                theme: { primaryColor: '#4F46E5' },
-                seoSettings: {
-                    seo_title: '',
-                    seo_description: '',
-                    seo_keywords: [],
-                    seo_og_image: '',
-                    seo_slug: ''
-                }
+                theme: { primaryColor: '#4F46E5' }
             });
             if (!selectedBlockId) setSelectedBlockId('hero-default');
         } finally {
@@ -174,51 +151,13 @@ export default function CareerBuilder() {
         }
     };
 
-    const handleSaveSEO = async (seoData) => {
-        try {
-            setSavingSEO(true);
 
-            // Validate
-            if (!seoData.seo_title || !seoData.seo_slug) {
-                message.error("Title and Slug are required");
-                setSavingSEO(false);
-                return;
-            }
-
-            const res = await api.post('/career/seo/save', {
-                seoTitle: seoData.seo_title,
-                seoDescription: seoData.seo_description,
-                seoKeywords: seoData.seo_keywords || [],
-                seoSlug: seoData.seo_slug,
-                seoOgImageUrl: seoData.seo_og_image || ''
-            });
-
-            if (res.data && res.data.success) {
-                setConfig(prev => ({ ...prev, seoSettings: seoData }));
-                message.success("✅ SEO settings saved");
-                // Optionally close panel
-                // setShowSEOPanel(false); 
-            }
-        } catch (error) {
-            console.error("Save SEO error:", error);
-            message.error("Failed to save SEO: " + (error.response?.data?.error || error.message));
-        } finally {
-            setSavingSEO(false);
-        }
-    };
 
     const handlePublish = async () => {
         try {
             setPublishing(true);
 
             // Pre-validation
-            /*
-            if (!config.seoSettings?.seo_title || !config.seoSettings?.seo_slug) {
-                message.warning("⚠️ SEO Settings Incomplete. Please configure SEO first.");
-                setShowSEOPanel(true);
-                return;
-            }
-            */
             if (config.sections.length === 0) {
                 message.warning("⚠️ Page is empty. Add some sections!");
                 return;
@@ -232,14 +171,7 @@ export default function CareerBuilder() {
             });
 
             await Promise.all([
-                api.post('/career/sections/save', { sections: cleanSections, theme: config.theme }),
-                api.post('/career/seo/save', {
-                    seoTitle: config.seoSettings.seo_title,
-                    seoDescription: config.seoSettings.seo_description,
-                    seoKeywords: config.seoSettings.seo_keywords || [],
-                    seoSlug: config.seoSettings.seo_slug,
-                    seoOgImageUrl: config.seoSettings.seo_og_image
-                })
+                api.post('/career/sections/save', { sections: cleanSections, theme: config.theme })
             ]);
 
             // 2. Trigger Publish
@@ -385,15 +317,7 @@ export default function CareerBuilder() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* <button
-                        onClick={() => setShowSEOPanel(!showSEOPanel)}
-                        className={`flex items-center gap-2 px-4 py-2 font-bold text-sm rounded-lg transition-all ${showSEOPanel ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                    >
-                        <Globe size={16} /> SEO Settings
-                    </button> */}
 
-                    <div className="h-6 w-px bg-gray-200 mx-1"></div>
 
                     <button
                         onClick={handleSaveSections}
@@ -481,27 +405,15 @@ export default function CareerBuilder() {
                 </div>
 
                 {/* Right Panel */}
-                {showSEOPanel ? (
-                    <CareerEditorPanel
-                        config={config}
-                        selectedBlockId={selectedBlockId}
-                        onAddBlock={addBlock}
-                        onUpdateBlock={updateBlock}
-                        onRemoveBlock={removeBlock}
-                        previewMode={previewMode}
-                        setPreviewMode={setPreviewMode}
-                    />
-                ) : (
-                    <CareerEditorPanel
-                        config={config}
-                        selectedBlockId={selectedBlockId}
-                        onAddBlock={addBlock}
-                        onUpdateBlock={updateBlock}
-                        onRemoveBlock={removeBlock}
-                        previewMode={previewMode}
-                        setPreviewMode={setPreviewMode}
-                    />
-                )}
+                <CareerEditorPanel
+                    config={config}
+                    selectedBlockId={selectedBlockId}
+                    onAddBlock={addBlock}
+                    onUpdateBlock={updateBlock}
+                    onRemoveBlock={removeBlock}
+                    previewMode={previewMode}
+                    setPreviewMode={setPreviewMode}
+                />
             </div>
         </div>
     );
