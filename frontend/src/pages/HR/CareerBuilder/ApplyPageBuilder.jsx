@@ -140,13 +140,19 @@ export default function ApplyPageBuilder() {
             };
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
             // Clean internal helpers before sending to API
             delete fullPayload._fullConfig;
 
             await api.post('/hrms/hr/career/publish', fullPayload);
+<<<<<<< HEAD
 =======
             await api.post('/hr/career/customize', fullPayload);
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
             message.success("Apply Page published successfully!");
 
             // Update internal state to match newly published config

@@ -85,6 +85,9 @@ export default function CandidateApplications() {
             </div>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
             {/* Application Cards */}
             {filteredApps.length === 0 ? (
                 <div className="bg-white p-20 rounded-[2.5rem] border border-gray-100 text-center">
@@ -145,6 +148,7 @@ export default function CandidateApplications() {
                             </div>
                         </div>
                     ))}
+<<<<<<< HEAD
 =======
             {/* Applications Grid - Card Layout */}
             {applications.length > 0 ? (
@@ -222,6 +226,8 @@ export default function CandidateApplications() {
                         </div>
                     </div>
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
                 </div>
             )}
         </div>

@@ -512,12 +512,16 @@ export default function JobApplication() {
                       <MapPin size={16} className="text-white/60" /> {requirement?.workMode || 'Remote'}
                     </span>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
                     <span className="flex items-center gap-2.5">
                       <Briefcase size={16} className="text-white/60" /> {requirement?.jobType || 'Full Time'}
                     </span>
                   </div>
                 )}
               </div>
+<<<<<<< HEAD
 =======
                     {parsing ? (
                       <div className="mt-4 flex items-center gap-2 text-blue-600 font-bold animate-pulse">
@@ -541,6 +545,8 @@ export default function JobApplication() {
                 {loading ? 'Submitting Application...' : 'Send Application Now'} <Send className="w-5 h-5" />
               </button>
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
 
               {/* Decorative shapes inside banner */}
               <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full -mr-48 -mt-48 blur-3xl"></div>

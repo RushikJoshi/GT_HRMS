@@ -114,8 +114,11 @@ const ApplicantSchema = new mongoose.Schema({
   }],
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   customData: { type: mongoose.Schema.Types.Mixed },
 =======
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
   // Audited Salary Revisions
   salaryHistory: [{
     version: Number,
@@ -134,7 +137,10 @@ const ApplicantSchema = new mongoose.Schema({
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
 
+<<<<<<< HEAD
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import JobPortalRoutes from './JobPortalRoutes';
@@ -10,6 +11,8 @@ import { useAuth } from '../context/AuthContext';
 import { getToken, isValidToken } from '../utils/token';
 
 =======
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -119,13 +122,17 @@ import ApplicationTrack from '../pages/ApplicationTrack';
 // Helper for Candidate Outlet
 const OutletProxy = () => <Outlet />;
 
+<<<<<<< HEAD
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
 export default function AppRoutes() {
     return (
         <Routes>
             {/* Root - Auto Redirect based on Auth */}
             <Route path="/" element={<AutoHome />} />
 
+<<<<<<< HEAD
 <<<<<<< HEAD
             {/* --- JOB PORTAL SYSTEM --- */}
             {/* --- SYSTEM ROUTES --- */}
@@ -138,6 +145,8 @@ export default function AppRoutes() {
                 </JobPortalAuthProvider>
             } />
 =======
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
             {/* --- PUBLIC AUTH ROUTES (EXISTING - KEEP FOR BACKWARD COMPATIBILITY) --- */}
             <Route path="/login" element={<Login />} />
             <Route path="/login/hr" element={<HRLogin />} />
@@ -152,28 +161,34 @@ export default function AppRoutes() {
             <Route path="/candidate/login" element={<CandidateLogin />} />
             <Route path="/candidate/signup" element={<CandidateSignup />} />
             <Route path="/jobs/:companyId" element={<Jobs />} />
+<<<<<<< HEAD
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
 
-            <Route path="jobs/*" element={
-                <JobPortalAuthProvider>
-                    <Routes>
-                        <Route path="login" element={<Navigate to="/candidate/login" replace />} />
-                        <Route path="signup" element={<Navigate to="/candidate/signup" replace />} />
-                        <Route path=":companyId" element={<Jobs />} />
-                    </Routes>
-                </JobPortalAuthProvider>
-            } />
+            {/* --- PROTECTED CANDIDATE ROUTES --- */}
+            <Route path="/candidate" element={
+                <CandidateProtectedRoute>
+                    <CandidateLayout />
+                </CandidateProtectedRoute>
+            }>
+                <Route path="dashboard" element={<CandidateDashboard />} />
+                <Route path="open-positions" element={<CandidateOpenPositions />} />
+                <Route path="applications" element={<CandidateApplications />} />
+                <Route path="profile" element={<CandidateProfile />} />
+            </Route>
 
-            <Route path="apply-job/:requirementId" element={
-                <JobPortalAuthProvider>
-                    <JobApplication />
-                </JobPortalAuthProvider>
-            } />
+            <Route element={<CandidateProtectedRoute><OutletProxy /></CandidateProtectedRoute>}>
+                <Route path="/candidate/application/:applicationId" element={<ApplicationTrack />} />
+            </Route>
 
+<<<<<<< HEAD
 <<<<<<< HEAD
             {/* --- LEGACY/DIRECT FALLBACK --- */}
             <Route path="*" element={<HrmsRoutes />} />
 =======
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
             <Route path="/apply-job/:requirementId" element={<JobApplication />} />
 
             {/* --- HRMS REDIRECTION (For Backward Compatibility) ---
@@ -376,7 +391,10 @@ export default function AppRoutes() {
 
             <Route path="/verify-company/:token" element={<VerifyCompany />} />
             <Route path="*" element={<NotFound />} />
+<<<<<<< HEAD
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
         </Routes>
     );
 }

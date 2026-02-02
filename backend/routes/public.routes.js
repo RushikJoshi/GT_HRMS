@@ -22,9 +22,13 @@ router.get('/jobs/:companyCode', publicController.getPublicJobsByCompanyCode);
 router.get('/job/:id', publicController.getPublicJobById);
 router.post('/apply-job', publicController.applyJob);
 <<<<<<< HEAD
+<<<<<<< HEAD
 router.get('/career-customization/:tenantId', publicController.getCareerCustomization);
 =======
 router.post('/resume/parse', publicController.parseResumePublic);
 >>>>>>> main
+=======
+router.post('/resume/parse', publicController.parseResumePublic);
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
 
 module.exports = router;

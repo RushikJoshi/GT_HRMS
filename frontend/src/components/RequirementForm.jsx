@@ -56,7 +56,10 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
 
     const [saving, setSaving] = useState(false);
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
     const [positions, setPositions] = useState([]);
 
     useEffect(() => {
@@ -66,7 +69,10 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
     }, []);
 
     // Prevent double-click save on step transition
+<<<<<<< HEAD
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
     const [canSave, setCanSave] = useState(false);
 
     useEffect(() => {
@@ -253,6 +259,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                                 Step {step}: {step === 1 ? 'Fundamental Details' : 'Hiring Workflow Design'}
                             </p>
 <<<<<<< HEAD
+<<<<<<< HEAD
                         )}
 =======
                         </div>
@@ -303,6 +310,9 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                             placeholder="e.g. Senior Developer"
                         />
 >>>>>>> main
+=======
+                        )}
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
                     </div>
 
                     <div className="flex items-center gap-6">

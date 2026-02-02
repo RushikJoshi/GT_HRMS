@@ -79,12 +79,17 @@ const NAV_GROUPS = [
     title: 'Attendance',
     items: [
 <<<<<<< HEAD
+<<<<<<< HEAD
       { to: '/hrms/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.dashboard },
       { to: '/hrms/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
 =======
       { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.attendance },
       { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
 >>>>>>> main
+=======
+      { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.attendance },
+      { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
     ]
   },
   {
@@ -98,6 +103,7 @@ const NAV_GROUPS = [
     title: 'Payroll',
     items: [
 <<<<<<< HEAD
+<<<<<<< HEAD
       { to: '/hrms/hr/payroll/dashboard', label: 'Dashboard', icon: ICONS.dashboard },
       { to: '/hrms/hr/payroll/salary-components?tab=earnings', label: 'Salary Components', icon: ICONS.payroll },
       { to: '/hrms/hr/payroll/salary-components?tab=templates', label: 'Salary Templates', icon: ICONS.payroll },
@@ -108,6 +114,8 @@ const NAV_GROUPS = [
       { to: '/hrms/hr/payroll/payslips', label: 'Payslips', icon: ICONS.document },
       { to: '/hrms/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.document }
 =======
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
       { to: '/hr/payroll/dashboard', label: 'Dashboard', icon: ICONS.payrollDashboard },
       { to: '/hr/payroll/salary-components', label: 'Salary Components', icon: ICONS.salaryComponents },
       { to: '/hr/payroll/compensation', label: 'Employee Compensation', icon: ICONS.compensation },
@@ -115,7 +123,10 @@ const NAV_GROUPS = [
       { to: '/hr/payroll/run', label: 'Run History', icon: ICONS.runHistory },
       { to: '/hr/payroll/payslips', label: 'Payslips', icon: ICONS.payslips },
       { to: '/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.payslipDesign }
+<<<<<<< HEAD
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
     ]
   },
   {
@@ -126,6 +137,7 @@ const NAV_GROUPS = [
         icon: ICONS.requirements,
         children: [
 <<<<<<< HEAD
+<<<<<<< HEAD
           { to: '/hrms/hr/requirements', label: 'Job List' },
           { to: '/hrms/hr/create-requirement', label: 'Create Recruitment' }
 =======
@@ -133,6 +145,11 @@ const NAV_GROUPS = [
           { to: '/hr/create-requirement', label: 'Create Requirement' },
           { to: '/hr/positions', label: 'Position Master' }
 >>>>>>> main
+=======
+          { to: '/hr/requirements', label: 'Job List' },
+          { to: '/hr/create-requirement', label: 'Create Requirement' },
+          { to: '/hr/positions', label: 'Position Master' }
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
         ]
       },
       {
@@ -304,11 +321,14 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                   title={item.label}
                   onClick={() => onNavigate && onNavigate()}
 <<<<<<< HEAD
+<<<<<<< HEAD
                   className={({ isActive }) =>
                     `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
                      ${isActive ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'hover:bg-indigo-500/10 hover:text-indigo-300'}`
                   }
 =======
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
                   className={({ isActive }) => {
                     // Custom active check for links with query parameters
                     let active = isActive;
@@ -321,7 +341,10 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                     return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
                      ${active ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`;
                   }}
+<<<<<<< HEAD
 >>>>>>> main
+=======
+>>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
                 >
                   {item.icon}
                   {!collapsed && <span>{item.label}</span>}
