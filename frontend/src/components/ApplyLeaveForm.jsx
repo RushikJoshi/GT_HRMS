@@ -221,13 +221,12 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const weeklyOffDays = settings.weeklyOffDays || [0];
-
         // 1. Future Dates Only
         if (d < today) return false;
 
-        // 2. No Weekly Offs
-        if (weeklyOffDays.includes(d.getDay())) return false;
+        // 2. No Weekly Offs (treat Saturday & Sunday as weekly off)
+        const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
+        if (isWeekend) return false;
 
         // 3. No Holidays
         if (holidayMap[dateStr]) return false;
@@ -255,10 +254,11 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const weeklyOffDays = settings.weeklyOffDays || [0];
+        // Treat Saturday & Sunday as weekly off
+        const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
 
         if (d < today) return "Past dates are locked";
-        if (weeklyOffDays.includes(d.getDay())) return "Selection blocked on Weekly Offs";
+        if (isWeekend) return "Selection blocked on Weekly Offs";
         if (holidayMap[dateStr]) return `Holiday: ${holidayMap[dateStr].name}`;
 
         // Check Approved Ranges for Tooltip

@@ -104,6 +104,34 @@ router.get('/hr/leaves/requests', auth.authenticate, auth.requireHr, requestCtrl
 router.post('/hr/leaves/requests/:id/approve', auth.authenticate, auth.requireAdminOrHr, requestCtrl.approveLeave);
 router.post('/hr/leaves/requests/:id/reject', auth.authenticate, auth.requireAdminOrHr, requestCtrl.rejectLeave);
 
+// Calendar (HR) - Month overview and day detail
+const calendarCtrl = require('../controllers/calendar.controller');
+console.log('[ROUTES] calendarCtrl exports:', Object.keys(calendarCtrl || {}));
+if (calendarCtrl && typeof calendarCtrl.getCalendar === 'function') {
+   router.get('/hr/calendar', auth.authenticate, auth.requireHr, calendarCtrl.getCalendar);
+} else {
+   console.error('[ROUTES][WARN] calendarCtrl.getCalendar is missing - route /hr/calendar skipped');
+}
+
+if (calendarCtrl && typeof calendarCtrl.getCalendarDetail === 'function') {
+   router.get('/hr/calendar/detail', auth.authenticate, auth.requireHr, calendarCtrl.getCalendarDetail);
+} else {
+   console.error('[ROUTES][WARN] calendarCtrl.getCalendarDetail is missing - route /hr/calendar/detail skipped');
+}
+
+// Production-grade Attendance Calendar endpoints
+if (calendarCtrl && typeof calendarCtrl.getAttendanceCalendar === 'function') {
+   router.get('/hr/attendance-calendar', auth.authenticate, auth.requireHr, calendarCtrl.getAttendanceCalendar);
+} else {
+   console.error('[ROUTES][WARN] calendarCtrl.getAttendanceCalendar is missing - route /hr/attendance-calendar skipped');
+}
+
+if (calendarCtrl && typeof calendarCtrl.getAttendanceCalendarDetail === 'function') {
+   router.get('/hr/attendance-calendar/detail', auth.authenticate, auth.requireHr, calendarCtrl.getAttendanceCalendarDetail);
+} else {
+   console.error('[ROUTES][WARN] calendarCtrl.getAttendanceCalendarDetail is missing - route /hr/attendance-calendar/detail skipped');
+}
+
 // Offer Templates
 router.use('/hr/offer-templates', require('./offerTemplate.routes'));
 
