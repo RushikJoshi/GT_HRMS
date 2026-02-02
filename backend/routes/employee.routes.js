@@ -48,5 +48,9 @@ router.get('/reporting-tree', auth.authenticate, empCtrl.getReportingTree);
 router.post('/:id/salary-assignment', auth.requireHr, employeeSalaryController.assignSalary);
 router.get('/:id/salary-assignment', auth.requireHr, employeeSalaryController.getSalaryAssignment);
 
+// Bulk Employee Upload Routes
+router.get('/bulk/template', auth.requireHr, empCtrl.downloadEmployeeTemplate);
+router.post('/bulk/upload', auth.requireHr, empCtrl.bulkUploadEmployees);
+
 module.exports = router;
 // exported above

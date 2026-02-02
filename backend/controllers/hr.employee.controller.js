@@ -1399,3 +1399,159 @@ exports.getHierarchy = async (req, res) => {
     });
   }
 };
+
+/* -----------------------------------------
+   BULK UPLOAD TEMPLATE
+----------------------------------------- */
+exports.downloadBulkUploadTemp = async (req, res) => {
+  try {
+    const XLSX = require('xlsx');
+    
+    // Create a new workbook
+    const workbook = XLSX.utils.book_new();
+    
+    // Sample data with all possible columns
+    const sampleData = [
+      {
+        'Employee ID': 'EMP001',
+        'First Name': 'John',
+        'Middle Name': 'M',
+        'Last Name': 'Doe',
+        'Email': 'john.doe@company.com',
+        'Contact No': '9876543210',
+        'Gender': 'Male',
+        'Date of Birth': '1990-01-15',
+        'Marital Status': 'Single',
+        'Blood Group': 'O+',
+        'Nationality': 'Indian',
+        'Father Name': 'James Doe',
+        'Mother Name': 'Jane Doe',
+        'Emergency Contact Name': 'Jane Doe',
+        'Emergency Contact Number': '9876543211',
+        'Temp Address Line 1': '123 Main St',
+        'Temp Address Line 2': 'Apt 4B',
+        'Temp City': 'New York',
+        'Temp State': 'NY',
+        'Temp Pin Code': '10001',
+        'Temp Country': 'USA',
+        'Perm Address Line 1': '456 Oak Ave',
+        'Perm Address Line 2': 'House 5',
+        'Perm City': 'Boston',
+        'Perm State': 'MA',
+        'Perm Pin Code': '02101',
+        'Perm Country': 'USA',
+        'Joining Date': '2024-01-01',
+        'Department': 'Tech',
+        'Role': 'Developer',
+        'Job Type': 'Full-Time',
+        'Bank Name': 'State Bank',
+        'Account Number': '123456789',
+        'IFSC Code': 'SBIN0001234',
+        'Branch Name': 'Main Branch',
+        'Bank Location': 'New York'
+      }
+    ];
+    
+    // Add headers with description
+    const headers = [
+      'Employee ID (Required)',
+      'First Name (Required)',
+      'Middle Name',
+      'Last Name (Required)',
+      'Email (Required)',
+      'Contact No',
+      'Gender (M/F/Other)',
+      'Date of Birth (YYYY-MM-DD)',
+      'Marital Status',
+      'Blood Group',
+      'Nationality',
+      'Father Name',
+      'Mother Name',
+      'Emergency Contact Name',
+      'Emergency Contact Number',
+      'Temp Address Line 1',
+      'Temp Address Line 2',
+      'Temp City',
+      'Temp State',
+      'Temp Pin Code',
+      'Temp Country',
+      'Perm Address Line 1',
+      'Perm Address Line 2',
+      'Perm City',
+      'Perm State',
+      'Perm Pin Code',
+      'Perm Country',
+      'Joining Date (YYYY-MM-DD, Required)',
+      'Department',
+      'Role',
+      'Job Type',
+      'Bank Name',
+      'Account Number',
+      'IFSC Code',
+      'Branch Name',
+      'Bank Location'
+    ];
+    
+    // Create worksheet with sample data
+    const worksheet = XLSX.utils.json_to_sheet(sampleData, { header: 1 });
+    
+    // Set column widths for better readability
+    worksheet['!cols'] = [
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 20 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 15 }
+    ];
+    
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Employee Template');
+    
+    // Generate buffer
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+    
+    // Send file as response
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Employee_Bulk_Upload_Template_${Date.now()}.xlsx"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
+  } catch (err) {
+    console.error('Error generating template:', err);
+    res.status(500).json({
+      success: false,
+      error: 'template_generation_failed',
+      message: err.message || 'Failed to generate template'
+    });
+  }
+};
