@@ -214,6 +214,7 @@ export default function Employees() {
             {showDrafts ? 'Hide Drafts' : 'Drafts'}
           </button>
           <button onClick={openNew} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employee</button>
+          <button onClick={openNew} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employees From Excel</button>
         </div>
       </div>
 

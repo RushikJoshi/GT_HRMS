@@ -44,6 +44,7 @@ export default function EmployeeDashboard() {
   const [clocking, setClocking] = useState(false);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [isCheckedOut, setIsCheckedOut] = useState(false);
+  const [isFinalCheckOut, setFinalCheckOut] = useState(false);
   const [todayRecord, setTodayRecord] = useState(null);
   const [todaySummary, setTodaySummary] = useState(null);
   const [attendanceSettings, setAttendanceSettings] = useState(null);
