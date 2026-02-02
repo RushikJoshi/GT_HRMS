@@ -8,6 +8,8 @@ const RequirementSchema = new mongoose.Schema({
   status: { type: String, enum: ['Open', 'Closed'], default: 'Open' },
   visibility: { type: String, enum: ['Internal', 'External', 'Both'], default: 'External' },
   jobOpeningId: { type: String, index: true }, // Auto-generated ID (e.g., JOB-0001)
+  positionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Position', index: true },
+  position: { type: String, trim: true },
   publicFields: { type: [String], default: [] },
   workflow: { type: [String], default: ['Applied', 'Shortlisted', 'Interview', 'Finalized'] }
 }, { strict: false, collection: 'requirements', timestamps: true });

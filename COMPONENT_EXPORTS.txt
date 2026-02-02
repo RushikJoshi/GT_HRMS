@@ -144,7 +144,7 @@ const loadData = async () => {
   
   // Fetch interview
   try {
-    const iRes = await api.get(`/hrms/interviews/${id}`);
+    const iRes = await api.get(`/interviews/${id}`);
     setInterview(iRes.data);
   } catch {
     setInterview(null);
@@ -318,7 +318,7 @@ console.log('API response:', response);
 Common Issues & Solutions:
 ──────────────────────────
 1. Interview not showing
-   └─ Check: API returns data for /hrms/interviews/{id}
+   └─ Check: API returns data for /interviews/{id}
    └─ Check: scheduledDate and scheduledTime are present
 
 2. Tabs not switching

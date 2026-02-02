@@ -41,6 +41,7 @@ export default function CandidateTimeline() {
         setLoading(true);
         try {
             // Fetch candidate directly by ID
+<<<<<<< HEAD
             const cRes = await api.get(`/hr/candidate-status/candidates/${id}`);
             const found = cRes.data;
             setCandidate(found);
@@ -48,11 +49,26 @@ export default function CandidateTimeline() {
             // Get timeline using new endpoint
             const statusRes = await api.get(`/hr/candidate/${id}/status`);
             setTimeline(statusRes.data || {});
+=======
+            const cRes = await api.get(`/hr/candidate-status/${id}`);
+            const found = cRes.data;
+            setCandidate(found);
+
+            // Get timeline
+            const tRes = await api.get(`/hr/candidate-status/${id}/timeline`);
+            setTimeline(tRes.data || []);
+>>>>>>> main
 
             // Fetch interview if exists (optional)
             try {
                 const iRes = await api.get(`/interviews/${id}`);
+<<<<<<< HEAD
                 setInterview(iRes.data || null);
+=======
+                if (iRes.data) {
+                    setInterview(iRes.data);
+                }
+>>>>>>> main
             } catch (iErr) {
                 setInterview(null);
             }

@@ -9,7 +9,8 @@ const getModels = (req) => {
         Attendance: req.tenantDB.model('Attendance'),
         PayrollRun: req.tenantDB.model('PayrollRun'),
         PayrollRunItem: req.tenantDB.model('PayrollRunItem'),
-        SalaryAssignment: req.tenantDB.model('SalaryAssignment')
+        SalaryAssignment: req.tenantDB.model('SalaryAssignment'),
+        Applicant: req.tenantDB.model('Applicant')
     };
 };
 
@@ -26,46 +27,103 @@ exports.getProcessEmployees = async (req, res) => {
         const startDate = new Date(year, monthNum - 1, 1);
         const endDate = new Date(year, monthNum, 0);
 
-        const { Employee, SalaryAssignment, Attendance, SalaryTemplate } = getModels(req);
-
-        // Fetch Active Employees
-        const employees = await Employee.find({
-            status: 'Active',
-            joiningDate: { $lte: endDate }
-        }).select('firstName lastName employeeId department role email joiningDate');
-
+        const { Employee, SalaryAssignment, Attendance, SalaryTemplate, Applicant } = getModels(req);
         const EmployeeCtcVersion = req.tenantDB.model('EmployeeCtcVersion', require('../models/EmployeeCtcVersion'));
 
-        // Fetch Assignments for all employees to determine current template
-        const employeeData = await Promise.all(employees.map(async (emp) => {
-            const activeVersion = await EmployeeCtcVersion.findOne({
-                employeeId: emp._id,
-                isActive: true
+        // 1. Fetch Active Employees
+        const employees = await Employee.find({
+            status: 'Active',
+            $or: [
+                { joiningDate: { $lte: endDate } },
+                { joiningDate: null }
+            ]
+        }).select('firstName lastName employeeId department role email joiningDate salaryTemplateId');
+
+        // 2. Fetch Applicants with Salary Assigned
+        // These are candidates who are hired/active but might not be migrated to Employee yet
+        const applicants = await Applicant.find({
+            tenant: req.user.tenantId,
+            $or: [
+                { salaryAssigned: true },
+                { salaryHistory: { $exists: true, $not: { $size: 0 } } },
+                { salarySnapshotId: { $ne: null } }
+            ],
+            status: { $ne: 'Rejected' }
+        }).select('name email mobile department requirementId employeeId salaryAssigned salarySnapshotId salaryTemplateId joiningDate');
+
+        // 3. Merge and Deduplicate by Email
+        const employeeMap = new Map();
+
+        // Add employees first (Master records)
+        employees.forEach(emp => {
+            const emailKey = emp.email?.toLowerCase();
+            const key = emailKey || emp._id.toString();
+            employeeMap.set(key, {
+                _id: emp._id.toString(),
+                name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Unnamed Employee',
+                employeeId: emp.employeeId,
+                email: emp.email,
+                department: emp.department,
+                salaryTemplateId: emp.salaryTemplateId,
+                source: 'EMPLOYEE',
+                joiningDate: emp.joiningDate
             });
+        });
 
-            const templateId = activeVersion ? activeVersion._id : null;
+        // Add applicants if not already present as employees
+        applicants.forEach(app => {
+            const emailKey = app.email?.toLowerCase();
+            const key = emailKey || app._id.toString();
 
+            // Only add if not already present via same email
+            if (!employeeMap.has(key)) {
+                employeeMap.set(key, {
+                    _id: app._id.toString(),
+                    name: app.name || 'Unnamed Applicant',
+                    employeeId: app.employeeId ? 'LINKED' : 'UNASSIGNED',
+                    email: app.email,
+                    department: app.department,
+                    salaryTemplateId: app.salaryTemplateId,
+                    source: 'APPLICANT',
+                    joiningDate: app.joiningDate
+                });
+            }
+        });
 
-            // Simple Attendance Count (Optimization: could use aggregate for bulk)
+        const allPeople = Array.from(employeeMap.values());
+
+        // 4. Calculate Attendance and Map to Final Format
+        const employeeData = await Promise.all(allPeople.map(async (person) => {
+            // Find template/version
+            let templateId = person.salaryTemplateId;
+
+            if (!templateId) {
+                const activeVersion = await EmployeeCtcVersion.findOne({
+                    employeeId: person._id,
+                    isActive: true
+                });
+                templateId = activeVersion ? activeVersion._id : null;
+            }
+
+            // Simple Attendance Count
             const attendanceCount = await Attendance.countDocuments({
-                employee: emp._id,
+                employee: person._id,
                 date: { $gte: startDate, $lte: endDate },
                 status: { $in: ['present', 'half_day', 'work_from_home'] }
             });
 
             return {
-                _id: emp._id,
-                name: `${emp.firstName} ${emp.lastName}`,
-                department: emp.department,
-                salaryTemplateId: templateId,
+                ...person,
+                key: person._id, // Required for Ant Design table (ID is now string)
+                salaryTemplateId: templateId?.toString(),
                 attendanceParams: {
-                    presentDays: attendanceCount, // Simplified for UI preview
+                    presentDays: attendanceCount,
                     totalDays: endDate.getDate()
                 }
             };
         }));
 
-        res.json({ success: true, data: employeeData });
+        res.json({ success: true, count: employeeData.length, data: employeeData });
 
     } catch (error) {
         console.error("Get Process Employees Error:", error);
@@ -86,7 +144,7 @@ exports.previewPreview = async (req, res) => {
         const startDate = new Date(year, monthNum - 1, 1);
         const endDate = new Date(year, monthNum, 0);
 
-        const { Employee, SalaryTemplate, PayrollRun } = getModels(req);
+        const { Employee, SalaryTemplate, PayrollRun, Applicant } = getModels(req);
 
         // ✅ NEW: Load compensation service if needed
         let compensationService;
@@ -97,7 +155,17 @@ exports.previewPreview = async (req, res) => {
         const results = [];
 
         for (const item of items) {
-            const emp = await Employee.findById(item.employeeId);
+            let emp = await Employee.findById(item.employeeId);
+            if (!emp) {
+                // Try fetching from Applicant collection if not found in Employee
+                emp = await Applicant.findById(item.employeeId);
+                if (emp) {
+                    // Normalize applicant to match expected employee structure for payroll service
+                    emp.firstName = emp.name?.split(' ')[0] || 'Applicant';
+                    emp.lastName = emp.name?.split(' ').slice(1).join(' ') || '';
+                }
+            }
+
             if (!emp) continue;
 
             try {
@@ -201,7 +269,7 @@ exports.runPayroll = async (req, res) => {
         console.log(`🚀 [RUN_PAYROLL] Month: ${month}, Items: ${items?.length}, Source: ${useCompensation ? 'COMPENSATION' : 'TEMPLATE'}`);
         const [year, monthNum] = month.split('-');
 
-        const { PayrollRun, Employee, PayrollRunItem, SalaryAssignment } = getModels(req);
+        const { PayrollRun, Employee, PayrollRunItem, SalaryAssignment, Applicant } = getModels(req);
 
         // ✅ NEW: Load compensation service if needed
         let compensationService;
@@ -312,13 +380,21 @@ exports.runPayroll = async (req, res) => {
             }
 
             try {
-                const emp = await Employee.findById(item.employeeId);
+                let emp = await Employee.findById(item.employeeId);
                 if (!emp) {
-                    skippedList.push({ employeeId: item.employeeId, reason: "EMPLOYEE_NOT_FOUND" });
+                    emp = await Applicant.findById(item.employeeId);
+                    if (emp) {
+                        emp.firstName = emp.name?.split(' ')[0] || 'Applicant';
+                        emp.lastName = emp.name?.split(' ').slice(1).join(' ') || '';
+                    }
+                }
+
+                if (!emp) {
+                    skippedList.push({ employeeId: item.employeeId, reason: "PERSON_NOT_FOUND" });
                     continue;
                 }
 
-                console.log(`🔍 [RUN_PAYROLL] Processing emp: ${emp._id} (${sourceInfo.source})`);
+                console.log(`🔍 [RUN_PAYROLL] Processing person: ${emp._id} (${sourceInfo.source})`);
                 // Call Service to calculate and save payslip
                 const payslip = await payrollService.calculateEmployeePayroll(
                     req.tenantDB,

@@ -55,7 +55,7 @@ const getHolidayIcon = (name = '') => {
     return HOLIDAY_ICONS.default;
 };
 
-export default function ApplyLeaveForm({ balances = [], existingLeaves = [], editData = null, isHR = false, targetEmployeeId = null, onCancelEdit, onSuccess, onClose }) {
+export default function ApplyLeaveForm({ balances = [], existingLeaves = [], editData = null, isHR = false, targetEmployeeId = null, hasLeavePolicy = true, leavePolicy = null, onCancelEdit, onSuccess, onClose }) {
     const [form, setForm] = useState({
         leaveType: '',
         startDate: '',
@@ -212,6 +212,8 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
     }, [holidays]);
 
     const isDateSelectable = (dateStr) => {
+        // If tenant/employee has no leave policy, block all date selection
+        if (!hasLeavePolicy) return false;
         if (!dateStr) return false;
 
         const [y, m, dPart] = dateStr.split('-').map(Number);
@@ -219,13 +221,12 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const weeklyOffDays = settings.weeklyOffDays || [0];
-
         // 1. Future Dates Only
         if (d < today) return false;
 
-        // 2. No Weekly Offs
-        if (weeklyOffDays.includes(d.getDay())) return false;
+        // 2. No Weekly Offs (treat Saturday & Sunday as weekly off)
+        const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
+        if (isWeekend) return false;
 
         // 3. No Holidays
         if (holidayMap[dateStr]) return false;
@@ -253,10 +254,11 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const weeklyOffDays = settings.weeklyOffDays || [0];
+        // Treat Saturday & Sunday as weekly off
+        const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
 
         if (d < today) return "Past dates are locked";
-        if (weeklyOffDays.includes(d.getDay())) return "Selection blocked on Weekly Offs";
+        if (isWeekend) return "Selection blocked on Weekly Offs";
         if (holidayMap[dateStr]) return `Holiday: ${holidayMap[dateStr].name}`;
 
         // Check Approved Ranges for Tooltip
@@ -393,9 +395,29 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                 await api.post('/employee/leaves/apply', payload);
                 showToast('success', 'Success', 'Leave Applied.');
             }
-            onSuccess();
+            // Call onSuccess in its own guarded block so UI handler errors do not trigger the "catch" for API failures
+            try {
+                if (onSuccess) onSuccess();
+            } catch (handlerErr) {
+                console.error('onSuccess handler error:', handlerErr);
+                // Do NOT show an error toast here because the main API call already succeeded
+            }
         } catch (err) {
-            showToast('error', 'Error', err.response?.data?.error || "Failed");
+            // Only show user-facing toasts for actual API/network errors
+            const serverMsg = err.response?.data?.message || err.response?.data?.error || err.hrms?.message || err.message;
+
+            if (serverMsg === 'NO_LEAVE_POLICY_ASSIGNED') {
+                showToast('error', 'Policy Restriction', 'No leave policy assigned yet. Please contact your HR administrator.');
+            } else if (err.hrms && err.hrms.type === 'network') {
+                // Network errors are handled globally by api interceptor but show a contextual message here as well
+                showToast('error', 'Network Error', err.hrms.message || 'Server unreachable. Please check your connection.');
+            } else if (err.response) {
+                // Backend returned a non-2xx response
+                showToast('error', 'Error', serverMsg || 'Failed to apply leave.');
+            } else {
+                // Non-API error (likely a JS runtime error) — don't show an error toast to avoid false negatives
+                console.error('Unexpected error during leave submission:', err);
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -463,6 +485,9 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                                 {form.leaveType === 'Personal Leave' ? 'UNPAID / LOP' : `BAL: ${balances.find(b => b.leaveType === form.leaveType)?.available || 0}`}
                             </span>
                         )}
+                        {!hasLeavePolicy && (
+                            <span className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded uppercase tracking-wider">Contact HR to assign leave policy</span>
+                        )}
                     </div>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         {Object.entries(dynamicLeaveConfig).map(([key, config]) => (
@@ -497,8 +522,8 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                             {currentCalDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                         </h4>
                         <div className="flex gap-2">
-                            <button type="button" onClick={() => setCurrentCalDate(new Date(currentCalDate.setMonth(currentCalDate.getMonth() - 1)))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-full transition shadow-sm"><ChevronLeft size={20} /></button>
-                            <button type="button" onClick={() => setCurrentCalDate(new Date(currentCalDate.setMonth(currentCalDate.getMonth() + 1)))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-full transition shadow-sm"><ChevronRight size={20} /></button>
+                            <button type="button" onClick={() => setCurrentCalDate(new Date(currentCalDate.setMonth(currentCalDate.getMonth() - 1)))} className={`p-2 rounded-full transition shadow-sm ${!hasLeavePolicy ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white dark:hover:bg-slate-800'}`} disabled={!hasLeavePolicy} title={!hasLeavePolicy ? 'Date selection disabled: No leave policy assigned' : ''}><ChevronLeft size={20} /></button>
+                            <button type="button" onClick={() => setCurrentCalDate(new Date(currentCalDate.setMonth(currentCalDate.getMonth() + 1)))} className={`p-2 rounded-full transition shadow-sm ${!hasLeavePolicy ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white dark:hover:bg-slate-800'}`} disabled={!hasLeavePolicy} title={!hasLeavePolicy ? 'Date selection disabled: No leave policy assigned' : ''}><ChevronRight size={20} /></button>
                         </div>
                     </div>
 
@@ -544,11 +569,11 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                                         <div className="absolute top-1 right-1 text-[8px]" title={holiday.name}>{getHolidayIcon(holiday.name)}</div>
                                     )}
 
-                                    {hoverDate === d && (getDisabledReason(d) || holiday) && (
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 px-3 py-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-xl pointer-events-none w-max max-w-[150px] animate-in fade-in zoom-in-95 duration-200">
+                                    {hoverDate === d && (getDisabledReason(d) || holiday || (!hasLeavePolicy && 'No leave policy assigned')) && (
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 px-3 py-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-xl pointer-events-none w-max max-w-[170px] animate-in fade-in zoom-in-95 duration-200">
                                             <div className="flex items-center gap-2">
-                                                {holiday ? <Info size={10} className="text-blue-400" /> : <Lock size={10} className="text-rose-400" />}
-                                                <span className="font-bold">{getDisabledReason(d) || holiday?.name}</span>
+                                                {holiday ? <Info size={10} className="text-blue-400" /> : !hasLeavePolicy ? <AlertCircle size={10} className="text-amber-400" /> : <Lock size={10} className="text-rose-400" />}
+                                                <span className="font-bold">{!hasLeavePolicy ? 'No leave policy assigned' : getDisabledReason(d) || holiday?.name}</span>
                                             </div>
                                             <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
                                                 <div className="w-2 h-2 bg-slate-800 rotate-45"></div>
@@ -656,6 +681,16 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                     </div>
                 )}
 
+                {!hasLeavePolicy && (
+                    <div className="flex items-center gap-4 p-5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-2xl border border-amber-100 dark:border-amber-900/50">
+                        <AlertCircle size={20} />
+                        <div>
+                            <p className="text-sm font-bold tracking-tight">Policy Restriction — No leave policy assigned yet.</p>
+                            <p className="text-xs mt-1">Contact HR to assign a leave policy before applying for leaves.</p>
+                        </div>
+                    </div>
+                )}
+
                 {infoMessage && (
                     <div className="flex items-center gap-4 p-5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-2xl border border-amber-100 dark:border-amber-900/50">
                         <Info size={20} />
@@ -682,11 +717,12 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                 {/* Submit */}
                 <button
                     type="submit"
-                    disabled={isSubmitting || !!error || duration <= 0 || !form.leaveType}
+                    disabled={!hasLeavePolicy || isSubmitting || !!error || duration <= 0 || !form.leaveType}
                     className={`w-full py-5 rounded-2xl text-white font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95 disabled:grayscale disabled:opacity-50
                         ${form.leaveType ? 'shadow-blue-500/20' : 'shadow-slate-500/20'}
                     `}
-                    style={{ backgroundColor: form.leaveType ? dynamicLeaveConfig[form.leaveType]?.main : '#334155' }}
+                    style={{ backgroundColor: !hasLeavePolicy ? '#f59e0b' : (form.leaveType ? dynamicLeaveConfig[form.leaveType]?.main : '#334155') }}
+                    title={!hasLeavePolicy ? 'Contact HR to assign leave policy' : ''}
                 >
                     {isSubmitting ? (
                         <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

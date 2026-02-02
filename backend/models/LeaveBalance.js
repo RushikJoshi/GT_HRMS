@@ -17,7 +17,11 @@ const LeaveBalanceSchema = new mongoose.Schema({
 
     // Available = Total - Used - Pending (Calculated or Stored)
     // Stored is faster for read, needs transaction update
-    available: { type: Number, default: 0 }
+    available: { type: Number, default: 0 },
+
+    // Eligibility metadata — when will this balance become active
+    eligibleFrom: { type: Date, default: null },
+    locked: { type: Boolean, default: false }
 
 }, { timestamps: true });
 

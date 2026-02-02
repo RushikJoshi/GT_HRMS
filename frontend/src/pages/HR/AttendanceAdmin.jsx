@@ -44,6 +44,7 @@ export default function AttendanceAdmin() {
     const [uploading, setUploading] = useState(false);
     const [uploadedData, setUploadedData] = useState(null);
     const [showUploadPreview, setShowUploadPreview] = useState(false);
+    const [confirmUpload, setConfirmUpload] = useState(false);
     const fileInputRef = React.useRef(null);
 
     useEffect(() => {
@@ -55,7 +56,7 @@ export default function AttendanceAdmin() {
     const fetchStats = async () => {
         try {
             setLoading(true);
-            const res = await api.get(`/hrms/attendance/all?date=${date}`);
+            const res = await api.get(`/attendance/all?date=${date}`);
             setAttendance(res.data);
         } catch (err) {
             console.error(err);
@@ -71,9 +72,9 @@ export default function AttendanceAdmin() {
     const fetchEmployeeRegister = async () => {
         try {
             const [attRes, holidayRes, settingsRes] = await Promise.all([
-                api.get(`/hrms/attendance/my?employeeId=${viewingEmployee._id}&month=${currentMonth + 1}&year=${currentYear}`),
-                api.get('/hrms/holidays'),
-                api.get('/hrms/attendance/settings')
+                api.get(`/attendance/my?employeeId=${viewingEmployee._id}&month=${currentMonth + 1}&year=${currentYear}`),
+                api.get('/holidays'),
+                api.get('/attendance/settings')
             ]);
             setEmployeeAttendance(attRes.data);
             setHolidays(holidayRes.data || []);
@@ -105,7 +106,7 @@ export default function AttendanceAdmin() {
                 payload.checkOut = new Date(editForm.checkOut).toISOString();
             }
 
-            await api.post('/hrms/attendance/override', payload);
+            await api.post('/attendance/override', payload);
             setEditingAttendance(null);
             fetchStats(); // Refresh the attendance list
             alert('Attendance updated successfully');
@@ -149,30 +150,83 @@ export default function AttendanceAdmin() {
         reader.onload = (event) => {
             try {
                 const data = new Uint8Array(event.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
 
-                const sheetName = workbook.SheetNames[0]; // first sheet
+                const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
 
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                let jsonData = XLSX.utils.sheet_to_json(worksheet);
 
                 if (!jsonData || jsonData.length === 0) {
                     alert('Excel file is empty');
                     return;
                 }
 
-                console.log('Total records:', jsonData.length);
+                // Normalize and convert data
+                jsonData = jsonData.map((row, index) => {
+                    const convertTime = (decimalValue) => {
+                        // If it's a string time format like "HH:MM:SS"
+                        if (typeof decimalValue === 'string') {
+                            return decimalValue;
+                        }
+                        // If it's a date object
+                        if (decimalValue instanceof Date) {
+                            return decimalValue.toLocaleTimeString('en-US', { 
+                                hour: '2-digit', 
+                                minute: '2-digit', 
+                                second: '2-digit',
+                                hour12: true 
+                            });
+                        }
+                        // If it's a decimal number (Excel time format)
+                        if (typeof decimalValue === 'number' && decimalValue < 1) {
+                            const hours = Math.floor(decimalValue * 24);
+                            const minutes = Math.floor((decimalValue * 24 - hours) * 60);
+                            const seconds = Math.floor(((decimalValue * 24 - hours) * 60 - minutes) * 60);
+                            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                        }
+                        return decimalValue;
+                    };
+
+                    const convertDate = (dateValue) => {
+                        if (!dateValue) return null;
+                        if (typeof dateValue === 'string') return dateValue;
+                        if (dateValue instanceof Date) {
+                            return dateValue.toISOString().split('T')[0];
+                        }
+                        return dateValue;
+                    };
+
+                    // Process all columns while preserving original names
+                    const processedRow = {};
+                    for (const [key, value] of Object.entries(row)) {
+                        if (key.toLowerCase().includes('check in') || key.toLowerCase().includes('checkin')) {
+                            processedRow['CHECK IN'] = convertTime(value);
+                        } else if (key.toLowerCase().includes('check out') || key.toLowerCase().includes('checkout')) {
+                            processedRow['CHECK OUT'] = convertTime(value);
+                        } else if (key.toLowerCase().includes('date')) {
+                            processedRow['DATE'] = convertDate(value);
+                        } else {
+                            processedRow[key] = value;
+                        }
+                    }
+
+                    return processedRow;
+                });
+
+                console.log('Processed records:', jsonData.length);
+                console.log('Sample record:', jsonData[0]);
 
                 setUploadedData({
                     fileName: file.name,
                     rowCount: jsonData.length,
-                    previewData: jsonData.slice(0, 10), // Show first 10 rows in preview only
-                    fullData: jsonData // Store all data for upload
+                    previewData: jsonData.slice(0, 10),
+                    fullData: jsonData
                 });
                 setShowUploadPreview(true);
             } catch (error) {
                 console.error('Error reading file:', error);
-                alert('Failed to read Excel file. Please check the file format.');
+                alert('Failed to read Excel file. Please check the file format: ' + error.message);
             }
         };
 
@@ -611,17 +665,31 @@ export default function AttendanceAdmin() {
                                     try {
                                         setUploading(true);
                                         console.log('Uploading', uploadedData.fullData.length, 'records');
-                                        const res = await api.post('/hrms/attendance/bulk-upload', {
+                                        const res = await api.post('/attendance/bulk-upload', {
                                             records: uploadedData.fullData
                                         });
-                                        alert(`✅ ${res.data.uploadedCount} records uploaded successfully${res.data.failedCount > 0 ? `\n⚠️ ${res.data.failedCount} records failed` : ''}`);
+                                        
+                                        // Build detailed message
+                                        let message = `✅ ${res.data.uploadedCount} records uploaded successfully`;
+                                        if (res.data.failedCount > 0) {
+                                            message += `\n⚠️ ${res.data.failedCount} records failed`;
+                                            if (res.data.errors && res.data.errors.length > 0) {
+                                                message += `\n\nErrors:\n${res.data.errors.slice(0, 5).join('\n')}`;
+                                                if (res.data.errors.length > 5) {
+                                                    message += `\n... and ${res.data.errors.length - 5} more errors`;
+                                                }
+                                            }
+                                        }
+                                        
+                                        alert(message);
                                         setShowUploadPreview(false);
                                         setUploadedData(null);
                                         if (fileInputRef.current) fileInputRef.current.value = '';
                                         fetchStats();
                                     } catch (err) {
                                         console.error('Upload failed:', err);
-                                        alert(err.response?.data?.message || err.response?.data?.error || 'Failed to upload attendance');
+                                        const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to upload attendance';
+                                        alert(`❌ Upload Failed\n\n${errorMessage}`);
                                     } finally {
                                         setUploading(false);
                                     }
@@ -635,7 +703,7 @@ export default function AttendanceAdmin() {
                                         Uploading...
                                     </>
                                 ) : (
-                                    'Confirm Upload'
+                                    `Confirm Upload (${uploadedData.rowCount} records)`
                                 )}
                             </button>
                         </div>

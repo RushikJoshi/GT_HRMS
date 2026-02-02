@@ -108,11 +108,42 @@ export default function JobApplication() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleFileChange = (e) => {
+  const [parsing, setParsing] = useState(false);
+
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file && (file.type === 'application/pdf' || file.type.includes('word')) && file.size < 5 * 1024 * 1024) {
       setFormData(prev => ({ ...prev, resume: file }));
       setError('');
+
+      // Auto-Parse Logic
+      setParsing(true);
+      try {
+        const parseData = new FormData();
+        parseData.append('resume', file);
+        if (requirementId) parseData.append('requirementId', requirementId);
+
+        const res = await api.post('/public/resume/parse', parseData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        if (res.data.success && res.data.data) {
+          const ai = res.data.data;
+          setFormData(prev => ({
+            ...prev,
+            name: prev.name || ai.fullName || '',
+            email: prev.email || ai.email || '',
+            mobile: prev.mobile || ai.phone || '',
+            // Auto-fill experience if field existed or add to notes?
+            // Providing what we have
+          }));
+        }
+      } catch (err) {
+        console.error("Parse failed", err);
+      } finally {
+        setParsing(false);
+      }
+
     } else {
       setError('Please upload a PDF or Word file under 5MB.');
     }
@@ -480,12 +511,36 @@ export default function JobApplication() {
                     <span className="flex items-center gap-2.5">
                       <MapPin size={16} className="text-white/60" /> {requirement?.workMode || 'Remote'}
                     </span>
+<<<<<<< HEAD
                     <span className="flex items-center gap-2.5">
                       <Briefcase size={16} className="text-white/60" /> {requirement?.jobType || 'Full Time'}
                     </span>
                   </div>
                 )}
               </div>
+=======
+                    {parsing ? (
+                      <div className="mt-4 flex items-center gap-2 text-blue-600 font-bold animate-pulse">
+                        <UploadCloud className="w-5 h-5 animate-bounce" />
+                        <span>Extracting resume data...</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 font-bold mt-2 uppercase tracking-widest">
+                        {formData.resume ? 'Click to replace file' : 'Maximum size 5MB (PDF/Word only)'}
+                      </p>
+                    )}
+                  </label>
+                </div>
+              </section>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-blue-700 to-indigo-700 text-white py-6 rounded-[1.8rem] font-black shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-50 text-lg flex items-center justify-center gap-3"
+              >
+                {loading ? 'Submitting Application...' : 'Send Application Now'} <Send className="w-5 h-5" />
+              </button>
+>>>>>>> main
 
               {/* Decorative shapes inside banner */}
               <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full -mr-48 -mt-48 blur-3xl"></div>

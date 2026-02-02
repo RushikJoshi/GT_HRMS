@@ -166,6 +166,17 @@ async function calculateEmployeePayroll(
     const DeductionMaster = db.model('DeductionMaster');
     const EmployeeCompensation = db.model('EmployeeCompensation');
     const EmployeeSalarySnapshot = db.model('EmployeeSalarySnapshot');
+    const PayrollAdjustment = db.model('PayrollAdjustment', require('../models/PayrollAdjustment'));
+
+    // 🎯 FETCH APPROVED ADJUSTMENTS for this month
+    const mStr = `${year}-${String(month).padStart(2, '0')}`;
+    const pendingAdjustments = await PayrollAdjustment.find({
+        employeeId: employee._id,
+        adjustmentMonth: mStr,
+        status: 'APPROVED' // Maker-Checker: ONLY APPROVED are eligible
+    }).lean();
+
+    const adjustmentTotal = pendingAdjustments.reduce((sum, adj) => sum + adj.adjustmentAmount, 0);
 
     // 🔥 PRIMARY SOURCE: EmployeeCompensation
     let comp = await EmployeeCompensation.findOne({
@@ -184,10 +195,18 @@ async function calculateEmployeePayroll(
 
         // Populate the employee's salarySnapshotId if it exists
         const Employee = db.model('Employee');
-        const employeeWithSnapshot = await Employee.findById(employee._id).populate('salarySnapshotId').lean();
+        const Applicant = db.model('Applicant');
 
-        if (employeeWithSnapshot && employeeWithSnapshot.salarySnapshotId) {
-            const snapshot = employeeWithSnapshot.salarySnapshotId;
+        // Try Employee Master first
+        let personWithSnapshot = await Employee.findById(employee._id).populate('salarySnapshotId').lean();
+
+        // Fallback to Applicant if not found in Employee model
+        if (!personWithSnapshot) {
+            personWithSnapshot = await Applicant.findById(employee._id).populate('salarySnapshotId').lean();
+        }
+
+        if (personWithSnapshot && personWithSnapshot.salarySnapshotId) {
+            const snapshot = personWithSnapshot.salarySnapshotId;
             console.log(`✅ [PAYROLL] Using salarySnapshot fallback for ${employee.firstName} ${employee.lastName}`);
 
             // Convert snapshot to compensation format
@@ -364,6 +383,10 @@ async function calculateEmployeePayroll(
     // STEP 6: Calculate Net Pay
     let netPay = (taxableIncome - incomeTax) - postTaxDeductions.total;
 
+    // 🔥 APPLY PAYROLL ADJUSTMENTS (Corrections/Arrears)
+    netPay += adjustmentTotal;
+    console.log(`💡 [PAYROLL] Applying adjustments for ${employee.firstName}: ₹${adjustmentTotal} (New Net: ₹${netPay})`);
+
     // 🔒 SAFETY: Validate net pay
     if (isNaN(netPay) || !isFinite(netPay)) {
         console.error(`❌ [PAYROLL] Net pay calculation resulted in invalid value: ${netPay}`);
@@ -411,6 +434,12 @@ async function calculateEmployeePayroll(
         tdsSnapshot: tdsResult,
         postTaxDeductionsTotal: postTaxDeductions.total,
         netPay,
+        adjustmentsSnapshot: pendingAdjustments.map(adj => ({
+            adjustmentId: adj._id,
+            type: adj.adjustmentType,
+            amount: adj.adjustmentAmount,
+            reason: adj.reason
+        })),
         attendanceSummary,
         salaryTemplateId: salaryTemplate._id,
         salaryTemplateSnapshot: {
@@ -435,7 +464,8 @@ async function calculateEmployeePayroll(
             taxableIncome: payslip.taxableIncome || 0,
             incomeTax: payslip.incomeTax || 0,
             postTaxDeductionsTotal: payslip.postTaxDeductionsTotal || 0,
-            netPay: payslip.netPay || 0
+            netPay: payslip.netPay || 0,
+            adjustments: payslip.adjustmentsSnapshot?.map(a => ({ id: a.adjustmentId, amt: a.amount }))
         });
         payslip.hash = crypto.createHash('sha256').update(hashData).digest('hex');
     }
@@ -459,6 +489,20 @@ async function calculateEmployeePayroll(
     if (!dryRun) {
         await payslip.save();
         console.log(`✅ [PAYROLL] Payslip saved to DB with ID: ${payslip._id}`);
+
+        // 🎯 MARK ADJUSTMENTS AS APPLIED
+        if (pendingAdjustments.length > 0) {
+            await PayrollAdjustment.updateMany(
+                { _id: { $in: pendingAdjustments.map(a => a._id) } },
+                {
+                    $set: {
+                        status: 'APPLIED',
+                        appliedInPayslipId: payslip._id
+                    }
+                }
+            );
+            console.log(`📝 [PAYROLL] Marked ${pendingAdjustments.length} adjustments as APPLIED`);
+        }
     }
 
     return payslip;

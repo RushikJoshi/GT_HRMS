@@ -28,6 +28,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
     const [formData, setFormData] = useState({
         jobTitle: '',
         department: '',
+        positionId: '',
         vacancy: 1,
         description: '',
         priority: 'Medium',
@@ -54,6 +55,18 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
     ]);
 
     const [saving, setSaving] = useState(false);
+<<<<<<< HEAD
+=======
+    const [positions, setPositions] = useState([]);
+
+    useEffect(() => {
+        api.get('/hrms/positions').then(res => {
+            if (res.data.success) setPositions(res.data.data);
+        }).catch(err => console.error("Error fetching positions", err));
+    }, []);
+
+    // Prevent double-click save on step transition
+>>>>>>> main
     const [canSave, setCanSave] = useState(false);
 
     useEffect(() => {
@@ -239,7 +252,57 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                             <p className="text-sm text-slate-500 font-medium mt-1">
                                 Step {step}: {step === 1 ? 'Fundamental Details' : 'Hiring Workflow Design'}
                             </p>
+<<<<<<< HEAD
                         )}
+=======
+                        </div>
+                        {/* Step Indicator */}
+                        <div className="flex items-center gap-2">
+                            <span className={`w-3 h-3 rounded-full ${step === 1 ? 'bg-blue-600' : 'bg-slate-300'}`}></span>
+                            <span className={`w-3 h-3 rounded-full ${step === 2 ? 'bg-blue-600' : 'bg-slate-300'}`}></span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {step === 1 ? (
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Link to Position Master (Optional)</label>
+                        <select
+                            value={formData.positionId}
+                            onChange={e => {
+                                const posId = e.target.value;
+                                const selectedPos = positions.find(p => p._id === posId);
+                                if (selectedPos) {
+                                    setFormData({
+                                        ...formData,
+                                        positionId: posId,
+                                        jobTitle: selectedPos.jobTitle,
+                                        department: selectedPos.department
+                                    });
+                                } else {
+                                    setFormData({ ...formData, positionId: posId });
+                                }
+                            }}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white mb-4"
+                        >
+                            <option value="">-- No Position Linked --</option>
+                            {positions.map(p => (
+                                <option key={p._id} value={p._id}>{p.positionId} - {p.jobTitle} ({p.department})</option>
+                            ))}
+                        </select>
+
+                        <LabelWithToggle label="Job Title" fieldKey="jobTitle" required id="jobTitle" />
+                        <input
+                            id="jobTitle"
+                            required
+                            value={formData.jobTitle}
+                            onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
+                            placeholder="e.g. Senior Developer"
+                        />
+>>>>>>> main
                     </div>
 
                     <div className="flex items-center gap-6">

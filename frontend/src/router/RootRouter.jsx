@@ -1,7 +1,7 @@
 /**
  * RootRouter.jsx
  * Master router that separates:
- * 1. /hrms/* → HRMS System (with AuthProvider)
+ * 1. /* → HRMS System (with AuthProvider)
  * 2. /jobs/* → Job Portal System (with JobPortalAuthProvider)
  * 3. Root redirection
  *
@@ -34,16 +34,16 @@ function RootHome() {
 
   const token = getToken();
   if (!isValidToken(token)) {
-    return <Navigate to="/hrms/login" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // HRMS system routes based on role
-  if (user?.role === 'hr' || user?.role === 'admin') return <Navigate to="/hrms/hr" replace />;
-  if (user?.role === 'employee' || user?.role === 'manager') return <Navigate to="/hrms/employee" replace />;
-  if (user?.role === 'psa') return <Navigate to="/hrms/psa" replace />;
+  if (user?.role === 'hr' || user?.role === 'admin') return <Navigate to="/hr" replace />;
+  if (user?.role === 'employee' || user?.role === 'manager') return <Navigate to="/employee" replace />;
+  if (user?.role === 'psa') return <Navigate to="/psa" replace />;
   if (user?.role === 'candidate') return <Navigate to="/jobs/dashboard" replace />;
 
-  return <Navigate to="/hrms/login" replace />;
+  return <Navigate to="/login" replace />;
 }
 
 /**
@@ -57,13 +57,13 @@ export default function RootRouter() {
       <Route path="/" element={<RootHome />} />
 
       {/* BACKWARD COMPATIBILITY: Redirect old HRMS routes to new HRMS routes */}
-      <Route path="/hr" element={<Navigate to="/hrms/hr" replace />} />
-      <Route path="/hr/*" element={<Navigate to="/hrms/hr" replace />} />
-      <Route path="/employee" element={<Navigate to="/hrms/employee" replace />} />
-      <Route path="/employee/*" element={<Navigate to="/hrms/employee" replace />} />
-      <Route path="/psa" element={<Navigate to="/hrms/psa" replace />} />
-      <Route path="/psa/*" element={<Navigate to="/hrms/psa" replace />} />
-      <Route path="/login" element={<Navigate to="/hrms/login" replace />} />
+      <Route path="/hr" element={<Navigate to="/hr" replace />} />
+      <Route path="/hr/*" element={<Navigate to="/hr" replace />} />
+      <Route path="/employee" element={<Navigate to="/employee" replace />} />
+      <Route path="/employee/*" element={<Navigate to="/employee" replace />} />
+      <Route path="/psa" element={<Navigate to="/psa" replace />} />
+      <Route path="/psa/*" element={<Navigate to="/psa" replace />} />
+      <Route path="/login" element={<Navigate to="/login" replace />} />
 
       {/* BACKWARD COMPATIBILITY: Redirect old Job Portal candidate routes to new Job Portal routes */}
       <Route path="/candidate" element={<Navigate to="/candidate/login" replace />} />
@@ -76,7 +76,7 @@ export default function RootRouter() {
       <Route path="/candidate/*" element={<Navigate to="/candidate/login" replace />} />
 
       {/* HRMS System - All routes prefixed with /hrms */}
-      <Route path="/hrms/*" element={<HrmsRoutes />} />
+      <Route path="/*" element={<HrmsRoutes />} />
 
       {/* Public Career Page - For customized career page with SEO */}
       <Route path="/careers/:tenantId" element={<PublicCareerPage />} />

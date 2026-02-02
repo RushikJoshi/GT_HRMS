@@ -51,6 +51,7 @@ async function connectToDatabase() {
         mongoose.model('Regularization', require('./models/Regularization'));
         mongoose.model('Applicant', require('./models/Applicant'));
         mongoose.model('Requirement', require('./models/Requirement'));
+        mongoose.model('Position', require('./models/Position'));
         mongoose.model('Candidate', require('./models/Candidate'));
         mongoose.model('Interview', require('./models/Interview'));
         mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
@@ -72,6 +73,7 @@ async function connectToDatabase() {
                 mongoose.model('Regularization', require('./models/Regularization'));
                 mongoose.model('Applicant', require('./models/Applicant'));
                 mongoose.model('Requirement', require('./models/Requirement'));
+                mongoose.model('Position', require('./models/Position'));
                 mongoose.model('Candidate', require('./models/Candidate'));
                 mongoose.model('Interview', require('./models/Interview'));
                 mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));

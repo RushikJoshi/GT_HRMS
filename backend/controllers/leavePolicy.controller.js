@@ -82,7 +82,8 @@ exports.createPolicy = async (req, res) => {
         );
         console.log(`[CREATE_POLICY] Synced to ${syncResults.length} employees`);
 
-        res.status(201).json(policy);
+        // Return policy and sync summary so HR UI can reflect assigned counts immediately
+        res.status(201).json({ policy, syncResults });
     } catch (error) {
         console.error('createPolicy ERROR:', error);
         res.status(500).json({ error: error.message });
@@ -146,6 +147,106 @@ exports.getPolicies = async (req, res) => {
         console.error("getPolicies ERROR:", error);
         console.error("Error stack:", error.stack);
         res.status(500).json({ error: error.message || "Failed to fetch leave policies" });
+    }
+};
+
+// EMPLOYEE: Get policies applicable to current employee with balance info
+exports.getMyPolicies = async (req, res) => {
+    try {
+        if (!req.user || !req.user.id) return res.status(401).json({ error: 'Unauthorized' });
+        const tenantIdStr = req.user?.tenantId || req.tenantId;
+        if (!tenantIdStr) return res.status(400).json({ error: 'tenant_missing', message: 'Tenant ID is required' });
+        const tenantId = new mongoose.Types.ObjectId(tenantIdStr);
+
+        const { LeavePolicy, Employee, LeaveBalance } = getModels(req);
+        const employeeId = req.user.id;
+
+        // Ensure employee has a policy (auto-assign default if missing)
+        try {
+            const { ensureLeavePolicy } = require('../config/dbManager');
+            let empDoc = await Employee.findOne({ _id: employeeId, tenant: tenantId });
+            if (empDoc) {
+                await ensureLeavePolicy(empDoc, req.tenantDB, tenantId);
+            }
+        } catch (e) {
+            console.error('[GET_MY_POLICIES] ensureLeavePolicy error:', e);
+        }
+
+        const emp = await Employee.findOne({ _id: employeeId, tenant: tenantId }).lean();
+        if (!emp) return res.status(404).json({ error: 'Employee not found' });
+
+        const now = new Date();
+        const policies = await LeavePolicy.find({ tenant: tenantId, isActive: true, $or: [{ expiryDate: null }, { expiryDate: { $gte: now } }] }).sort({ createdAt: -1 });
+
+        const result = [];
+        const year = (new Date()).getFullYear();
+
+        for (const policy of policies) {
+            // Basic applicability checks
+            let applicable = false;
+
+            if (policy.applicableTo === 'All') applicable = true;
+            else if (policy.applicableTo === 'Department' && policy.departmentIds && policy.departmentIds.length > 0) {
+                applicable = !!(emp.departmentId && policy.departmentIds.find(d => d.toString() === emp.departmentId?.toString()));
+            } else if (policy.applicableTo === 'Role' && policy.roles && policy.roles.length > 0) {
+                applicable = policy.roles.map(r => (r || '').toString().toLowerCase()).includes((emp.role || '').toLowerCase());
+            } else if (policy.applicableTo === 'Specific') {
+                // Support 'specificEmployeeIds' or employees already assigned
+                const specific = policy.specificEmployeeIds || [];
+                applicable = specific.map(s => s.toString()).includes(emp._id.toString()) || (emp.leavePolicy && emp.leavePolicy.toString() === policy._id.toString());
+            }
+
+            if (!applicable) continue;
+
+            // Rule-level eligibility & attached balances
+            const rules = [];
+            for (const rule of policy.rules) {
+                // balance lookup
+                const bal = await LeaveBalance.findOne({ tenant: tenantId, employee: emp._id, policy: policy._id, leaveType: rule.leaveType, year }).lean();
+
+                // tenure check
+                const monthsSinceJoin = emp.joiningDate ? Math.floor((Date.now() - new Date(emp.joiningDate).getTime()) / (1000 * 60 * 60 * 24 * 30)) : 0;
+                const minMonths = Math.max(policy.minimumTenureRequiredMonths || 0, rule.minimumTenureMonths || 0);
+                const eligible = minMonths <= monthsSinceJoin && (!policy.applicableEmployeeTypes || policy.applicableEmployeeTypes.length === 0 || policy.applicableEmployeeTypes.map(a => a.toLowerCase()).includes((emp.jobType || emp.role || '').toLowerCase()));
+
+                rules.push({
+                    leaveType: rule.leaveType,
+                    totalPerYear: rule.totalPerYear,
+                    monthlyAccrual: rule.monthlyAccrual,
+                    carryForwardAllowed: rule.carryForwardAllowed,
+                    maxCarryForward: rule.maxCarryForward,
+                    encashmentAllowed: rule.encashmentAllowed || policy.encashmentAllowed || false,
+                    requiresApproval: rule.requiresApproval,
+                    allowDuringProbation: rule.allowDuringProbation,
+                    minimumTenureMonths: rule.minimumTenureMonths || policy.minimumTenureRequiredMonths || 0,
+                    eligible: eligible,
+                    eligibleFrom: bal?.eligibleFrom || null,
+                    balance: bal ? {
+                        total: bal.total,
+                        used: bal.used,
+                        pending: bal.pending,
+                        available: bal.available,
+                        locked: bal.locked
+                    } : null
+                });
+            }
+
+            result.push({
+                _id: policy._id,
+                name: policy.name,
+                description: policy.description,
+                applicableTo: policy.applicableTo,
+                rules,
+                isActive: policy.isActive,
+                effectiveFrom: policy.effectiveFrom,
+                expiryDate: policy.expiryDate
+            });
+        }
+
+        res.json(result);
+    } catch (err) {
+        console.error('[GET_MY_POLICIES] Error:', err);
+        res.status(500).json({ error: 'Failed to fetch policies' });
     }
 };
 
@@ -287,6 +388,117 @@ exports.deletePolicy = async (req, res) => {
         });
     } catch (error) {
         console.error('Delete policy error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Admin: Force re-sync a policy to all applicable employees
+exports.syncPolicy = async (req, res) => {
+    try {
+        const { LeavePolicy, Employee, LeaveBalance } = getModels(req);
+        const policyId = req.params.id;
+        const policy = await LeavePolicy.findOne({ _id: policyId, tenant: req.tenantId });
+        if (!policy) return res.status(404).json({ error: 'Policy not found' });
+
+        const AttendanceSettings = req.tenantDB.model('AttendanceSettings');
+        const attendanceSettings = await AttendanceSettings.findOne({ tenant: req.tenantId }).catch(() => null);
+        const startMonth = attendanceSettings?.leaveCycleStartMonth || 0;
+        let year = new Date().getFullYear();
+        if (new Date().getMonth() < startMonth) year--;
+
+        const models = { Employee, LeaveBalance };
+        const results = await leavePolicyService.syncPolicyToAllEmployees(policy, models, req.tenantId, year, startMonth);
+        console.log(`[SYNC_POLICY] Policy ${policyId} synced to ${results.length} employees`);
+
+        res.json({ message: 'Policy synced', results });
+    } catch (error) {
+        console.error('[SYNC_POLICY] Error:', error);
+        res.status(500).json({ error: error.message || 'Failed to sync policy' });
+    }
+};
+
+// --- Accrual & Carry Forward Endpoints (HR actions) ---
+const accrualService = require('../services/leaveAccrual.service');
+
+exports.accrueMonthly = async (req, res) => {
+    try {
+        if (!req.user?.tenantId) return res.status(400).json({ error: 'tenant_missing' });
+        const tenantId = req.user.tenantId;
+        const { year, month } = req.body; // month 1-12
+        if (!year || !month) return res.status(400).json({ error: 'year_and_month_required' });
+
+        const result = await accrualService.runMonthlyAccrual(req.tenantDB, tenantId, year, month);
+        res.json(result);
+    } catch (err) {
+        console.error('[ACCRUE_MONTHLY] Error:', err);
+        res.status(500).json({ error: err.message || 'Failed to run monthly accrual' });
+    }
+};
+
+exports.carryForward = async (req, res) => {
+    try {
+        if (!req.user?.tenantId) return res.status(400).json({ error: 'tenant_missing' });
+        const tenantId = req.user.tenantId;
+        const { fromYear, toYear } = req.body;
+        if (!fromYear || !toYear) return res.status(400).json({ error: 'fromYear_toYear_required' });
+
+        const result = await accrualService.runCarryForwardForYear(req.tenantDB, tenantId, fromYear, toYear);
+        res.json(result);
+    } catch (err) {
+        console.error('[CARRY_FORWARD] Error:', err);
+        res.status(500).json({ error: err.message || 'Failed to run carry forward' });
+    }
+};
+
+// Temporary debug endpoint: create a default 'Standard Leave Policy' and assign to all employees
+exports.ensureDefaultPolicyForTenant = async (req, res) => {
+    try {
+        const { LeavePolicy, Employee, LeaveBalance } = getModels(req);
+        const tenantIdStr = req.user?.tenantId || req.tenantId;
+        if (!tenantIdStr) return res.status(400).json({ error: 'tenant_missing' });
+        const tenantId = new mongoose.Types.ObjectId(tenantIdStr);
+
+        // Check if an active 'Standard Leave Policy' already exists
+        let policy = await LeavePolicy.findOne({ tenant: tenantId, name: 'Standard Leave Policy', isActive: true });
+        if (!policy) {
+            policy = new LeavePolicy({
+                tenant: tenantId,
+                name: 'Standard Leave Policy',
+                applicableTo: 'All',
+                isActive: true,
+                rules: [
+                    { leaveType: 'Casual Leave', totalPerYear: 12, color: '#f59e0b' },
+                    { leaveType: 'Sick Leave', totalPerYear: 7, color: '#ef4444' },
+                    { leaveType: 'Privilege Leave', totalPerYear: 15, color: '#10b981' }
+                ]
+            });
+            await policy.save();
+            console.log('[ENSURE_DEFAULT] Created Standard Leave Policy', policy._id);
+        }
+
+        // Assign to all active employees and create balances for current year
+        const year = new Date().getFullYear();
+        const employees = await Employee.find({ tenant: tenantId, status: 'Active' });
+        let updatedCount = 0;
+        for (const emp of employees) {
+            if (!emp.leavePolicy || emp.leavePolicy.toString() !== policy._id.toString()) {
+                emp.leavePolicy = policy._id;
+                await emp.save();
+                updatedCount++;
+
+                // Create balances if missing
+                for (const rule of policy.rules) {
+                    const exists = await LeaveBalance.findOne({ tenant: tenantId, employee: emp._id, leaveType: rule.leaveType, year });
+                    if (!exists) {
+                        await new LeaveBalance({ tenant: tenantId, employee: emp._id, policy: policy._id, leaveType: rule.leaveType, year, total: rule.totalPerYear, used: 0, pending: 0, available: rule.totalPerYear }).save();
+                    }
+                }
+            }
+        }
+
+        res.json({ message: 'Default policy ensured', policyId: policy._id, employeesUpdated: updatedCount });
+    } catch (error) {
+        console.error('[ENSURE_DEFAULT] Error:', error);
         res.status(500).json({ error: error.message });
     }
 };

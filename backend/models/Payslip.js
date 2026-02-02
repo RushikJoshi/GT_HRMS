@@ -84,6 +84,14 @@ const PayslipSchema = new mongoose.Schema({
         amount: { type: Number, required: true }
     }],
 
+    // Payroll Adjustments Snapshot (Corrections/Arrears)
+    adjustmentsSnapshot: [{
+        adjustmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'PayrollAdjustment' },
+        type: { type: String, required: true },
+        amount: { type: Number, required: true }, // positive (earning) or negative (deduction)
+        reason: { type: String }
+    }],
+
     // Calculated Totals
     grossEarnings: {
         type: Number,

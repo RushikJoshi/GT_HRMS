@@ -17,15 +17,15 @@ const app = express();
 ================================ */
 const allowedOrigins = [
     'http://localhost:5173',
+    'http://localhost:5176', // Vite dev server used in this workspace
     'http://localhost:3000',
     'http://localhost:5000',
-    'https://hrms.gitakshmi.com'
+    'https://hrms.gitakshmi.com',
+    'https://hrms.dev.gitakshmi.com'
 ];
 
-app.use(cors());
-
-// Handle OPTIONS requests explicitly
-app.options('*', cors({
+// Configure CORS strictly to allow only expected origins in production
+app.use(cors({
     origin: function (origin, callback) {
         // Allow non-browser or same-origin (no origin) requests
         if (!origin) return callback(null, true);
@@ -42,6 +42,22 @@ app.options('*', cors({
         }
 
         // Otherwise block
+        return callback(new Error('Not allowed by CORS'));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Tenant-ID"],
+    credentials: true
+}));
+
+// Handle OPTIONS requests explicitly (fine-grained control kept for preflight responses)
+app.options('*', cors({
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        try {
+            const u = new URL(origin);
+            if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return callback(null, true);
+        } catch (e) { }
         return callback(new Error('Not allowed by CORS'));
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -66,10 +82,12 @@ try {
     mongoose.model('Regularization', require('./models/Regularization'));
     mongoose.model('Applicant', require('./models/Applicant'));
     mongoose.model('Requirement', require('./models/Requirement'));
+    mongoose.model('Position', require('./models/Position'));
     mongoose.model('Candidate', require('./models/Candidate'));
     mongoose.model('Interview', require('./models/Interview'));
     mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
     mongoose.model('CandidateStatusLog', require('./models/CandidateStatusLog'));
+    mongoose.model('PayrollAdjustment', require('./models/PayrollAdjustment'));
 } catch (e) {
     console.warn("Model registration warning:", e.message);
 }
@@ -103,10 +121,12 @@ const salaryStructureRoutes = require('./routes/salaryStructure.routes');
 const payrollRuleRoutes = require('./routes/payrollRule.routes');
 const salaryRevisionRoutes = require('./routes/salaryRevision.routes');
 const compensationRoutes = require('./routes/compensation.routes');
+const payrollAdjustmentRoutes = require('./routes/payrollAdjustment.routes');
 
 
 // Company ID Configuration
 const companyIdConfigRoutes = require('./routes/companyIdConfig.routes');
+const positionRoutes = require('./routes/position.routes');
 
 // Career Page (Optimized for 16MB limit fix)
 const careerOptimizedRoutes = require('./routes/career-optimized.routes');
@@ -157,13 +177,18 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/salary-structure', salaryStructureRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
+<<<<<<< HEAD
 app.use('/api/career', careerOptimizedRoutes);
 
+=======
+app.use('/api/positions', positionRoutes);
+>>>>>>> main
 /* ===============================
    HRMS ALIAS ROUTES (For Frontend Inconsistencies)
 ================================ */
-// Mount all main routers under /api/hrms as well (for frontend calls like /hrms/requirements)
+// Mount all main routers under /api/hrms as well (for frontend calls like /requirements)
 const hrmsPrefix = '/api/hrms';
 app.use(hrmsPrefix + '/requirements', requirementRoutes);
 app.use(hrmsPrefix + '/holidays', holidayRoutes);
@@ -172,10 +197,13 @@ app.use(hrmsPrefix + '/offer-templates', offerTemplateRoutes);
 app.use(hrmsPrefix + '/payslip-templates', payslipTemplateRoutes);
 app.use(hrmsPrefix + '/attendance', attendanceRoutes);
 app.use(hrmsPrefix + '/payroll', payrollRoutes);
+app.use(hrmsPrefix + '/payroll/corrections', payrollAdjustmentRoutes);
 app.use(hrmsPrefix + '/compensation', compensationRoutes);
 app.use(hrmsPrefix + '/entities', entityRoutes);
 app.use(hrmsPrefix + '/notifications', notificationRoutes);
 app.use(hrmsPrefix + '/comments', commentRoutes);
+app.use(hrmsPrefix + '/positions', positionRoutes);
+app.use(hrmsPrefix + '/employee', employeeRoutes);
 
 // Special case for letter_templates (plural vs singular)
 app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {
@@ -183,11 +211,18 @@ app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {
     return letterRoutes(req, res, next);
 });
 
+<<<<<<< HEAD
 app.use(hrmsPrefix + '/interviews', require('./routes/interview.routes'));
 
 // Alias /hrms/hr/ -> hrRoutes (handles /hrms/hr/employees etc)
+=======
+// Alias /hr/ -> hrRoutes (handles /hr/employees etc)
+>>>>>>> main
 // Since hrRoutes already prefixes routes with /hr, we mount it at the root of /api/hrms
 app.use(hrmsPrefix, hrRoutes);
+
+// Alias employee routes under /api/hrms for frontend compatibility
+app.use(hrmsPrefix + '/employee', employeeRoutes);
 
 // Optional modules - handle if missing/failing
 try {
@@ -204,7 +239,7 @@ app.use(hrmsPrefix + '/hr', salaryRevisionRoutes);
 
 try {
     app.use('/api/tracker', require('./routes/tracker.routes'));
-    app.use('/api/hrms/tracker', require('./routes/tracker.routes'));
+    app.use('/api/tracker', require('./routes/tracker.routes'));
     app.use('/api/hr/candidate-status', require('./routes/tracker.routes'));
 } catch (e) {
     console.warn("Tracker routes skipped:", e.message);

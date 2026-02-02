@@ -62,70 +62,27 @@ async function getNextSeq(key) {
 --------------------------------------------- */
 async function generateEmployeeId({ req, tenantId, department, firstName, lastName }) {
   try {
-    // 1. Get Configuration for EMPLOYEE
-    let config = await CompanyIdConfig.findOne({ companyId: tenantId, entityType: 'EMPLOYEE' });
+    const companyIdConfig = require('./companyIdConfig.controller');
 
-    // Fallback: If no config exists, create default starting at 1000
-    if (!config) {
-      config = await CompanyIdConfig.create({
-        companyId: tenantId,
-        entityType: 'EMPLOYEE',
-        prefix: 'EMP',
-        startFrom: 1000,
-        currentSeq: 1000,
-        padding: 4
-      });
-    }
+    // 1. Get next ID via centralized utility
+    const result = await companyIdConfig.generateIdInternal({
+      tenantId: tenantId,
+      entityType: 'EMPLOYEE',
+      increment: true,
+      extraReplacements: {
+        '{{DEPT}}': (department || 'GEN').substring(0, 3).toUpperCase(),
+        '{{FIRSTNAME}}': (firstName || '').toUpperCase(),
+        '{{LASTNAME}}': (lastName || '').toUpperCase()
+      }
+    });
 
-    // 2. Determine Parts
-    const now = new Date();
-    const parts = [];
-
-    // Prefix
-    if (config.prefix) parts.push(config.prefix);
-
-    // Date Parts
-    if (config.includeYear) parts.push(now.getFullYear());
-    if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
-
-    // Department
-    if (config.includeDepartment) {
-      const depCode = (department || "GEN").substring(0, 3).toUpperCase();
-      parts.push(depCode);
-    }
-
-    // 3. Atomically Get and Increment Sequence
-    // We use findOneAndUpdate to ensure atomic operation.
-    // We want the current value, then increment it.
-    // { new: false } (default) returns the document BEFORE update, so we get '1000' and db becomes '1001'.
-    const updatedConfig = await CompanyIdConfig.findOneAndUpdate(
-      { _id: config._id },
-      { $inc: { currentSeq: 1 } },
-      { new: false }
-    );
-
-    // Safety check just in case config was deleted in between
-    const seq = updatedConfig ? updatedConfig.currentSeq : (config.currentSeq || 1);
-
-    // 4. Format Sequence
-    const seqStr = String(seq).padStart(config.padding || 4, '0');
-
-    // 5. Join
-    const separator = config.separator === undefined ? '-' : config.separator; // Handle empty string separator
-    let idPrefix = parts.join(separator);
-
-    if (idPrefix) {
-      return `${idPrefix}${separator}${seqStr}`;
-    }
-    return seqStr;
+    return result.id;
 
   } catch (error) {
     console.error("Error generating employee ID:", error);
-    // Emergency Fallback to timestamp
+    // Emergency Fallback
     return `EMP-${Date.now()}`;
   }
-
-  return empId;
 }
 
 async function initializeBalances(req, employeeId, policyId) {
@@ -465,7 +422,7 @@ exports.create = async (req, res) => {
       }
     }
 
-    const emp = await Employee.create(createData);
+    let emp = await Employee.create(createData);
 
     // --- NEW: Update Snapshot Ownership ---
     if (applicantSnapshotId && emp) {
@@ -478,6 +435,24 @@ exports.create = async (req, res) => {
       } catch (snapErr) {
         console.error("Failed to update snapshot ownership:", snapErr);
       }
+    }
+
+    // --- NEW: Auto-assign default leave policy if none assigned ---
+    try {
+      const { ensureLeavePolicy } = require('../config/dbManager');
+      emp = await ensureLeavePolicy(emp, req.tenantDB, req.tenantId);
+
+      // If a policy was auto-assigned and no explicit policy was provided in create body,
+      // ensure leave balances are initialized for the current year if none exist.
+      if (emp && emp.leavePolicy && !restBody.leavePolicy) {
+        const LeaveBalance = req.tenantDB.model('LeaveBalance');
+        const existing = await LeaveBalance.findOne({ employee: emp._id });
+        if (!existing) {
+          await initializeBalances(req, emp._id, emp.leavePolicy._id || emp.leavePolicy);
+        }
+      }
+    } catch (autoErr) {
+      console.error('[AUTO_POLICY_ASSIGN] Error while auto-assigning policy:', autoErr);
     }
 
     // --- NEW: Link Applicant if exists (Mark Onboarded) ---

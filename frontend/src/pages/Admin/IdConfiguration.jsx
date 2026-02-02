@@ -1,18 +1,12 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════
- * COMPANY ID CONFIGURATION PAGE
+ * ENTERPRISE ID ENGINE CONFIGURATION
  * ═══════════════════════════════════════════════════════════════════════
  * 
- * Professional admin UI for configuring custom ID formats.
- * Allows company admins to customize ID patterns for all HRMS entities.
+ * Centralized configuration for all Document IDs in the system.
+ * Manages Company Codes, Branch Codes, and Financial Year rollover.
  * 
- * Features:
- * - Real-time preview
- * - Locked configuration warning
- * - Validation
- * - Reset to defaults
- * 
- * @version 2.0
+ * @version 3.0 (Enterprise)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -20,37 +14,24 @@ import api from '../../utils/api';
 import './IdConfiguration.css';
 
 const IdConfiguration = () => {
-    const [configurations, setConfigurations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [selectedEntity, setSelectedEntity] = useState(null);
-    const [previewId, setPreviewId] = useState('');
-    const [error, setError] = useState(null);
+
+    // Data Models
+    const [settings, setSettings] = useState({
+        companyCode: '',
+        branchCode: '',
+        departmentCode: '',
+        financialYear: '',
+        resetPolicy: 'YEARLY'
+    });
+    const [documentTypes, setDocumentTypes] = useState([]);
+
+    // UI State
+    const [activeTab, setActiveTab] = useState('global');
     const [success, setSuccess] = useState(null);
+    const [error, setError] = useState(null);
 
-    // Entity type labels
-    const entityLabels = {
-        job: 'Job Opening',
-        candidate: 'Candidate',
-        application: 'Application',
-        interview: 'Interview',
-        offer: 'Offer Letter',
-        employee: 'Employee',
-        payslip: 'Payslip'
-    };
-
-    // Entity type icons
-    const entityIcons = {
-        job: '💼',
-        candidate: '👤',
-        application: '📝',
-        interview: '🎤',
-        offer: '📄',
-        employee: '👨‍💼',
-        payslip: '💰'
-    };
-
-    // Load configuration on mount
     useEffect(() => {
         loadConfiguration();
     }, []);
@@ -58,385 +39,224 @@ const IdConfiguration = () => {
     const loadConfiguration = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/id-config');
-            setConfigurations(res.data.data.configurations);
-            setError(null);
+            // Calls the new enterprise controller
+            const res = await api.get('/company-id-config');
+            if (res.data.success) {
+                setSettings(res.data.data.settings);
+                setDocumentTypes(res.data.data.documentTypes);
+            }
         } catch (err) {
-            console.error('Error loading configuration:', err);
-            setError('Failed to load ID configuration');
+            console.error('Failed to load ID Config:', err);
+            setError('Could not load configuration engine.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleConfigChange = (entityType, field, value) => {
-        setConfigurations(prev =>
-            prev.map(config =>
-                config.entityType === entityType
-                    ? { ...config, [field]: value }
-                    : config
-            )
-        );
-
-        // Update preview
-        updatePreview(entityType);
+    const handleGlobalChange = (field, value) => {
+        setSettings(prev => ({ ...prev, [field]: value }));
     };
 
-    const updatePreview = async (entityType) => {
-        try {
-            const config = configurations.find(c => c.entityType === entityType);
-            if (!config) return;
-
-            const params = new URLSearchParams();
-            if (config.includeDepartment) params.append('department', 'HR');
-            if (config.includeYear) params.append('year', new Date().getFullYear());
-            if (config.includeMonth) params.append('month', new Date().getMonth() + 1);
-
-            const res = await api.get(`/id-config/${entityType}/preview?${params.toString()}`);
-            setPreviewId(res.data.data.format);
-        } catch (err) {
-            console.error('Error updating preview:', err);
-        }
+    const handleDocTypeChange = (key, field, value) => {
+        setDocumentTypes(prev => prev.map(dt =>
+            dt.key === key ? { ...dt, [field]: value } : dt
+        ));
     };
 
-    const handleSave = async (entityType) => {
+    const handleSave = async () => {
         try {
             setSaving(true);
-            setError(null);
-            setSuccess(null);
-
-            const config = configurations.find(c => c.entityType === entityType);
-            if (!config) return;
-
-            const updates = {
-                prefix: config.prefix,
-                separator: config.separator,
-                includeYear: config.includeYear,
-                yearFormat: config.yearFormat,
-                includeMonth: config.includeMonth,
-                monthFormat: config.monthFormat,
-                includeDepartment: config.includeDepartment,
-                departmentFormat: config.departmentFormat,
-                paddingLength: config.paddingLength,
-                resetPolicy: config.resetPolicy,
-                startingNumber: config.startingNumber
+            const payload = {
+                settings,
+                documentTypes
             };
 
-            await api.patch(`/id-config/${entityType}`, updates);
+            await api.post('/company-id-config', payload);
+            setSuccess('Configuration verified and saved.');
 
-            setSuccess(`Configuration saved successfully for ${entityLabels[entityType]}`);
-
-            // Reload to get updated lock status
+            // Reload to refresh Next Numbers
             await loadConfiguration();
-
             setTimeout(() => setSuccess(null), 3000);
         } catch (err) {
-            console.error('Error saving configuration:', err);
-
-            if (err.response?.data?.code === 'CONFIGURATION_LOCKED') {
-                setError(`Cannot modify configuration. IDs have already been generated for ${entityLabels[entityType]}.`);
-            } else {
-                setError(err.response?.data?.message || 'Failed to save configuration');
-            }
+            setError(err.response?.data?.message || 'Save failed');
         } finally {
             setSaving(false);
         }
     };
 
-    const handleReset = async (entityType) => {
-        if (!window.confirm(`Reset ${entityLabels[entityType]} ID configuration to defaults?`)) {
-            return;
-        }
-
-        try {
-            setSaving(true);
-            await api.post(`/id-config/${entityType}/reset`);
-            setSuccess(`Configuration reset to defaults for ${entityLabels[entityType]}`);
-            await loadConfiguration();
-            setTimeout(() => setSuccess(null), 3000);
-        } catch (err) {
-            console.error('Error resetting configuration:', err);
-            setError(err.response?.data?.message || 'Failed to reset configuration');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="id-config-loading">
-                <div className="spinner"></div>
-                <p>Loading ID Configuration...</p>
-            </div>
-        );
-    }
+    if (loading) return <div className="p-8 flex justify-center"><div className="spinner"></div></div>;
 
     return (
-        <div className="id-configuration-page">
-            <div className="page-header">
-                <div>
-                    <h1>🔧 ID Configuration</h1>
-                    <p className="page-subtitle">
-                        Customize ID formats for all HRMS entities. Changes apply to new IDs only.
-                    </p>
-                </div>
+        <div className="id-configuration-page max-w-7xl mx-auto p-6">
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-800">Enterprise ID Engine</h1>
+                <p className="text-gray-500 mt-2">Configure master numbering sequences for multi-tenant document generation.</p>
             </div>
 
-            {error && (
-                <div className="alert alert-error">
-                    <span className="alert-icon">⚠️</span>
-                    <span>{error}</span>
-                    <button onClick={() => setError(null)} className="alert-close">×</button>
-                </div>
-            )}
+            {error && <div className="bg-red-50 text-red-700 p-4 rounded mb-6">{error}</div>}
+            {success && <div className="bg-green-50 text-green-700 p-4 rounded mb-6">{success}</div>}
 
-            {success && (
-                <div className="alert alert-success">
-                    <span className="alert-icon">✅</span>
-                    <span>{success}</span>
-                    <button onClick={() => setSuccess(null)} className="alert-close">×</button>
-                </div>
-            )}
-
-            <div className="config-grid">
-                {configurations.map(config => (
-                    <ConfigurationCard
-                        key={config.entityType}
-                        config={config}
-                        label={entityLabels[config.entityType]}
-                        icon={entityIcons[config.entityType]}
-                        onChange={(field, value) => handleConfigChange(config.entityType, field, value)}
-                        onSave={() => handleSave(config.entityType)}
-                        onReset={() => handleReset(config.entityType)}
-                        saving={saving}
-                        onPreview={() => updatePreview(config.entityType)}
-                    />
-                ))}
+            <div className="flex gap-4 mb-6 border-b border-gray-200">
+                <button
+                    className={`pb-3 px-4 font-medium transition-colors ${activeTab === 'global' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setActiveTab('global')}
+                >
+                    Global Settings
+                </button>
+                <button
+                    className={`pb-3 px-4 font-medium transition-colors ${activeTab === 'docs' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setActiveTab('docs')}
+                >
+                    Document Sequences
+                </button>
             </div>
-        </div>
-    );
-};
 
-// Configuration Card Component
-const ConfigurationCard = ({ config, label, icon, onChange, onSave, onReset, saving, onPreview }) => {
-    const [expanded, setExpanded] = useState(false);
+            {activeTab === 'global' && (
+                <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+                    <h2 className="text-xl font-semibold mb-6">Master Configuration</h2>
+                    <div className="grid grid-cols-2 gap-6">
+                        <div className="form-group">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Company Code</label>
+                            <input
+                                className="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-500 uppercase"
+                                value={settings.companyCode}
+                                onChange={(e) => handleGlobalChange('companyCode', e.target.value.toUpperCase())}
+                                placeholder="GTPL"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Used in &#123;&#123;COMPANY&#125;&#125; token</p>
+                        </div>
 
-    useEffect(() => {
-        if (expanded) {
-            onPreview();
-        }
-    }, [expanded, config]);
+                        <div className="form-group">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Branch Code</label>
+                            <input
+                                className="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-500 uppercase"
+                                value={settings.branchCode}
+                                onChange={(e) => handleGlobalChange('branchCode', e.target.value.toUpperCase())}
+                                placeholder="AHM"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Used in &#123;&#123;BRANCH&#125;&#125; token</p>
+                        </div>
 
-    return (
-        <div className={`config-card ${config.isLocked ? 'locked' : ''}`}>
-            <div className="config-card-header" onClick={() => setExpanded(!expanded)}>
-                <div className="config-card-title">
-                    <span className="config-icon">{icon}</span>
-                    <div>
-                        <h3>{label}</h3>
-                        <p className="config-example">{config.exampleFormat}</p>
+                        <div className="form-group">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Default Dept Code</label>
+                            <input
+                                className="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-500 uppercase"
+                                value={settings.departmentCode}
+                                onChange={(e) => handleGlobalChange('departmentCode', e.target.value.toUpperCase())}
+                                placeholder="GEN"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Fallback for &#123;&#123;DEPT&#125;&#125;</p>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Financial Year</label>
+                            <input
+                                className="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-500"
+                                value={settings.financialYear}
+                                onChange={(e) => handleGlobalChange('financialYear', e.target.value)}
+                                placeholder="25-26"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Current Active Fiscal Year</p>
+                        </div>
+                    </div>
+
+                    <div className="mt-8 flex justify-end">
+                        <button
+                            className="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 font-medium"
+                            onClick={handleSave}
+                            disabled={saving}
+                        >
+                            {saving ? 'Saving...' : 'Save Global Settings'}
+                        </button>
                     </div>
                 </div>
-                <div className="config-card-actions">
-                    {config.isLocked && (
-                        <span className="lock-badge" title="Configuration locked - IDs already generated">
-                            🔒 Locked
-                        </span>
-                    )}
-                    <button className="expand-btn">
-                        {expanded ? '▼' : '▶'}
-                    </button>
-                </div>
-            </div>
+            )}
 
-            {expanded && (
-                <div className="config-card-body">
-                    {config.isLocked && (
-                        <div className="lock-warning">
-                            <span className="warning-icon">⚠️</span>
-                            <div>
-                                <strong>Configuration Locked</strong>
-                                <p>
-                                    {config.generatedCount} {label} ID(s) have been generated.
-                                    Configuration cannot be modified to maintain data integrity.
-                                </p>
+            {activeTab === 'docs' && (
+                <div className="grid grid-cols-1 gap-6">
+                    {documentTypes.map(doc => (
+                        <div key={doc.key} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="bg-indigo-100 text-indigo-700 p-2 rounded text-sm font-bold w-12 text-center">
+                                        {doc.key}
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-800">{doc.name || 'Custom Document'}</h3>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Prefix</label>
+                                        <input
+                                            className="w-full mt-1 p-2 border rounded text-sm uppercase"
+                                            value={doc.prefix}
+                                            onChange={(e) => handleDocTypeChange(doc.key, 'prefix', e.target.value.toUpperCase())}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Format Template</label>
+                                        <input
+                                            className="w-full mt-1 p-2 border rounded text-sm font-mono text-gray-600"
+                                            value={doc.formatTemplate}
+                                            onChange={(e) => handleDocTypeChange(doc.key, 'formatTemplate', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-4 mt-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Start From</label>
+                                        <input
+                                            type="number"
+                                            className="w-full mt-1 p-2 border rounded text-sm"
+                                            value={doc.startFrom}
+                                            onChange={(e) => handleDocTypeChange(doc.key, 'startFrom', parseInt(e.target.value))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Padding</label>
+                                        <input
+                                            type="number"
+                                            className="w-full mt-1 p-2 border rounded text-sm"
+                                            value={doc.paddingDigits}
+                                            onChange={(e) => handleDocTypeChange(doc.key, 'paddingDigits', parseInt(e.target.value))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Reset Policy</label>
+                                        <select
+                                            className="w-full mt-1 p-2 border rounded text-sm"
+                                            value={doc.resetPolicy}
+                                            onChange={(e) => handleDocTypeChange(doc.key, 'resetPolicy', e.target.value)}
+                                        >
+                                            <option value="YEARLY">Yearly</option>
+                                            <option value="NEVER">Never</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="w-full md:w-80 bg-slate-50 rounded-xl p-5 border border-slate-100 flex flex-col justify-center">
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Live Preview (Next ID)</label>
+                                <div className="text-xl font-mono font-bold text-indigo-600 bg-white p-3 rounded border border-indigo-100 text-center break-all shadow-sm">
+                                    {doc.previewId || 'Generating...'}
+                                </div>
+                                <div className="mt-4 flex justify-between text-xs text-gray-500 border-t pt-3">
+                                    <span>Last Used: {doc.lastNumber >= doc.startFrom ? doc.lastNumber : 'None'}</span>
+                                    <span>FY: {settings.financialYear}</span>
+                                </div>
                             </div>
                         </div>
-                    )}
+                    ))}
 
-                    <div className="config-form">
-                        {/* Prefix */}
-                        <div className="form-group">
-                            <label>Prefix</label>
-                            <input
-                                type="text"
-                                value={config.prefix}
-                                onChange={(e) => onChange('prefix', e.target.value.toUpperCase())}
-                                disabled={config.isLocked}
-                                maxLength={10}
-                                className="form-control"
-                                placeholder="e.g., JOB, EMP"
-                            />
-                            <small>Uppercase letters only, max 10 characters</small>
-                        </div>
-
-                        {/* Separator */}
-                        <div className="form-group">
-                            <label>Separator</label>
-                            <select
-                                value={config.separator}
-                                onChange={(e) => onChange('separator', e.target.value)}
-                                disabled={config.isLocked}
-                                className="form-control"
-                            >
-                                <option value="-">Hyphen (-)</option>
-                                <option value="_">Underscore (_)</option>
-                                <option value="">None</option>
-                                <option value="/">Slash (/)</option>
-                            </select>
-                        </div>
-
-                        {/* Include Year */}
-                        <div className="form-group checkbox-group">
-                            <label className="checkbox-label">
-                                <input
-                                    type="checkbox"
-                                    checked={config.includeYear}
-                                    onChange={(e) => onChange('includeYear', e.target.checked)}
-                                    disabled={config.isLocked}
-                                />
-                                <span>Include Year</span>
-                            </label>
-                            {config.includeYear && (
-                                <select
-                                    value={config.yearFormat}
-                                    onChange={(e) => onChange('yearFormat', e.target.value)}
-                                    disabled={config.isLocked}
-                                    className="form-control inline-select"
-                                >
-                                    <option value="YYYY">Full Year (2026)</option>
-                                    <option value="YY">Short Year (26)</option>
-                                </select>
-                            )}
-                        </div>
-
-                        {/* Include Month (Payslip only) */}
-                        {config.entityType === 'payslip' && (
-                            <div className="form-group checkbox-group">
-                                <label className="checkbox-label">
-                                    <input
-                                        type="checkbox"
-                                        checked={config.includeMonth}
-                                        onChange={(e) => onChange('includeMonth', e.target.checked)}
-                                        disabled={config.isLocked}
-                                    />
-                                    <span>Include Month</span>
-                                </label>
-                                {config.includeMonth && (
-                                    <select
-                                        value={config.monthFormat}
-                                        onChange={(e) => onChange('monthFormat', e.target.value)}
-                                        disabled={config.isLocked}
-                                        className="form-control inline-select"
-                                    >
-                                        <option value="MM">2-digit (01, 02)</option>
-                                        <option value="M">1-digit (1, 2)</option>
-                                    </select>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Include Department (Employee only) */}
-                        {config.entityType === 'employee' && (
-                            <div className="form-group checkbox-group">
-                                <label className="checkbox-label">
-                                    <input
-                                        type="checkbox"
-                                        checked={config.includeDepartment}
-                                        onChange={(e) => onChange('includeDepartment', e.target.checked)}
-                                        disabled={config.isLocked}
-                                    />
-                                    <span>Include Department</span>
-                                </label>
-                                {config.includeDepartment && (
-                                    <select
-                                        value={config.departmentFormat}
-                                        onChange={(e) => onChange('departmentFormat', e.target.value)}
-                                        disabled={config.isLocked}
-                                        className="form-control inline-select"
-                                    >
-                                        <option value="CODE">Code (HR, IT)</option>
-                                        <option value="FULL">Full Name</option>
-                                    </select>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Padding Length */}
-                        <div className="form-group">
-                            <label>Sequence Padding</label>
-                            <select
-                                value={config.paddingLength}
-                                onChange={(e) => onChange('paddingLength', parseInt(e.target.value))}
-                                disabled={config.isLocked}
-                                className="form-control"
-                            >
-                                <option value="2">2 digits (01, 02)</option>
-                                <option value="3">3 digits (001, 002)</option>
-                                <option value="4">4 digits (0001, 0002)</option>
-                                <option value="5">5 digits (00001, 00002)</option>
-                                <option value="6">6 digits (000001, 000002)</option>
-                            </select>
-                        </div>
-
-                        {/* Reset Policy */}
-                        <div className="form-group">
-                            <label>Reset Policy</label>
-                            <select
-                                value={config.resetPolicy}
-                                onChange={(e) => onChange('resetPolicy', e.target.value)}
-                                disabled={config.isLocked}
-                                className="form-control"
-                            >
-                                <option value="YEARLY">Reset Yearly</option>
-                                <option value="MONTHLY">Reset Monthly</option>
-                                <option value="NEVER">Never Reset</option>
-                            </select>
-                            <small>
-                                {config.resetPolicy === 'YEARLY' && 'Counter resets every year'}
-                                {config.resetPolicy === 'MONTHLY' && 'Counter resets every month'}
-                                {config.resetPolicy === 'NEVER' && 'Counter never resets'}
-                            </small>
-                        </div>
-
-                        {/* Preview */}
-                        <div className="preview-section">
-                            <h4>Preview</h4>
-                            <div className="preview-box">
-                                <code>{config.exampleFormat}</code>
-                            </div>
-                            <small className="preview-note">
-                                This is how new IDs will look. Existing IDs will not change.
-                            </small>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="config-actions">
-                            <button
-                                onClick={onSave}
-                                disabled={config.isLocked || saving}
-                                className="btn btn-primary"
-                            >
-                                {saving ? 'Saving...' : 'Save Configuration'}
-                            </button>
-                            <button
-                                onClick={onReset}
-                                disabled={config.isLocked || saving}
-                                className="btn btn-secondary"
-                            >
-                                Reset to Default
-                            </button>
-                        </div>
+                    <div className="mt-4 flex justify-end">
+                        <button
+                            className="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 font-medium"
+                            onClick={handleSave}
+                            disabled={saving}
+                        >
+                            {saving ? 'Saving...' : 'Save All Sequences'}
+                        </button>
                     </div>
                 </div>
             )}

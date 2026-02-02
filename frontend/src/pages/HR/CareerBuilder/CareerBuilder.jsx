@@ -33,7 +33,7 @@ export default function CareerBuilder() {
 
     const fetchJobs = async () => {
         try {
-            const res = await api.get('/hrms/requirements');
+            const res = await api.get('/requirements');
             if (res.data && res.data.requirements) {
                 setJobs(res.data.requirements);
             } else if (Array.isArray(res.data)) {
@@ -47,7 +47,11 @@ export default function CareerBuilder() {
     const fetchConfig = async () => {
         try {
             setLoading(true);
+<<<<<<< HEAD
             const res = await api.get('/career/draft');
+=======
+            const res = await api.get('/hr/career/customize');
+>>>>>>> main
             if (res.data) {
                 // Ensure defaulting if fields missing
                 const configData = {
@@ -157,6 +161,7 @@ export default function CareerBuilder() {
         try {
             setPublishing(true);
 
+<<<<<<< HEAD
             // Pre-validation
             if (config.sections.length === 0) {
                 message.warning("⚠️ Page is empty. Add some sections!");
@@ -176,6 +181,11 @@ export default function CareerBuilder() {
 
             // 2. Trigger Publish
             const res = await api.post('/career/publish');
+=======
+            // Atomic Publish: Send config directly to publish endpoint
+            // This ensures exactly what is in the editor goes live immediately
+            const res = await api.post('/hr/career/publish', config);
+>>>>>>> main
 
             if (res.data && res.data.success) {
                 message.success("🎉 Career Page Published Live!");

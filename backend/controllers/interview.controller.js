@@ -18,7 +18,7 @@ function getModels(req) {
 
 /**
  * Get interview details by TrackerCandidate ID or Applicant ID
- * Route: GET /api/hrms/interviews/:id
+ * Route: GET /api/interviews/:id
  */
 exports.getInterview = async (req, res) => {
     try {
