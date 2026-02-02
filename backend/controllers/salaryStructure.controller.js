@@ -26,7 +26,34 @@ exports.suggestSalaryStructure = async (req, res) => {
         const { enteredCTC } = req.body;
         if (!enteredCTC) return res.status(400).json({ message: "Entered CTC is required" });
 
-        const suggestion = suggestSalaryBreakup({ enteredCTC: Number(enteredCTC) });
+        const tenantId = req.user?.tenant || req.user?.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ message: "Tenant ID missing in user context" });
+        }
+
+        const { SalaryComponent, DeductionMaster, BenefitComponent } = getModels(req);
+
+        // Fetch active components from database
+        const [earnings, deductions, benefits] = await Promise.all([
+            SalaryComponent.find({ tenantId, type: 'EARNING', isActive: true }).lean(),
+            DeductionMaster.find({ tenantId, isActive: true }).lean(),
+            BenefitComponent.find({ tenantId, isActive: true }).lean()
+        ]);
+
+        // 🔍 DEBUG: Log fetched components
+        console.log('🔍 DEBUG: Fetched Earnings Components:', JSON.stringify(earnings.map(e => ({
+            name: e.name,
+            calculationType: e.calculationType,
+            percentage: e.percentage,
+            amount: e.amount
+        })), null, 2));
+
+        const suggestion = suggestSalaryBreakup({
+            enteredCTC: Number(enteredCTC),
+            availableEarnings: earnings,
+            availableDeductions: deductions,
+            availableEmployerContributions: benefits
+        });
 
         res.json({
             success: true,
@@ -193,4 +220,3 @@ exports.getSalaryStructure = async (req, res) => {
         return res.status(500).json({ message: err.message });
     }
 };
-    

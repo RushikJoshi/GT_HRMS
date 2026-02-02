@@ -91,17 +91,80 @@ const mapToContract = (snapshot) => {
 
 const SalaryController = {
     /**
-     * Preview Salary
-     */
+ * Preview Salary
+ */
     async preview(req, res) {
         try {
             const { annualCTC, selectedEarnings, selectedDeductions, selectedBenefits } = req.body;
             console.log(`[SALARY_CONTROLLER] Preview requested: CTC=${annualCTC}`);
+
+            // Fetch actual component configurations from database
+            const tenantId = req.user?.tenant || req.user?.tenantId;
+            if (!tenantId) {
+                return res.status(400).json({ success: false, message: "Tenant ID missing" });
+            }
+
+            const { SalaryComponent, DeductionMaster, BenefitComponent } = require('../config/tenantDB').getModels(req);
+
+            // Fetch all active components from database
+            const [dbEarnings, dbDeductions, dbBenefits] = await Promise.all([
+                SalaryComponent.find({ tenantId, isActive: true }).lean(),
+                DeductionMaster.find({ tenantId, isActive: true }).lean(),
+                BenefitComponent.find({ tenantId, isActive: true }).lean()
+            ]);
+
+            console.log(`🔍 DEBUG: Fetched ${dbEarnings.length} earnings, ${dbDeductions.length} deductions, ${dbBenefits.length} benefits from DB`);
+
+            // Helper to merge selected components with DB configurations
+            const mergeWithDB = (selectedList, dbList) => {
+                return (selectedList || []).map(selected => {
+                    // Find matching DB component by name or code
+                    const dbComp = dbList.find(db =>
+                        db.name === selected.name ||
+                        db.code === selected.code ||
+                        db._id?.toString() === selected._id?.toString()
+                    );
+
+                    if (dbComp) {
+                        console.log(`🔍 DEBUG: Merging ${selected.name} with DB config:`, {
+                            calculationType: dbComp.calculationType,
+                            percentage: dbComp.percentage,
+                            amount: dbComp.amount
+                        });
+                        // Use DB configuration, but keep selected component's structure
+                        return {
+                            ...selected,
+                            ...dbComp,
+                            _id: dbComp._id,
+                            calculationType: dbComp.calculationType,
+                            percentage: dbComp.percentage,
+                            amount: dbComp.amount,
+                            value: dbComp.percentage || dbComp.amount || selected.value
+                        };
+                    }
+
+                    console.log(`⚠️ WARNING: No DB config found for ${selected.name}, using selected data`);
+                    return selected;
+                });
+            };
+
+            // Merge selected components with actual DB configurations
+            const mergedEarnings = mergeWithDB(selectedEarnings, dbEarnings);
+            const mergedDeductions = mergeWithDB(selectedDeductions, dbDeductions);
+            const mergedBenefits = mergeWithDB(selectedBenefits, dbBenefits);
+
+            console.log(`🔍 DEBUG: Merged earnings:`, mergedEarnings.map(e => ({
+                name: e.name,
+                calculationType: e.calculationType,
+                percentage: e.percentage,
+                amount: e.amount
+            })));
+
             const result = SalaryCalculationEngine.calculateSalary({
                 annualCTC,
-                earnings: selectedEarnings,
-                deductions: selectedDeductions,
-                benefits: selectedBenefits
+                earnings: mergedEarnings,
+                deductions: mergedDeductions,
+                benefits: mergedBenefits
             });
             res.json({ success: true, data: result });
         } catch (error) {
