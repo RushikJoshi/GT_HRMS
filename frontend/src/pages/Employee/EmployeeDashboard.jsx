@@ -21,6 +21,7 @@ import ReportingTree from '../../components/ReportingTree';
 import InternalJobs from './InternalJobs';
 import MyApplications from './MyApplications';
 import FaceAttendance from './FaceAttendance';
+import WorkingHoursCard from '../../components/WorkingHoursCard';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -344,14 +345,20 @@ export default function EmployeeDashboard() {
                   { label: 'Total Punches', value: todaySummary?.totalPunches || 0, icon: RefreshCw, color: 'text-slate-400' },
                   { label: 'Punches In', value: todaySummary?.totalIn || 0, icon: LogIn, color: 'text-emerald-500' },
                   { label: 'Punches Out', value: todaySummary?.totalOut || 0, icon: LogOut, color: 'text-blue-500' },
-                  { label: 'Working Hours', value: `${todaySummary?.workingHours || 0}h`, icon: Clock, color: 'text-indigo-500' },
                 ].map((item, idx) => (
-                  <div key={idx} className="bg-white dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-500/30 transition-colors">
+                  <div key={idx} className="bg-white dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-500/30 transition-colors h-full">
                     <item.icon size={16} className={`${item.color} mb-3 opacity-60 group-hover:opacity-100 transition-opacity`} />
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
                     <p className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">{item.value}</p>
                   </div>
                 ))}
+
+                {/* Dynamic Working Hours Card */}
+                <WorkingHoursCard
+                  baseHours={todaySummary?.workingHours || 0}
+                  lastPunchIn={todayRecord?.checkIn ? (isCheckedIn && !isCheckedOut ? todayRecord.logs?.[todayRecord.logs.length - 1]?.time : null) : null}
+                  isActive={isCheckedIn && !isCheckedOut}
+                />
               </div>
             </div>
 

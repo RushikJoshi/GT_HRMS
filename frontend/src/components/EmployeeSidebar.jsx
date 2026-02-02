@@ -1,16 +1,32 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, User, RefreshCw, ChevronDown, Users, Briefcase, Settings, Landmark } from 'lucide-react';
+import {
+    LayoutDashboard,
+    Clock,
+    SquareCheck,
+    ScanFace,
+    Plane,
+    CreditCard,
+    Briefcase,
+    FileSignature,
+    User,
+    ChevronDown,
+    Users,
+    Settings
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const ICONS = {
-    dashboard: <LayoutDashboard size={18} />,
-    leaves: <Calendar size={18} />,
-    regularization: <RefreshCw size={18} />,
-    payslips: <Landmark size={18} />,
-    profile: <Settings size={18} />,
-    team: <Users size={18} />,
-    jobs: <Briefcase size={18} />,
+    dashboard: <LayoutDashboard size={20} />,
+    attendance: <Clock size={20} />,
+    regularization: <SquareCheck size={20} />,
+    faceAttendance: <ScanFace size={20} />,
+    leaves: <Plane size={20} />,
+    payslips: <CreditCard size={20} />,
+    jobs: <Briefcase size={20} />,
+    applications: <FileSignature size={20} />,
+    profile: <User size={20} />,
+    team: <Users size={20} />,
     chevronDown: <ChevronDown size={14} />
 };
 
@@ -40,9 +56,9 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
             title: 'Work Management',
             id: 'Attendance',
             items: [
-                { id: 'attendance', label: 'My Attendance', icon: ICONS.dashboard },
+                { id: 'attendance', label: 'My Attendance', icon: ICONS.attendance },
                 { id: 'regularization', label: 'Regularization', icon: ICONS.regularization },
-                { id: 'face-attendance', label: 'Face Attendance', icon: ICONS.regularization }
+                { id: 'face-attendance', label: 'Face Attendance', icon: ICONS.faceAttendance }
             ]
         },
         {
@@ -56,8 +72,8 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
             title: 'Team Management',
             id: 'Team',
             items: [
-                { id: 'team-attendance', label: 'Team Attendance', icon: ICONS.dashboard },
-                { id: 'team-leaves', label: 'Team Leaves', icon: ICONS.team },
+                { id: 'team-attendance', label: 'Team Attendance', icon: ICONS.attendance },
+                { id: 'team-leaves', label: 'Team Leaves', icon: ICONS.leaves },
                 { id: 'team-regularization', label: 'Team Approval', icon: ICONS.regularization }
             ]
         }] : []),
@@ -73,7 +89,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
             id: 'Opportunities',
             items: [
                 { id: 'internal-jobs', label: 'Internal Jobs', icon: ICONS.jobs },
-                { id: 'my-applications', label: 'My Applications', icon: ICONS.payslips }
+                { id: 'my-applications', label: 'My Applications', icon: ICONS.applications }
             ]
         },
         {
@@ -157,6 +173,8 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
                                         <button
                                             key={item.id}
                                             onClick={() => handleTabClick(item.id)}
+                                            aria-label={item.label}
+                                            title={item.label}
                                             className={`relative w-full flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition-all duration-200 group
                                                 ${isActive
                                                     ? 'bg-indigo-600/20 text-white border-l-2 border-indigo-500'
