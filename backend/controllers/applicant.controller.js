@@ -20,6 +20,7 @@ const SalaryEngine = require('../services/salaryEngine');
 const fs = require('fs');
 const dayjs = require('dayjs');
 const { syncToTracker } = require('../utils/trackerSync');
+const ResumeParserService = require('../services/ResumeParser.service');
 
 function getModels(req) {
     if (!req.tenantDB) throw new Error("Tenant database connection not available");
@@ -29,9 +30,72 @@ function getModels(req) {
         SalaryTemplate: db.model("SalaryTemplate"),
         CompanyProfile: db.model("CompanyProfile"),
         TrackerCandidate: db.model("TrackerCandidate"),
-        CandidateStatusLog: db.model("CandidateStatusLog")
+        CandidateStatusLog: db.model("CandidateStatusLog"),
+        Requirement: db.model("Requirement")
     };
 }
+
+exports.applyJob = async (req, res) => {
+    try {
+        const { jobId } = req.body;
+        // Check file
+        if (!req.file) return res.status(400).json({ message: "Resume file is required" });
+        if (!jobId) return res.status(400).json({ message: "Job ID is required" });
+
+        console.log(`[APPLY_JOB] Processing application for Job ${jobId}`);
+
+        // 2. Get Tenant Context & Fetch Job Details
+        const { Applicant, Requirement } = getModels(req);
+        const job = await Requirement.findById(jobId).select('jobTitle description');
+        const jobTitle = job?.jobTitle || "";
+        const jobDesc = job?.description || "";
+
+        // 1. Parse Resume (OCR + AI)
+        let parseResult = { rawText: "", structuredData: {} };
+        try {
+            parseResult = await ResumeParserService.parseResume(req.file.path, req.file.mimetype, jobDesc, jobTitle);
+        } catch (e) {
+            console.error("[APPLY_JOB] Resume Parsing Failed, continuing with raw file:", e.message);
+        }
+
+        const { rawText, structuredData } = parseResult;
+
+        // 3. Create Applicant
+        const applicant = new Applicant({
+            requirementId: jobId,
+            tenant: req.tenantId,
+            name: structuredData.fullName || "Unknown Candidate",
+            email: structuredData.email || "unknown@email.com",
+            mobile: structuredData.phone || "",
+            resume: req.file.filename, // Store filename relative to uploads
+
+            // AI Fields
+            rawOCRText: rawText,
+            aiParsedData: structuredData,
+            parsedSkills: structuredData.skills || [],
+            parsingStatus: rawText ? 'Completed' : 'Failed',
+
+            // Manual/Defaults
+            experience: structuredData.totalExperience || "",
+            currentCompany: structuredData.currentCompany || "",
+
+            status: 'Applied'
+        });
+
+        await applicant.save();
+
+        res.status(201).json({
+            success: true,
+            message: "Application submitted successfully",
+            applicantId: applicant._id,
+            profile: structuredData
+        });
+
+    } catch (error) {
+        console.error("[APPLY_JOB] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
 
 exports.updateApplicantStatus = async (req, res) => {
     try {
@@ -489,19 +553,33 @@ async function callGeminiAI(text) {
 exports.getResumeFile = async (req, res) => {
     try {
         const { filename } = req.params;
+        console.log(`[GET_RESUME] Request for: ${filename}`);
+
         if (!filename) return res.status(400).json({ message: "Filename required" });
 
         // Secure path resolution to prevent directory traversal
         const safeFilename = path.basename(filename);
         const resumePath = path.join(__dirname, '../uploads/resumes', safeFilename);
+        console.log(`[GET_RESUME] Checking Path 1: ${resumePath}`);
 
         if (!fs.existsSync(resumePath)) {
+            console.log(`[GET_RESUME] Path 1 failed.`);
             // Try legacy path (root uploads) just in case
             const legacyPath = path.join(__dirname, '../uploads', safeFilename);
+            console.log(`[GET_RESUME] Checking Path 2: ${legacyPath}`);
+
             if (fs.existsSync(legacyPath)) {
                 return res.sendFile(legacyPath);
             }
-            return res.status(404).json({ message: "Resume file not found" });
+            console.warn(`[GET_RESUME] File not found: ${safeFilename}`);
+            return res.status(404).json({
+                message: "Resume file not found",
+                debug: {
+                    filename: safeFilename,
+                    path1: resumePath,
+                    path2: legacyPath
+                }
+            });
         }
 
         res.sendFile(resumePath);

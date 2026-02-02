@@ -45,6 +45,7 @@ export default function EmployeeDashboard() {
   const [clocking, setClocking] = useState(false);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [isCheckedOut, setIsCheckedOut] = useState(false);
+  const [isFinalCheckOut, setFinalCheckOut] = useState(false);
   const [todayRecord, setTodayRecord] = useState(null);
   const [todaySummary, setTodaySummary] = useState(null);
   const [attendanceSettings, setAttendanceSettings] = useState(null);
@@ -692,14 +693,6 @@ export default function EmployeeDashboard() {
       {/* MY PROFILE TAB */}
       {activeTab === 'profile' && (
         <EmployeeProfileView profile={profile} balances={balances} />
-      )}
-
-      {/* PAYSLIPS TAB */}
-      {activeTab === 'payslips' && (
-        <div className="flex flex-col items-center justify-center h-96 text-slate-400">
-          <FileText size={64} className="mb-4 opacity-30" />
-          <p className="text-lg">Payslips module coming soon...</p>
-        </div>
       )}
 
       {/* REGULARIZATION TAB */}

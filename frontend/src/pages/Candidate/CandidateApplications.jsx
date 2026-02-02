@@ -81,80 +81,83 @@ export default function CandidateApplications() {
                 </div>
             </div>
 
-            {/* Applications List */}
-            <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-blue-900/5 border border-gray-50 overflow-hidden relative">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-gray-50/50">
-                                <th className="px-10 py-8 text-[11px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">Job Details</th>
-                                <th className="px-10 py-8 text-[11px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 text-center">Applied On</th>
-                                <th className="px-10 py-8 text-[11px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 text-center">Status</th>
-                                <th className="px-10 py-8 text-[11px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                            {applications.length > 0 ? applications.map(app => (
-                                <tr key={app?._id} className="group hover:bg-blue-50/30 transition-all duration-300">
-                                    <td className="px-10 py-8">
-                                        <div className="flex items-center gap-6">
-                                            <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 transition-all duration-500 shadow-sm border border-gray-100">
-                                                <Briefcase className="w-6 h-6" />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-black text-gray-900 tracking-tight group-hover:text-blue-600 transition-colors text-lg">{app?.requirementId?.jobTitle || 'Role Name'}</h4>
-                                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1.5">{app?.requirementId?.department || 'Department'}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-10 py-8">
-                                        <div className="flex items-center justify-center gap-2.5 text-gray-500 font-bold text-sm tracking-tight">
-                                            <Calendar className="w-4 h-4 text-gray-300" />
-                                            {app?.createdAt ? new Date(app.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
-                                        </div>
-                                    </td>
-                                    <td className="px-10 py-8">
-                                        <div className="flex justify-center">
-                                            <div className={`w-fit px-5 py-2 rounded-full text-[10px] font-black tracking-widest uppercase border flex items-center gap-2.5 ${getStatusStyle(app?.status)} shadow-sm`}>
-                                                <div className="w-2 h-2 rounded-full bg-current"></div>
-                                                {app?.status || 'Applied'}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-10 py-8">
-                                        <div className="flex justify-end">
-                                            <button
-                                                onClick={() => navigate(`/candidate/application/${app?._id}`)}
-                                                className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-black text-[11px] uppercase tracking-widest group-hover:translate-x-2 transition-all p-4 rounded-xl hover:bg-white"
-                                            >
-                                                Track Journey <ChevronRight className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan="4" className="px-10 py-32 text-center">
-                                        <div className="flex flex-col items-center">
-                                            <div className="h-20 w-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
-                                                <Search className="w-10 h-10 text-gray-200" />
-                                            </div>
-                                            <h3 className="text-2xl font-black text-gray-900 tracking-tight">No applications found</h3>
-                                            <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2 mb-8">You haven't applied to any roles yet.</p>
-                                            <button
-                                                onClick={() => navigate('/candidate/open-positions')}
-                                                className="bg-gray-900 text-white px-10 py-4 rounded-2xl font-black text-sm hover:bg-black transition-all shadow-xl shadow-gray-200 active:scale-95"
-                                            >
-                                                Explore Career Opportunities
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+            {/* Applications Grid - Card Layout */}
+            {applications.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {applications.map(app => (
+                        <div
+                            key={app?._id}
+                            className="bg-white rounded-2xl border-2 border-slate-200 shadow-lg hover:shadow-xl hover:border-blue-300 transition-all duration-300 cursor-pointer overflow-hidden group"
+                            onClick={() => navigate(`/candidate/application/${app?._id}`)}
+                        >
+                            <div className="p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                        <Briefcase className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors truncate">
+                                            {app?.requirementId?.jobTitle || 'Role Name'}
+                                        </h3>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
+                                            {app?.requirementId?.department || 'Department'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 mb-4">
+                                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                                        <Calendar className="w-4 h-4 text-slate-400" />
+                                        <span className="font-bold">
+                                            Applied: {app?.createdAt ? new Date(app.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                                        </span>
+                                    </div>
+
+                                    <div className={`w-fit px-4 py-2 rounded-full text-[10px] font-black tracking-widest uppercase border flex items-center gap-2 ${getStatusStyle(app?.status)} shadow-sm`}>
+                                        <div className="w-2 h-2 rounded-full bg-current"></div>
+                                        {app?.status || 'Applied'}
+                                    </div>
+                                </div>
+
+                                {app?.requirementId?.location && (
+                                    <div className="mt-3 p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                        <p className="text-[10px] text-slate-600 truncate">
+                                            📍 {app.requirementId.location}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-3">
+                                <div className="flex items-center justify-between text-white">
+                                    <span className="text-xs font-black uppercase tracking-wider">
+                                        Track Journey
+                                    </span>
+                                    <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
-            </div>
+            ) : (
+                <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-blue-900/5 border border-gray-50 overflow-hidden">
+                    <div className="px-10 py-32 text-center">
+                        <div className="flex flex-col items-center">
+                            <div className="h-20 w-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+                                <Search className="w-10 h-10 text-gray-200" />
+                            </div>
+                            <h3 className="text-2xl font-black text-gray-900 tracking-tight">No applications found</h3>
+                            <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2 mb-8">You haven't applied to any roles yet.</p>
+                            <button
+                                onClick={() => navigate('/candidate/open-positions')}
+                                className="bg-gray-900 text-white px-10 py-4 rounded-2xl font-black text-sm hover:bg-black transition-all shadow-xl shadow-gray-200 active:scale-95"
+                            >
+                                Explore Career Opportunities
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

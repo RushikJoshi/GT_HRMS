@@ -1,134 +1,339 @@
-const CompanyIdConfig = require('../models/CompanyIdConfig');
+const mongoose = require('mongoose');
+const CompanySettings = require('../models/CompanySettings');
+const DocumentType = require('../models/DocumentType');
+const DocumentCounter = require('../models/DocumentCounter');
+const CompanyIdConfig = require('../models/CompanyIdConfig'); // Legacy for migration
 
-const DEFAULT_CONFIGS = {
-    JOB: { prefix: 'JOB', separator: '-', includeYear: true, padding: 4, startFrom: 1, resetPolicy: 'YEARLY' },
-    APPLICATION: { prefix: 'APP', separator: '-', includeYear: true, padding: 5, startFrom: 1, resetPolicy: 'YEARLY' },
-    OFFER: { prefix: 'OFF', separator: '-', includeYear: true, padding: 4, startFrom: 1, resetPolicy: 'YEARLY' },
-    EMPLOYEE: { prefix: 'EMP', separator: '', includeYear: false, padding: 4, startFrom: 1000, resetPolicy: 'NEVER' },
-    PAYSLIP: { prefix: 'PAY', separator: '-', includeYear: true, includeMonth: true, padding: 4, startFrom: 1, resetPolicy: 'MONTHLY' },
-    CANDIDATE: { prefix: 'CAN', separator: '-', includeYear: true, padding: 4, startFrom: 1, resetPolicy: 'YEARLY' }
+// Standard Enterprise Defaults
+const DEFAULT_DOC_TYPES = {
+    JOB: { name: 'Job Requisition', prefix: 'JOB', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 10001 },
+    POS: { name: 'Position', prefix: 'POS', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
+    APP: { name: 'Job Application', prefix: 'APP', formatTemplate: '{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 }, // Changed from APPLICATION to APP as per spec
+    OFF: { name: 'Offer Letter', prefix: 'OFF', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 }, // Changed from OFFER
+    APPT: { name: 'Appointment Letter', prefix: 'APPT', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 10001 }, // Changed from APPOINTMENT
+    EMP: { name: 'Employee ID', prefix: 'EMP', formatTemplate: '{{PREFIX}}{{COUNTER}}', startFrom: 1000, resetPolicy: 'NEVER', includeYear: false },
+    INT: { name: 'Interview', prefix: 'INT', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
+    EXP: { name: 'Experience Letter', prefix: 'EXP', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
+    REL: { name: 'Relieving Letter', prefix: 'REL', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 }
+};
+
+// Legacy mappings for migration
+const LEGACY_MAP = {
+    'APPLICATION': 'APP',
+    'OFFER': 'OFF',
+    'APPOINTMENT': 'APPT'
 };
 
 /**
- * Get all configurations for the company
+ * INITIALIZATION Engine
+ * Ensures Settings and Document Types exist for the tenant.
+ * Migrates data from CompanyIdConfig if needed.
+ */
+const ensureConfiguration = async (tenantId) => {
+    // 1. Ensure Company Settings
+    let settings = await CompanySettings.findOne({ companyId: tenantId });
+    if (!settings) {
+        // Try to migrate from CompanyIdConfig or defaults
+        const oldConfig = await CompanyIdConfig.findOne({ companyId: tenantId });
+        settings = await CompanySettings.create({
+            companyId: tenantId,
+            companyCode: oldConfig?.companyCode || 'GTPL',
+            branchCode: oldConfig?.branchCode || 'AHM',
+            departmentCode: oldConfig?.departmentCode || 'GEN'
+        });
+    }
+
+    // 2. Ensure Document Types
+    const existingTypes = await DocumentType.find({ companyId: tenantId });
+    const existingKeys = existingTypes.map(t => t.key);
+
+    const keysToCreate = Object.keys(DEFAULT_DOC_TYPES).filter(k => !existingKeys.includes(k));
+
+    for (const key of keysToCreate) {
+        // Check legacy config first
+        const legacyKey = Object.keys(LEGACY_MAP).find(k => LEGACY_MAP[k] === key) || key;
+        const oldConfig = await CompanyIdConfig.findOne({ companyId: tenantId, entityType: legacyKey });
+
+        const defaults = DEFAULT_DOC_TYPES[key];
+
+        await DocumentType.create({
+            companyId: tenantId,
+            key: key,
+            name: defaults.name,
+            prefix: oldConfig?.prefix || defaults.prefix,
+            formatTemplate: oldConfig?.formatTemplate || defaults.formatTemplate,
+            startFrom: oldConfig?.startFrom || defaults.startFrom,
+            paddingDigits: oldConfig?.padding || 4, // Mapping padding to paddingDigits
+            resetPolicy: oldConfig?.resetPolicy || defaults.resetPolicy || 'YEARLY'
+        });
+
+        // Migrate Counter if old config exists
+        if (oldConfig) {
+            // If we have an old counter, we assume it belongs to the CURRENT financial year or GLOBAL
+            // To be safe, we init the counter for the current settings year
+            const counterKey = (oldConfig.resetPolicy || defaults.resetPolicy) === 'NEVER' ? 'GLOBAL' : settings.financialYear;
+
+            // Create counter with lastNumber = currentSeq
+            // Check if already exists (race condition)
+            const exists = await DocumentCounter.findOne({ companyId: tenantId, documentType: key, financialYear: counterKey });
+            if (!exists) {
+                await DocumentCounter.create({
+                    companyId: tenantId,
+                    documentType: key,
+                    financialYear: counterKey,
+                    lastNumber: oldConfig.currentSeq || 0
+                });
+            }
+        }
+    }
+
+    return settings;
+};
+
+
+/**
+ * GET CONFIGURATIONS
+ * Returns { settings, documentTypes }
  */
 exports.getConfigurations = async (req, res) => {
     try {
-        const companyId = req.tenantId;
+        const tenantId = req.tenantId;
+        const settings = await ensureConfiguration(tenantId);
+        const docTypes = await DocumentType.find({ companyId: tenantId });
 
-        // Validation
-        if (!companyId) {
-            return res.status(400).json({ success: false, message: 'Tenant ID missing' });
-        }
+        // Augment with NEXT number for preview
+        const configsWithPreview = await Promise.all(docTypes.map(async (doc) => {
+            const counterKey = doc.resetPolicy === 'NEVER' ? 'GLOBAL' : settings.financialYear;
+            const counter = await DocumentCounter.findOne({ companyId: tenantId, documentType: doc.key, financialYear: counterKey });
+            const lastNum = counter ? counter.lastNumber : (doc.startFrom - 1);
+            const nextNum = lastNum + 1;
 
-        let configs = await CompanyIdConfig.find({ companyId });
+            // Simplified preview gen (reuse logic ideally, but quick here)
+            const params = {
+                COMPANY: settings.companyCode,
+                BRANCH: settings.branchCode,
+                DEPT: settings.departmentCode, // Default
+                PREFIX: doc.prefix,
+                YEAR: settings.financialYear,
+                COUNTER: String(nextNum).padStart(doc.paddingDigits, '0')
+            };
 
-        // Initialize defaults if empty
-        if (configs.length === 0) {
-            const startConfigs = Object.keys(DEFAULT_CONFIGS).map(type => ({
-                companyId,
-                entityType: type,
-                ...DEFAULT_CONFIGS[type],
-                currentSeq: DEFAULT_CONFIGS[type].startFrom
-            }));
+            let preview = doc.formatTemplate;
+            Object.keys(params).forEach(k => preview = preview.replace(`{{${k}}}`, params[k]));
 
-            // Use try-catch for bulk insert to be safe
-            try {
-                configs = await CompanyIdConfig.insertMany(startConfigs);
-            } catch (insertError) {
-                console.error("Error initializing configs:", insertError);
-                // Continue with empty configs or partials if insert failed
-            }
-        }
+            return {
+                ...doc.toObject(),
+                nextNumber: nextNum,
+                financialYear: settings.financialYear,
+                previewId: preview,
+                lastNumber: lastNum
+            };
+        }));
 
-        // Ensure all types exist
-        const existingTypes = configs.map(c => c.entityType);
-        const missingTypes = Object.keys(DEFAULT_CONFIGS).filter(t => !existingTypes.includes(t));
-
-        if (missingTypes.length > 0) {
-            const newConfigs = missingTypes.map(type => ({
-                companyId,
-                entityType: type,
-                ...DEFAULT_CONFIGS[type],
-                currentSeq: DEFAULT_CONFIGS[type].startFrom
-            }));
-
-            try {
-                const savedNew = await CompanyIdConfig.insertMany(newConfigs);
-                configs = [...configs, ...savedNew];
-            } catch (insertError) {
-                console.error("Error adding missing configs:", insertError);
-            }
-        }
-
-        return res.status(200).json({
+        res.json({
             success: true,
-            data: configs
+            data: {
+                settings,
+                documentTypes: configsWithPreview
+            }
         });
 
     } catch (error) {
-        console.error("CONTROLLER ERROR (getConfigurations):", error);
-        return res.status(500).json({ success: false, message: 'Server Error' });
+        console.error("Error fetching configs:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
 /**
- * Save/Update configurations
+ * SAVE CONFIGURATIONS
+ * Handles updates to CompanySettings and DocumentTypes
  */
 exports.saveConfigurations = async (req, res) => {
     try {
-        const companyId = req.tenantId;
-        const updates = req.body;
+        const tenantId = req.tenantId;
+        const { settings: settingsUpdate, documentTypes: typesUpdate } = req.body;
 
-        if (!updates) {
-            return res.status(400).json({ success: false, message: 'No data provided' });
-        }
-
-        const configsToUpdate = Array.isArray(updates) ? updates : [updates];
-        const results = [];
-
-        for (const conf of configsToUpdate) {
-            if (!conf.entityType) continue;
-
-            const updateData = {
-                prefix: conf.prefix,
-                separator: conf.separator,
-                includeYear: conf.includeYear,
-                includeMonth: conf.includeMonth,
-                includeDepartment: conf.includeDepartment,
-                padding: conf.padding,
-                startFrom: conf.startFrom,
-                resetPolicy: conf.resetPolicy,
-                updatedBy: req.user?.email || 'admin'
-            };
-
-            const existing = await CompanyIdConfig.findOne({ companyId, entityType: conf.entityType });
-
-            if (existing) {
-                // Defensive logic for sequence update
-                if (conf.startFrom !== existing.startFrom) {
-                    updateData.currentSeq = conf.startFrom;
-                }
-            } else {
-                updateData.currentSeq = conf.startFrom;
-            }
-
-            const updated = await CompanyIdConfig.findOneAndUpdate(
-                { companyId, entityType: conf.entityType },
-                updateData,
-                { new: true, upsert: true, setDefaultsOnInsert: true }
+        // 1. Update Settings
+        let settings;
+        if (settingsUpdate) {
+            settings = await CompanySettings.findOneAndUpdate(
+                { companyId: tenantId },
+                { $set: settingsUpdate },
+                { new: true, upsert: true }
             );
-            results.push(updated);
+        } else {
+            settings = await CompanySettings.findOne({ companyId: tenantId });
         }
 
-        return res.status(200).json({
+        // 2. Update Types
+        const results = [];
+        if (Array.isArray(typesUpdate)) {
+            for (const typeFn of typesUpdate) {
+                if (!typeFn.key) continue;
+
+                // If startFrom changed, should we reset counter? 
+                // Advanced logic: Only if explicitly requested or handling logic needed. 
+                // For now, we update config. Counter respects previous state unless manual intervention.
+
+                const updated = await DocumentType.findOneAndUpdate(
+                    { companyId: tenantId, key: typeFn.key },
+                    { $set: typeFn },
+                    { new: true }
+                );
+                results.push(updated);
+            }
+        }
+
+        res.json({
             success: true,
-            message: 'Configurations saved successfully',
-            data: results
+            message: 'Configuration saved',
+            data: {
+                settings,
+                documentTypes: results
+            }
         });
 
     } catch (error) {
-        console.error("CONTROLLER ERROR (saveConfigurations):", error);
-        return res.status(500).json({ success: false, message: 'Failed to save configurations' });
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * INTERNAL GENERATE ID
+ * The Core Engine Function
+ */
+exports.generateIdInternal = async ({ tenantId, entityType, increment, extraReplacements = {} }) => {
+
+    // 1. Load Context
+    // Map legacy entity types to new Keys if needed
+    const key = LEGACY_MAP[entityType] || entityType;
+
+    let settings = await CompanySettings.findOne({ companyId: tenantId });
+    if (!settings) settings = await ensureConfiguration(tenantId);
+
+    let docType = await DocumentType.findOne({ companyId: tenantId, key: key });
+
+    // Auto-create doc type if missing (robustness)
+    if (!docType && DEFAULT_DOC_TYPES[key]) {
+        await ensureConfiguration(tenantId); // Should create it
+        docType = await DocumentType.findOne({ companyId: tenantId, key: key });
+    }
+
+    if (!docType) throw new Error(`Document Type configuration not found for: ${key}`);
+
+    // 2. Determine Counter Context
+    const counterKey = docType.resetPolicy === 'NEVER' ? 'GLOBAL' : settings.financialYear;
+
+    let sequence;
+    let counterDoc;
+
+    // 3. Counter Operations
+    if (increment) {
+        // Atomic Upsert + Increment
+        // We want to initialize to (startFrom - 1) so first increment hits startFrom.
+        const startVal = docType.startFrom;
+
+        counterDoc = await DocumentCounter.findOneAndUpdate(
+            {
+                companyId: tenantId,
+                documentType: key,
+                financialYear: counterKey
+            },
+            {
+                $inc: { lastNumber: 1 }
+            },
+            {
+                new: true,
+                upsert: true
+            }
+        );
+
+        // Check for Start From catch-up (Lazy Init)
+        // If the incremented value is less than startFrom, jump to startFrom.
+        // This handles the first run case where DB was 0 (or missing) -> 1, but we want 1000.
+        if (counterDoc.lastNumber < docType.startFrom) {
+            // Atomic update to jump forward only if still lagging
+            counterDoc = await DocumentCounter.findOneAndUpdate(
+                {
+                    companyId: tenantId,
+                    documentType: key,
+                    financialYear: counterKey,
+                    lastNumber: { $lt: docType.startFrom }
+                },
+                { $set: { lastNumber: docType.startFrom } },
+                { new: true }
+            ) || counterDoc; // If update failed (race), use existing (means someone else updated or we are fine)
+        }
+        sequence = counterDoc.lastNumber;
+    } else {
+        // Preview Read
+        counterDoc = await DocumentCounter.findOne({
+            companyId: tenantId,
+            documentType: key,
+            financialYear: counterKey
+        });
+
+        const last = counterDoc ? counterDoc.lastNumber : (docType.startFrom - 1);
+        sequence = last + 1;
+    }
+
+    // 4. Token Replacements
+    const padding = docType.paddingDigits || 4;
+    const seqStr = String(sequence).padStart(padding, '0');
+
+    // Dynamic Values
+    const replacements = {
+        '{{COMPANY}}': settings.companyCode,
+        '{{BRANCH}}': settings.branchCode,
+        '{{DEPT}}': extraReplacements['{{DEPT}}'] || settings.departmentCode, // Allow override
+        '{{PREFIX}}': docType.prefix,
+        '{{YEAR}}': settings.financialYear,
+        '{{MONTH}}': new Date().toLocaleString('default', { month: '2-digit' }), // Simplistic month
+        '{{COUNTER}}': seqStr,
+        ...extraReplacements
+    };
+
+    let generatedId = docType.formatTemplate;
+    Object.keys(replacements).forEach(token => {
+        generatedId = generatedId.split(token).join(replacements[token]);
+    });
+
+    // Cleanup double separators if tokens are empty
+    // (e.g. if DEPT is empty, GTPL//POS... -> GTPL/POS...)
+    const sep = docType.separator || '/';
+    // regex to replace multiple separators
+    generatedId = generatedId.replace(new RegExp(`\\${sep}+`, 'g'), sep);
+
+    return {
+        id: generatedId,
+        sequence: sequence,
+        docTypeId: docType._id
+    };
+};
+
+/**
+ * PUBLIC API: NEXT ID
+ */
+exports.getNextId = async (req, res) => {
+    try {
+        const { entityType, increment, extraReplacements } = req.body;
+        // Map legacy entityType to new keys
+        const key = LEGACY_MAP[entityType] || entityType;
+
+        const result = await exports.generateIdInternal({
+            tenantId: req.tenantId,
+            entityType: key,
+            increment: increment === true || increment === 'true',
+            extraReplacements
+        });
+
+        res.json({
+            success: true,
+            data: result,
+            nextId: result.id
+        });
+    } catch (error) {
+        console.error("ID Gen Error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };

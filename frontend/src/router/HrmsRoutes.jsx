@@ -75,6 +75,10 @@ import Payslips from '../pages/HR/Payroll/Payslips';
 import ProcessPayroll from '../pages/HR/Payroll/ProcessPayroll';
 import PayrollDashboard from '../pages/HR/Payroll/PayrollDashboard';
 
+// Employee Self-Service
+import ESSPayslips from '../pages/ESS/Payslips';
+
+
 // Employee
 import EmployeeDashboard from '../pages/Employee/EmployeeDashboard';
 import FaceAttendance from '../pages/Employee/FaceAttendance';
@@ -143,6 +147,7 @@ export default function HrmsRoutes() {
         <Route path="requirements" element={<RequirementPage />} />
         <Route path="create-requirement" element={<CreateRequirement />} />
         <Route path="applicants" element={<Applicants />} />
+        <Route path="job/:jobId/candidates" element={<Applicants jobSpecific={true} />} />
         <Route path="internal-applicants" element={<Applicants internalMode={true} />} />
         <Route path="candidate-status" element={<CandidateStatusTracker />} />
         <Route path="candidate-status/:id" element={<CandidateTimeline />} />
@@ -197,6 +202,7 @@ export default function HrmsRoutes() {
         }
       >
         <Route index element={<EmployeeDashboard />} />
+        <Route path="payslips" element={<ESSPayslips />} />
         <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
         <Route path="my-requests" element={<MyRequests />} />
         <Route path="face-attendance" element={<FaceAttendance />} />

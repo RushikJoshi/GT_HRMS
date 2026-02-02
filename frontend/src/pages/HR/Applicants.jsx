@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api'; // Centralized axios instance with auth & tenant headers
 import { getNextStage, normalizeStatus } from './PipelineStatusManager';
 import { useAuth } from '../../context/AuthContext';
@@ -13,12 +13,20 @@ import { Eye, Download, Edit2, RefreshCw, IndianRupee, Upload, FileText, CheckCi
 import DynamicPipelineEngine from './DynamicPipelineEngine';
 import InterviewScheduleModal from './modals/InterviewScheduleModal';
 
-export default function Applicants({ internalMode = false }) {
+export default function Applicants({ internalMode = false, jobSpecific = false }) {
     const navigate = useNavigate();
     const location = useLocation();
+    const { jobId } = useParams(); // Get jobId from URL if in job-specific mode
     const [applicants, setApplicants] = useState([]);
+    const [resumeUrl, setResumeUrl] = useState(null);
+    const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const { user } = useAuth();
+
+    // Check if we're in "show all candidates" mode (via path or query param)
+    const searchParams = new URLSearchParams(location.search);
+    const showAllCandidates = location.pathname.endsWith('/all') || searchParams.get('view') === 'all';
+
 
     const [requirements, setRequirements] = useState([]);
     const [selectedRequirement, setSelectedRequirement] = useState(null); // Full requirement object
@@ -198,6 +206,32 @@ export default function Applicants({ internalMode = false }) {
         }
     }, [applicants, location.state]);
 
+    // Auto-select job when in jobSpecific mode
+    useEffect(() => {
+        if (jobSpecific && jobId && requirements.length > 0) {
+            const req = requirements.find(r => r._id === jobId);
+            if (req) {
+                setSelectedReqId(jobId);
+                setSelectedRequirement(req);
+                if (req.workflow && req.workflow.length > 0) {
+                    setActiveTab(req.workflow[0]);
+                } else {
+                    setActiveTab('Applied');
+                }
+            }
+        }
+    }, [jobSpecific, jobId, requirements]);
+
+    // Auto-select 'all' when in showAllCandidates mode
+    useEffect(() => {
+        if (showAllCandidates) {
+            setSelectedReqId('all');
+            setSelectedRequirement(null);
+            setActiveTab('Applied');
+        }
+    }, [showAllCandidates]);
+
+
     // Handle Requirement Selection
     const handleRequirementChange = (reqId) => {
         setSelectedReqId(reqId);
@@ -223,7 +257,7 @@ export default function Applicants({ internalMode = false }) {
         const MASTER_STAGES = ['Applied', 'Shortlisted', 'Interview', 'HR Round', 'Finalized'];
 
         if (selectedReqId === 'all') {
-            const globalStages = ['Applied', 'Finalized'];
+            const globalStages = ['Applied', 'Finalized', 'Rejected'];
             setWorkflowTabs(globalStages);
             // Default to first stage instead of 'all'
             if (activeTab === 'all' || !globalStages.includes(activeTab)) {
@@ -553,8 +587,8 @@ export default function Applicants({ internalMode = false }) {
         // 4. Filter by Active Tab (Stage)
         if (selectedReqId === 'all') {
             // Global Pipeline: Show all active in 'Applied', and only terminal in 'Finalized'
-            // IMPORTANT: Exclude Rejected candidates from all tabs
             if (activeTab === 'Finalized') return filtered.filter(a => a?.status === 'Finalized');
+            if (activeTab === 'Rejected') return filtered.filter(a => a?.status === 'Rejected');
             return filtered.filter(a => a?.status !== 'Finalized' && a?.status !== 'Rejected');
         }
 
@@ -1099,6 +1133,37 @@ export default function Applicants({ internalMode = false }) {
         notification.success({ message: 'Success', description: 'Document added to list', placement: 'topRight' });
     };
 
+    // View Resume
+    const handleViewResume = async (resumeFilename) => {
+        if (!resumeFilename) {
+            notification.warning({ message: 'No Resume', description: 'This applicant does not have a resume file.', placement: 'topRight' });
+            return;
+        }
+        try {
+            const response = await api.get(`/hr/resume/${resumeFilename}`, { responseType: 'blob' });
+            const file = new Blob([response.data], { type: 'application/pdf' });
+            const fileURL = URL.createObjectURL(file);
+            setResumeUrl(fileURL);
+            setIsResumeModalOpen(true);
+        } catch (error) {
+            console.error("View Resume Error:", error);
+            let description = 'Failed to access resume file.';
+
+            if (error.response?.data instanceof Blob) {
+                try {
+                    const text = await error.response.data.text();
+                    const json = JSON.parse(text);
+                    if (json.message) description = json.message;
+                    if (json.debug) console.warn("Resume Debug Info:", json.debug);
+                } catch (e) { /* ignore json parse error */ }
+            } else if (error.response?.data?.message) {
+                description = error.response.data.message;
+            }
+
+            notification.error({ message: 'Error', description, placement: 'topRight' });
+        }
+    };
+
     // Remove document from list
     const removeDocumentFromList = (index) => {
         setUploadedDocuments(prev => prev.filter((_, idx) => idx !== index));
@@ -1531,7 +1596,7 @@ export default function Applicants({ internalMode = false }) {
     };
 
 
-    const openJoiningModal = (applicant) => {
+    const openJoiningModal = async (applicant) => {
         if (!applicant.offerLetterPath) {
             notification.warning({ message: 'Warning', description: "Please generate an Offer Letter first.", placement: 'topRight' });
             return;
@@ -1544,7 +1609,21 @@ export default function Applicants({ internalMode = false }) {
         }
         setSelectedApplicant(applicant);
         setJoiningTemplateId('');
-        setJoiningRefNo('');
+
+        // Auto-fetch Reference Number
+        setJoiningRefNo('Fetching ID...');
+        try {
+            const res = await api.post('/company-id-config/next', { entityType: 'APPOINTMENT', increment: false });
+            if (res.data && res.data.data && res.data.data.id) {
+                setJoiningRefNo(res.data.data.id);
+            } else {
+                setJoiningRefNo('');
+            }
+        } catch (error) {
+            console.error("Failed to fetch next Appointment ID", error);
+            setJoiningRefNo('');
+        }
+
         setJoiningIssueDate(dayjs().format('YYYY-MM-DD'));
         setShowJoiningModal(true);
         setJoiningPreviewUrl(null);
@@ -1664,48 +1743,49 @@ export default function Applicants({ internalMode = false }) {
         } finally {
             setGenerating(false);
         }
-        const handleOnboard = (applicant) => {
-            showConfirmToast({
-                title: 'Confirm Onboarding',
-                description: `Convert ${applicant.name} into an Employee? This will create a new employee profile.`,
-                okText: 'Yes, Convert',
-                cancelText: 'Cancel',
-                onConfirm: async () => {
-                    setLoading(true);
-                    try {
-                        // Split Name
-                        const nameParts = (applicant.name || '').trim().split(' ');
-                        const firstName = nameParts[0];
-                        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.';
+    };
 
-                        // Prepare Payload
-                        const payload = {
-                            firstName,
-                            lastName,
-                            email: applicant.email,
-                            contactNo: applicant.mobile,
-                            joiningDate: applicant.joiningDate || new Date(),
-                            department: applicant.requirementId?.department?.name || 'General',
-                            departmentId: applicant.requirementId?.department?._id,
-                            designation: applicant.requirementId?.jobTitle,
-                            role: 'employee',
-                            applicantId: applicant._id,
-                            status: 'Active',
-                            leavePolicy: null,
-                        };
+    const handleOnboard = (applicant) => {
+        showConfirmToast({
+            title: 'Confirm Onboarding',
+            description: `Convert ${applicant.name} into an Employee? This will create a new employee profile.`,
+            okText: 'Yes, Convert',
+            cancelText: 'Cancel',
+            onConfirm: async () => {
+                setLoading(true);
+                try {
+                    // Split Name
+                    const nameParts = (applicant.name || '').trim().split(' ');
+                    const firstName = nameParts[0];
+                    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.';
 
-                        await api.post('/employees', payload);
-                        showToast('success', 'Onboarding Started', `${applicant.name} is now an Active Employee.`);
-                        loadApplicants();
-                    } catch (err) {
-                        console.error(err);
-                        showToast('error', 'Onboarding Failed', err.response?.data?.message || err.message);
-                    } finally {
-                        setLoading(false);
-                    }
+                    // Prepare Payload
+                    const payload = {
+                        firstName,
+                        lastName,
+                        email: applicant.email,
+                        contactNo: applicant.mobile,
+                        joiningDate: applicant.joiningDate || new Date(),
+                        department: applicant.requirementId?.department?.name || 'General',
+                        departmentId: applicant.requirementId?.department?._id,
+                        designation: applicant.requirementId?.jobTitle,
+                        role: 'employee',
+                        applicantId: applicant._id,
+                        status: 'Active',
+                        leavePolicy: null,
+                    };
+
+                    await api.post('/hrms/hr/employees', payload);
+                    showToast('success', 'Onboarding Started', `${applicant.name} is now an Active Employee.`);
+                    loadApplicants();
+                } catch (err) {
+                    console.error(err);
+                    showToast('error', 'Onboarding Failed', err.response?.data?.message || err.message);
+                } finally {
+                    setLoading(false);
                 }
-            });
-        };
+            }
+        });
     };
 
 
@@ -1719,8 +1799,27 @@ export default function Applicants({ internalMode = false }) {
                         <span>Recruiting</span>
                         <span className="opacity-30">/</span>
                         <span className="text-blue-600">Applicants</span>
+                        {jobSpecific && selectedRequirement && (
+                            <>
+                                <span className="opacity-30">/</span>
+                                <span className="text-blue-600">{selectedRequirement.jobTitle}</span>
+                            </>
+                        )}
                     </div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">Candidate Pipeline</h1>
+                    <div className="flex items-center gap-4">
+                        {(jobSpecific || showAllCandidates) && (
+                            <button
+                                onClick={() => navigate('/hr/applicants')}
+                                className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 transition-all"
+                                title="Back to all jobs"
+                            >
+                                <ChevronRight size={20} className="rotate-180 text-slate-600" />
+                            </button>
+                        )}
+                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+                            {showAllCandidates ? 'All Candidates' : (jobSpecific && selectedRequirement ? selectedRequirement.jobTitle : 'Candidate Pipeline')}
+                        </h1>
+                    </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
@@ -1736,28 +1835,31 @@ export default function Applicants({ internalMode = false }) {
                         />
                     </div>
 
-                    <div className="lg:w-48 xl:w-64">
-                        <select
-                            className="w-full border border-slate-100 shadow-sm rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/10 outline-none bg-white cursor-pointer"
-                            value={selectedReqId}
-                            onChange={(e) => handleRequirementChange(e.target.value)}
-                        >
-                            <option value="all">Global Pipeline</option>
-                            <optgroup label="Active Recruitments">
-                                {requirements.filter(r => {
-                                    if (r.status !== 'Open') return false;
-                                    // Strict visibility filtering
-                                    if (internalMode) {
-                                        return r.visibility === 'Internal' || r.visibility === 'Both';
-                                    } else {
-                                        return r.visibility === 'External' || r.visibility === 'Both' || !r.visibility; // Default to External
-                                    }
-                                }).map(req => (
-                                    <option key={req._id} value={req._id}>{req.jobTitle}</option>
-                                ))}
-                            </optgroup>
-                        </select>
-                    </div>
+                    {/* Job Dropdown - Hidden, replaced with cards below */}
+                    {false && (
+                        <div className="lg:w-48 xl:w-64">
+                            <select
+                                className="w-full border border-slate-100 shadow-sm rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/10 outline-none bg-white cursor-pointer"
+                                value={selectedReqId}
+                                onChange={(e) => handleRequirementChange(e.target.value)}
+                            >
+                                <option value="all">Global Pipeline</option>
+                                <optgroup label="Active Recruitments">
+                                    {requirements.filter(r => {
+                                        if (r.status !== 'Open') return false;
+                                        // Strict visibility filtering
+                                        if (internalMode) {
+                                            return r.visibility === 'Internal' || r.visibility === 'Both';
+                                        } else {
+                                            return r.visibility === 'External' || r.visibility === 'Both' || !r.visibility; // Default to External
+                                        }
+                                    }).map(req => (
+                                        <option key={req._id} value={req._id}>{req.jobTitle}</option>
+                                    ))}
+                                </optgroup>
+                            </select>
+                        </div>
+                    )}
 
                     <div className="lg:w-40 xl:w-48">
                         <select
@@ -1792,494 +1894,486 @@ export default function Applicants({ internalMode = false }) {
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl sm:rounded-[32px] border border-slate-100 shadow-[0_32px_80px_-20px_rgba(0,0,0,0.06)] overflow-hidden">
-                <div className="bg-slate-50/10 backdrop-blur-sm border-b border-slate-100 px-4 sm:px-8 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex gap-6 sm:gap-8 overflow-x-auto w-full pb-2 sm:pb-0 scrollbar-hide">
-                        {workflowTabs.map(tab => {
-                            let sub = applicants;
-                            if (searchQuery) {
-                                const query = searchQuery.toLowerCase();
-                                sub = sub.filter(a => (a.name || '').toLowerCase().includes(query) || (a.email || '').toLowerCase().includes(query));
-                            }
+            {/* Job Cards Grid - Only show on main applicants page, not on job-specific page OR all candidates view */}
+            {!jobSpecific && !showAllCandidates && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                    {/* Global Pipeline Card */}
+                    <div
+                        onClick={() => navigate('/hr/applicants?view=all')}
+                        className={`bg-white rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden group border-slate-200 hover:border-blue-300`}
+                    >
+                        <div className="p-6">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 flex items-center justify-center shadow-lg">
+                                    <span className="text-white text-lg font-black">🌐</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">
+                                        Global Pipeline
+                                    </h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                        All Positions
+                                    </p>
+                                </div>
+                            </div>
 
-                            let count = sub.filter(a => {
-                                if (selectedReqId !== 'all') {
-                                    if (!(a.requirementId?._id === selectedReqId || a.requirementId === selectedReqId)) return false;
-                                }
+                            <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                <p className="text-xs text-slate-600">
+                                    View all candidates across all open positions
+                                </p>
+                            </div>
+                        </div>
 
-                                // Exclude rejected from all tabs except Rejected tab
-                                if (a.status === 'Rejected' && tab !== 'Rejected') return false;
-
-                                if (selectedReqId === 'all') {
-                                    // Global counts - strict matching for global view
-                                    if (tab === 'Finalized') return (a.status === 'Finalized');
-                                    return a.status !== 'Finalized' && a.status !== 'Rejected';
-                                }
-
-                                // For specific workflow, use CUMULATIVE matching (same as data display)
-                                return checkStatusPassage(a.status, tab, workflowTabs);
-                            }).length;
-
-                            const isActive = activeTab === tab;
-
-                            return (
-                                <button
-                                    key={tab}
-                                    onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
-                                    className="group relative py-5 outline-none transition-all"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <span className={`text-[12px] font-black tracking-[1.5px] uppercase transition-all duration-300 ${isActive ? 'text-blue-600 scale-105' : 'text-slate-400 group-hover:text-slate-600'}`}>
-                                            {tab}
-                                        </span>
-                                        {count > 0 && (
-                                            <span className={`h-5 min-w-[20px] px-1.5 flex items-center justify-center rounded-lg text-[10px] font-black transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-200/60 text-slate-500 group-hover:bg-slate-300'}`}>
-                                                {count}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {isActive && (
-                                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-full shadow-[0_-2px_10px_rgba(37,99,235,0.3)] animate-in fade-in slide-in-from-bottom-2" />
-                                    )}
-                                </button>
-                            );
-                        })}
+                        <div className="bg-gradient-to-r from-slate-500 to-slate-700 px-6 py-3">
+                            <div className="flex items-center justify-between text-white">
+                                <span className="text-xs font-black uppercase tracking-wider">
+                                    Total Candidates
+                                </span>
+                                <span className="text-2xl font-black">
+                                    {applicants.length}
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
-                    {selectedReqId !== 'all' && (
-                        <button
-                            onClick={openWorkflowEditor}
-                            className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-4 py-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 hover:text-blue-600 hover:border-blue-200 transition-all text-[11px] font-black uppercase tracking-widest shadow-sm group whitespace-nowrap"
-                        >
-                            <Settings size={14} className="group-hover:rotate-90 transition-transform duration-500" />
-                            <span>Workflow</span>
-                        </button>
-                    )}
-                </div>
+                    {/* Individual Job Cards */}
+                    {requirements.filter(r => {
+                        if (r.status !== 'Open') return false;
+                        if (internalMode) {
+                            return r.visibility === 'Internal' || r.visibility === 'Both';
+                        } else {
+                            return r.visibility === 'External' || r.visibility === 'Both' || !r.visibility;
+                        }
+                    }).map(req => {
+                        const jobApplicants = applicants.filter(a =>
+                            a.requirementId?._id === req._id || a.requirementId === req._id
+                        );
 
-                <div className="relative">
-                    {loading ? (
-                        <div className="p-24 text-center text-slate-400 flex flex-col items-center">
-                            <div className="animate-spin rounded-full h-10 w-10 border-[3px] border-slate-100 border-t-blue-600 mb-4 shadow-sm"></div>
-                            <span className="text-xs font-black uppercase tracking-[2px]">Syncing Pipeline...</span>
-                        </div>
-                    ) : applicants.length === 0 ? (
-                        <div className="p-24 text-center text-slate-400 bg-slate-50/30">
-                            <div className="w-16 h-16 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center justify-center mx-auto mb-4">
-                                <Search size={24} className="opacity-20" />
+                        return (
+                            <div
+                                key={req._id}
+                                onClick={() => navigate(`/hr/job/${req._id}/candidates`)}
+                                className="bg-white rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden group border-slate-200 hover:border-blue-300"
+                            >
+                                <div className="p-6">
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                                            <span className="text-white text-lg font-black">
+                                                {(req.jobTitle || 'J').charAt(0).toUpperCase()}
+                                            </span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors truncate">
+                                                {req.jobTitle}
+                                            </h3>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
+                                                {req.department?.name || req.department || 'General'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 mt-4">
+                                        <div className="bg-slate-50 rounded-lg p-2 border border-slate-100">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Openings</p>
+                                            <p className="text-sm font-black text-slate-900">{req.openings || 0}</p>
+                                        </div>
+                                        <div className="bg-slate-50 rounded-lg p-2 border border-slate-100">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Experience</p>
+                                            <p className="text-sm font-black text-slate-900 truncate">{req.experience || 'Any'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 p-2 bg-blue-50/50 rounded-lg border border-blue-100">
+                                        <p className="text-[10px] text-slate-600 line-clamp-2">
+                                            📍 {req.location || 'Remote'} • {req.jobType || 'Full-time'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-3">
+                                    <div className="flex items-center justify-between text-white">
+                                        <span className="text-xs font-black uppercase tracking-wider">
+                                            Applicants
+                                        </span>
+                                        <span className="text-2xl font-black">
+                                            {jobApplicants.length}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                            <p className="text-xs font-black uppercase tracking-widest text-slate-300">No Candidates Found</p>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Candidates Table Section - Show on job-specific pages OR when viewing all candidates */}
+            {(jobSpecific || showAllCandidates) && (
+                <div className="bg-white/50 backdrop-blur-xl rounded-[32px] border border-white/60 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.05)] overflow-hidden">
+
+                    {/* Modern Pipeline Stepper */}
+                    <div className="bg-white/80 border-b border-indigo-50/50 px-6 py-5">
+                        <div className="flex items-center gap-2 overflow-x-auto pb-4 pt-2 scrollbar-hide snap-x">
+                            {workflowTabs.map((tab, idx) => {
+                                let sub = applicants;
+                                if (searchQuery) {
+                                    const query = searchQuery.toLowerCase();
+                                    sub = sub.filter(a => (a.name || '').toLowerCase().includes(query) || (a.email || '').toLowerCase().includes(query));
+                                }
+
+                                let count = sub.filter(a => {
+                                    if (selectedReqId !== 'all') {
+                                        if (!(a.requirementId?._id === selectedReqId || a.requirementId === selectedReqId)) return false;
+                                    }
+                                    if (a.status === 'Rejected' && tab !== 'Rejected') return false;
+                                    if (selectedReqId === 'all') {
+                                        if (tab === 'Finalized') return (a.status === 'Finalized');
+                                        if (tab === 'Rejected') return (a.status === 'Rejected');
+                                        return a.status !== 'Finalized' && a.status !== 'Rejected';
+                                    }
+                                    return checkStatusPassage(a.status, tab, workflowTabs);
+                                }).length;
+
+                                const isActive = activeTab === tab;
+                                const isFinal = tab === 'Finalized';
+                                const isRejected = tab === 'Rejected';
+
+                                return (
+                                    <button
+                                        key={tab}
+                                        onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
+                                        className={`
+                                            group relative flex-shrink-0 px-6 py-3 rounded-2xl transition-all duration-500 ease-out snap-center
+                                            flex items-center gap-3 border
+                                            ${isActive
+                                                ? (isFinal ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-200/50 border-transparent scale-105' :
+                                                    isRejected ? 'bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-200/50 border-transparent scale-105' :
+                                                        'bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200/50 border-transparent scale-105')
+                                                : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-100 hover:bg-indigo-50/30 hover:text-indigo-600'}
+                                        `}
+                                    >
+                                        <div className="flex flex-col items-start">
+                                            <span className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isActive ? 'text-white/80' : 'text-slate-400 group-hover:text-indigo-400'}`}>
+                                                Stage 0{idx + 1}
+                                            </span>
+                                            <span className="text-sm font-black tracking-tight">
+                                                {tab}
+                                            </span>
+                                        </div>
+                                        <span className={`
+                                            flex items-center justify-center h-6 min-w-[24px] px-2 rounded-full text-[11px] font-black
+                                            ${isActive
+                                                ? 'bg-white/20 text-white backdrop-blur-sm'
+                                                : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600'}
+                                        `}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
-                    ) : (
-                        activeTab !== 'Finalized' ? (
-                            <div className="overflow-x-auto">
-                                <div className="inline-block min-w-full align-middle">
-                                    <table className="w-full text-left border-separate border-spacing-0">
-                                        <thead>
-                                            <tr className="bg-slate-50/30">
-                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] border-b border-slate-100">CANDIDATE</th>
-                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] border-b border-slate-100">ROLE</th>
-                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] text-center border-b border-slate-100">STATUS</th>
-                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] border-b border-slate-100 min-w-[300px] sm:w-[400px]">PROCESS</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white">
-                                            {getFilteredApplicants().slice((currentPage - 1) * pageSize, currentPage * pageSize).map((app, index) => (
-                                                <tr key={app._id || index} className="group transition-all duration-300 hover:bg-slate-50/40">
-                                                    {/* Candidate Column */}
-                                                    <td className="px-4 sm:px-8 py-6 align-middle border-b border-slate-50">
-                                                        <div className="flex items-center gap-3 sm:gap-4">
-                                                            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center text-xs sm:text-sm font-black text-blue-600 border border-blue-100 flex-shrink-0">
+                    </div>
+
+                    {/* Content Area */}
+                    <div className="p-4 sm:p-8 bg-slate-50/50 min-h-[600px]">
+                        {loading ? (
+                            <div className="h-96 flex flex-col items-center justify-center gap-6">
+                                <div className="relative">
+                                    <div className="w-16 h-16 border-4 border-indigo-100 rounded-full animate-spin border-t-indigo-600"></div>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-8 h-8 bg-white rounded-full"></div>
+                                    </div>
+                                </div>
+                                <span className="text-slate-400 font-medium animate-pulse">Fetching Talent...</span>
+                            </div>
+                        ) : getFilteredApplicants().length === 0 ? (
+                            <div className="h-96 flex flex-col items-center justify-center gap-6 text-slate-400">
+                                <div className="w-24 h-24 rounded-3xl bg-white shadow-xl shadow-slate-100 flex items-center justify-center transform rotate-3 transition-transform hover:rotate-6 duration-500">
+                                    <UserX size={40} className="text-slate-300" />
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-sm">Try adjusting your filters or search query</p>
+                                </div>
+                            </div>
+                        ) : activeTab !== 'Finalized' ? (
+                            /* CARD GRID VIEW */
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                {getFilteredApplicants()
+                                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                                    .map((app, index) => (
+                                        <div
+                                            key={app._id || index}
+                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 overflow-hidden group hover:-translate-y-1 block relative"
+                                        >
+                                            {/* Status Header Line */}
+                                            <div className={`h-1.5 w-full ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
+                                                app.status === 'Rejected' ? 'bg-gradient-to-r from-rose-400 to-rose-600' :
+                                                    'bg-gradient-to-r from-blue-400 to-indigo-600'
+                                                }`}></div>
+
+                                            <div className="p-6">
+                                                {/* Header */}
+                                                <div className="flex justify-between items-start mb-6">
+                                                    <div className="flex gap-4">
+                                                        <div className="relative">
+                                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-lg ${app.status === 'Selected' ? 'bg-emerald-500' :
+                                                                app.status === 'Rejected' ? 'bg-rose-500' :
+                                                                    'bg-blue-600'
+                                                                }`}>
                                                                 {(app.name || '?').charAt(0).toUpperCase()}
                                                             </div>
-                                                            <div className="min-w-0">
-                                                                <div className="font-black text-slate-900 text-sm tracking-tight truncate">
-                                                                    {app.name || 'Anonymous'}
-                                                                </div>
-                                                                <div className="text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
-                                                                    {app.email}
-                                                                </div>
-                                                                {app.phone && (
-                                                                    <div className="flex items-center gap-1 mt-0.5">
-                                                                        <span className="text-[10px] font-bold text-slate-300">📞</span>
-                                                                        <span className="text-[10px] font-medium text-slate-400">{app.phone}</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </td>
-
-                                                    {/* Role Column */}
-                                                    <td className="px-8 py-6 align-middle border-b border-slate-50">
-                                                        <div className="space-y-1">
-                                                            <div className="px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] font-black text-blue-700 uppercase tracking-wider inline-block">
-                                                                {app.requirementId?.jobTitle || 'General'}
-                                                            </div>
-                                                            {app.requirementId?.department && (
-                                                                <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">
-                                                                    {app.requirementId.department}
+                                                            {activeTab === 'Rejected' && (
+                                                                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center bg-rose-500 text-white">
+                                                                    <X size={12} />
                                                                 </div>
                                                             )}
                                                         </div>
-                                                    </td>
-
-                                                    {/* Status Column */}
-                                                    <td className="px-8 py-6 align-middle border-b border-slate-50 text-center">
-                                                        <div className="space-y-2">
-                                                            <div className={`inline-flex px-4 py-2 rounded-full text-[10px] font-black tracking-wider uppercase ${app.status === 'Selected' ? 'bg-emerald-500 text-white' :
-                                                                app.status === 'Rejected' ? 'bg-rose-500 text-white' :
-                                                                    app.status === 'Shortlisted' ? 'bg-indigo-500 text-white' :
-                                                                        'bg-blue-500 text-white'
-                                                                }`}>
-                                                                ● {app.status}
+                                                        <div>
+                                                            <h3 className="text-lg font-black text-slate-800 leading-tight group-hover:text-blue-600 transition-colors">
+                                                                {app.name || 'Anonymous'}
+                                                            </h3>
+                                                            <div className="flex items-center gap-1.5 mt-1">
+                                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100 uppercase tracking-wide truncate max-w-[150px]">
+                                                                    {app.requirementId?.jobTitle || 'N/A'}
+                                                                </span>
                                                             </div>
-                                                            {app.appliedAt && (
-                                                                <div className="text-[9px] font-medium text-slate-400">
-                                                                    Applied {new Date(app.appliedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                                                </div>
-                                                            )}
                                                         </div>
-                                                    </td>
+                                                    </div>
+                                                </div>
 
-                                                    {/* Process Column */}
-                                                    <td className="px-8 py-6 align-middle border-b border-slate-50">
-                                                        <div className="space-y-3">
-                                                            {app.interview?.date ? (
-                                                                <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50 space-y-3">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">INTERVIEW</span>
-                                                                        {app.interview.completed ? (
-                                                                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase">Completed</span>
-                                                                        ) : (
-                                                                            <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">Scheduled</span>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <Clock size={12} className="text-slate-400" />
-                                                                        <span className="text-[11px] font-bold text-slate-600 tracking-tight">
-                                                                            {dayjs(app.interview.date).format('DD MMM')} • {app.interview.time || dayjs(app.interview.date).format('h:mm a')}
-                                                                        </span>
-                                                                    </div>
-                                                                    {!app.interview.completed && (
-                                                                        <button
-                                                                            onClick={() => markInterviewCompleted(app)}
-                                                                            className="w-full py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition text-[10px] font-black uppercase tracking-wider shadow-lg shadow-emerald-200"
-                                                                        >
-                                                                            MARK COMPLETE
-                                                                        </button>
-                                                                    )}
+                                                {/* Info Grid */}
+                                                <div className="flex flex-col gap-2.5 mb-6">
+                                                    <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50">
+                                                        <span className="w-5 flex justify-center">📧</span>
+                                                        <span className="font-medium truncate">{app.email}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50">
+                                                        <span className="w-5 flex justify-center">📅</span>
+                                                        <span className="font-medium">Applied {dayjs(app.appliedAt).format('MMM D, YYYY')}</span>
+                                                    </div>
+                                                    {app.source && (
+                                                        <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50">
+                                                            <span className="w-5 flex justify-center">🔗</span>
+                                                            <span className="font-medium">{app.source}</span>
+                                                        </div>
+                                                    )}
+                                                    {/* AI Match Score */}
+                                                    {app.matchPercentage !== undefined && (
+                                                        <div className="flex items-center gap-3 text-xs text-slate-500 bg-purple-50/50 p-2 rounded-lg border border-purple-50">
+                                                            <span className="w-5 flex justify-center text-purple-500">✨</span>
+                                                            <span className="font-bold text-purple-700">{app.matchPercentage}% Match</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* AI Skills Preview */}
+                                                {app.parsedSkills && app.parsedSkills.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-3 mb-1">
+                                                        {app.parsedSkills.slice(0, 4).map((skill, i) => (
+                                                            <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-500 font-medium rounded border border-slate-100">
+                                                                {skill}
+                                                            </span>
+                                                        ))}
+                                                        {app.parsedSkills.length > 4 && (
+                                                            <span className="text-[10px] px-1.5 py-0.5 text-slate-400">+{app.parsedSkills.length - 4}</span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Action Area */}
+                                                <div className="pt-4 border-t border-slate-100 space-y-3">
+                                                    {/* Interview Status */}
+                                                    {app.interview?.date ? (
+                                                        <div className={`p-3 rounded-xl border flex items-center justify-between ${app.interview.completed
+                                                            ? 'bg-emerald-50/50 border-emerald-100'
+                                                            : 'bg-amber-50/50 border-amber-100'
+                                                            }`}>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`p-1.5 rounded-lg ${app.interview.completed ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                                                                    }`}>
+                                                                    <Clock size={14} />
                                                                 </div>
-                                                            ) : (
+                                                                <div>
+                                                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Interview</p>
+                                                                    <p className="text-xs font-bold text-slate-700">
+                                                                        {dayjs(app.interview.date).format('MMM D')} • {app.interview.time}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            {!app.interview.completed && (
                                                                 <button
-                                                                    onClick={() => openScheduleModal(app)}
-                                                                    className="w-full py-2.5 bg-white border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2"
+                                                                    onClick={() => markInterviewCompleted(app)}
+                                                                    className="p-1 min-w-[32px] rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200 transition shadow-sm flex items-center justify-center"
+                                                                    title="Mark Complete"
                                                                 >
-                                                                    <Plus size={14} strokeWidth={3} /> Schedule Interview
+                                                                    <CheckCircle size={16} />
                                                                 </button>
                                                             )}
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => openScheduleModal(app)}
+                                                            className="w-full py-2.5 rounded-xl border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition flex items-center justify-center gap-2 group/btn"
+                                                        >
+                                                            <PlusCircle size={14} className="group-hover/btn:scale-110 transition-transform" />
+                                                            Schedule Interview
+                                                        </button>
+                                                    )}
 
-                                                            <div className="relative">
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        const dropdown = e.currentTarget.nextElementSibling;
-                                                                        if (dropdown) {
-                                                                            dropdown.classList.toggle('hidden');
-                                                                        }
-                                                                        // Close other dropdowns
-                                                                        document.querySelectorAll('.stage-dropdown').forEach(d => {
-                                                                            if (d !== dropdown) d.classList.add('hidden');
-                                                                        });
-                                                                    }}
-                                                                    className="w-full px-4 py-2 bg-white border border-slate-200 text-slate-400 rounded-xl text-[10px] font-bold flex items-center justify-between group hover:border-slate-300 transition"
-                                                                >
-                                                                    <span>Move Candidate...</span>
-                                                                    <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
-                                                                </button>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {/* Resume Button */}
+                                                        <button
+                                                            onClick={() => handleViewResume(app.resume)}
+                                                            className="col-span-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-2"
+                                                            title="View Resume"
+                                                        >
+                                                            <FileText size={14} /> Resume
+                                                        </button>
 
-                                                                {/* Dropdown Menu */}
-                                                                <div className="stage-dropdown hidden absolute z-[100] mt-2 w-[220px] right-0 bg-white border border-slate-100 rounded-[20px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] py-2 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                                                    <div className="px-4 py-2 text-[9px] font-black text-slate-300 uppercase tracking-[2px]">Move to Stage</div>
-                                                                    {workflowTabs.filter(t => t !== 'Finalized' && t !== 'Rejected' && t !== activeTab).map(stage => (
+                                                        {/* Move/Action Button */}
+                                                        <div className="relative col-span-1">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const dropdown = e.currentTarget.nextElementSibling;
+                                                                    if (dropdown) dropdown.classList.toggle('hidden');
+                                                                    document.querySelectorAll('.stage-dropdown').forEach(d => {
+                                                                        if (d !== dropdown) d.classList.add('hidden');
+                                                                    });
+                                                                }}
+                                                                className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center justify-center gap-2 shadow-lg shadow-slate-200 z-10 relative"
+                                                            >
+                                                                <span>Actions</span>
+                                                                <ChevronDown size={14} />
+                                                            </button>
+
+                                                            <div className="stage-dropdown hidden absolute bottom-full mb-2 left-0 w-full bg-white border border-slate-100 rounded-xl shadow-xl overflow-hidden z-[50] animate-in slide-in-from-bottom-2 fade-in duration-200">
+                                                                <div className="max-h-[200px] overflow-y-auto">
+                                                                    {workflowTabs.filter(t => !['Finalized', 'Rejected', activeTab].includes(t)).map(stage => (
                                                                         <button
                                                                             key={stage}
                                                                             onClick={() => {
                                                                                 handleStatusChangeRequest(app, stage);
                                                                                 document.querySelectorAll('.stage-dropdown').forEach(d => d.classList.add('hidden'));
                                                                             }}
-                                                                            className="w-full px-4 py-2.5 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition flex items-center justify-between group"
+                                                                            className="w-full px-4 py-3 text-left text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-blue-600 border-b border-slate-50 last:border-0"
                                                                         >
-                                                                            {stage}
-                                                                            <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
+                                                                            Move to {stage}
                                                                         </button>
                                                                     ))}
 
-                                                                    <div className="border-t border-slate-50 my-2"></div>
-                                                                    <button className="w-full px-4 py-2.5 text-left text-[11px] font-bold text-slate-400 hover:bg-slate-50 transition">
-                                                                        + Add Custom Stage
-                                                                    </button>
-
-                                                                    <div className="border-t border-slate-50 my-2"></div>
-                                                                    <div className="px-4 py-2 text-[9px] font-black text-slate-300 uppercase tracking-[2px]">Decision</div>
-                                                                    <button
-                                                                        onClick={() => handleStatusChangeRequest(app, 'Selected')}
-                                                                        className="w-full px-4 py-2.5 text-left text-[11px] font-bold text-emerald-600 hover:bg-emerald-50 transition"
-                                                                    >
-                                                                        Hire Candidate
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleStatusChangeRequest(app, 'Rejected')}
-                                                                        className="w-full px-4 py-2.5 text-left text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition"
-                                                                    >
-                                                                        Reject
-                                                                    </button>
-
-                                                                    {(app.status === 'Selected' || activeTab === 'Finalized') && (
-                                                                        <>
-                                                                            <div className="border-t border-slate-50 my-2"></div>
-                                                                            <button
-                                                                                onClick={() => navigate(`/hr/salary-structure/${app._id}`)}
-                                                                                className="w-full px-4 py-2.5 text-left text-[11px] font-black text-blue-600 hover:bg-blue-50 transition"
-                                                                            >
-                                                                                Assign Salary
-                                                                            </button>
-                                                                        </>
-                                                                    )}
+                                                                    <div className="p-1 bg-slate-50 grid grid-cols-2 gap-1 border-t border-slate-100">
+                                                                        <button onClick={() => { handleStatusChangeRequest(app, 'Selected'); document.querySelectorAll('.stage-dropdown').forEach(d => d.classList.add('hidden')); }} className="py-2 text-[10px] font-black bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition">HIRE</button>
+                                                                        <button onClick={() => { handleStatusChangeRequest(app, 'Rejected'); document.querySelectorAll('.stage-dropdown').forEach(d => d.classList.add('hidden')); }} className="py-2 text-[10px] font-black bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition">REJECT</button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <div className="inline-block min-w-full align-middle">
-                                    <table className="w-full text-left border-separate border-spacing-0">
-                                        <thead>
-                                            <tr className="bg-slate-50/30">
-                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] w-[300px] sm:w-[350px] border-b border-slate-100">CANDIDATE PROFILE</th>
-                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] text-center border-b border-slate-100">TARGET ROLE</th>
-                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] text-center border-b border-slate-100">PIPELINE STATUS</th>
-                                                {selectedReqId !== 'all' && (
-                                                    <>
-                                                        {activeTab === 'Finalized' ? (
-                                                            <>
-                                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] text-center border-b border-slate-100">STAMP</th>
-                                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] text-center border-b border-slate-100 w-[150px] sm:w-[200px]">CTC / SALARY</th>
-                                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] text-center border-b border-slate-100 w-[150px] sm:w-[200px]">OFFER LETTER</th>
-                                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] text-center border-b border-slate-100 w-[150px] sm:w-[200px]">JOINING LETTER</th>
-                                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] text-center border-b border-slate-100 w-[150px] sm:w-[200px]">ONBOARDING</th>
-                                                            </>
+                            /* TABLE VIEW (Finalized) */
+                            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50">
+                                        <tr>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Candidate</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Salary</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Offer</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Joining</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-slate-50">
+                                        {getFilteredApplicants()
+                                            .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                                            .map((app, index) => (
+                                                <tr key={index} className="hover:bg-slate-50/50 transition">
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs font-black">
+                                                                {app.name?.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold text-slate-900 text-sm">{app.name}</div>
+                                                                <div className="text-xs text-slate-400">{app.requirementId?.jobTitle}</div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase">Finalized</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        {app.salarySnapshotId || app.salarySnapshot || app.salaryAssigned ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={10} /> Locked</span>
+                                                                <button onClick={() => navigate(`/hr/salary-structure/${app._id}`)} className="p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-white border border-transparent hover:border-blue-100 transition-all" title="Edit Salary Structure">
+                                                                    <Edit2 size={12} />
+                                                                </button>
+                                                            </div>
                                                         ) : (
-                                                            <>
-                                                                {['Interview', 'HR Round'].includes(activeTab) && (
-                                                                    <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] w-[200px] sm:w-[250px] text-center border-b border-slate-100">STAGING</th>
-                                                                )}
-                                                                <th className="px-4 sm:px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[2.5px] w-[200px] sm:w-[250px] text-center border-b border-slate-100">CONTROL</th>
-                                                            </>
+                                                            <button onClick={() => navigate(`/hr/salary-structure/${app._id}`)} className="w-full py-2 sm:py-3 bg-white border border-slate-200 text-slate-600 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:border-indigo-400 hover:text-indigo-600 transition shadow-sm uppercase tracking-widest whitespace-nowrap">ASSIGN SALARY</button>
                                                         )}
-                                                    </>
-                                                )}
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white">
-                                            {getFilteredApplicants().slice((currentPage - 1) * pageSize, currentPage * pageSize).map((app, index) => (
-                                                <tr key={app._id || index} className="group transition-all duration-300 hover:bg-slate-50/40">
-                                                    <td className="px-4 sm:px-8 py-6 align-middle border-b border-slate-50">
-                                                        <div className="flex items-center gap-4 sm:gap-6">
-                                                            <div className="relative group-hover:scale-105 transition-transform duration-300">
-                                                                <div className="w-10 h-10 sm:w-14 sm:h-14 shrink-0 rounded-[18px] sm:rounded-[22px] bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center border border-slate-100 group-hover:border-blue-200 transition-colors shadow-sm overflow-hidden">
-                                                                    <span className="text-sm sm:text-lg font-black text-slate-700 group-hover:text-blue-600 transition-colors">
-                                                                        {(app.name || '?').charAt(0).toUpperCase()}
-                                                                    </span>
-                                                                    <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors" />
-                                                                </div>
-                                                                <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 border-2 sm:border-[3px] border-white shadow-sm flex items-center justify-center">
-                                                                    <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                                                                </div>
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <div className="font-black text-slate-900 text-xs sm:text-sm tracking-tight group-hover:text-blue-600 transition-colors uppercase truncate mb-1">
-                                                                    {app.name || 'Anonymous candidate'}
-                                                                </div>
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div className="text-[9px] sm:text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
-                                                                        <div className="w-1 h-1 rounded-full bg-slate-200" />
-                                                                        {app.email}
-                                                                    </div>
-                                                                    <div className="flex items-center gap-4 mt-1">
-                                                                        {app.resume && activeTab !== 'Finalized' && (
-                                                                            <>
-                                                                                <button
-                                                                                    onClick={() => openCandidateModal(app)}
-                                                                                    className="flex items-center gap-2 text-[9px] sm:text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-all hover:translate-x-1"
-                                                                                >
-                                                                                    <FileText size={10} />
-                                                                                    RESUME
-                                                                                </button>
-                                                                                <button onClick={() => openCandidateModal(app)} className="text-slate-300 hover:text-indigo-600 transition-all hover:rotate-12" title="Full Stack View">
-                                                                                    <Eye size={14} />
-                                                                                </button>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
                                                     </td>
-                                                    <td className="px-4 sm:px-8 py-6 align-middle border-b border-slate-50 text-center">
-                                                        <div className="inline-flex flex-col items-center gap-1.5">
-                                                            <span className="px-2 sm:px-3 py-1 bg-slate-50 border border-slate-100 rounded-xl text-[9px] sm:text-[10px] font-black text-slate-700 shadow-inner uppercase tracking-widest group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-100 transition-all">
-                                                                {app.requirementId?.jobTitle || 'General'}
-                                                            </span>
-                                                            <span className="text-[8px] sm:text-[9px] font-bold text-slate-300 tracking-[2px] uppercase opacity-50">
-                                                                ID: {app.requirementId?.jobId?.slice(-6) || 'NEW'}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 sm:px-8 py-6 align-middle border-b border-slate-50 text-center">
-                                                        <div className="flex flex-col items-center gap-2.5">
-                                                            <div className={`px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-[9px] sm:text-[10px] font-black border tracking-[2px] uppercase transition-all shadow-sm ${app.status === 'Selected' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-emerald-100/50' :
-                                                                app.status === 'Rejected' ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-rose-100/50' :
-                                                                    app.status === 'Shortlisted' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 shadow-indigo-100/50' :
-                                                                        'bg-white text-slate-400 border-slate-100'
-                                                                }`}>
-                                                                {app.status}
+                                                    <td className="px-6 py-4">
+                                                        {app.offerLetterPath ? (
+                                                            <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
+                                                                <button onClick={() => viewOfferLetter(app.offerLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
+                                                                    <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
+                                                                </div>
+                                                                <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Offer">
+                                                                    <Edit2 size={12} />
+                                                                </button>
                                                             </div>
-                                                            <div className="flex items-center gap-2 text-[8px] sm:text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                                                                <Clock size={10} className="text-slate-200" />
-                                                                {dayjs().diff(dayjs(app.createdAt), 'day')} DAYS
-                                                            </div>
-                                                        </div>
+                                                        ) : (
+                                                            <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="w-full py-2 sm:py-3 bg-blue-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest">GENERATE</button>
+                                                        )}
                                                     </td>
-
-                                                    {selectedReqId !== 'all' && (
-                                                        <>
-                                                            {activeTab !== 'Finalized' ? (
-                                                                <>
-                                                                    {['Interview', 'HR Round'].includes(activeTab) && (
-                                                                        <td className="px-8 py-6 align-middle border-b border-slate-50 min-w-[250px]">
-                                                                            {app.interview?.date ? (
-                                                                                <div className={`p-4 rounded-2xl border transition-all duration-300 ${app.interview.completed ? 'bg-emerald-50/40 border-emerald-100/50 shadow-sm' : 'bg-white border-slate-100 shadow-md shadow-slate-100 hover:shadow-lg'}`}>
-                                                                                    <div className="flex justify-between items-start mb-3">
-                                                                                        <div>
-                                                                                            <div className="text-[10px] uppercase font-black text-blue-600 tracking-wider mb-1">
-                                                                                                {app.interview.stage || 'Round'}
-                                                                                            </div>
-                                                                                            <div className="flex items-center gap-2 text-slate-500 font-bold text-[11px]">
-                                                                                                <Calendar size={12} className="text-slate-300" />
-                                                                                                {dayjs(app.interview.date).format('MMM D, YYYY')}
-                                                                                            </div>
-                                                                                            <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] mt-1">
-                                                                                                <Clock size={12} className="text-slate-300" />
-                                                                                                {dayjs(app.interview.date).format('h:mm A')}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                        {app.interview.completed && (
-                                                                                            <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-100 bounce-in">
-                                                                                                <CheckCircle size={14} />
-                                                                                            </div>
-                                                                                        )}
-                                                                                    </div>
-                                                                                    {!app.interview.completed && (
-                                                                                        <div className="flex gap-2">
-                                                                                            <button onClick={() => markInterviewCompleted(app)} className="flex-1 py-2 bg-emerald-600 text-white text-[10px] font-black rounded-lg hover:bg-emerald-700 transition shadow-sm uppercase tracking-wider">COMPLETE</button>
-                                                                                            <button onClick={() => openScheduleModal(app, true)} className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 border border-slate-100 rounded-lg hover:text-blue-600 hover:bg-blue-50 transition"><Edit2 size={14} /></button>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            ) : (
-                                                                                <button onClick={() => openScheduleModal(app)} className="w-full flex items-center justify-center gap-3 py-4 bg-white border-2 border-dashed border-slate-100 rounded-2xl text-slate-400 hover:border-blue-400 hover:text-blue-600 transition-all group/sched">
-                                                                                    <Plus size={16} className="group-hover/sched:rotate-90 transition-transform" />
-                                                                                    <span className="text-[11px] font-black uppercase tracking-widest">Schedule</span>
-                                                                                </button>
-                                                                            )}
-                                                                        </td>
-                                                                    )}
-                                                                    <td className="px-8 py-6 align-middle border-b border-slate-50">
-                                                                        {renderHiringDropdown(app)}
-                                                                    </td>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <td className="px-4 sm:px-8 py-6 align-middle border-b border-slate-50 text-center">
-                                                                        <div className="flex flex-col items-center gap-1.5 px-2.5 sm:px-3 py-2 bg-emerald-50 rounded-xl sm:rounded-2xl border border-emerald-100/50">
-                                                                            <div className="text-[9px] sm:text-[10px] font-black text-emerald-700 tracking-tighter uppercase">Completed</div>
-                                                                            <div className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">{dayjs(app.updatedAt).format('DD/MM/YY')}</div>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 sm:px-8 py-6 align-middle border-b border-slate-50">
-                                                                        {app.salarySnapshotId || app.salarySnapshot || app.salaryAssigned ? (
-                                                                            <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                                                                <button onClick={() => openSalaryPreview(app)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm hover:shadow-md" title="Preview Structure"><IndianRupee size={16} /></button>
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">CTC</span>
-                                                                                    <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">LOCKED</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <button onClick={() => navigate(`/hr/salary-structure/${app._id}`)} className="w-full py-2 sm:py-3 bg-white border border-slate-200 text-slate-600 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:border-indigo-400 hover:text-indigo-600 transition shadow-sm uppercase tracking-widest whitespace-nowrap">ASSIGN SALARY</button>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="px-4 sm:px-8 py-6 align-middle border-b border-slate-50">
-                                                                        {app.offerLetterPath ? (
-                                                                            <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                                                                <button onClick={() => viewOfferLetter(app.offerLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
-                                                                                    <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="w-full py-2 sm:py-3 bg-blue-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest">GENERATE</button>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="px-4 sm:px-8 py-6 align-middle border-b border-slate-50">
-                                                                        {app.joiningLetterPath ? (
-                                                                            <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                                                                <button onClick={() => viewJoiningLetter(app.joiningLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">JOINING</span>
-                                                                                    <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <button onClick={() => openJoiningModal(app)} className="w-full py-2 sm:py-3 bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 uppercase tracking-widest">GENERATE</button>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="px-4 sm:px-8 py-6 align-middle border-b border-slate-50 text-center">
-                                                                        {app.isOnboarded ? (
-                                                                            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
-                                                                                <CheckCircle size={14} />
-                                                                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Converted</span>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <button
-                                                                                onClick={() => handleOnboard(app)}
-                                                                                disabled={!app.joiningLetterPath}
-                                                                                className={`w-full py-2 sm:py-3 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl transition shadow-lg uppercase tracking-widest ${!app.joiningLetterPath ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'}`}
-                                                                            >
-                                                                                Convert
-                                                                            </button>
-                                                                        )}
-                                                                    </td>
-                                                                </>
-                                                            )}
-                                                        </>
-                                                    )}
+                                                    <td className="px-6 py-4">
+                                                        {app.joiningLetterPath ? (
+                                                            <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
+                                                                <button onClick={() => viewJoiningLetter(app.joiningLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">JOINING</span>
+                                                                    <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
+                                                                </div>
+                                                                <button onClick={() => openJoiningModal(app)} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Joining Letter">
+                                                                    <Edit2 size={12} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button onClick={() => openJoiningModal(app)} className="w-full py-2 sm:py-3 bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 uppercase tracking-widest">GENERATE</button>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        {app.isOnboarded ? (
+                                                            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
+                                                                <CheckCircle size={14} />
+                                                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Converted</span>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleOnboard(app)}
+                                                                disabled={!app.joiningLetterPath}
+                                                                className={`w-full py-2 sm:py-3 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl transition shadow-lg uppercase tracking-widest ${!app.joiningLetterPath ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'}`}
+                                                            >
+                                                                Convert
+                                                            </button>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                    </tbody>
+                                </table>
                             </div>
-                        )
-                    )}
-
+                        )}
+                    </div>
                     <div className="px-8 py-5 bg-slate-50/20 flex items-center justify-between border-t border-slate-50">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-[2px]">
                             Metrics: {getFilteredApplicants().length} Candidates Synced
@@ -2295,7 +2389,7 @@ export default function Applicants({ internalMode = false }) {
                         />
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Offer Generation Modal */}
             {
@@ -3036,6 +3130,39 @@ export default function Applicants({ internalMode = false }) {
                                             </section>
                                         </>
                                     )}
+
+                                    {/* AI Insights Section */}
+                                    {selectedApplicant.aiParsedData && (
+                                        <>
+                                            <div className="border-t border-slate-100 my-2"></div>
+                                            <section>
+                                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                    <span className="text-purple-600">✨</span> AI Insights
+                                                </h3>
+                                                <div className="bg-purple-50 p-3 rounded-xl border border-purple-100">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-xs font-bold text-purple-700">Match Score</span>
+                                                        <span className="text-sm font-black text-purple-600">{selectedApplicant.matchPercentage}%</span>
+                                                    </div>
+                                                    {/* Skills */}
+                                                    <div className="flex flex-wrap gap-1 mb-2">
+                                                        {selectedApplicant.parsedSkills?.map((skill, i) => (
+                                                            <span key={i} className="px-2 py-0.5 bg-white text-purple-600 text-[10px] font-bold rounded border border-purple-100">
+                                                                {skill}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    {/* Summary */}
+                                                    {selectedApplicant.aiParsedData.experienceSummary && (
+                                                        <p className="text-xs text-purple-800 leading-relaxed">
+                                                            {selectedApplicant.aiParsedData.experienceSummary}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </section>
+                                        </>
+                                    )}
+
                                 </div>
 
                                 {/* Main Area: Resume Preview */}
@@ -3632,6 +3759,27 @@ export default function Applicants({ internalMode = false }) {
                         </button>
                     </div>
                 </div>
+            </Modal>
+            {/* Resume Preview Modal */}
+            <Modal
+                title="Resume Preview"
+                open={isResumeModalOpen}
+                onCancel={() => {
+                    setIsResumeModalOpen(false);
+                    setResumeUrl(null);
+                }}
+                footer={null}
+                width={1000}
+                centered
+                styles={{ body: { height: '80vh', padding: 0 } }}
+            >
+                {resumeUrl && (
+                    <iframe
+                        src={resumeUrl}
+                        style={{ width: '100%', height: '100%', border: 'none' }}
+                        title="Resume PDF"
+                    />
+                )}
             </Modal>
         </div >
     );

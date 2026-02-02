@@ -39,6 +39,13 @@ const ApplicantSchema = new mongoose.Schema({
 
   resume: { type: String, trim: true },
 
+  // AI Parsing Fields
+  rawOCRText: { type: String }, // Raw text from Tesseract
+  aiParsedData: { type: Object }, // JSON from AI (Education, Exp, etc.)
+  matchPercentage: { type: Number, default: 0 },
+  parsedSkills: [{ type: String }],
+  parsingStatus: { type: String, enum: ['Pending', 'Processing', 'Completed', 'Failed'], default: 'Pending' },
+
   status: { type: String, default: 'Applied' },
   timeline: [
     {
@@ -104,6 +111,24 @@ const ApplicantSchema = new mongoose.Schema({
     scorecard: { type: Object },
     interviewerName: { type: String },
     createdAt: { type: Date, default: Date.now }
+  }],
+
+  // Audited Salary Revisions
+  salaryHistory: [{
+    version: Number,
+    effectiveFrom: Date,
+    totalCTC: Number,
+    grossA: Number,
+    grossB: Number,
+    grossC: Number,
+    components: [Object],
+    incrementType: String,
+    reason: String,
+    notes: String,
+    status: String,
+    isActive: Boolean,
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
 
   createdAt: { type: Date, default: Date.now },

@@ -214,6 +214,7 @@ export default function Employees() {
             {showDrafts ? 'Hide Drafts' : 'Drafts'}
           </button>
           <button onClick={openNew} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employee</button>
+          <button onClick={openNew} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employees From Excel</button>
         </div>
       </div>
 
@@ -337,7 +338,7 @@ export default function Employees() {
                               </span>
                             </td>
                             <td className="px-4 py-3 text-slate-600 hidden md:table-cell whitespace-nowrap">{emp.department || '-'}</td>
-                            <td className="px-4 py-3 text-slate-600 hidden lg:table-cell whitespace-nowrap">
+                            <td className="px-4 py-3 text-slate-600 hidden lg:table-cell whitespace-nowrap min-w-[120px] max-w-[180px]">
                               {(() => {
                                 if (!emp.manager) return '-';
                                 if (typeof emp.manager === 'string') {
@@ -350,7 +351,7 @@ export default function Employees() {
                                 return '-';
                               })()}
                             </td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <td className="px-4 py-3 text-right whitespace-nowrap min-w-[200px]">
                               <div className="flex items-center justify-end gap-1 sm:gap-2">
                                 <button onClick={() => openView(emp)} className="p-1.5 rounded hover:bg-slate-100 transition" title="View Details">
                                   <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" />

@@ -57,6 +57,7 @@ import LetterSettings from '../pages/HR/LetterSettings';
 import TemplatePreview from '../pages/HR/TemplatePreview';
 import SalaryStructure from '../pages/HR/SalaryStructure';
 import CreateRequirement from '../pages/HR/CreateRequirement';
+import PositionMaster from '../pages/HR/PositionMaster';
 
 // Career Builder
 import CareerBuilder from '../pages/HR/CareerBuilder/CareerBuilder';
@@ -82,6 +83,8 @@ import PayslipTemplates from '../pages/HR/Payroll/PayslipTemplates';
 
 // Employee
 import EmployeeDashboard from '../pages/Employee/EmployeeDashboard';
+import ESSPayslips from '../pages/ESS/Payslips';
+
 
 // Global
 import EntityDetail from '../pages/Global/EntityDetail';
@@ -270,7 +273,10 @@ export default function AppRoutes() {
                 <Route path="leave-policies" element={<LeavePolicies />} />
                 <Route path="requirements" element={<RequirementPage />} />
                 <Route path="create-requirement" element={<CreateRequirement />} />
+                <Route path="positions" element={<PositionMaster />} />
                 <Route path="applicants" element={<Applicants />} />
+                <Route path="applicants/all" element={<Applicants />} />
+                <Route path="job/:jobId/candidates" element={<Applicants jobSpecific={true} />} />
                 <Route path="internal-applicants" element={<Applicants internalMode={true} />} />
                 <Route path="candidate-status" element={<CandidateStatusTracker />} />
                 <Route path="candidate-status/:id" element={<CandidateTimeline />} />
@@ -330,10 +336,12 @@ export default function AppRoutes() {
             >
                 <Route index element={<Navigate to="/employee/dashboard" replace />} />
                 <Route path="dashboard" element={<EmployeeDashboard />} />
+                <Route path="payslips" element={<ESSPayslips />} />
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
                 <Route path="my-requests" element={<MyRequests />} />
                 <Route path="face-attendance" element={<FaceAttendance />} />
             </Route>
+
 
             <Route path="/verify-company/:token" element={<VerifyCompany />} />
             <Route path="*" element={<NotFound />} />

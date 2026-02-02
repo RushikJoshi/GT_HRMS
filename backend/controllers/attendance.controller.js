@@ -1249,6 +1249,7 @@ exports.uploadExcel = async (req, res) => {
 exports.bulkUpload = async (req, res) => {
     try {
         const { records } = req.body;
+        console.log(records);
 
         if (!records || !Array.isArray(records)) {
             return res.status(400).json({
@@ -1384,23 +1385,23 @@ exports.bulkUpload = async (req, res) => {
             }
         }
 
-        // Log audit
-        try {
-            const AuditLog = require('../models/auditLog.model');
-            const auditLog = new AuditLog({
-                tenant: tenantId,
-                user: userId,
-                action: 'BULK_UPLOAD_ATTENDANCE',
-                module: 'Attendance',
-                changes: {
-                    uploadedCount: results.uploadedCount,
-                    failedCount: results.failedCount
-                }
-            });
-            await auditLog.save();
-        } catch (e) {
-            console.error('Audit log error:', e);
-        }
+        // // Log audit
+        // try {
+        //     const AuditLog = require('../models/auditLog.model');
+        //     const auditLog = new AuditLog({
+        //         tenant: tenantId,
+        //         user: userId,
+        //         action: 'BULK_UPLOAD_ATTENDANCE',
+        //         module: 'Attendance',
+        //         changes: {
+        //             uploadedCount: results.uploadedCount,
+        //             failedCount: results.failedCount
+        //         }
+        //     });
+        //     await auditLog.save();
+        // } catch (e) {
+        //     console.error('Audit log error:', e);
+        // }
 
         res.json({
             success: true,

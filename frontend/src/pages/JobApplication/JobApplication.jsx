@@ -65,11 +65,42 @@ export default function JobApplication() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleFileChange = (e) => {
+  const [parsing, setParsing] = useState(false);
+
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file && (file.type === 'application/pdf' || file.type.includes('word')) && file.size < 5 * 1024 * 1024) {
       setFormData(prev => ({ ...prev, resume: file }));
       setError('');
+
+      // Auto-Parse Logic
+      setParsing(true);
+      try {
+        const parseData = new FormData();
+        parseData.append('resume', file);
+        if (requirementId) parseData.append('requirementId', requirementId);
+
+        const res = await api.post('/public/resume/parse', parseData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        if (res.data.success && res.data.data) {
+          const ai = res.data.data;
+          setFormData(prev => ({
+            ...prev,
+            name: prev.name || ai.fullName || '',
+            email: prev.email || ai.email || '',
+            mobile: prev.mobile || ai.phone || '',
+            // Auto-fill experience if field existed or add to notes?
+            // Providing what we have
+          }));
+        }
+      } catch (err) {
+        console.error("Parse failed", err);
+      } finally {
+        setParsing(false);
+      }
+
     } else {
       setError('Please upload a PDF or Word file under 5MB.');
     }
@@ -280,9 +311,16 @@ export default function JobApplication() {
                     <span className="text-lg font-black text-gray-900 tracking-tight">
                       {formData.resume ? formData.resume.name : 'Choose Resume / Drag PDF/Word'}
                     </span>
-                    <p className="text-xs text-gray-400 font-bold mt-2 uppercase tracking-widest">
-                      {formData.resume ? 'Click to replace file' : 'Maximum size 5MB (PDF/Word only)'}
-                    </p>
+                    {parsing ? (
+                      <div className="mt-4 flex items-center gap-2 text-blue-600 font-bold animate-pulse">
+                        <UploadCloud className="w-5 h-5 animate-bounce" />
+                        <span>Extracting resume data...</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 font-bold mt-2 uppercase tracking-widest">
+                        {formData.resume ? 'Click to replace file' : 'Maximum size 5MB (PDF/Word only)'}
+                      </p>
+                    )}
                   </label>
                 </div>
               </section>
