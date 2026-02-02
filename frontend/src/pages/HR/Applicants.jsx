@@ -1952,7 +1952,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                         return (
                             <div
                                 key={req._id}
-                                onClick={() => navigate(`/hrms/hr/job/${req._id}/candidates`)}
+                                onClick={() => navigate(`/hr/job/${req._id}/candidates`)}
                                 className="bg-white rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden group border-slate-200 hover:border-blue-300"
                             >
                                 <div className="p-6">
