@@ -618,6 +618,8 @@ exports.downloadBulkUploadTemp = async (req, res) => {
   }
 };
 exports.bulkUploadEmployees = async (req, res) => {
+  let session = null;
+  
   try {
     const { records } = req.body;
 
@@ -627,7 +629,7 @@ exports.bulkUploadEmployees = async (req, res) => {
         message: "Records must be an array",
         uploadedCount: 0,
         failedCount: 0,
-        errors: []
+        errors: ["Invalid request format - records must be an array"]
       });
     }
 
@@ -637,7 +639,7 @@ exports.bulkUploadEmployees = async (req, res) => {
         message: "No records provided",
         uploadedCount: 0,
         failedCount: 0,
-        errors: []
+        errors: ["No employee records to upload"]
       });
     }
 
@@ -647,7 +649,7 @@ exports.bulkUploadEmployees = async (req, res) => {
         message: "Maximum 1000 records allowed per upload",
         uploadedCount: 0,
         failedCount: records.length,
-        errors: ["Exceeded maximum record limit of 1000"]
+        errors: ["Exceeded maximum record limit of 1000 records"]
       });
     }
 
@@ -659,30 +661,68 @@ exports.bulkUploadEmployees = async (req, res) => {
       uploadedCount: 0,
       failedCount: 0,
       errors: [],
-      warnings: []
+      warnings: [],
+      processedIds: []
     };
 
     // Helper: Normalize column names
     const normalize = (s) => s ? s.toString().toLowerCase().replace(/\s/g, '').replace(/[^a-z0-9]/g, '') : '';
 
+    // Helper: Validate email
+    const validateEmail = (email) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    };
+
+    // Helper: Validate date
+    const validateDate = (dateVal) => {
+      if (!dateVal) return null;
+      let dateObj;
+      
+      if (dateVal instanceof Date) {
+        dateObj = dateVal;
+      } else {
+        const dateStr = dateVal.toString().trim();
+        // Try parsing YYYY-MM-DD format
+        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (match) {
+          dateObj = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00Z`);
+        } else {
+          dateObj = new Date(dateStr);
+        }
+      }
+
+      if (isNaN(dateObj.getTime())) {
+        throw new Error(`Invalid date format: ${dateVal}`);
+      }
+      return dateObj;
+    };
+
     // Cache for lookups
     const deptCache = {};
     const policyCache = {};
+    const processedEmails = new Set();
+    const processedEmpIds = new Set();
 
     // Pre-cache departments
     const allDepts = await Department.find({ tenant: tenantId }).select('_id name').lean();
     allDepts.forEach(d => {
-      deptCache[d.name.toLowerCase()] = d._id;
+      deptCache[d.name.toLowerCase().trim()] = d._id;
     });
 
     // Pre-cache leave policies
     const allPolicies = await LeavePolicy.find({ tenant: tenantId }).select('_id name').lean();
     allPolicies.forEach(p => {
-      policyCache[p.name.toLowerCase()] = p._id;
+      policyCache[p.name.toLowerCase().trim()] = p._id;
     });
 
     // Get default leave policy if needed
     const defaultPolicy = allPolicies.length > 0 ? allPolicies[0]._id : null;
+
+    // Pre-fetch existing employees for bulk checking
+    const existingEmps = await Employee.find({ tenant: tenantId }).select('employeeId email').lean();
+    const existingEmpIds = new Set(existingEmps.map(e => e.employeeId.toLowerCase()));
+    const existingEmails = new Set(existingEmps.map(e => e.email.toLowerCase()));
 
     // Process each record
     for (let i = 0; i < records.length; i++) {
@@ -795,67 +835,118 @@ exports.bulkUploadEmployees = async (req, res) => {
           }
         }
 
-        // VALIDATION
+        // ====== VALIDATION ======
+        // Required fields validation
         if (!empId) throw new Error('Employee ID is required');
         if (!firstName) throw new Error('First Name is required');
         if (!lastName) throw new Error('Last Name is required');
         if (!email) throw new Error('Email is required');
         if (!joiningDate) throw new Error('Joining Date is required');
 
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) throw new Error(`Invalid email format: ${email}`);
+        // Employee ID validation
+        const empIdLower = empId.toLowerCase();
+        if (!/^[a-zA-Z0-9\-_]{1,50}$/.test(empId)) {
+          throw new Error(`Invalid Employee ID format: ${empId}`);
+        }
 
-        // Parse dates
+        // Check for duplicate Employee ID (within current batch or existing)
+        if (processedEmpIds.has(empIdLower)) {
+          throw new Error(`Duplicate Employee ID in current batch: ${empId}`);
+        }
+        if (existingEmpIds.has(empIdLower)) {
+          throw new Error(`Employee ID "${empId}" already exists in system`);
+        }
+
+        // Email validation
+        if (!validateEmail(email)) {
+          throw new Error(`Invalid email format: ${email}`);
+        }
+
+        // Check for duplicate Email (within current batch or existing)
+        const emailLower = email.toLowerCase();
+        if (processedEmails.has(emailLower)) {
+          throw new Error(`Duplicate email in current batch: ${email}`);
+        }
+        if (existingEmails.has(emailLower)) {
+          throw new Error(`Email "${email}" already exists in system`);
+        }
+
+        // First/Last Name length validation
+        if (firstName.length < 2) throw new Error('First Name must be at least 2 characters');
+        if (lastName.length < 2) throw new Error('Last Name must be at least 2 characters');
+
+        // Parse and validate dates
         let dobDate = null;
         let joiningDateObj = null;
 
         if (dob) {
-          dobDate = new Date(dob);
-          if (isNaN(dobDate.getTime())) throw new Error(`Invalid Date of Birth format: ${dob}`);
+          try {
+            dobDate = validateDate(dob);
+            const age = (new Date() - dobDate) / (365.25 * 24 * 60 * 60 * 1000);
+            if (age < 18) {
+              results.warnings.push(`Row ${rowIdx}: Employee appears to be under 18 years old`);
+            }
+            if (dobDate > new Date()) {
+              throw new Error('Date of Birth cannot be in the future');
+            }
+          } catch (err) {
+            results.warnings.push(`Row ${rowIdx}: ${err.message} - will skip DOB`);
+            dobDate = null;
+          }
         }
 
-        joiningDateObj = new Date(joiningDate);
-        if (isNaN(joiningDateObj.getTime())) throw new Error(`Invalid Joining Date format: ${joiningDate}`);
-
-        // Check for duplicate Employee ID
-        const existing = await Employee.findOne({
-          tenant: tenantId,
-          employeeId: empId
-        }).lean();
-
-        if (existing) {
-          results.warnings.push(`Row ${rowIdx}: Employee ID "${empId}" already exists - record skipped`);
-          results.failedCount++;
-          continue;
-        }
-
-        // Check for duplicate Email
-        const existingEmail = await Employee.findOne({
-          tenant: tenantId,
-          email: email
-        }).lean();
-
-        if (existingEmail) {
-          throw new Error(`Email "${email}" already exists in system`);
+        try {
+          joiningDateObj = validateDate(joiningDate);
+          if (joiningDateObj > new Date()) {
+            results.warnings.push(`Row ${rowIdx}: Joining Date is in the future`);
+          }
+        } catch (err) {
+          throw new Error(`Invalid Joining Date: ${err.message}`);
         }
 
         // Validate Gender
-        const validGenders = ['Male', 'Female', 'Other'];
-        if (gender && !validGenders.includes(gender)) {
-          gender = '';
+        let validGender = null;
+        if (gender) {
+          const normalizedGender = gender.toLowerCase();
+          if (['male', 'm'].includes(normalizedGender)) {
+            validGender = 'Male';
+          } else if (['female', 'f'].includes(normalizedGender)) {
+            validGender = 'Female';
+          } else if (['other', 'o'].includes(normalizedGender)) {
+            validGender = 'Other';
+          } else {
+            results.warnings.push(`Row ${rowIdx}: Invalid gender value "${gender}" - will skip`);
+          }
         }
 
         // Validate Job Type
-        const validJobTypes = ['Full-Time', 'Part-Time', 'Internship'];
-        if (jobType && !validJobTypes.includes(jobType)) {
-          jobType = 'Full-Time';
+        let validJobType = null;
+        if (jobType) {
+          const normalizedJobType = jobType.toLowerCase().replace(/\s/g, '');
+          if (['fulltime', 'ft'].includes(normalizedJobType)) {
+            validJobType = 'Full-Time';
+          } else if (['parttime', 'pt'].includes(normalizedJobType)) {
+            validJobType = 'Part-Time';
+          } else if (['internship'].includes(normalizedJobType)) {
+            validJobType = 'Internship';
+          } else {
+            results.warnings.push(`Row ${rowIdx}: Invalid job type "${jobType}" - will use Full-Time`);
+            validJobType = 'Full-Time';
+          }
+        } else {
+          validJobType = 'Full-Time';
+        }
+
+        // Validate Contact Number (if provided)
+        if (contactNo && !/^[+]?[\d\s\-()]{7,}$/.test(contactNo)) {
+          results.warnings.push(`Row ${rowIdx}: Contact number format may be invalid - will include as-is`);
         }
 
         // Resolve Department
         let departmentId = null;
         if (departmentName) {
-          departmentId = deptCache[departmentName.toLowerCase()];
+          const deptLower = departmentName.toLowerCase().trim();
+          departmentId = deptCache[deptLower];
           if (!departmentId) {
             results.warnings.push(`Row ${rowIdx}: Department "${departmentName}" not found - will be left blank`);
           }
@@ -864,10 +955,11 @@ exports.bulkUploadEmployees = async (req, res) => {
         // Resolve Leave Policy
         let policyId = null;
         if (policyName) {
-          policyId = policyCache[policyName.toLowerCase()];
-          if (!policyId && defaultPolicy) {
+          const policyLower = policyName.toLowerCase().trim();
+          policyId = policyCache[policyLower];
+          if (!policyId) {
             results.warnings.push(`Row ${rowIdx}: Leave Policy "${policyName}" not found - will use default`);
-            policyId = defaultPolicy;
+            if (defaultPolicy) policyId = defaultPolicy;
           }
         } else if (defaultPolicy) {
           policyId = defaultPolicy;
@@ -878,17 +970,17 @@ exports.bulkUploadEmployees = async (req, res) => {
           tenant: tenantId,
           employeeId: empId,
           firstName,
-          middleName,
+          middleName: middleName || undefined,
           lastName,
           email,
-          contactNo,
-          gender: gender || undefined,
+          contactNo: contactNo || undefined,
+          gender: validGender || undefined,
           dob: dobDate,
           joiningDate: joiningDateObj,
           departmentId,
-          department: departmentName,
-          role,
-          jobType: jobType || undefined,
+          department: departmentName || undefined,
+          role: role || undefined,
+          jobType: validJobType,
           maritalStatus: maritalStatus || undefined,
           nationality: nationality || undefined,
           bloodGroup: bloodGroup || undefined,
@@ -897,11 +989,11 @@ exports.bulkUploadEmployees = async (req, res) => {
           emergencyContactName: emergencyContactName || undefined,
           emergencyContactNumber: emergencyContactNumber || undefined,
           leavePolicy: policyId,
-          bankDetails: {
+          bankDetails: (bankName || accountNumber || ifscCode) ? {
             bankName: bankName || undefined,
             accountNumber: accountNumber || undefined,
             ifsc: ifscCode || undefined
-          },
+          } : undefined,
           tempAddress: Object.keys(tempAddr).length > 0 ? tempAddr : undefined,
           permAddress: Object.keys(permAddr).length > 0 ? permAddr : undefined,
           status: 'Active',
@@ -910,6 +1002,9 @@ exports.bulkUploadEmployees = async (req, res) => {
 
         await newEmployee.save();
         results.uploadedCount++;
+        results.processedIds.push(empId);
+        processedEmpIds.add(empIdLower);
+        processedEmails.add(emailLower);
 
       } catch (error) {
         results.failedCount++;
@@ -919,7 +1014,8 @@ exports.bulkUploadEmployees = async (req, res) => {
 
     // Log the bulk upload action
     try {
-      const auditLog = new AuditLog({
+      const AuditLog_Model = AuditLog;
+      const auditLog = new AuditLog_Model({
         tenant: tenantId,
         entity: 'Employee',
         entityId: 'bulk_upload',
@@ -932,7 +1028,8 @@ exports.bulkUploadEmployees = async (req, res) => {
         },
         meta: {
           recordsProcessed: records.length,
-          successRate: ((results.uploadedCount / records.length) * 100).toFixed(2) + '%'
+          successRate: records.length > 0 ? ((results.uploadedCount / records.length) * 100).toFixed(2) + '%' : '0%',
+          processedIds: results.processedIds
         }
       });
       await auditLog.save();
@@ -957,7 +1054,7 @@ exports.bulkUploadEmployees = async (req, res) => {
       error: err.message,
       uploadedCount: 0,
       failedCount: 0,
-      errors: [err.message]
+      errors: [err.message || 'An unexpected error occurred']
     });
   }
 };

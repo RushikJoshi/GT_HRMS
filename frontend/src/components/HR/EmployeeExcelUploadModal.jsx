@@ -1,19 +1,173 @@
 import React, { useState, useRef } from 'react';
 import api, { API_ROOT } from '../../utils/api';
-import { Upload, Download, X, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Upload, Download, X, AlertCircle, CheckCircle, Loader2, Info, TrendingUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const BACKEND_URL = API_ROOT || 'https://hrms.gitakshmi.com';
+
+// Validation rules for required columns
+const REQUIRED_COLUMNS = ['Employee ID', 'First Name', 'Last Name', 'Email', 'Joining Date'];
+const OPTIONAL_COLUMNS = ['Middle Name', 'Contact No', 'Gender', 'Date of Birth', 'Department', 'Role', 'Job Type'];
+
+// Validation patterns
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const PHONE_REGEX = /^[+]?[\d\s\-()]{7,}$/;
+const EMPLOYEE_ID_REGEX = /^[A-Za-z0-9\-_]{1,50}$/;
 
 export default function EmployeeExcelUploadModal({ isOpen, onClose, onSuccess }) {
   const fileInputRef = useRef(null);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadPreview, setUploadPreview] = useState([]);
   const [uploadErrors, setUploadErrors] = useState([]);
+  const [validationWarnings, setValidationWarnings] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadedData, setUploadedData] = useState(null);
   const [showUploadPreview, setShowUploadPreview] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+
+  // Validate individual row data
+  const validateRow = (row, rowIndex) => {
+    const errors = [];
+    const warnings = [];
+
+    // Helper: Normalize column names
+    const normalize = (s) => s ? s.toString().toLowerCase().replace(/\s/g, '').replace(/[^a-z0-9]/g, '') : '';
+
+    // Extract values with flexible column matching
+    let empId = '';
+    let firstName = '';
+    let lastName = '';
+    let email = '';
+    let joiningDate = null;
+
+    // Field pattern definitions - must match validateFileStructure patterns
+    const fieldPatterns = [
+      { field: 'empId', patterns: ['employeeid', 'empid'] },
+      { field: 'firstName', patterns: ['firstname', 'first'] },
+      { field: 'lastName', patterns: ['lastname', 'last'] },
+      { field: 'email', patterns: ['email', 'emailaddress'] },
+      { field: 'joiningDate', patterns: ['joiningdate', 'doj'] }
+    ];
+
+    // Find values from row with flexible matching
+    for (const key of Object.keys(row)) {
+      const normKey = normalize(key);
+      const val = row[key];
+
+      // Check each field pattern
+      for (const { field, patterns } of fieldPatterns) {
+        // Use includes for flexible matching - checks if normalized key contains any pattern
+        if (patterns.some(p => normKey.includes(p) || normKey === p)) {
+          if (field === 'empId') empId = val ? val.toString().trim() : '';
+          else if (field === 'firstName') firstName = val ? val.toString().trim() : '';
+          else if (field === 'lastName') lastName = val ? val.toString().trim() : '';
+          else if (field === 'email') email = val ? val.toString().trim().toLowerCase() : '';
+          else if (field === 'joiningDate') joiningDate = val;
+          break; // Found match for this key, move to next key
+        }
+      }
+    }
+
+    // Employee ID validation
+    if (!empId) {
+      errors.push('Employee ID is required');
+    } else if (!EMPLOYEE_ID_REGEX.test(empId)) {
+      errors.push('Employee ID format invalid (alphanumeric, dash, underscore only)');
+    }
+
+    // First Name validation
+    if (!firstName) {
+      errors.push('First Name is required');
+    } else if (firstName.length < 2) {
+      warnings.push('First Name should be at least 2 characters');
+    }
+
+    // Last Name validation
+    if (!lastName) {
+      errors.push('Last Name is required');
+    } else if (lastName.length < 2) {
+      warnings.push('Last Name should be at least 2 characters');
+    }
+
+    // Email validation
+    if (!email) {
+      errors.push('Email is required');
+    } else if (!EMAIL_REGEX.test(email)) {
+      errors.push('Invalid email format');
+    }
+
+    // Joining Date validation
+    if (!joiningDate) {
+      errors.push('Joining Date is required');
+    } else {
+      const joinDate = joiningDate;
+      const dateStr = joinDate instanceof Date ? joinDate.toISOString().split('T')[0] : joinDate.toString().trim();
+      if (!DATE_REGEX.test(dateStr)) {
+        errors.push('Joining Date format must be YYYY-MM-DD');
+      } else {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+          errors.push('Invalid Joining Date');
+        } else if (date > new Date()) {
+          warnings.push('Joining Date is in the future');
+        }
+      }
+    }
+
+    return { errors, warnings };
+  };
+
+  // Validate file structure
+  const validateFileStructure = (data) => {
+    const errors = [];
+    const warnings = [];
+
+    if (!data || data.length === 0) {
+      errors.push('Excel file is empty');
+      return { errors, warnings };
+    }
+
+    // Helper: Normalize column names (match backend logic)
+    const normalize = (s) => s ? s.toString().toLowerCase().replace(/\s/g, '').replace(/[^a-z0-9]/g, '') : '';
+
+    // Check required columns (flexible matching)
+    const firstRow = data[0];
+    const availableColumns = Object.keys(firstRow);
+    const normalizedAvailable = availableColumns.map(col => normalize(col));
+
+    // Required columns with their normalizations
+    const requiredChecks = [
+      { display: 'Employee ID', patterns: ['employeeid', 'empid'] },
+      { display: 'First Name', patterns: ['firstname', 'first'] },
+      { display: 'Last Name', patterns: ['lastname', 'last'] },
+      { display: 'Email', patterns: ['email', 'emailaddress'] },
+      { display: 'Joining Date', patterns: ['joiningdate', 'doj'] }
+    ];
+
+    requiredChecks.forEach(({ display, patterns }) => {
+      const found = normalizedAvailable.some(norm => patterns.some(p => norm.includes(p) || norm === p));
+      if (!found) {
+        errors.push(`Missing required column: ${display}`);
+      }
+    });
+
+    // If columns are missing, don't validate individual rows yet
+    if (errors.length > 0) {
+      return { errors, warnings };
+    }
+
+    // Validate each row
+    data.forEach((row, idx) => {
+      const { errors: rowErrors, warnings: rowWarnings } = validateRow(row, idx + 2);
+      rowErrors.forEach(err => errors.push(`Row ${idx + 2}: ${err}`));
+      rowWarnings.forEach(warn => warnings.push(`Row ${idx + 2}: ${warn}`));
+    });
+
+    return { errors, warnings };
+  };
 
   // Handle Template Download
   const handleDownloadTemplate = async () => {
@@ -92,7 +246,19 @@ export default function EmployeeExcelUploadModal({ isOpen, onClose, onSuccess })
           return;
         }
 
+        // Validate file structure and data
+        const { errors, warnings } = validateFileStructure(jsonData);
+
+        if (errors.length > 0) {
+          setUploadErrors(errors);
+          setValidationWarnings([]);
+          setUploadedFile(null);
+          setUploadedData(null);
+          return;
+        }
+
         setUploadErrors([]);
+        setValidationWarnings(warnings);
         setUploadedFile(file);
 
         // Prepare preview data (first 10 rows)
@@ -102,7 +268,11 @@ export default function EmployeeExcelUploadModal({ isOpen, onClose, onSuccess })
           fileName: file.name,
           rowCount: jsonData.length,
           previewData: previewData,
-          allData: jsonData
+          allData: jsonData,
+          validationStats: {
+            totalRecords: jsonData.length,
+            warningCount: warnings.length
+          }
         });
 
         setShowUploadPreview(true);
@@ -127,6 +297,7 @@ export default function EmployeeExcelUploadModal({ isOpen, onClose, onSuccess })
 
     try {
       setUploading(true);
+      setUploadResult(null);
 
       const payload = {
         records: uploadedData.allData
@@ -135,39 +306,142 @@ export default function EmployeeExcelUploadModal({ isOpen, onClose, onSuccess })
       const res = await api.post('/hr/bulk/upload', payload);
 
       if (res.data.success) {
-        // Success
-        alert(
-          `✅ Upload Successful\n\n` +
-          `Uploaded: ${res.data.uploadedCount} employees\n` +
-          `Failed: ${res.data.failedCount} records\n\n` +
-          (res.data.warnings.length > 0
-            ? `⚠️ Warnings:\n${res.data.warnings.slice(0, 5).join('\n')}${res.data.warnings.length > 5 ? `\n... and ${res.data.warnings.length - 5} more` : ''}`
-            : '')
-        );
+        // Store result
+        const result = {
+          uploadedCount: res.data.uploadedCount,
+          failedCount: res.data.failedCount,
+          totalRecords: uploadedData.rowCount,
+          successRate: ((res.data.uploadedCount / uploadedData.rowCount) * 100).toFixed(2),
+          errors: res.data.errors || [],
+          warnings: res.data.warnings || []
+        };
+
+        setUploadResult(result);
+        setShowSuccessMessage(true);
 
         // Reset state
         setUploadedFile(null);
         setUploadPreview([]);
         setUploadErrors([]);
+        setValidationWarnings([]);
         setUploadedData(null);
         setShowUploadPreview(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
 
         // Call success callback
-        if (onSuccess) onSuccess(res.data);
+        if (onSuccess) onSuccess(result);
       } else {
         setUploadErrors([res.data.message || 'Upload failed']);
       }
     } catch (err) {
       console.error('Upload failed:', err);
       const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message;
-      setUploadErrors([errorMessage || 'Failed to upload employees']);
+      setUploadErrors([errorMessage || 'Failed to upload employees. Please try again.']);
     } finally {
       setUploading(false);
     }
   };
 
   if (!isOpen) return null;
+
+  // Show result message
+  if (showSuccessMessage && uploadResult) {
+    const isSuccess = uploadResult.failedCount === 0;
+    const isPartial = uploadResult.uploadedCount > 0 && uploadResult.failedCount > 0;
+    const isFailure = uploadResult.uploadedCount === 0;
+
+    let title = "Upload Successful! ✅";
+    let icon = <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" />;
+    let bgPulse = "bg-green-400/20";
+    let bgCircle = "bg-green-100 dark:bg-green-900/30";
+
+    if (isFailure) {
+      title = "Upload Failed! ❌";
+      icon = <AlertCircle className="w-12 h-12 text-red-600 dark:text-red-400" />;
+      bgPulse = "bg-red-400/20";
+      bgCircle = "bg-red-100 dark:bg-red-900/30";
+    } else if (isPartial) {
+      title = "Completed with Errors ⚠️";
+      icon = <TrendingUp className="w-12 h-12 text-amber-600 dark:text-amber-400" />;
+      bgPulse = "bg-amber-400/20";
+      bgCircle = "bg-amber-100 dark:bg-amber-900/30";
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="relative">
+              <div className={`absolute inset-0 ${bgPulse} rounded-full blur-lg`}></div>
+              <div className={`relative p-4 ${bgCircle} rounded-full`}>
+                {icon}
+              </div>
+            </div>
+          </div>
+
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{title}</h2>
+
+          <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-4 mb-4">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <div className="text-2xl font-black text-green-600 dark:text-green-400">{uploadResult.uploadedCount}</div>
+                <div className="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">Uploaded</div>
+              </div>
+              <div>
+                <div className="text-2xl font-black text-red-600 dark:text-red-400">{uploadResult.failedCount}</div>
+                <div className="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">Failed</div>
+              </div>
+              <div>
+                <div className="text-2xl font-black text-blue-600 dark:text-blue-400">{uploadResult.successRate}%</div>
+                <div className="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">Success</div>
+              </div>
+            </div>
+          </div>
+
+          {uploadResult.errors.length > 0 && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4 text-left max-h-48 overflow-y-auto">
+              <p className="text-xs font-black text-red-700 dark:text-red-400 mb-2">Errors ({uploadResult.errors.length})</p>
+              <ul className="text-xs text-red-600 dark:text-red-400 space-y-1">
+                {uploadResult.errors.slice(0, 5).map((err, idx) => (
+                  <li key={idx} className="truncate">• {err}</li>
+                ))}
+                {uploadResult.errors.length > 5 && <li className="text-red-500">... and {uploadResult.errors.length - 5} more</li>}
+              </ul>
+            </div>
+          )}
+
+          {uploadResult.warnings.length > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4 text-left max-h-48 overflow-y-auto">
+              <p className="text-xs font-black text-amber-700 dark:text-amber-400 mb-2">Warnings ({uploadResult.warnings.length})</p>
+              <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-1">
+                {uploadResult.warnings.slice(0, 5).map((warn, idx) => (
+                  <li key={idx} className="truncate">⚠️ {warn}</li>
+                ))}
+                {uploadResult.warnings.length > 5 && <li className="text-amber-500">... and {uploadResult.warnings.length - 5} more</li>}
+              </ul>
+            </div>
+          )}
+
+          <button
+            onClick={() => {
+              setShowSuccessMessage(false);
+              setUploadedFile(null);
+              setUploadPreview([]);
+              setUploadErrors([]);
+              setValidationWarnings([]);
+              setUploadedData(null);
+              setShowUploadPreview(false);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+              onClose();
+            }}
+            className="w-full py-3 bg-slate-900 dark:bg-slate-700 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-slate-800 dark:hover:bg-slate-600 transition"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
@@ -269,6 +543,7 @@ export default function EmployeeExcelUploadModal({ isOpen, onClose, onSuccess })
                     setUploadedFile(null);
                     setUploadPreview([]);
                     setUploadErrors([]);
+                    setValidationWarnings([]);
                     setUploadedData(null);
                     setShowUploadPreview(false);
                     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -284,68 +559,46 @@ export default function EmployeeExcelUploadModal({ isOpen, onClose, onSuccess })
           {/* Error Messages */}
           {uploadErrors.length > 0 && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl p-4">
-              <p className="text-xs font-black text-red-700 dark:text-red-300 uppercase tracking-widest mb-2">❌ Errors</p>
-              <ul className="text-xs text-red-600 dark:text-red-400 space-y-1">
-                {uploadErrors.slice(0, 5).map((err, idx) => (
+              <p className="text-xs font-black text-red-700 dark:text-red-300 uppercase tracking-widest mb-2">❌ Validation Errors</p>
+              <ul className="text-xs text-red-600 dark:text-red-400 space-y-1 max-h-32 overflow-y-auto">
+                {uploadErrors.slice(0, 8).map((err, idx) => (
                   <li key={idx}>• {err}</li>
                 ))}
-                {uploadErrors.length > 5 && <li>... and {uploadErrors.length - 5} more errors</li>}
+                {uploadErrors.length > 8 && <li>... and {uploadErrors.length - 8} more errors</li>}
               </ul>
             </div>
           )}
 
-          {/* Preview Modal */}
-          {showUploadPreview && uploadedData && (
-            <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Preview Data</h4>
-                  <p className="text-xs font-bold text-slate-400 mt-1">
-                    File: {uploadedData.fileName} • Total Records: {uploadedData.rowCount}
-                  </p>
-                </div>
-              </div>
-
-              {uploadedData.previewData.length > 0 ? (
-                <div className="overflow-x-auto mb-4">
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-                      <tr>
-                        {Object.keys(uploadedData.previewData[0]).map((header, idx) => (
-                          <th key={idx} className="px-3 py-2 text-left font-black text-slate-700 dark:text-slate-300">
-                            {header}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {uploadedData.previewData.map((row, rowIdx) => (
-                        <tr key={rowIdx} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700">
-                          {Object.values(row).map((val, colIdx) => (
-                            <td key={colIdx} className="px-3 py-2 text-slate-700 dark:text-slate-300">
-                              {val || '—'}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm text-slate-600 dark:text-slate-400">No preview data available</p>
-              )}
+          {/* Validation Warnings */}
+          {validationWarnings.length > 0 && uploadErrors.length === 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
+              <p className="text-xs font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest mb-2">⚠️ Warnings ({validationWarnings.length})</p>
+              <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-1 max-h-32 overflow-y-auto">
+                {validationWarnings.slice(0, 8).map((warn, idx) => (
+                  <li key={idx}>• {warn}</li>
+                ))}
+                {validationWarnings.length > 8 && <li>... and {validationWarnings.length - 8} more warnings</li>}
+              </ul>
             </div>
           )}
 
+
+
           {/* Required Columns Info */}
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-            <p className="text-xs text-blue-700 dark:text-blue-300 font-bold leading-relaxed">
-              <span className="block font-black mb-2">📝 Required Columns:</span>
-              Your Excel file must have these columns: <strong>Employee ID</strong>, <strong>First Name</strong>, <strong>Last Name</strong>, <strong>Email</strong>, <strong>Joining Date</strong>
-              <br />
-              <span className="block font-black mt-2">💡 Optional Columns:</span>
-              Middle Name, Contact No, Gender, Date of Birth, Department, Role, Job Type, Bank Details, Address fields, and more
-            </p>
+            <div className="flex gap-3">
+              <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-blue-700 dark:text-blue-300 font-bold leading-relaxed space-y-2">
+                <div>
+                  <span className="font-black block mb-1">📝 Required Columns:</span>
+                  <span>Employee ID, First Name, Last Name, Email, Joining Date (YYYY-MM-DD format)</span>
+                </div>
+                <div>
+                  <span className="font-black block mb-1">💡 Supported Optional Columns:</span>
+                  <span>Middle Name, Contact No, Gender, Date of Birth, Department, Role, Job Type, Marital Status, Bank Details, Address fields</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -370,7 +623,7 @@ export default function EmployeeExcelUploadModal({ isOpen, onClose, onSuccess })
             ) : (
               <>
                 <Upload className="w-4 h-4" />
-                Upload Records
+                Upload Records ({uploadedData?.rowCount || 0})
               </>
             )}
           </button>
