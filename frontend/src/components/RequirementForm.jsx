@@ -55,11 +55,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
     ]);
 
     const [saving, setSaving] = useState(false);
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
     const [positions, setPositions] = useState([]);
 
     useEffect(() => {
@@ -68,11 +64,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
         }).catch(err => console.error("Error fetching positions", err));
     }, []);
 
-    // Prevent double-click save on step transition
-<<<<<<< HEAD
->>>>>>> main
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
     const [canSave, setCanSave] = useState(false);
 
     useEffect(() => {
@@ -228,8 +220,8 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                 type="button"
                 onClick={() => togglePublic(fieldKey)}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${publicFields.has(fieldKey)
-                        ? 'bg-indigo-50 text-indigo-600 border-indigo-100'
-                        : 'bg-slate-50 text-slate-400 border-slate-200'
+                    ? 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                    : 'bg-slate-50 text-slate-400 border-slate-200'
                     }`}
             >
                 {publicFields.has(fieldKey) ? <Eye size={10} /> : <EyeOff size={10} />}
@@ -258,61 +250,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                             <p className="text-sm text-slate-500 font-medium mt-1">
                                 Step {step}: {step === 1 ? 'Fundamental Details' : 'Hiring Workflow Design'}
                             </p>
-<<<<<<< HEAD
-<<<<<<< HEAD
                         )}
-=======
-                        </div>
-                        {/* Step Indicator */}
-                        <div className="flex items-center gap-2">
-                            <span className={`w-3 h-3 rounded-full ${step === 1 ? 'bg-blue-600' : 'bg-slate-300'}`}></span>
-                            <span className={`w-3 h-3 rounded-full ${step === 2 ? 'bg-blue-600' : 'bg-slate-300'}`}></span>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {step === 1 ? (
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Link to Position Master (Optional)</label>
-                        <select
-                            value={formData.positionId}
-                            onChange={e => {
-                                const posId = e.target.value;
-                                const selectedPos = positions.find(p => p._id === posId);
-                                if (selectedPos) {
-                                    setFormData({
-                                        ...formData,
-                                        positionId: posId,
-                                        jobTitle: selectedPos.jobTitle,
-                                        department: selectedPos.department
-                                    });
-                                } else {
-                                    setFormData({ ...formData, positionId: posId });
-                                }
-                            }}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white mb-4"
-                        >
-                            <option value="">-- No Position Linked --</option>
-                            {positions.map(p => (
-                                <option key={p._id} value={p._id}>{p.positionId} - {p.jobTitle} ({p.department})</option>
-                            ))}
-                        </select>
-
-                        <LabelWithToggle label="Job Title" fieldKey="jobTitle" required id="jobTitle" />
-                        <input
-                            id="jobTitle"
-                            required
-                            value={formData.jobTitle}
-                            onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
-                            placeholder="e.g. Senior Developer"
-                        />
->>>>>>> main
-=======
-                        )}
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
                     </div>
 
                     <div className="flex items-center gap-6">
@@ -346,6 +284,36 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
             <div className={`flex-1 overflow-y-auto ${isModal ? 'p-10' : 'p-12'}`}>
                 {step === 1 ? (
                     <div className="mx-auto grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 animate-in fade-in slide-in-from-bottom-3 duration-700">
+                        {/* Position Master Link */}
+                        <div className="md:col-span-2">
+                            <label className="text-[12px] font-bold text-slate-700 mb-2 px-1 flex items-center gap-2 tracking-tight">
+                                <Layers size={14} className="text-slate-400" />
+                                Link to Position Master (Optional)
+                            </label>
+                            <select
+                                value={formData.positionId}
+                                onChange={e => {
+                                    const posId = e.target.value;
+                                    const selectedPos = positions.find(p => p._id === posId);
+                                    if (selectedPos) {
+                                        setFormData({
+                                            ...formData,
+                                            positionId: posId,
+                                            jobTitle: selectedPos.jobTitle,
+                                            department: selectedPos.department
+                                        });
+                                    } else {
+                                        setFormData({ ...formData, positionId: posId });
+                                    }
+                                }}
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all appearance-none hover:border-slate-300 cursor-pointer"
+                            >
+                                <option value="">-- No Position Linked --</option>
+                                {positions.map(p => (
+                                    <option key={p._id} value={p._id}>{p.positionId} - {p.jobTitle} ({p.department})</option>
+                                ))}
+                            </select>
+                        </div>
                         {/* Core Info */}
                         <div className="md:col-span-2 group">
                             <LabelWithToggle label="Job Title" fieldKey="jobTitle" required id="jobTitle" icon={Type} />
@@ -753,7 +721,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                 <option value="Bond/Agreement" />
                 <option value="Qualification" />
             </datalist>
-        </form>
+        </form >
     );
 
     if (isModal) {

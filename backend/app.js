@@ -179,16 +179,12 @@ app.use('/api/activities', activityRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 app.use('/api/career', careerOptimizedRoutes);
 
-=======
+
 app.use('/api/positions', positionRoutes);
->>>>>>> main
-=======
-app.use('/api/positions', positionRoutes);
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
 /* ===============================
    HRMS ALIAS ROUTES (For Frontend Inconsistencies)
 ================================ */
@@ -215,17 +211,11 @@ app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {
     return letterRoutes(req, res, next);
 });
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 app.use(hrmsPrefix + '/interviews', require('./routes/interview.routes'));
 
 // Alias /hrms/hr/ -> hrRoutes (handles /hrms/hr/employees etc)
-=======
-// Alias /hr/ -> hrRoutes (handles /hr/employees etc)
->>>>>>> main
-=======
-// Alias /hr/ -> hrRoutes (handles /hr/employees etc)
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
 // Since hrRoutes already prefixes routes with /hr, we mount it at the root of /api/hrms
 app.use(hrmsPrefix, hrRoutes);
 

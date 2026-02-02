@@ -471,7 +471,6 @@ export default function JobApplication() {
             <div className="h-8 w-px bg-slate-100 mx-2"></div>
             <span className="text-lg font-black text-slate-800 tracking-tight">Job Application</span>
           </div>
-          {/* Removed Job Title Badge as requested */}
         </div>
       </nav>
 
@@ -511,42 +510,13 @@ export default function JobApplication() {
                     <span className="flex items-center gap-2.5">
                       <MapPin size={16} className="text-white/60" /> {requirement?.workMode || 'Remote'}
                     </span>
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
                     <span className="flex items-center gap-2.5">
                       <Briefcase size={16} className="text-white/60" /> {requirement?.jobType || 'Full Time'}
                     </span>
                   </div>
                 )}
               </div>
-<<<<<<< HEAD
-=======
-                    {parsing ? (
-                      <div className="mt-4 flex items-center gap-2 text-blue-600 font-bold animate-pulse">
-                        <UploadCloud className="w-5 h-5 animate-bounce" />
-                        <span>Extracting resume data...</span>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-400 font-bold mt-2 uppercase tracking-widest">
-                        {formData.resume ? 'Click to replace file' : 'Maximum size 5MB (PDF/Word only)'}
-                      </p>
-                    )}
-                  </label>
-                </div>
-              </section>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-700 to-indigo-700 text-white py-6 rounded-[1.8rem] font-black shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-50 text-lg flex items-center justify-center gap-3"
-              >
-                {loading ? 'Submitting Application...' : 'Send Application Now'} <Send className="w-5 h-5" />
-              </button>
->>>>>>> main
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
 
               {/* Decorative shapes inside banner */}
               <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full -mr-48 -mt-48 blur-3xl"></div>

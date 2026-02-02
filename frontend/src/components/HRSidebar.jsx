@@ -64,69 +64,43 @@ const ICONS = {
 const NAV_GROUPS = [
   {
     title: 'Overview',
-    items: [{ to: '/hrms/hr', label: 'Dashboard', icon: ICONS.dashboard, end: true }]
+    items: [{ to: '/hr', label: 'Dashboard', icon: ICONS.dashboard, end: true }]
   },
   {
     title: 'People',
     items: [
-      { to: '/hrms/hr/employees', label: 'Employees', icon: ICONS.employees },
-      { to: '/hrms/hr/departments', label: 'Departments', icon: ICONS.departments },
-      { to: '/hrms/hr/org', label: 'Org Structure', icon: ICONS.org },
-      { to: '/hrms/hr/users', label: 'User Management', icon: ICONS.users }
+      { to: '/hr/employees', label: 'Employees', icon: ICONS.employees },
+      { to: '/hr/departments', label: 'Departments', icon: ICONS.departments },
+      { to: '/hr/org', label: 'Org Structure', icon: ICONS.org },
+      { to: '/hr/users', label: 'User Management', icon: ICONS.users }
     ]
   },
   {
     title: 'Attendance',
     items: [
-<<<<<<< HEAD
-<<<<<<< HEAD
-      { to: '/hrms/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.dashboard },
-      { to: '/hrms/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
-=======
+
       { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.attendance },
       { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
->>>>>>> main
-=======
-      { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.attendance },
-      { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
     ]
   },
   {
     title: 'Leave',
     items: [
-      { to: '/hrms/hr/leave-approvals', label: 'Leave Requests', icon: ICONS.leaveRequests },
-      { to: '/hrms/hr/leave-policies', label: 'Leave Policies', icon: ICONS.leavePolicies }
+      { to: '/hr/leave-approvals', label: 'Leave Requests', icon: ICONS.leaveRequests },
+      { to: '/hr/leave-policies', label: 'Leave Policies', icon: ICONS.leavePolicies }
     ]
   },
   {
     title: 'Payroll',
     items: [
-<<<<<<< HEAD
-<<<<<<< HEAD
-      { to: '/hrms/hr/payroll/dashboard', label: 'Dashboard', icon: ICONS.dashboard },
-      { to: '/hrms/hr/payroll/salary-components?tab=earnings', label: 'Salary Components', icon: ICONS.payroll },
-      { to: '/hrms/hr/payroll/salary-components?tab=templates', label: 'Salary Templates', icon: ICONS.payroll },
-      { to: '/hrms/hr/payroll/compensation', label: 'Employee Compensation', icon: ICONS.payroll },
-      { to: '/hrms/hr/payroll/process', label: 'Process Payroll', icon: ICONS.play },
-
-      { to: '/hrms/hr/payroll/run', label: 'Run History', icon: ICONS.calendar },
-      { to: '/hrms/hr/payroll/payslips', label: 'Payslips', icon: ICONS.document },
-      { to: '/hrms/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.document }
-=======
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
-      { to: '/hr/payroll/dashboard', label: 'Dashboard', icon: ICONS.payrollDashboard },
+      { to: '/hr/payroll/dashboard', label: 'Payroll Dashboard', icon: ICONS.payrollDashboard },
       { to: '/hr/payroll/salary-components', label: 'Salary Components', icon: ICONS.salaryComponents },
       { to: '/hr/payroll/compensation', label: 'Employee Compensation', icon: ICONS.compensation },
       { to: '/hr/payroll/process', label: 'Process Payroll', icon: ICONS.process },
       { to: '/hr/payroll/run', label: 'Run History', icon: ICONS.runHistory },
       { to: '/hr/payroll/payslips', label: 'Payslips', icon: ICONS.payslips },
       { to: '/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.payslipDesign }
-<<<<<<< HEAD
->>>>>>> main
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
     ]
   },
   {
@@ -136,31 +110,22 @@ const NAV_GROUPS = [
         label: 'Recruitment',
         icon: ICONS.requirements,
         children: [
-<<<<<<< HEAD
-<<<<<<< HEAD
-          { to: '/hrms/hr/requirements', label: 'Job List' },
-          { to: '/hrms/hr/create-requirement', label: 'Create Recruitment' }
-=======
+
           { to: '/hr/requirements', label: 'Job List' },
           { to: '/hr/create-requirement', label: 'Create Requirement' },
           { to: '/hr/positions', label: 'Position Master' }
->>>>>>> main
-=======
-          { to: '/hr/requirements', label: 'Job List' },
-          { to: '/hr/create-requirement', label: 'Create Requirement' },
-          { to: '/hr/positions', label: 'Position Master' }
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
         ]
       },
       {
         label: 'Applicants',
         icon: ICONS.applicants,
         children: [
-          { to: '/hrms/hr/applicants', label: 'External' },
-          { to: '/hrms/hr/internal-applicants', label: 'Internal' }
+          { to: '/hr/applicants', label: 'External' },
+          { to: '/hr/internal-applicants', label: 'Internal' }
         ]
       },
-      { to: '/hrms/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
+      { to: '/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
     ]
   },
   {
@@ -170,13 +135,13 @@ const NAV_GROUPS = [
         label: 'Templates',
         icon: ICONS.templates,
         children: [
-          { to: '/hrms/hr/letter-templates', label: 'Letter Editor' },
-          { to: '/hrms/hr/letter-settings', label: 'Letter Settings' },
-          { to: '/hrms/hr/payslip-templates', label: 'Payslip Templates' }
+          { to: '/hr/letter-templates', label: 'Letter Editor' },
+          { to: '/hr/letter-settings', label: 'Letter Settings' },
+          { to: '/hr/payslip-templates', label: 'Payslip Templates' }
         ]
       },
-      { to: '/hrms/hr/access', label: 'Access Control', icon: ICONS.access },
-      { to: '/hrms/hr/settings/company', label: 'Company Settings', icon: ICONS.settings }
+      { to: '/hr/access', label: 'Access Control', icon: ICONS.access },
+      { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings }
     ]
   },
   {
@@ -186,8 +151,8 @@ const NAV_GROUPS = [
         label: 'Customization',
         icon: ICONS.customization,
         children: [
-          { to: '/hrms/hr/career-builder', label: 'Edit Career Page' },
-          { to: '/hrms/hr/apply-builder', label: 'Edit Apply Page' }
+          { to: '/hr/career-builder', label: 'Edit Career Page' },
+          { to: '/hr/apply-builder', label: 'Edit Apply Page' }
         ]
       },
       {
@@ -320,15 +285,8 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                   aria-label={item.label}
                   title={item.label}
                   onClick={() => onNavigate && onNavigate()}
-<<<<<<< HEAD
-<<<<<<< HEAD
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                     ${isActive ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'hover:bg-indigo-500/10 hover:text-indigo-300'}`
-                  }
-=======
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
+
                   className={({ isActive }) => {
                     // Custom active check for links with query parameters
                     let active = isActive;
@@ -341,10 +299,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                     return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
                      ${active ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`;
                   }}
-<<<<<<< HEAD
->>>>>>> main
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
                 >
                   {item.icon}
                   {!collapsed && <span>{item.label}</span>}
