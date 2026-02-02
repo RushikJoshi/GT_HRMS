@@ -113,7 +113,7 @@ router.use('/hr/career', require('./career.routes'));
 
 // BULk Upload Template
 
-router.get('/hr/bulk/template', auth.authenticate, auth.requireAdminOrHr,empCtrl.downloadBulkUploadTemp);
+router.get('/hr/bulk/template', auth.authenticate, auth.requireAdminOrHr, empCtrl.downloadBulkUploadTemp);
 /* -----------------------------------------
    CANDIDATE STATUS TRACKER
 ----------------------------------------- */
