@@ -47,16 +47,44 @@ export default function CalendarManagement() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [holidaysRes, settingsRes, calendarRes] = await Promise.all([
-                api.get(`/holidays?year=${currentYear}`),
-                api.get('/attendance/settings'),
-                api.get(`/attendance/calendar?year=${currentYear}&month=${currentMonth + 1}`)
-            ]);
+
+            // Start requests in parallel but handle calendar failure separately so other UI parts still load
+            const holidaysP = api.get(`/holidays?year=${currentYear}`);
+            const settingsP = api.get('/attendance/settings');
+
+            // Primary production-grade endpoint
+            const calendarP = api.get(`/hr/attendance-calendar?year=${currentYear}&month=${currentMonth + 1}`).catch(async (err) => {
+                console.warn('Primary /hr/attendance-calendar failed:', err.hrms || err.message || err);
+                // Fallback to legacy endpoints for compatibility
+                try {
+                    const fallback = await api.get(`/hr/calendar?year=${currentYear}&month=${currentMonth + 1}`);
+                    return { data: { days: fallback.data.calendarDays || fallback.data.days || [], holidays: fallback.data.holidays || [], settings: fallback.data.settings || {} } };
+                } catch (err2) {
+                    console.error('Fallback /hr/calendar also failed:', err2.hrms || err2.message || err2);
+                    throw err; // rethrow original to be handled below
+                }
+            });
+
+            const [holidaysRes, settingsRes, calendarRes] = await Promise.all([holidaysP, settingsP, calendarP]);
+
             setHolidays(holidaysRes.data || []);
             setSettings(settingsRes.data || {});
-            setCalendarData(calendarRes.data);
+
+            // Normalize calendar response shape (support both { calendarDays } and { days })
+            const cdata = calendarRes.data || {};
+            if (Array.isArray(cdata.calendarDays)) {
+                setCalendarData(cdata);
+            } else if (Array.isArray(cdata.days)) {
+                setCalendarData({ calendarDays: cdata.days, holidays: cdata.holidays || [], settings: cdata.settings || {} });
+            } else {
+                // defensive default
+                setCalendarData({ calendarDays: [], holidays: cdata.holidays || [], settings: cdata.settings || {} });
+            }
+
         } catch (err) {
             console.error('Failed to fetch calendar data:', err);
+            const friendly = err.hrms?.message || err.response?.data?.error || err.message || 'Server error. Please try again.';
+            showToast('error', 'Error', friendly);
         } finally {
             setLoading(false);
         }
@@ -70,33 +98,27 @@ export default function CalendarManagement() {
             try {
                 setDateLoading(true);
                 setDateError(null);
-                const res = await api.get(`/attendance/by-date?date=${encodeURIComponent(selectedDate)}`);
-                console.debug('GET /attendance/by-date response:', res.data);
-                // Normalize backend response to frontend expected shape
+                const res = await api.get(`/hr/attendance-calendar/detail?date=${encodeURIComponent(selectedDate)}`);
+                console.debug('GET /hr/attendance-calendar/detail response:', res.data);
                 const payload = res.data || {};
-                if (payload.summary || payload.employees) {
-                    setDateAttendanceData(payload);
-                } else if (Array.isArray(payload.records)) {
-                    const records = payload.records;
-                    const summary = {
-                        totalEmployees: records.length,
-                        onLeave: records.filter(r => (r.status || '').toLowerCase().includes('leave')).length,
-                        onDuty: records.filter(r => (r.status || '').toLowerCase().includes('duty') || (r.status || '').toLowerCase().includes('official')).length,
-                        present: records.filter(r => (r.status || '').toLowerCase() === 'present').length
-                    };
-                    const employees = records.map(r => ({
-                        employeeId: r.employee?.employeeId || r.employee?._id || r.employee,
-                        name: r.employee ? `${r.employee.firstName || ''} ${r.employee.lastName || ''}`.trim() : (r.name || 'Unknown'),
-                        profilePic: r.employee?.profilePic || '/uploads/default-avatar.png',
-                        department: r.employee?.department || r.employee?.departmentId || '-',
-                        attendanceStatus: r.status || '-',
-                        leaveDetails: r.leaveDetails || null
-                    }));
 
-                    setDateAttendanceData({ summary, employees, raw: payload });
-                } else {
-                    setDateAttendanceData(payload);
-                }
+                const summary = {
+                    totalEmployees: payload.totalEmployees || 0,
+                    present: payload.present || 0,
+                    onLeave: payload.onLeave || 0,
+                    onDuty: payload.onDuty || 0
+                };
+
+                const employees = (payload.employees || []).map(e => ({
+                    employeeId: e.employeeId || e.employee?._id || e.employee,
+                    name: e.name || (e.employee ? `${e.employee.firstName || ''} ${e.employee.lastName || ''}`.trim() : 'Unknown'),
+                    profilePic: e.profilePic || e.employee?.profilePic || '/uploads/default-avatar.png',
+                    department: e.department || e.employee?.department || e.employee?.departmentId || '-',
+                    attendanceStatus: e.status || e.attendanceStatus || (e.leaveType ? 'On Leave' : '-'),
+                    leaveDetails: e.leaveType ? { type: e.leaveType, isHalfDay: !!e.isHalfDay } : null
+                }));
+
+                setDateAttendanceData({ summary, employees, holiday: payload.holiday || null });
             } catch (err) {
                 console.error('Failed to fetch date attendance:', err);
                 setDateError(err.response?.data || { message: err.message });
@@ -410,7 +432,7 @@ export default function CalendarManagement() {
                             <div className="w-[70%]">
                                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-6 h-full">
                                     <AttendanceCalendar
-                                        data={calendarData.calendarDays || []}
+                                        data={calendarData.days || calendarData.calendarDays || []}
                                         holidays={calendarData.holidays || []}
                                         settings={calendarData.settings || {}}
                                         currentMonth={currentMonth}
