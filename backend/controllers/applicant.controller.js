@@ -569,6 +569,7 @@ exports.getResumeFile = async (req, res) => {
             console.log(`[GET_RESUME] Checking Path 2: ${legacyPath}`);
 
             if (fs.existsSync(legacyPath)) {
+                console.log('✅ [RESUME DOWNLOAD] Found in legacy path:', legacyPath);
                 return res.sendFile(legacyPath);
             }
             console.warn(`[GET_RESUME] File not found: ${safeFilename}`);
@@ -582,9 +583,10 @@ exports.getResumeFile = async (req, res) => {
             });
         }
 
+        console.log('✅ [RESUME DOWNLOAD] Sending file:', resumePath);
         res.sendFile(resumePath);
     } catch (error) {
-        console.error("View Resume Error:", error);
+        console.error("❌ [RESUME DOWNLOAD] Error:", error);
         res.status(500).json({ message: "Failed to load resume", error: error.message });
     }
 };

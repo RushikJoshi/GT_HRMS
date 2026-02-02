@@ -3,6 +3,7 @@ import { FileText, Download, Calendar, MapPin, Clock, User, ArrowRight } from 'l
 import dayjs from 'dayjs';
 import InterviewDetailsRow from './InterviewDetailsRow';
 import StatusActionRow from './StatusActionRow';
+import api, { API_ROOT } from '../../../utils/api';
 
 /**
  * CandidateCard
@@ -25,21 +26,62 @@ export default function CandidateCard({
     const [resumeLoading, setResumeLoading] = useState(false);
 
     const handleDownloadResume = async () => {
-        if (!candidate.resumeUrl) {
+        console.log('🔍 Candidate object:', candidate);
+        console.log('📋 resumeUrl value:', candidate?.resumeUrl);
+        
+        if (!candidate?.resumeUrl) {
+            console.warn('⚠️ No resume URL available');
             alert('Resume not available');
             return;
         }
         try {
             setResumeLoading(true);
+
+            // Extract filename from resumeUrl (e.g., "/hr/resume/filename.pdf" -> "filename.pdf")
+            const filename = candidate.resumeUrl.split('/').pop();
+            
+            // Use relative path - axios will append this to its baseURL
+            const path = candidate.resumeUrl;
+            
+            console.log('📥 Download initiated:', { 
+                resumeUrl: candidate.resumeUrl, 
+                filename,
+                path,
+                fullRequestUrl: `http://localhost:5000/api${path}`
+            });
+
+            // Use axios 'api' instance to fetch as blob (includes Auth headers)
+            const response = await api.get(path, {
+                responseType: 'blob'
+            });
+
+            console.log('✅ Resume downloaded successfully:', { size: response.data.size, type: response.data.type });
+
+            // Create local URL for the blob
+            const url = window.URL.createObjectURL(response.data);
             const link = document.createElement('a');
-            link.href = candidate.resumeUrl;
-            link.download = `${candidate.name}_Resume.pdf`;
+            link.href = url;
+            link.setAttribute('download', filename || `${candidate.name}_Resume.pdf`);
+
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
+
+            console.log('📁 Download triggered for:', filename);
+
+            // Cleanup
+            setTimeout(() => {
+                link.remove();
+                window.URL.revokeObjectURL(url);
+            }, 100);
+            
         } catch (error) {
-            console.error('Error downloading resume:', error);
-            alert('Failed to download resume');
+            console.error('❌ Download failed:', {
+                message: error.message,
+                status: error.response?.status,
+                data: error.response?.data,
+                config: error.config
+            });
+            alert(`Failed to download resume: ${error.response?.data?.message || error.message}`);
         } finally {
             setResumeLoading(false);
         }
@@ -72,11 +114,10 @@ export default function CandidateCard({
                     <button
                         onClick={handleDownloadResume}
                         disabled={resumeLoading || !candidate.resumeUrl}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex-shrink-0 ${
-                            resumeLoading || !candidate.resumeUrl
-                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                : 'bg-red-50 text-red-600 hover:bg-red-100 active:scale-95'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex-shrink-0 ${resumeLoading || !candidate.resumeUrl
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-red-50 text-red-600 hover:bg-red-100 active:scale-95'
+                            }`}
                     >
                         <Download size={16} className={resumeLoading ? 'animate-bounce' : ''} />
                         {resumeLoading ? 'Downloading...' : 'Download'}

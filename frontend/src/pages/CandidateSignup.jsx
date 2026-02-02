@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useJobPortalAuth } from '../context/JobPortalAuthContext'; // Using core context
 import api from '../utils/api';
-import { ArrowLeft, Briefcase, Lock, Mail, User, Phone } from 'lucide-react';
+import { ArrowLeft, Briefcase, Lock, Mail, User, Phone, ShieldCheck, Sparkles } from 'lucide-react';
 
 export default function CandidateSignup() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { registerCandidate, loginCandidate } = useAuth();
+    const { registerCandidate, loginCandidate } = useJobPortalAuth();
 
     // Get tenantId from URL query param
     const rawTenantId = searchParams.get('tenantId');
@@ -82,176 +82,154 @@ export default function CandidateSignup() {
 
     if (pageLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Initialising Portal...</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 font-sans relative overflow-hidden flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-[#F8FAFC] font-sans flex flex-col items-center justify-center py-12 px-6 relative overflow-hidden selection:bg-indigo-100 selection:text-indigo-600">
+            {/* Background Effects */}
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-50 rounded-full blur-[100px] -z-10 translate-x-1/3 -translate-y-1/3"></div>
+            <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-50 rounded-full blur-[100px] -z-10 -translate-x-1/3 translate-y-1/3"></div>
 
-            {/* Background Effects (Subtle for Light Mode) */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-                <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-60"></div>
-                <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-100 rounded-full blur-3xl opacity-60"></div>
-            </div>
-
-            <div className="relative z-10 w-full max-w-md">
-
+            <div className="w-full max-w-[540px] z-10 animate-in fade-in duration-300">
                 {/* Header Section */}
-                <div className="text-center mb-8">
-                    {/* Back Button - Top Left */}
+                <div className="text-center mb-12">
+                    {/* Back Button */}
                     <button
                         onClick={() => navigate(-1)}
-                        className="absolute top-6 left-6 z-20 p-3 bg-white hover:bg-gray-100 text-gray-700 rounded-full shadow-md border border-gray-200 transition-all group active:scale-95"
-                        title="Go Back"
+                        className="absolute top-0 left-0 p-3 bg-white hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-2xl shadow-sm border border-slate-100 transition-all group active:scale-95"
                     >
                         <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
                     </button>
 
-                    <div className="inline-flex p-4 bg-white rounded-2xl border border-gray-100 mb-6 shadow-xl ring-1 ring-gray-100">
-                        <Briefcase className="w-10 h-10 text-blue-600" />
+                    <div className="mx-auto w-16 h-16 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-xl shadow-indigo-200 mb-8 transform hover:-rotate-6 transition-transform">
+                        <Briefcase className="text-white w-8 h-8" />
                     </div>
 
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">
+                    <h1 className="text-4xl font-bold tracking-tight text-slate-800 mb-2">
                         {company.name}
                     </h1>
-                    <p className="text-gray-500 text-sm font-medium">Create Candidate Account</p>
+                    <p className="text-slate-500 font-medium tracking-tight">Create Candidate Account</p>
                 </div>
 
                 {/* Signup Card */}
-                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                    <div className="p-8">
-                        <div className="text-center mb-6">
-                            <h2 className="text-xl font-bold text-gray-900">Sign Up</h2>
-                            <p className="text-sm text-gray-500 mt-1">Start your journey with us today</p>
-                        </div>
+                <div className="bg-white p-10 lg:p-14 rounded-[3rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50 overflow-hidden">
+                    <form className="space-y-6" onSubmit={handleSubmit}>
+                        {error && (
+                            <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3 text-rose-600 text-sm font-bold animate-in fade-in slide-in-from-top-2">
+                                <ShieldCheck className="w-5 h-5 flex-shrink-0" />
+                                {error}
+                            </div>
+                        )}
 
-                        <form className="space-y-4" onSubmit={handleSubmit}>
-                            {error && (
-                                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md flex items-start">
-                                    <span className="text-red-500 mr-2">⚠️</span>
-                                    <p className="text-sm text-red-700">{error}</p>
-                                </div>
-                            )}
-
-                            {/* Full Name */}
-                            <div>
-                                <label htmlFor="name" className="sr-only">Full Name</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <User className="h-5 w-5 text-gray-400" />
-                                    </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Full Name</label>
+                                <div className="relative group">
+                                    <User className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
                                     <input
-                                        id="name"
                                         name="name"
                                         type="text"
                                         required
                                         value={formData.name}
                                         onChange={handleChange}
-                                        className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none bg-gray-50 focus:bg-white placeholder-gray-400 text-gray-900"
-                                        placeholder="Full Name"
+                                        className="w-full pl-14 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        placeholder="John Doe"
                                     />
                                 </div>
                             </div>
 
-                            {/* Email */}
-                            <div>
-                                <label htmlFor="email" className="sr-only">Email Address</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Mail className="h-5 w-5 text-gray-400" />
-                                    </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Phone Number</label>
+                                <div className="relative group">
+                                    <Phone className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
                                     <input
-                                        id="email"
-                                        name="email"
-                                        type="email"
-                                        required
-                                        value={formData.email}
-                                        onChange={handleChange}
-                                        className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none bg-gray-50 focus:bg-white placeholder-gray-400 text-gray-900"
-                                        placeholder="Email Address"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Phone */}
-                            <div>
-                                <label htmlFor="phone" className="sr-only">Phone Number</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Phone className="h-5 w-5 text-gray-400" />
-                                    </div>
-                                    <input
-                                        id="phone"
                                         name="phone"
                                         type="tel"
                                         required
                                         value={formData.phone}
                                         onChange={handleChange}
-                                        className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none bg-gray-50 focus:bg-white placeholder-gray-400 text-gray-900"
-                                        placeholder="Phone Number"
+                                        className="w-full pl-14 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        placeholder="+1 234 567"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Email Address</label>
+                                <div className="relative group">
+                                    <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                                    <input
+                                        name="email"
+                                        type="email"
+                                        required
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        className="w-full pl-14 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        placeholder="name@example.com"
                                     />
                                 </div>
                             </div>
 
-                            {/* Password */}
-                            <div>
-                                <label htmlFor="password" className="sr-only">Password</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Lock className="h-5 w-5 text-gray-400" />
-                                    </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Password</label>
+                                <div className="relative group">
+                                    <Lock className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
                                     <input
-                                        id="password"
                                         name="password"
                                         type="password"
                                         required
                                         value={formData.password}
                                         onChange={handleChange}
-                                        className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none bg-gray-50 focus:bg-white placeholder-gray-400 text-gray-900"
-                                        placeholder="Create Password"
+                                        className="w-full pl-14 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        placeholder="••••••••"
                                     />
                                 </div>
                             </div>
+                        </div>
 
-                            <button
-                                type="submit"
-                                disabled={loading || !tenantId}
-                                className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5 mt-2"
-                            >
-                                {loading ? (
-                                    <span className="flex items-center">
-                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Creating Account...
-                                    </span>
-                                ) : (
-                                    "Create Account"
-                                )}
-                            </button>
-                        </form>
-                    </div>
+                        <div className="flex items-center gap-2 px-4 py-3 bg-indigo-50/50 rounded-2xl">
+                            <Sparkles className="text-indigo-500 w-4 h-4" />
+                            <p className="text-[10px] font-bold text-indigo-600 leading-tight">By creating an account, you agree to our Terms of Service and Privacy Policy.</p>
+                        </div>
 
-                    <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 text-center">
-                        <p className="text-sm text-gray-600">
+                        <button
+                            type="submit"
+                            disabled={loading || !tenantId}
+                            className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-5 rounded-full font-bold shadow-xl shadow-indigo-100 hover:shadow-2xl hover:translate-y-[-2px] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-[11px] uppercase tracking-[0.2em] mt-4"
+                        >
+                            {loading ? 'Creating Account...' : (
+                                <>
+                                    Complete Selection <ArrowRight size={20} />
+                                </>
+                            )}
+                        </button>
+                    </form>
+
+                    <div className="mt-12 pt-10 border-t border-slate-50 text-center">
+                        <p className="text-slate-500 text-sm font-medium">
                             Already have an account?{' '}
                             <Link
                                 to={`/candidate/login?tenantId=${tenantId}&redirect=${encodeURIComponent(redirect)}`}
-                                className="font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                                className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors ml-1 underline underline-offset-4 decoration-indigo-200"
                             >
-                                Login here
+                                Sign in here
                             </Link>
                         </p>
                     </div>
                 </div>
 
-                <div className="mt-8 text-center">
-                    <p className="text-xs text-gray-400">
-                        &copy; {new Date().getFullYear()} {company.name}. Powered by Gitakshmi HRMS.
+                <div className="mt-12 text-center">
+                    <p className="text-[10px] font-bold text-slate-400 tracking-[0.2em] uppercase">
+                        &copy; {new Date().getFullYear()} {company.name} <span className="mx-2">/</span> Powered by Gitakshmi HRMS
                     </p>
                 </div>
             </div>

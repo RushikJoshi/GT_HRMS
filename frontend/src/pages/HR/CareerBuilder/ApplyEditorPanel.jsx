@@ -6,6 +6,99 @@ export default function ApplyEditorPanel({ config, selectedSectionId, onUpdateSe
     // Find the currently selected section
     const currentSection = config.sections.find(s => s.id === selectedSectionId);
 
+    // SPECIAL CASE: Hero Section
+    if (selectedSectionId === 'hero') {
+        const banner = config.banner || {};
+        return (
+            <div className="w-96 bg-white border-l border-gray-200 flex flex-col shrink-0 h-full overflow-hidden text-gray-800 font-sans z-30 shadow-xl">
+                <div className="px-6 py-5 border-b border-gray-100 bg-white">
+                    <h2 className="text-sm font-black text-gray-900 tracking-tight text-blue-600">Hero Section</h2>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Banner Customization</p>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                    {/* Section Heading */}
+                    <div className="space-y-3">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Section Heading (Title)</label>
+                        <input
+                            type="text"
+                            value={banner.title || ''}
+                            onChange={(e) => onUpdateSection('hero', { title: e.target.value })}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                            placeholder="e.g. Join Our Amazing Team"
+                        />
+                    </div>
+
+                    {/* Headline Text */}
+                    <div className="space-y-3">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Headline Text (Subtitle)</label>
+                        <textarea
+                            value={banner.subtitle || ''}
+                            onChange={(e) => onUpdateSection('hero', { subtitle: e.target.value })}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all h-24 resize-none"
+                            placeholder="Innovate, grow, and build the future with us."
+                        />
+                    </div>
+
+                    <div className="h-px bg-gray-100"></div>
+
+                    {/* Background Style */}
+                    <div className="space-y-4">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Background Style</label>
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
+                            <button
+                                onClick={() => onUpdateSection('hero', { bgType: 'gradient' })}
+                                className={`py-2 text-[10px] font-bold uppercase rounded-lg transition-all ${banner.bgType !== 'image' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}
+                            >
+                                Gradient
+                            </button>
+                            <button
+                                onClick={() => onUpdateSection('hero', { bgType: 'image' })}
+                                className={`py-2 text-[10px] font-bold uppercase rounded-lg transition-all ${banner.bgType === 'image' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}
+                            >
+                                Image
+                            </button>
+                        </div>
+
+                        {banner.bgType === 'image' ? (
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">Image URL</label>
+                                <input
+                                    type="text"
+                                    value={banner.bgImage || ''}
+                                    onChange={(e) => onUpdateSection('hero', { bgImage: e.target.value })}
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs focus:border-blue-500 outline-none"
+                                    placeholder="https://images.unsplash.com/..."
+                                />
+                                <p className="text-[9px] text-gray-400 italic">Enter a direct image link for the banner background.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">Tailwind Gradient Classes</label>
+                                <input
+                                    type="text"
+                                    value={banner.bgColor || ''}
+                                    onChange={(e) => onUpdateSection('hero', { bgColor: e.target.value })}
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-[11px] font-mono focus:border-blue-500 outline-none"
+                                    placeholder="from-blue-600 to-purple-600"
+                                />
+                                <div className="grid grid-cols-4 gap-2">
+                                    {['from-blue-600 to-indigo-700', 'from-purple-600 to-pink-500', 'from-emerald-500 to-teal-700', 'from-slate-800 to-slate-900'].map(g => (
+                                        <div
+                                            key={g}
+                                            onClick={() => onUpdateSection('hero', { bgColor: g })}
+                                            className={`h-8 rounded-lg cursor-pointer border-2 bg-gradient-to-r ${g} ${banner.bgColor === g ? 'border-white ring-2 ring-blue-400' : 'border-transparent'}`}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (!selectedSectionId || !currentSection) {
         return (
             <div className="w-80 bg-white border-l border-gray-200 p-8 flex flex-col items-center justify-center text-center shrink-0">

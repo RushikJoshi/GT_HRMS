@@ -165,9 +165,8 @@ function getTenantDB(tenantId) {
   if (!tenantId) throw new Error("tenantId required for getTenantDB");
   connectionAccessTime[tenantId] = Date.now();
 
-  // If already in cache, still run through registerModels (which now refreshes critical schemas)
+  // If already in cache, return immediately
   if (tenantDbs[tenantId]) {
-    registerModels(tenantDbs[tenantId], tenantId, false);
     return tenantDbs[tenantId];
   }
 
@@ -190,7 +189,7 @@ function getTenantDB(tenantId) {
 
   const dbName = `company_${tenantId}`;
   const tenantDb = mongoose.connection.useDb(dbName, { useCache: true });
-  registerModels(tenantDb, tenantId, true); // Force full refresh once on new connection load
+  registerModels(tenantDb, tenantId, false); // Optimized: Only register if not already done
   tenantDbs[tenantId] = tenantDb;
   return tenantDb;
 }

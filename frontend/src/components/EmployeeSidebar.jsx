@@ -126,7 +126,8 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
     };
 
     return (
-        <aside className="w-full h-full bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col shadow-lg overflow-hidden">
+        <aside className="w-full h-full bg-gradient-to-b from-[#0F172A] via-[#1E1B4B] to-[#0F172A] border-r border-indigo-900/30 text-slate-300 flex flex-col shadow-2xl overflow-hidden relative">
+            <div className="absolute inset-0 bg-indigo-500/5 pointer-events-none opacity-30"></div>
 
             {/* Header / Brand */}
             <div className="px-4 py-6 flex-shrink-0 border-b border-slate-800">

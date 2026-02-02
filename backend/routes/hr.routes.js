@@ -144,6 +144,7 @@ router.use('/hr/career', require('./career.routes'));
 router.get('/hr/candidate-status', trackerCtrl.getCandidates);
 router.get('/hr/candidate-status/:id', trackerCtrl.getCandidateById);
 router.get('/hr/candidate-status/:id/timeline', trackerCtrl.getTimeline);
+router.get('/hr/candidate/:id/status', trackerCtrl.getStatus); // NEW ROUTE
 router.post('/hr/candidate-status/:id/status', trackerCtrl.updateStatus);
 router.post('/hr/candidate-status/seed', trackerCtrl.seedData);
 

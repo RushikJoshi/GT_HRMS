@@ -128,6 +128,9 @@ const payrollAdjustmentRoutes = require('./routes/payrollAdjustment.routes');
 const companyIdConfigRoutes = require('./routes/companyIdConfig.routes');
 const positionRoutes = require('./routes/position.routes');
 
+// Career Page (Optimized for 16MB limit fix)
+const careerOptimizedRoutes = require('./routes/career-optimized.routes');
+
 /* ===============================
    ROUTES (NO TENANT)
 ================================ */

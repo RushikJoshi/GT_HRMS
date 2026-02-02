@@ -110,6 +110,7 @@ const OutletProxy = () => <Outlet />;
 export default function AppRoutes() {
     return (
         <Routes>
+            {/* Root - Auto Redirect based on Auth */}
             <Route path="/" element={<AutoHome />} />
 
             {/* --- PUBLIC AUTH ROUTES (EXISTING - KEEP FOR BACKWARD COMPATIBILITY) --- */}

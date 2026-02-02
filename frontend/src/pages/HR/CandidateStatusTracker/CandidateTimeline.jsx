@@ -15,7 +15,7 @@ export default function CandidateTimeline() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [candidate, setCandidate] = useState(null);
-    const [timeline, setTimeline] = useState([]);
+    const [timeline, setTimeline] = useState({});
     const [interview, setInterview] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedButtonLoading, setSelectedButtonLoading] = useState('');
@@ -33,7 +33,6 @@ export default function CandidateTimeline() {
     // Available rounds (you can fetch from settings if needed)
     const availableRounds = [
         { id: 'shortlisted', label: 'Shortlisted' },
-        { id: 'hr-round', label: 'HR Round' },
         { id: 'technical-round', label: 'Technical Round' },
         { id: 'final-round', label: 'Final Round' }
     ];
@@ -42,22 +41,19 @@ export default function CandidateTimeline() {
         setLoading(true);
         try {
             // Fetch candidate directly by ID
-            const cRes = await api.get(`/hr/candidate-status/${id}`);
+            const cRes = await api.get(`/hr/candidate-status/candidates/${id}`);
             const found = cRes.data;
             setCandidate(found);
 
-            // Get timeline
-            const tRes = await api.get(`/hr/candidate-status/${id}/timeline`);
-            setTimeline(tRes.data || []);
+            // Get timeline using new endpoint
+            const statusRes = await api.get(`/hr/candidate/${id}/status`);
+            setTimeline(statusRes.data || {});
 
-            // Fetch interview if exists
+            // Fetch interview if exists (optional)
             try {
                 const iRes = await api.get(`/interviews/${id}`);
-                if (iRes.data) {
-                    setInterview(iRes.data);
-                }
+                setInterview(iRes.data || null);
             } catch (iErr) {
-                // Interview not found, that's OK
                 setInterview(null);
             }
 
@@ -238,7 +234,7 @@ export default function CandidateTimeline() {
                     candidate={candidate}
                     interview={interview}
                     showInterviewDetails={!!interview}
-                    showActionButtons={!!interview}
+                    showActionButtons={true}
                     onSelected={handleSelected}
                     onRejected={handleRejected}
                     onMoveToRound={handleMoveToRound}
@@ -250,33 +246,7 @@ export default function CandidateTimeline() {
         );
     };
 
-    const renderHRRoundTab = () => {
-        if (!candidate) return null;
-        if (candidate.currentStatus !== 'Selected') return null;
 
-        return (
-            <div className="bg-white rounded-xl border border-emerald-200/60 p-6 shadow-sm">
-                <div className="flex items-start gap-4 mb-6">
-                    <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-                        <CheckCircle size={24} strokeWidth={2} />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="text-lg font-bold text-slate-900 mb-1">Selected for HR Round</h3>
-                        <p className="text-sm text-slate-600">
-                            ✅ <span className="font-semibold text-emerald-600">Selected — Processed on {dayjs(candidate.updatedAt).format('MMM DD, YYYY')}</span>
-                        </p>
-                    </div>
-                </div>
-
-                {/* Candidate details */}
-                <CandidateCard
-                    candidate={candidate}
-                    showInterviewDetails={false}
-                    showActionButtons={false}
-                />
-            </div>
-        );
-    };
 
     const renderRejectedTab = () => {
         if (!candidate) return null;
@@ -307,6 +277,50 @@ export default function CandidateTimeline() {
     };
 
     const renderTimeline = () => {
+        const steps = [
+            { key: 'applied', label: 'APPLIED', icon: PlusCircle },
+            { key: 'shortlisted', label: 'SHORTLISTED', icon: Award },
+            { key: 'interview', label: 'INTERVIEW SCHEDULED', icon: PlayCircle },
+            { key: 'selected', label: 'SELECTED', icon: CheckCircle },
+            { key: 'rejected', label: 'REJECTED', icon: XCircle },
+        ];
+
+        // Filter out steps that shouldn't be shown?
+        // User requirements: "If selected = true -> auto-mark previous... If rejected -> mark that stage red".
+        // The backend returns an object with all keys.
+        // We usually don't show "Rejected" and "Selected" together appropriately.
+        // If rejected has status, we might want to prioritize showing it? 
+        // Or simply show all 5 if they have data? 
+        // Let's show all that have data OR are standard pipeline (Applied/Shortlisted/Interview). 
+        // Actually, just show all 5 in order, but maybe hide Rejected if null?
+        // User example had `rejected: { status: null }`. 
+        // So we should hide rejected if status is null.
+
+        const validSteps = steps.filter(step => {
+            // always show first 3?
+            if (['applied', 'shortlisted', 'interview'].includes(step.key)) return true;
+            // Show selected/rejected only if they have status?
+            // Actually, the user wants "timeline icons should change color".
+            // If we hide "Selected" slot when it's null, the timeline looks unfinished.
+            // But "Rejected" is an alternative ending.
+
+            const data = timeline[step.key];
+            // If rejected has data, show it.
+            if (step.key === 'rejected') return data && data.status;
+
+            // If selected has data, show it. If rejected has data, maybe hide selected if selected is null?
+            if (step.key === 'selected') {
+                // If we are rejected, usually we don't show "Selected" slot?
+                // Let's just show it if it exists or if we are not rejected?
+                // Simple approach: Show Applied, Shortlisted, Interview, Selected. 
+                // If Rejected exists, show it INSTEAD of Selected? or After?
+                // Let's just filter strictly by existence or standard flow.
+                if (timeline.rejected && timeline.rejected.status) return false; // Hide selected if rejected
+                return true; // Show selected slot (maybe empty) if not rejected
+            }
+            return true;
+        });
+
         return (
             <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 mb-8 flex items-center gap-2">
@@ -314,98 +328,62 @@ export default function CandidateTimeline() {
                     Execution Timeline
                 </h3>
 
-                {timeline.length === 0 ? (
-                    <div className="py-20 text-center text-slate-400 italic bg-slate-50 rounded-xl border-2 border-dashed border-slate-100">
-                        No timeline logs yet.
-                    </div>
-                ) : (
-                    <div className="relative ml-4">
-                        {/* Vertical Line */}
-                        <div className="absolute left-0 top-0 w-0.5 h-full bg-slate-100 -ml-[1px]"></div>
+                <div className="relative ml-4">
+                    {/* Vertical Line */}
+                    <div className="absolute left-0 top-0 w-0.5 h-full bg-slate-100 -ml-[1px]"></div>
 
-                        <div className="space-y-12">
-                            {(() => {
-                                // Group logs by stage
-                                const grouped = timeline.reduce((acc, log) => {
-                                    let stageKey = log.stage || 'Others';
+                    <div className="space-y-12">
+                        {validSteps.map((step, idx) => {
+                            const data = timeline[step.key] || { status: null, time: null };
+                            const status = data.status; // 'completed', 'in-progress', 'rejected', null
 
-                                    if (log.status === 'Shortlisted') stageKey = 'Interview';
-                                    if (stageKey.toUpperCase().includes('INTERVIEW')) stageKey = 'Interview';
-                                    else if (stageKey.toUpperCase().includes('FINAL') || stageKey.toUpperCase().includes('SELECTED') || stageKey.toUpperCase().includes('REJECTED')) stageKey = 'Final';
-                                    else if (stageKey.toUpperCase().includes('APPLICATION') || stageKey.toUpperCase().includes('APPLIED')) stageKey = 'Application';
+                            // Colors
+                            let colorClass = "text-slate-400 bg-white border-slate-200"; // Default
+                            let iconColor = "text-slate-300";
 
-                                    if (!acc[stageKey]) acc[stageKey] = [];
-                                    acc[stageKey].push(log);
-                                    return acc;
-                                }, {});
+                            if (status === 'completed') {
+                                colorClass = "text-emerald-600 bg-emerald-50 border-emerald-100";
+                                iconColor = "text-emerald-500";
+                            } else if (status === 'in-progress') {
+                                colorClass = "text-blue-600 bg-blue-50 border-blue-100";
+                                iconColor = "text-blue-500";
+                            } else if (status === 'rejected') {
+                                colorClass = "text-rose-600 bg-rose-50 border-rose-100";
+                                iconColor = "text-rose-500";
+                            }
 
-                                const stageOrder = ['Final', 'Interview', 'Application'];
-                                const sortedStageKeys = Object.keys(grouped).sort((a, b) => {
-                                    const idxA = stageOrder.indexOf(a);
-                                    const idxB = stageOrder.indexOf(b);
-                                    if (idxA === -1 && idxB === -1) return 0;
-                                    if (idxA === -1) return -1;
-                                    if (idxB === -1) return 1;
-                                    return idxA - idxB;
-                                });
-
-                                return sortedStageKeys.map((stageName, groupIndex) => {
-                                    const groupLogs = grouped[stageName];
-                                    groupLogs.sort((a, b) => new Date(b.actionDate) - new Date(a.actionDate));
-
-                                    return (
-                                        <div key={stageName} className="relative pl-10">
-                                            <div className="absolute left-0 top-0 -ml-[21px] p-2 bg-white rounded-full border-2 border-slate-100 shadow-sm z-10">
-                                                {stageName === 'Interview' ? <MessageSquare size={20} className="text-purple-500" /> :
-                                                    stageName === 'Final' ? <CheckCircle size={20} className="text-emerald-500" /> :
-                                                        stageName === 'Application' ? <PlusCircle size={20} className="text-blue-500" /> :
-                                                            <Clock size={20} className="text-slate-400" />
-                                                }
-                                            </div>
-
-                                            <div className="bg-slate-50/50 hover:bg-slate-50 rounded-2xl p-5 border border-slate-100 transition">
-                                                <div className="flex items-center justify-between mb-6 border-b border-slate-200/60 pb-3">
-                                                    <h4 className="text-sm font-black text-slate-800 uppercase">
-                                                        {stageName === 'Application' ? 'APPLICATION RECEIVED' :
-                                                            stageName === 'Interview' ? 'INTERVIEW PROCESS' :
-                                                                stageName === 'Final' ? 'FINAL DECISION' : stageName}
-                                                    </h4>
-                                                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded">
-                                                        {groupLogs.length} updates
-                                                    </span>
-                                                </div>
-
-                                                <div className="space-y-6">
-                                                    {groupLogs.map((log) => (
-                                                        <div key={log._id} className="relative pl-4 border-l-2 border-slate-200/60">
-                                                            <div className="absolute left-0 top-1.5 -ml-[5px] w-2 h-2 rounded-full bg-slate-300 ring-2 ring-white"></div>
-                                                            <div className="flex justify-between gap-1 mb-2">
-                                                                <span className={`text-xs font-bold ${log.status === 'Shortlisted' ? 'text-amber-600' :
-                                                                        log.status === 'Interview Scheduled' ? 'text-purple-600' :
-                                                                            log.status === 'Selected' ? 'text-emerald-600' :
-                                                                                log.status === 'Rejected' ? 'text-rose-600' :
-                                                                                    'text-slate-600'
-                                                                    }`}>
-                                                                    {log.status}
-                                                                </span>
-                                                                <span className="text-[10px] text-slate-400">
-                                                                    {dayjs(log.actionDate).format('MMM DD, hh:mm A')}
-                                                                </span>
-                                                            </div>
-                                                            <p className="text-xs text-slate-500 italic bg-white p-2 rounded border border-slate-100">
-                                                                "{log.remarks || 'No remarks'}"
-                                                            </p>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
+                            return (
+                                <div key={step.key} className="relative pl-10">
+                                    <div className={`absolute left-0 top-0 -ml-[21px] p-2 rounded-full border-2 shadow-sm z-10 bg-white ${status === 'completed' ? 'border-emerald-100' : (status === 'rejected' ? 'border-rose-100' : 'border-slate-100')}`}>
+                                        <step.icon size={20} className={iconColor} />
+                                    </div>
+                                    <div className={`rounded-2xl p-5 border transition ${status ? 'bg-slate-50/50' : 'bg-white'} border-slate-100`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h4 className="text-sm font-black text-slate-800 uppercase">
+                                                {step.label}
+                                            </h4>
+                                            {data.time && (
+                                                <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-1 rounded border border-slate-100">
+                                                    {data.time}
+                                                </span>
+                                            )}
                                         </div>
-                                    );
-                                });
-                            })()}
-                        </div>
+
+                                        <div className="min-h-[24px]">
+                                            {status ? (
+                                                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border ${colorClass}`}>
+                                                    {status === 'in-progress' ? 'In Progress' : status}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-slate-400 italic"></span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
-                )}
+                </div>
             </div>
         );
     };
@@ -461,9 +439,8 @@ export default function CandidateTimeline() {
                 {/* Tab Navigation */}
                 <div className="flex items-center gap-2 mb-8 bg-white rounded-xl border border-slate-200 p-2 shadow-sm">
                     {[
-                        { id: 'shortlisted', label: '⭐ Shortlisted', show: candidate.currentStatus === 'Shortlisted' || candidate.currentStatus === 'Interview Scheduled' },
-                        { id: 'interview', label: '📞 Interview', show: candidate.currentStatus === 'Interview Scheduled' },
-                        { id: 'hr-round', label: '✅ HR Round', show: candidate.currentStatus === 'Selected' },
+                        { id: 'shortlisted', label: '⭐ Shortlisted', show: false },
+                        { id: 'interview', label: '📞 Interview', show: false },
                         { id: 'rejected', label: '❌ Rejected', show: candidate.currentStatus === 'Rejected' },
                         { id: 'timeline', label: '📅 Timeline', show: true }
                     ].map(tab => tab.show && (
@@ -471,8 +448,8 @@ export default function CandidateTimeline() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === tab.id
-                                    ? 'bg-indigo-600 text-white shadow-md'
-                                    : 'text-slate-600 hover:bg-slate-100'
+                                ? 'bg-indigo-600 text-white shadow-md'
+                                : 'text-slate-600 hover:bg-slate-100'
                                 }`}
                         >
                             {tab.label}
@@ -484,7 +461,6 @@ export default function CandidateTimeline() {
                 <div className="space-y-6">
                     {activeTab === 'shortlisted' && renderShortlistTab()}
                     {activeTab === 'interview' && renderInterviewTab()}
-                    {activeTab === 'hr-round' && renderHRRoundTab()}
                     {activeTab === 'rejected' && renderRejectedTab()}
                     {activeTab === 'timeline' && renderTimeline()}
                 </div>
@@ -530,8 +506,8 @@ export default function CandidateTimeline() {
                                             type="button"
                                             onClick={() => setFormData({ ...formData, stage: s })}
                                             className={`py-2 text-xs font-bold rounded-lg border transition ${formData.stage === s
-                                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
-                                                    : 'bg-white border-slate-100 text-slate-500'
+                                                ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                                                : 'bg-white border-slate-100 text-slate-500'
                                                 }`}
                                         >
                                             {s}
