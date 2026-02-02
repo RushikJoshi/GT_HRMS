@@ -1,130 +1,284 @@
-const fs = require('fs');
-const path = require('path');
-const PDFDocument = require('pdfkit');
 const mongoose = require('mongoose');
-const RequirementSchema = require('../models/Requirement');
-const ApplicantSchema = require('../models/Applicant');
-const OfferLetterTemplateSchema = require('../models/OfferLetterTemplate');
+const { v4: uuidv4 } = require('uuid');
+const OfferSchema = require('../models/Offer');
 
-/* ----------------------------------------------------
-   HELPER → Load model from dynamic tenant database or main DB
----------------------------------------------------- */
-function getModels(req) {
-    if (req.tenantDB) {
-        const db = req.tenantDB;
-        return {
-            Requirement: db.model("Requirement", RequirementSchema),
-            Applicant: db.model("Applicant", ApplicantSchema),
-            OfferLetterTemplate: db.model("OfferLetterTemplate", OfferLetterTemplateSchema)
-        };
-    } else {
-        return {
-            Requirement: mongoose.model("Requirement", RequirementSchema),
-            Applicant: mongoose.model("Applicant", ApplicantSchema),
-            OfferLetterTemplate: mongoose.model("OfferLetterTemplate", OfferLetterTemplateSchema)
-        };
-    }
-}
+// GLOBAL MODEL for Shared Collection (Fixes 500 collections limit)
+const GlobalOfferModel = mongoose.models.GlobalOffer || mongoose.model('GlobalOffer', OfferSchema, 'offers');
 
-exports.generateOfferLetter = async (req, res) => {
+/**
+ * Create a New Offer
+ */
+exports.createOfferRecord = async (req, res) => {
     try {
-        const { applicantId } = req.params;
-        const { joiningDate, dob, location, templateId, position, probationPeriod } = req.body;
-        const { Applicant, Requirement } = getModels(req);
+        const { applicantId, jobTitle, ctc, joiningDate, department, location, expiryHours } = req.body;
 
-        const applicant = await Applicant.findById(applicantId).populate('requirementId');
-        if (!applicant) {
-            return res.status(404).json({ error: "Applicant not found" });
-        }
+        // Use Tenant DB for Applicant Read
+        const Applicant = req.tenantDB.model('Applicant');
+        const applicant = await Applicant.findById(applicantId);
 
-        const requirement = applicant.requirementId;
-        if (!requirement) {
-            return res.status(404).json({ error: "Job requirement details missing" });
-        }
+        if (!applicant) return res.status(404).json({ error: 'Applicant not found' });
 
-        // Ensure uploads/offers directory exists
-        const offersDir = path.join(__dirname, '../uploads/offers');
-        if (!fs.existsSync(offersDir)) {
-            fs.mkdirSync(offersDir, { recursive: true });
-        }
+        // 1. Mark previous offers as non-latest (Global DB)
+        await GlobalOfferModel.updateMany(
+            { candidateId: applicantId, tenantId: req.user.tenantId, isLatest: true },
+            { isLatest: false, status: 'Revoked' }
+        );
 
-        const filename = `Offer_${applicant.name.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
-        const filePath = path.join(offersDir, filename);
+        // 2. Calculate Expiry
+        const validHours = expiryHours || 48;
+        const now = new Date();
+        const expiry = new Date(now.getTime() + (validHours * 60 * 60 * 1000));
+        const token = uuidv4();
 
-        // Company info (you can fetch from tenant or database)
-        const companyInfo = {
-            name: 'Gitakshmi Technologies',
-            tagline: 'TECHNOLOGIES',
-            address: 'Ahmedabad, Gujarat - 380051',
-            phone: '+91 1234567890',
-            email: 'hr@gitakshmi.com',
-            website: 'www.gitakshmi.com',
-            refPrefix: 'GITK',
-            signatoryName: 'HR Manager',
-            logo: 'https://via.placeholder.com/150x60/4F46E5/FFFFFF?text=COMPANY+LOGO'
-        };
+        // 3. Create Offer in Global DB
+        const newOffer = new GlobalOfferModel({
+            tenantId: req.user.tenantId,
+            candidateId: applicantId,
+            jobId: applicant.requirementId, // Store ID
 
-        const offerData = {
-            joiningDate,
-            location: location || applicant.workLocation || 'Ahmedabad',
-            position: position || requirement.jobTitle,
-            probationPeriod: probationPeriod || '3 months'
-        };
+            jobTitle: jobTitle || applicant.jobTitle || 'Role',
+            salary: ctc || applicant.ctc || 0,
+            joiningDate: joiningDate || applicant.joiningDate,
+            expiryDate: expiry,
+            location: location || applicant.location,
+            department: department || applicant.department,
+            token,
+            tokenExpiry: expiry,
+            status: 'Draft',
+            history: [{ action: 'Created', by: req.user.email || req.user.userId, timestamp: new Date(), metadata: { validHours } }],
+            createdBy: req.user.userId,
+            isLatest: true,
 
-        // Generate HTML
-        const { generateOfferLetterHTML } = require('../utils/offerLetterTemplate');
-        const html = generateOfferLetterHTML(applicant, offerData, companyInfo);
-
-        // Use puppeteer to generate PDF
-        const puppeteer = require('puppeteer');
-        const browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            // Snapshot Fields (Since we can't cross-db populate)
+            candidateName: applicant.name,
+            candidateEmail: applicant.email,
+            pdfUrl: '',
         });
 
-        const page = await browser.newPage();
-        await page.setContent(html, { waitUntil: 'networkidle0' });
+        await newOffer.save();
 
-        await page.pdf({
-            path: filePath,
-            format: 'A4',
-            printBackground: true,
-            margin: {
-                top: '20mm',
-                right: '15mm',
-                bottom: '20mm',
-                left: '15mm'
-            }
-        });
+        res.status(201).json({ success: true, offer: newOffer });
 
-        await browser.close();
+    } catch (err) {
+        console.error("Create Offer Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+};
 
-        const downloadUrl = `/uploads/offers/${filename}`;
+/**
+ * HR: List All Offers
+ */
+exports.getOffers = async (req, res) => {
+    try {
+        // Find offers in Global Collection belonging to this Tenant
+        const offers = await GlobalOfferModel.find({ tenantId: req.user.tenantId })
+            .sort({ createdAt: -1 });
 
-        // Update applicant status
-        applicant.status = 'Selected';
-        applicant.offerLetterPath = filename;
-        if (joiningDate) applicant.joiningDate = joiningDate;
-        if (dob) applicant.dob = dob;
-        if (location) applicant.workLocation = location;
+        // Note: 'applicantId' and 'jobId' are NOT populated because they live in a different DB.
+        // Frontend must rely on 'candidateName' and 'jobTitle' snapshot fields.
 
-        if (!applicant.timeline) applicant.timeline = [];
-        applicant.timeline.push({
-            status: 'Offered',
-            message: `Offer letter generated. Joining date: ${joiningDate ? new Date(joiningDate).toLocaleDateString() : 'TBD'}.`,
-            updatedBy: req.user?.name || "HR",
+        res.json(offers);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * HR: Get Offer Detail
+ */
+exports.getOfferById = async (req, res) => {
+    try {
+        const offer = await GlobalOfferModel.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+        if (!offer) return res.status(404).json({ error: "Offer not found" });
+        res.json(offer);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * HR: Cancel/Revoke Offer
+ */
+exports.cancelOffer = async (req, res) => {
+    try {
+        const offer = await GlobalOfferModel.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+
+        if (!offer) return res.status(404).json({ error: "Offer not found" });
+        if (offer.status === 'Accepted' || offer.status === 'Rejected') {
+            return res.status(400).json({ error: "Cannot cancel a finalized offer" });
+        }
+
+        offer.status = 'Revoked';
+        offer.history.push({
+            action: 'Revoked',
+            by: req.user.name || req.user.userId,
             timestamp: new Date()
         });
 
-        await applicant.save();
+        await offer.save();
+        res.json({ success: true, message: "Offer Revoked Successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
 
+/**
+ * HR: Re-Offer (Clone and Create New)
+ */
+exports.reOffer = async (req, res) => {
+    try {
+        const oldOffer = await GlobalOfferModel.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+
+        if (!oldOffer) return res.status(404).json({ error: "Original Offer not found" });
+
+        // Update Old
+        oldOffer.status = 'ReOffered';
+        oldOffer.isLatest = false;
+        await oldOffer.save();
+
+        // Create New (Clone)
+        const expiry = new Date();
+        expiry.setHours(expiry.getHours() + 48);
+
+        const newOffer = new GlobalOfferModel({
+            tenantId: req.user.tenantId,
+            candidateId: oldOffer.candidateId,
+            jobId: oldOffer.jobId,
+
+            jobTitle: oldOffer.jobTitle,
+            department: oldOffer.department,
+            location: oldOffer.location,
+            salary: oldOffer.salary,
+            joiningDate: oldOffer.joiningDate,
+
+            candidateName: oldOffer.candidateName,
+            candidateEmail: oldOffer.candidateEmail,
+
+            offerDate: new Date(),
+            expiryDate: expiry,
+            token: uuidv4(),
+            status: 'Sent',
+            isLatest: true,
+            // Copy File Details
+            letterPath: oldOffer.letterPath,
+            letterUrl: oldOffer.letterUrl,
+            pdfUrl: oldOffer.pdfUrl,
+            offerCode: oldOffer.offerCode, // Reuse code? Or generatet new? Usually re-offer uses same code.
+            reofferCount: (oldOffer.reofferCount || 0) + 1,
+            history: [{ action: 'Re-Offered', by: req.user.email || req.user.id, timestamp: new Date(), metadata: { fromOfferId: oldOffer._id } }]
+        });
+
+        await newOffer.save();
+        res.json({ success: true, offer: newOffer, message: "Re-Offer Record Created" });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * PUBLIC: Get Offer Details by Token
+ * Note: Simpler now because Global Search works across tenants.
+ */
+exports.getPublicOffer = async (req, res) => {
+    try {
+        const { token } = req.params;
+        if (!token) return res.status(400).json({ error: "Token required" });
+
+        // Global Search
+        const offer = await GlobalOfferModel.findOne({ token, isLatest: true });
+
+        if (!offer) return res.status(404).json({ error: "Offer not found or invalid link" });
+
+        // Check Expiry
+        if (new Date() > offer.expiryDate) {
+            return res.status(410).json({ error: "Offer link has expired", expired: true });
+        }
+
+        // Return limited details
         res.json({
-            message: "Offer letter generated successfully",
-            downloadUrl
+            jobTitle: offer.jobTitle,
+            offerDate: offer.offerDate,
+            expiryDate: offer.expiryDate,
+            ctc: offer.ctc,
+            status: offer.status
         });
 
     } catch (err) {
-        console.error("Generate offer letter error:", err);
-        res.status(500).json({ error: "Failed to generate offer letter", details: err.message });
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * PUBLIC: Accept Offer
+ */
+exports.acceptOffer = async (req, res) => {
+    try {
+        const { token } = req.params;
+        const { ip } = req.body; // tenantId not strictly needed for lookup now
+
+        const offer = await GlobalOfferModel.findOne({ token });
+        if (!offer) return res.status(404).json({ error: 'Offer not found' });
+
+        if (offer.status !== 'Sent' && offer.status !== 'Viewed') {
+            return res.status(400).json({ error: `Offer is currently ${offer.status}` });
+        }
+
+        if (new Date() > offer.expiryDate) {
+            return res.status(410).json({ error: 'Offer expired' });
+        }
+
+        // Update Offer
+        offer.status = 'Accepted';
+        offer.acceptedAt = new Date();
+        offer.ipAddress = ip;
+        offer.history.push({ action: 'Accepted', by: 'Candidate', timestamp: new Date() });
+        await offer.save();
+
+        // Update Applicant (Need to connect to correct Tenant DB)
+        // We have offer.tenantId, so we can get the DB connection!
+        const getTenantDB = require('../utils/tenantDB');
+        const db = await getTenantDB(offer.tenantId);
+        const Applicant = db.model('Applicant');
+
+        await Applicant.findByIdAndUpdate(offer.candidateId, {
+            status: 'Offer Accepted',
+            hasOtherOffer: false
+        });
+
+        res.json({ success: true, message: "Offer Accepted Successfully" });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * PUBLIC: Reject Offer
+ */
+exports.rejectOffer = async (req, res) => {
+    try {
+        const { token } = req.params;
+        const { reason } = req.body;
+
+        const offer = await GlobalOfferModel.findOne({ token });
+        if (!offer) return res.status(404).json({ error: 'Offer not found' });
+
+        offer.status = 'Rejected';
+        offer.rejectedAt = new Date();
+        offer.rejectionReason = reason;
+        offer.history.push({ action: 'Rejected', by: 'Candidate', metadata: { reason } });
+        await offer.save();
+
+        // Update Applicant
+        const getTenantDB = require('../utils/tenantDB');
+        const db = await getTenantDB(offer.tenantId);
+        const Applicant = db.model('Applicant');
+
+        await Applicant.findByIdAndUpdate(offer.candidateId, { status: 'Offer Rejected' });
+
+        res.json({ success: true, message: "Offer Rejected" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };

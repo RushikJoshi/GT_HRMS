@@ -13,6 +13,7 @@ const CandidateSchema = new mongoose.Schema({
     fatherName: { type: String, trim: true },
     address: { type: String },
     dob: { type: Date },
+    offerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Offer' },
 
     // Meta
     createdAt: { type: Date, default: Date.now },

@@ -5,6 +5,7 @@ const ApplicantSchema = new mongoose.Schema({
   tenant: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   candidateId: { type: mongoose.Schema.Types.ObjectId, ref: 'Candidate' },
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' }, // Link to created employee
+  offerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Offer' }, // Link to latest offer
   isOnboarded: { type: Boolean, default: false }, // Track if onboarding is complete
 
   // Personal Details
@@ -56,9 +57,6 @@ const ApplicantSchema = new mongoose.Schema({
     }
   ],
 
-  offerLetterPath: { type: String },
-  offerRefCode: { type: String },
-  joiningLetterPath: { type: String },
   joiningDate: { type: Date },
 
   interview: {

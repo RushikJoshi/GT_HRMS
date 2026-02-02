@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const payrollDashboardController = require('../controllers/payrollDashboard.controller');
-const { authenticateToken, tenantMiddleware } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth.jwt');
 
-// Apply authentication and tenant middleware to all routes
-router.use(authenticateToken);
-router.use(tenantMiddleware);
+// Apply authentication middleware to all routes
+router.use(authenticate);
 
 /**
  * GET /api/payroll/dashboard

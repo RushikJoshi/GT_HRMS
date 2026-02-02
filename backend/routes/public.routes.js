@@ -23,4 +23,11 @@ router.get('/job/:id', publicController.getPublicJobById);
 router.post('/apply-job', publicController.applyJob);
 router.post('/resume/parse', publicController.parseResumePublic);
 
+const offerController = require('../controllers/offer.controller');
+
+// Offer Management (Public)
+router.get('/offer/:token', offerController.getPublicOffer);
+router.post('/offer/:token/accept', offerController.acceptOffer);
+router.post('/offer/:token/reject', offerController.rejectOffer);
+
 module.exports = router;

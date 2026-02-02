@@ -56,6 +56,7 @@ async function connectToDatabase() {
         mongoose.model('Interview', require('./models/Interview'));
         mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
         mongoose.model('CandidateStatusLog', require('./models/CandidateStatusLog'));
+        mongoose.model('GlobalOffer', require('./models/Offer'), 'offers');
     } catch (err) {
         console.error('❌ MongoDB initial connection failed:', err.message);
         // Fallback logic for SRV/DNS issues
@@ -78,6 +79,7 @@ async function connectToDatabase() {
                 mongoose.model('Interview', require('./models/Interview'));
                 mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
                 mongoose.model('CandidateStatusLog', require('./models/CandidateStatusLog'));
+                mongoose.model('GlobalOffer', require('./models/Offer'), 'offers');
                 return;
             }
         }
@@ -135,6 +137,14 @@ async function startServer() {
             } catch (e) {
                 console.warn('ngrok failed:', e.message);
             }
+        }
+
+        // Start Offer Cron Service
+        try {
+            const OfferCronService = require('./services/CronJobService');
+            OfferCronService.start();
+        } catch (err) {
+            console.error('❌ Failed to start Offer Cron service:', err.message);
         }
     });
 }

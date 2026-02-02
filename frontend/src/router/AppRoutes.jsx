@@ -59,6 +59,10 @@ import SalaryStructure from '../pages/HR/SalaryStructure';
 import CreateRequirement from '../pages/HR/CreateRequirement';
 import PositionMaster from '../pages/HR/PositionMaster';
 
+// Offers
+import OffersList from '../pages/HR/Offers/OffersList';
+import OfferDetail from '../pages/HR/Offers/OfferDetail';
+
 // Career Builder
 import CareerBuilder from '../pages/HR/CareerBuilder/CareerBuilder';
 import ApplyPageBuilder from '../pages/HR/CareerBuilder/ApplyPageBuilder';
@@ -215,6 +219,8 @@ export default function AppRoutes() {
                 <Route path="org-tree" element={<CeoOrg />} />
                 <Route path="access" element={<AccessControl />} />
                 <Route path="offer-templates" element={<OfferTemplates />} />
+                <Route path="offers" element={<OffersList />} />
+                <Route path="offers/:id" element={<OfferDetail />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
 
                 {/* Letters */}
@@ -284,6 +290,8 @@ export default function AppRoutes() {
                 <Route path="org-tree" element={<CeoOrg />} />
                 <Route path="access" element={<AccessControl />} />
                 <Route path="offer-templates" element={<OfferTemplates />} />
+                <Route path="offers" element={<OffersList />} />
+                <Route path="offers/:id" element={<OfferDetail />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
 
                 {/* Letters */}

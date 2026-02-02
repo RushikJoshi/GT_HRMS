@@ -7,7 +7,13 @@ const fs = require('fs');
 const fsPromises = require('fs').promises;
 const Docxtemplater = require('docxtemplater');
 const PizZip = require('pizzip');
+
 const joiningLetterUtils = require('../utils/joiningLetterUtils');
+const crypto = require('crypto'); // For token generation
+const OfferSchema = require('../models/Offer');
+
+// GLOBAL MODEL for Shared Collection (Fixes 500 collections limit)
+const GlobalOfferModel = mongoose.models.GlobalOffer || mongoose.model('GlobalOffer', OfferSchema, 'offers');
 
 // Try to load docx2pdf, fallback if not available
 let docx2pdf;
@@ -66,6 +72,10 @@ function getModels(req) {
             try { db.model('CompanyProfile', require('../models/CompanyProfile')); } catch (e) { }
         }
 
+        if (!db.models.Offer) {
+            try { db.model('Offer', require('../models/Offer')); } catch (e) { }
+        }
+
         return {
             CompanyProfile: db.model("CompanyProfile"),
             LetterTemplate: db.model("LetterTemplate"),
@@ -73,6 +83,7 @@ function getModels(req) {
             Applicant: db.model("Applicant"),
             Employee: db.model("Employee"),
             EmployeeSalarySnapshot: db.model("EmployeeSalarySnapshot"),
+            Offer: db.model("Offer"),
             // SalaryStructure is GLOBAL, not tenant-specific
         };
     } catch (err) {
@@ -2012,6 +2023,93 @@ exports.generateOfferLetter = async (req, res) => {
             } catch (idErr) {
                 console.warn("⚠️ [OFFER LETTER] Could not increment sequence:", idErr.message);
             }
+        }
+
+        // --- CREATE OFFER LIFECYCLE RECORD ---
+        try {
+            if (!preview) {
+                // Calculate expiry (Default 48 hours for now)
+                const expiry = new Date();
+                expiry.setHours(expiry.getHours() + 48);
+
+                // Calculate Re-Offer Logic (Using Global Model)
+                const previousOffersCount = await GlobalOfferModel.countDocuments({
+                    candidateId: applicantId,
+                    tenantId: req.user.tenantId
+                });
+
+                const newStatus = previousOffersCount > 0 ? 'ReOffered' : 'Sent';
+
+                // Handle Re-Offer Logic (Mark previous as not latest)
+                await GlobalOfferModel.updateMany(
+                    { candidateId: applicantId, isLatest: true, tenantId: req.user.tenantId },
+                    { $set: { isLatest: false } }
+                );
+
+                // Safe CTC extraction
+                let offerCTC = 0;
+                if (applicant.salarySnapshot && applicant.salarySnapshot.ctc) {
+                    offerCTC = applicant.salarySnapshot.ctc;
+                } else if (req.calculatedSalaryData && req.calculatedSalaryData.computedCTC) {
+                    offerCTC = req.calculatedSalaryData.computedCTC.yearly;
+                }
+
+                // Create Offer in Global Collection
+                const newOffer = new GlobalOfferModel({
+                    tenantId: req.user.tenantId,
+                    candidateId: applicantId,
+                    jobId: applicant.requirementId?._id,
+                    jobTitle: applicant.requirementId?.jobTitle || applicant.currentDesignation || 'Role',
+                    department: applicant.requirementId?.department?.name || applicant.department,
+                    location: location || applicant.location,
+
+                    // Salary
+                    ctc: offerCTC,
+                    salary: offerCTC,
+                    salaryStructure: applicant.salarySnapshot || req.calculatedSalaryData,
+
+                    // Letter Details
+                    letterPath: relativePath,
+                    letterUrl: downloadUrl,
+                    pdfUrl: downloadUrl, // consistency
+                    offerCode: refNo,
+
+                    // Snapshot Fields
+                    candidateName: applicant.name,
+                    candidateEmail: applicant.email,
+
+                    // Dates
+                    joiningDate: joiningDate ? new Date(joiningDate) : null,
+                    offerDate: new Date(),
+                    expiryDate: expiry,
+
+                    token: crypto.randomBytes(32).toString('hex'),
+                    status: newStatus,
+                    isLatest: true,
+                    reofferCount: previousOffersCount,
+                    history: [{
+                        action: 'Created',
+                        status: newStatus,
+                        by: req.user?.name || req.user?.userId || 'HR',
+                        timestamp: new Date(),
+                        metadata: { notes: `Offer Letter Generated (Ref: ${refNo})` }
+                    }],
+                    createdBy: req.user?.userId
+                });
+
+                await newOffer.save();
+
+                // Update Applicant in Tenant DB
+                const ApplicantModel = getApplicantModel(req);
+                await ApplicantModel.findByIdAndUpdate(applicantId, {
+                    offerId: newOffer._id,
+                    status: newStatus === 'ReOffered' ? 'Re-Offered' : 'Offer Issued'
+                });
+
+                console.log(`✅ [OFFER LETTER] Created Enterprise Offer Record: ${newOffer._id} (Status: ${newStatus})`);
+            }
+        } catch (offerErr) {
+            console.error("⚠️ [OFFER LETTER] Failed to create Offer Lifecycle record:", offerErr);
         }
 
         res.json({

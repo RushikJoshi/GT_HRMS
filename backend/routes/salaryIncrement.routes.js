@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const salaryIncrementController = require('../controllers/salaryIncrement.controller');
-const { authenticate } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth.jwt');
 
 /**
  * ============================================

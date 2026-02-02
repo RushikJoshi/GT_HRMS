@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 const getTenantDB = require('../utils/tenantDB');
+const OfferSchema = require('../models/Offer');
+
+// GLOBAL MODEL for Shared Collection
+const GlobalOfferModel = mongoose.models.GlobalOffer || mongoose.model('GlobalOffer', OfferSchema, 'offers');
 
 class RecruitmentService {
 
@@ -11,8 +15,6 @@ class RecruitmentService {
             Requirement: db.model('Requirement'),
             Applicant: db.model('Applicant'),
             Position: db.model('Position'),
-            // Interview: db.model('Interview'),
-            // Candidate: db.model('Candidate')
         };
     }
 
@@ -209,11 +211,30 @@ class RecruitmentService {
         }
 
         // Need to populate correctly
-        return await Applicant.find({ tenant: tenantId })
+        const applicants = await Applicant.find({ tenant: tenantId })
             .populate('requirementId', 'jobTitle jobOpeningId')
             .populate('candidateId', 'name email mobile')
             .populate('salarySnapshotId')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean(); // Use lean for easier modification
+
+        // 2. Fetch Latest Offers for these applicants from Global collection
+        const applicantIds = applicants.map(a => a._id);
+        const offers = await GlobalOfferModel.find({
+            candidateId: { $in: applicantIds },
+            tenantId: tenantId,
+            isLatest: true
+        }).select('candidateId status expiryDate offerDate token');
+
+        // 3. Map offers to applicants
+        const offerMap = {};
+        offers.forEach(o => { offerMap[o.candidateId.toString()] = o; });
+
+        applicants.forEach(app => {
+            app.latestOffer = offerMap[app._id.toString()] || null;
+        });
+
+        return applicants;
     }
 
     async applyForJob(jobId, candidateId, data) {

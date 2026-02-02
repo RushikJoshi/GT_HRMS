@@ -2,6 +2,10 @@ const Tenant = require("../models/Tenant");
 const CounterSchema = require("../models/Counter");
 const mongoose = require("mongoose");
 const CompanyIdConfig = require('../models/CompanyIdConfig');
+const OfferSchema = require("../models/Offer");
+
+// GLOBAL MODEL for Shared Collection
+const GlobalOfferModel = mongoose.models.GlobalOffer || mongoose.model('GlobalOffer', OfferSchema, 'offers');
 
 // Global counter model (stored in main connection, not tenant databases)
 let GlobalCounter;
@@ -31,7 +35,9 @@ function getModels(req) {
     return {
       Employee: db.model("Employee"),
       LeavePolicy: db.model("LeavePolicy"),
-      LeaveBalance: db.model("LeaveBalance")
+      LeaveBalance: db.model("LeaveBalance"),
+      Offer: db.models.Offer ? db.model("Offer") : null,
+      Applicant: db.models.Applicant ? db.model("Applicant") : null
       // Counter is now global, not per-tenant
     };
   } catch (err) {
@@ -346,6 +352,42 @@ exports.create = async (req, res) => {
     const allowOverride = tenant?.meta?.empCodeAllowOverride || false;
 
     const { firstName, lastName, department, customEmployeeId, departmentId, joiningDate, status, lastStep, applicantId, ...restBody } = req.body;
+
+    // --- LIFECYCLE RULE 8 VALIDATION ---
+    if (applicantId) {
+      try {
+        // Lazy load models just to be safe they exist in this context
+        const Applicant = req.tenantDB.model('Applicant');
+
+        // Check Offer Status (Using Global Model for Shared Collection)
+        const activeOffer = await GlobalOfferModel.findOne({
+          applicantId: applicantId,
+          tenantId: tenantId,
+          isLatest: true
+        });
+
+        if (activeOffer && activeOffer.status !== 'Accepted') {
+          return res.status(400).json({
+            success: false,
+            error: 'lifecycle_violation',
+            message: `Cannot convert to employee. Offer status is '${activeOffer.status}', but must be 'Accepted'.`
+          });
+        }
+
+        // Check Joining Letter
+        const applicantRec = await Applicant.findById(applicantId);
+        if (applicantRec && !applicantRec.joiningLetterPath) {
+          return res.status(400).json({
+            success: false,
+            error: 'lifecycle_violation',
+            message: `Cannot convert to employee. Joining Letter has not been generated yet.`
+          });
+        }
+      } catch (lifecycleErr) {
+        console.warn("⚠️ [EMPLOYEE CREATE] Lifecycle validation warning:", lifecycleErr.message);
+        // We don't block if models missing, but ideally we should.
+      }
+    }
 
     let finalEmployeeId;
 

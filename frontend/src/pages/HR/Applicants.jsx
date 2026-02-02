@@ -13,6 +13,45 @@ import { Eye, Download, Edit2, RefreshCw, IndianRupee, Upload, FileText, CheckCi
 import DynamicPipelineEngine from './DynamicPipelineEngine';
 import InterviewScheduleModal from './modals/InterviewScheduleModal';
 
+// --- Helper Components ---
+
+const OfferCountdown = ({ expiryDate }) => {
+    const [timeLeft, setTimeLeft] = React.useState('');
+    const [isExpired, setIsExpired] = React.useState(false);
+
+    React.useEffect(() => {
+        const calculateTime = () => {
+            if (!expiryDate) return;
+            const now = dayjs();
+            const expiry = dayjs(expiryDate);
+            const diffMs = expiry.diff(now);
+
+            if (diffMs <= 0) {
+                setIsExpired(true);
+                setTimeLeft('Expired');
+                return;
+            }
+
+            const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+            let timeString = '';
+            if (days > 0) timeString += `${days}d `;
+            timeString += `${hours}h ${minutes}m`;
+
+            setTimeLeft(timeString);
+        };
+
+        calculateTime();
+        const timer = setInterval(calculateTime, 60000); // 1 min tick
+        return () => clearInterval(timer);
+    }, [expiryDate]);
+
+    if (isExpired) return null; // Logic handled by parent status check, or show generic expired here
+    return <span className="text-amber-600 font-bold text-[10px] flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded whitespace-nowrap border border-amber-100">⏳ Expires in: {timeLeft}</span>;
+};
+
 export default function Applicants({ internalMode = false, jobSpecific = false }) {
     const navigate = useNavigate();
     const location = useLocation();
@@ -1745,6 +1784,17 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
+    const handleReOffer = (applicant) => {
+        if (!applicant) return;
+        setSelectedApplicant(applicant);
+        setOfferData(prev => ({
+            ...prev,
+            name: applicant.name,
+            refNo: '', // Clear ref so new one generated or asked
+        }));
+        setShowModal(true);
+    };
+
     const handleOnboard = (applicant) => {
         showConfirmToast({
             title: 'Confirm Onboarding',
@@ -2320,19 +2370,95 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        {app.offerLetterPath ? (
-                                                            <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                                                <button onClick={() => viewOfferLetter(app.offerLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
-                                                                    <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
+                                                        {app.latestOffer ? (() => {
+                                                            // Calculate Effective Status (Handle Client-Side Expiry)
+                                                            const isTimeExpired = app.latestOffer.expiryDate && new Date(app.latestOffer.expiryDate) < new Date();
+                                                            const effectiveStatus = (app.latestOffer.status === 'Sent' && isTimeExpired) ? 'Expired' : app.latestOffer.status;
+
+                                                            return (
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    <div
+                                                                        className="flex items-center gap-2 cursor-pointer group"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            navigate(`/hr/offers/${app.latestOffer._id}`);
+                                                                        }}
+                                                                        title="Click to manage full offer lifecycle"
+                                                                    >
+                                                                        {effectiveStatus === 'Accepted' && (
+                                                                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-wide border border-emerald-200 group-hover:bg-emerald-200 transition">
+                                                                                ACCEPTED
+                                                                            </span>
+                                                                        )}
+                                                                        {effectiveStatus === 'Rejected' && (
+                                                                            <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-black uppercase tracking-wide border border-rose-200 group-hover:bg-rose-200 transition">
+                                                                                REJECTED
+                                                                            </span>
+                                                                        )}
+                                                                        {(effectiveStatus === 'Sent' || effectiveStatus === 'ReOffered') && (
+                                                                            <div className="flex flex-col gap-1">
+                                                                                <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-wide border border-amber-200 w-fit group-hover:bg-amber-200 transition">
+                                                                                    {effectiveStatus === 'ReOffered' ? 'Re-Offered' : 'Sent'}
+                                                                                </span>
+                                                                                {/* Timer */}
+                                                                                <OfferCountdown expiryDate={app.latestOffer.expiryDate} />
+                                                                            </div>
+                                                                        )}
+                                                                        {effectiveStatus === 'Expired' && (
+                                                                            <div className="flex flex-col gap-1">
+                                                                                <span className="px-2 py-0.5 rounded bg-slate-100 text-rose-500 text-[10px] font-black uppercase tracking-wide border border-slate-200 w-fit group-hover:bg-slate-200 transition">
+                                                                                    EXPIRED
+                                                                                </span>
+                                                                                {app.latestOffer.expiryDate && (
+                                                                                    <span className="text-[9px] text-slate-400 font-bold">
+                                                                                        {dayjs(app.latestOffer.expiryDate).format('DD MMM, h:mm a')}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* Actions based on Status */}
+                                                                    <div className="flex items-center gap-2">
+                                                                        {/* View Button */}
+                                                                        <button
+                                                                            onClick={() => viewOfferLetter(app.offerLetterPath)}
+                                                                            className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm"
+                                                                            title="View Letter"
+                                                                        >
+                                                                            <Eye size={14} />
+                                                                        </button>
+
+                                                                        {/* Re-Offer Logic */}
+                                                                        {(effectiveStatus === 'Expired' || effectiveStatus === 'Rejected') && (
+                                                                            <button
+                                                                                onClick={() => handleReOffer(app)}
+                                                                                className="px-3 py-1 bg-blue-600 text-white text-[9px] font-bold rounded-lg shadow-sm hover:bg-blue-700 transition"
+                                                                            >
+                                                                                Re-Offer
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
-                                                                <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Offer">
-                                                                    <Edit2 size={12} />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="w-full py-2 sm:py-3 bg-blue-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest">GENERATE</button>
+                                                            );
+                                                        })() : (
+                                                            // No Offer Found -> Legacy or New
+                                                            app.offerLetterPath ? (
+                                                                // Legacy Fallback
+                                                                <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
+                                                                    <button onClick={() => viewOfferLetter(app.offerLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
+                                                                        <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
+                                                                    </div>
+                                                                    <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Offer">
+                                                                        <Edit2 size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                // No Offer At All
+                                                                <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="w-full py-2 sm:py-3 bg-blue-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest">GENERATE</button>
+                                                            )
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4">
@@ -2348,7 +2474,17 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                 </button>
                                                             </div>
                                                         ) : (
-                                                            <button onClick={() => openJoiningModal(app)} className="w-full py-2 sm:py-3 bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 uppercase tracking-widest">GENERATE</button>
+                                                            // Conditional Enablement for Joining Generation
+                                                            (app?.latestOffer?.status === 'Accepted' || (!app.latestOffer && app.offerLetterPath)) ? (
+                                                                // Enabled (Authenticated or Legacy Flow)
+                                                                <button onClick={() => openJoiningModal(app)} className="w-full py-2 sm:py-3 bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 uppercase tracking-widest">GENERATE</button>
+                                                            ) : (
+                                                                // Disabled (Offer not Accepted)
+                                                                <button disabled className="w-full py-2 sm:py-3 bg-slate-200 text-slate-400 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl cursor-not-allowed uppercase tracking-widest flex flex-col items-center leading-tight">
+                                                                    <span>GENERATE</span>
+                                                                    <span className="text-[7px] font-bold opacity-70">AWAITING ACCEPTANCE</span>
+                                                                </button>
+                                                            )
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4">
@@ -2389,7 +2525,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                         />
                     </div>
                 </div>
-            )}
+            )
+            }
 
             {/* Offer Generation Modal */}
             {

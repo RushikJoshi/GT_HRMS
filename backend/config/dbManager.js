@@ -146,6 +146,8 @@ function registerModels(db, tenantId, forceRefresh = false) {
       } catch (e) { console.warn("Failed to load PayrollAdjustment", e.message); }
     }
 
+    // Offer model is now GLOBAL (Shared Collection), no longer per-tenant
+
     // CRITICAL: Register EmployeeCompensation for payroll
     if (!db.models.EmployeeCompensation) {
       db.model("EmployeeCompensation", EmployeeCompensationSchema);

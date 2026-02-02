@@ -113,6 +113,7 @@ const attendanceRoutes = require('./routes/attendance.routes');
 const letterRoutes = require('./routes/letter.routes');
 const offerTemplateRoutes = require('./routes/offerTemplate.routes');
 const payslipTemplateRoutes = require('./routes/payslipTemplate.routes');
+const offerRoutes = require('./routes/offer.routes');
 
 // Payroll
 const payrollRoutes = require('./routes/payroll.routes');
@@ -177,6 +178,7 @@ app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
 app.use('/api/positions', positionRoutes);
+app.use('/api/offers', offerRoutes);
 /* ===============================
    HRMS ALIAS ROUTES (For Frontend Inconsistencies)
 ================================ */
