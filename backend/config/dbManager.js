@@ -75,11 +75,17 @@ function registerModels(db, tenantId, forceRefresh = false) {
 
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
+      if (!schema) {
+        console.error(`❌ [DB_MANAGER] FATAL: Schema for model '${name}' is ${schema} (Undefined/Null). Check the model file exports.`);
+        return;
+      }
       if (db.models[name] && (forceRefresh || isCritical)) {
         delete db.models[name];
       }
       if (!db.models[name]) {
-        db.model(name, schema);
+        // Handle if schema is actually a Model (extract schema)
+        const schemaToUse = schema.schema || schema;
+        db.model(name, schemaToUse);
       }
     };
 
@@ -131,6 +137,14 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("PayslipTemplate", PayslipTemplateSchema);
     register("Position", PositionSchema);
     register("CompanyIdConfig", CompanyIdConfigSchema);
+
+    // NEW: Payroll Adjustment
+    if (!db.models.PayrollAdjustment) {
+      try {
+        const PayrollAdjustmentSchema = require("../models/PayrollAdjustment");
+        db.model("PayrollAdjustment", PayrollAdjustmentSchema);
+      } catch (e) { console.warn("Failed to load PayrollAdjustment", e.message); }
+    }
 
     // CRITICAL: Register EmployeeCompensation for payroll
     if (!db.models.EmployeeCompensation) {

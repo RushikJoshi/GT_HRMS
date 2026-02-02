@@ -147,6 +147,7 @@ export default function HrmsRoutes() {
         <Route path="requirements" element={<RequirementPage />} />
         <Route path="create-requirement" element={<CreateRequirement />} />
         <Route path="applicants" element={<Applicants />} />
+        <Route path="job/:jobId/candidates" element={<Applicants jobSpecific={true} />} />
         <Route path="internal-applicants" element={<Applicants internalMode={true} />} />
         <Route path="candidate-status" element={<CandidateStatusTracker />} />
         <Route path="candidate-status/:id" element={<CandidateTimeline />} />
