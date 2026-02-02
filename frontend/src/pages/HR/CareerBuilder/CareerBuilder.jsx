@@ -47,15 +47,12 @@ export default function CareerBuilder() {
     const fetchConfig = async () => {
         try {
             setLoading(true);
-<<<<<<< HEAD
-<<<<<<< HEAD
-            const res = await api.get('/career/draft');
-=======
+
+
             const res = await api.get('/hr/career/customize');
->>>>>>> main
-=======
-            const res = await api.get('/career/draft');
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
+
+
+
             if (res.data) {
                 // Ensure defaulting if fields missing
                 const configData = {
@@ -165,11 +162,6 @@ export default function CareerBuilder() {
         try {
             setPublishing(true);
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
-            // Pre-validation
             if (config.sections.length === 0) {
                 message.warning("⚠️ Page is empty. Add some sections!");
                 return;
@@ -187,15 +179,6 @@ export default function CareerBuilder() {
             ]);
 
             // 2. Trigger Publish
-            const res = await api.post('/career/publish');
-<<<<<<< HEAD
-=======
-            // Atomic Publish: Send config directly to publish endpoint
-            // This ensures exactly what is in the editor goes live immediately
-            const res = await api.post('/hr/career/publish', config);
->>>>>>> main
-=======
->>>>>>> d95d0294dd92ce8de49ae09613362e7c0eb72566
 
             if (res.data && res.data.success) {
                 message.success("🎉 Career Page Published Live!");
