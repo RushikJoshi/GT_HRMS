@@ -106,6 +106,7 @@ const ApplicantSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
   }],
 
+  customData: { type: mongoose.Schema.Types.Mixed },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

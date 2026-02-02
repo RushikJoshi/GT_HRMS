@@ -3,10 +3,16 @@ const mongoose = require('mongoose');
 function getModels(req) {
     if (!req.tenantDB) throw new Error("Tenant database connection not available");
     const db = req.tenantDB;
+
+    const getOrRegister = (modelName, schemaPath) => {
+        if (db.models[modelName]) return db.models[modelName];
+        return db.model(modelName, require(schemaPath));
+    };
+
     return {
-        Interview: db.model("Interview") || db.model("Interview", require('../models/Interview')),
-        Applicant: db.model("Applicant") || db.model("Applicant", require('../models/Applicant')),
-        TrackerCandidate: db.model("TrackerCandidate") || db.model("TrackerCandidate", require('../models/TrackerCandidate'))
+        Interview: getOrRegister("Interview", "../models/Interview"),
+        Applicant: getOrRegister("Applicant", "../models/Applicant"),
+        TrackerCandidate: getOrRegister("TrackerCandidate", "../models/TrackerCandidate")
     };
 }
 
@@ -57,8 +63,8 @@ exports.getInterview = async (req, res) => {
             return res.json(interview);
         }
 
-        console.log('❌ [GET INTERVIEW] Not found for ID:', id);
-        return res.status(404).json({ message: "Interview not found" });
+        console.log('⚠️ [GET INTERVIEW] Not found for ID:', id, 'Returning null to avoid 404 error');
+        return res.json(null);
 
     } catch (error) {
         console.error('getInterview Error:', error);

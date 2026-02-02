@@ -15,17 +15,31 @@ import {
     Settings,
     MessageSquare,
     HelpCircle,
-    Zap
+    Zap,
+    Loader2
 } from 'lucide-react';
+import { message } from 'antd';
+import api, { API_ROOT } from '../../../utils/api';
 
 export default function CareerEditorPanel({
     config,
     selectedBlockId,
     onAddBlock,
     onUpdateBlock,
-    onRemoveBlock
+    onRemoveBlock,
+    previewMode,
+    setPreviewMode
 }) {
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+    const [uploading, setUploading] = useState(false);
+
+    // Helper to resolve image URL
+    const getImageUrl = (url) => {
+        if (!url) return '';
+        if (url.startsWith('http')) return url;
+        if (url.startsWith('/')) return `${API_ROOT}${url}`;
+        return url;
+    };
 
     const availableBlocks = [
         { type: 'hero', name: 'Hero Section', icon: <Layout className="w-5 h-5" />, desc: 'Large banner with title & CTA' },
@@ -43,20 +57,93 @@ export default function CareerEditorPanel({
         onUpdateBlock(selectedBlockId, { ...selectedBlock.content, ...updates });
     };
 
+    const handleImageUpload = async (e, fieldName = 'imageUrl') => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+            message.error('Only JPG, PNG, and WebP images allowed');
+            return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            message.error('Image must be under 2MB');
+            return;
+        }
+
+        try {
+            setUploading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const res = await api.post('/uploads/doc', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (res.data && res.data.url) {
+                updateContent({ [fieldName]: res.data.url });
+                message.success("Image uploaded successfully");
+            } else {
+                message.error("Upload failed");
+            }
+        } catch (error) {
+            console.error("Upload error:", error);
+            message.error("Failed to upload image");
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const getButtonStyle = (mode) => {
+        const isActive = previewMode === mode;
+        return {
+            height: '38px',
+            padding: '0 20px',
+            borderRadius: '6px',
+            fontSize: '13px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            backgroundColor: isActive ? '#4A5DFF' : '#ffffff',
+            color: isActive ? '#ffffff' : '#333333',
+            border: isActive ? '1px solid #4A5DFF' : '1px solid #E0E0E0',
+        };
+    };
+
     return (
-        <div className="flex flex-col h-full bg-white border-l border-gray-100 w-80 font-sans shadow-xl z-20">
-            {/* Header / Add Section */}
-            <div className="p-4 border-b border-gray-50 bg-white z-20">
+        <div className="flex flex-col h-full bg-white border-l border-gray-100 w-80 font-sans shadow-xl z-20 overflow-hidden">
+            {/* Preview Mode Switcher */}
+            <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">Preview Mode</label>
+                <div className="flex items-center gap-[12px]">
+                    <button
+                        style={getButtonStyle('desktop')}
+                        onClick={() => setPreviewMode('desktop')}
+                    >
+                        Desktop Preview
+                    </button>
+                    <button
+                        style={getButtonStyle('mobile')}
+                        onClick={() => setPreviewMode('mobile')}
+                    >
+                        Mobile Preview
+                    </button>
+                </div>
+            </div>
+
+            {/* Add Section Header */}
+            <div className="p-4 border-b border-gray-50 bg-white">
                 <div className="relative">
                     <button
                         onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
                         className="w-full flex items-center justify-between px-4 py-3 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all font-bold text-sm active:scale-95"
                     >
                         <span className="flex items-center gap-2"><Plus size={16} /> Add New Section</span>
-                        <ChevronDown size={14} className={`transition-transformDuration-200 ${isAddMenuOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown size={14} className={`transition-transform duration-200 ${isAddMenuOpen ? 'rotate-180' : ''}`} />
                     </button>
 
-                    {/* Dropdown Menu */}
                     {isAddMenuOpen && (
                         <>
                             <div className="fixed inset-0 z-10 cursor-default" onClick={() => setIsAddMenuOpen(false)}></div>
@@ -94,7 +181,7 @@ export default function CareerEditorPanel({
                         <Settings size={32} />
                     </div>
                     <h3 className="text-gray-900 font-bold mb-1">No Selection</h3>
-                    <p className="text-xs text-gray-500">Select a section from the left sidebar or preview to edit settings.</p>
+                    <p className="text-xs text-gray-500">Select a section from the preview to edit settings.</p>
                 </div>
             ) : (
                 <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
@@ -108,7 +195,6 @@ export default function CareerEditorPanel({
                     </div>
 
                     <div className="p-5 space-y-6">
-                        {/* GLOBAL: Title */}
                         <div className="space-y-3">
                             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Section Heading</label>
                             <input
@@ -120,7 +206,7 @@ export default function CareerEditorPanel({
                             />
                         </div>
 
-                        {/* ================= HERO SETTINGS ================= */}
+                        {/* HERO SETTINGS */}
                         {selectedBlock.type === 'hero' && (
                             <>
                                 <div className="space-y-3">
@@ -141,7 +227,6 @@ export default function CareerEditorPanel({
                                         className="w-full px-3 py-2 bg-gray-50 rounded-lg border-none text-sm font-medium"
                                     />
                                 </div>
-
                                 <div className="space-y-3 pt-2 border-t border-gray-100">
                                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Background Style</label>
                                     <div className="flex p-1 bg-gray-100 rounded-lg">
@@ -155,40 +240,87 @@ export default function CareerEditorPanel({
                                             </button>
                                         ))}
                                     </div>
-
                                     {selectedBlock.content?.bgType === 'gradient' ? (
-                                        <input
-                                            type="text"
-                                            value={selectedBlock.content?.bgColor || ''}
-                                            onChange={(e) => updateContent({ bgColor: e.target.value })}
-                                            className="w-full text-xs font-mono px-3 py-2 bg-gray-50 rounded-lg border-none"
-                                            placeholder="Tailwind gradient classes"
-                                        />
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-400">From</label>
+                                                    <input
+                                                        type="color"
+                                                        value={selectedBlock.content?.bgColor?.match(/from-\[([^\]]+)\]/)?.[1] || '#4F46E5'}
+                                                        onChange={(e) => {
+                                                            const current = selectedBlock.content?.bgColor || 'from-[#4F46E5] via-[#9333EA] to-[#EC4899]';
+                                                            const via = current.match(/via-\[([^\]]+)\]/)?.[1] || '#9333EA';
+                                                            const to = current.match(/to-\[([^\]]+)\]/)?.[1] || '#EC4899';
+                                                            updateContent({ bgColor: `from-[${e.target.value}] via-[${via}] to-[${to}]` });
+                                                        }}
+                                                        className="w-full h-8 rounded cursor-pointer border-none bg-transparent"
+                                                    />
+                                                </div>
+                                                <div className="flex-1 space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-400">Via</label>
+                                                    <input
+                                                        type="color"
+                                                        value={selectedBlock.content?.bgColor?.match(/via-\[([^\]]+)\]/)?.[1] || '#9333EA'}
+                                                        onChange={(e) => {
+                                                            const current = selectedBlock.content?.bgColor || 'from-[#4F46E5] via-[#9333EA] to-[#EC4899]';
+                                                            const from = current.match(/from-\[([^\]]+)\]/)?.[1] || '#4F46E5';
+                                                            const to = current.match(/to-\[([^\]]+)\]/)?.[1] || '#EC4899';
+                                                            updateContent({ bgColor: `from-[${from}] via-[${e.target.value}] to-[${to}]` });
+                                                        }}
+                                                        className="w-full h-8 rounded cursor-pointer border-none bg-transparent"
+                                                    />
+                                                </div>
+                                                <div className="flex-1 space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-400">To</label>
+                                                    <input
+                                                        type="color"
+                                                        value={selectedBlock.content?.bgColor?.match(/to-\[([^\]]+)\]/)?.[1] || '#EC4899'}
+                                                        onChange={(e) => {
+                                                            const current = selectedBlock.content?.bgColor || 'from-[#4F46E5] via-[#9333EA] to-[#EC4899]';
+                                                            const from = current.match(/from-\[([^\]]+)\]/)?.[1] || '#4F46E5';
+                                                            const via = current.match(/via-\[([^\]]+)\]/)?.[1] || '#9333EA';
+                                                            updateContent({ bgColor: `from-[${from}] via-[${via}] to-[${e.target.value}]` });
+                                                        }}
+                                                        className="w-full h-8 rounded cursor-pointer border-none bg-transparent"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={selectedBlock.content?.bgColor || ''}
+                                                onChange={(e) => updateContent({ bgColor: e.target.value })}
+                                                className="w-full text-[10px] font-mono px-3 py-2 bg-gray-50 rounded-lg border-none text-gray-400"
+                                                placeholder="Tailwind gradient classes"
+                                            />
+                                        </div>
                                     ) : (
                                         <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer relative">
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                className="absolute inset-0 opacity-0 cursor-pointer"
-                                                onChange={(e) => {
-                                                    const file = e.target.files[0];
-                                                    if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onloadend = () => updateContent({ imageUrl: reader.result });
-                                                        reader.readAsDataURL(file);
-                                                    }
-                                                }}
-                                            />
-                                            <span className="text-xs font-bold text-gray-500">
-                                                {selectedBlock.content?.imageUrl ? 'Change Image' : 'Upload Image'}
-                                            </span>
+                                            {uploading ? (
+                                                <div className="flex flex-col items-center">
+                                                    <Loader2 className="animate-spin text-blue-500 mb-2" />
+                                                    <span className="text-xs text-gray-500">Uploading...</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                                        onChange={(e) => handleImageUpload(e, 'imageUrl')}
+                                                    />
+                                                    <span className="text-xs font-bold text-gray-500">
+                                                        {selectedBlock.content?.imageUrl ? 'Change Image' : 'Upload Image'}
+                                                    </span>
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             </>
                         )}
 
-                        {/* ================= OPENINGS SETTINGS ================= */}
+                        {/* OPENINGS SETTINGS */}
                         {selectedBlock.type === 'openings' && (
                             <>
                                 <div className="space-y-3">
@@ -208,51 +340,6 @@ export default function CareerEditorPanel({
                                         </button>
                                     </div>
                                 </div>
-
-                                {selectedBlock.content?.layout === 'grid' && (
-                                    <div className="space-y-3">
-                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Grid Columns</label>
-                                        <div className="flex bg-gray-100 p-1 rounded-lg">
-                                            {[2, 3, 4].map(num => (
-                                                <button
-                                                    key={num}
-                                                    onClick={() => updateContent({ gridColumns: num })}
-                                                    className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${Number(selectedBlock.content?.gridColumns || 3) === num ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
-                                                >
-                                                    {num} cols
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="space-y-3 pt-4 border-t border-gray-100">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Card Appearance</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {['rounded', 'sharp', 'shadow', 'border'].map(style => (
-                                            <button
-                                                key={style}
-                                                onClick={() => updateContent({ cardStyle: style })}
-                                                className={`py-2 px-2 text-xs font-bold capitalize rounded-lg border transition-all ${selectedBlock.content?.cardStyle === style ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                            >
-                                                {style}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-gray-500">Background</span>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="color"
-                                                value={selectedBlock.content?.cardBackground || '#ffffff'}
-                                                onChange={(e) => updateContent({ cardBackground: e.target.value })}
-                                                className="w-6 h-6 rounded overflow-hidden cursor-pointer border-none p-0"
-                                            />
-                                            <span className="text-xs font-mono text-gray-400">{selectedBlock.content?.cardBackground}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <div className="space-y-3 pt-4 border-t border-gray-100">
                                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Apply Button</label>
                                     <input
@@ -274,7 +361,6 @@ export default function CareerEditorPanel({
                                         ))}
                                     </div>
                                 </div>
-
                                 <div className="space-y-2 pt-4 border-t border-gray-100">
                                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Display Fields</label>
                                     {[
@@ -301,10 +387,10 @@ export default function CareerEditorPanel({
                             </>
                         )}
 
-                        {/* ================= HIGHLIGHTS SETTINGS ================= */}
+                        {/* HIGHLIGHTS SETTINGS */}
                         {selectedBlock.type === 'highlights' && (
                             <div className="space-y-4">
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Highlight Cards</label>
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Cards</label>
                                 {selectedBlock.content?.cards?.map((card, idx) => (
                                     <div key={card.id || idx} className="bg-gray-50 p-3 rounded-lg border border-gray-100 relative group">
                                         <button
@@ -324,7 +410,7 @@ export default function CareerEditorPanel({
                                                 newCards[idx] = { ...card, title: e.target.value };
                                                 updateContent({ cards: newCards });
                                             }}
-                                            className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-sm font-bold mb-2 pr-6"
+                                            className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-sm font-bold mb-2"
                                             placeholder="Card Title"
                                         />
                                         <textarea
@@ -338,38 +424,38 @@ export default function CareerEditorPanel({
                                             rows={2}
                                             placeholder="Description"
                                         />
-                                        <select
-                                            value={card.icon || 'Zap'}
-                                            onChange={e => {
-                                                const newCards = [...(selectedBlock.content.cards || [])];
-                                                newCards[idx] = { ...card, icon: e.target.value };
-                                                updateContent({ cards: newCards });
-                                            }}
-                                            className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-xs mt-2"
-                                        >
-                                            {['Zap', 'Users', 'Globe', 'Star', 'Heart', 'Shield', 'Award', 'Coffee'].map(icon => (
-                                                <option key={icon} value={icon}>{icon}</option>
-                                            ))}
-                                        </select>
                                     </div>
                                 ))}
                                 <button
                                     onClick={() => {
                                         const newCards = [...(selectedBlock.content.cards || [])];
-                                        newCards.push({ id: Date.now(), title: "New Feature", description: "Describe it here", icon: "Star" });
+                                        newCards.push({ id: Date.now(), title: "New Item", description: "Describe it" });
                                         updateContent({ cards: newCards });
                                     }}
-                                    className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 font-bold text-xs hover:border-blue-400 hover:text-blue-500 transition-colors"
+                                    className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 font-bold text-xs"
                                 >
-                                    + Add Card
+                                    + Add Item
                                 </button>
                             </div>
                         )}
 
-                        {/* ================= FAQ SETTINGS ================= */}
+                        {/* COMPANY INFO */}
+                        {selectedBlock.type === 'company-info' && (
+                            <div className="space-y-4">
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">About Us Content</label>
+                                <textarea
+                                    value={selectedBlock.content?.description || ''}
+                                    onChange={(e) => updateContent({ description: e.target.value })}
+                                    className="w-full px-3 py-2 bg-gray-50 rounded-lg border-none text-sm h-32"
+                                    placeholder="Company description..."
+                                />
+                            </div>
+                        )}
+
+                        {/* FAQ SETTINGS */}
                         {selectedBlock.type === 'faq' && (
                             <div className="space-y-4">
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Questions</label>
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">FAQs</label>
                                 {selectedBlock.content?.faqs?.map((faq, idx) => (
                                     <div key={faq.id || idx} className="bg-gray-50 p-3 rounded-lg border border-gray-100 relative">
                                         <button
@@ -389,8 +475,7 @@ export default function CareerEditorPanel({
                                                 newFaqs[idx] = { ...faq, question: e.target.value };
                                                 updateContent({ faqs: newFaqs });
                                             }}
-                                            className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-sm font-bold mb-2 pr-6"
-                                            placeholder="Question"
+                                            className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-sm font-bold mb-2"
                                         />
                                         <textarea
                                             value={faq.answer}
@@ -401,146 +486,18 @@ export default function CareerEditorPanel({
                                             }}
                                             className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-xs"
                                             rows={2}
-                                            placeholder="Answer"
                                         />
                                     </div>
                                 ))}
                                 <button
                                     onClick={() => {
                                         const newFaqs = [...(selectedBlock.content.faqs || [])];
-                                        newFaqs.push({ id: Date.now(), question: "New Question?", answer: "Answer here." });
+                                        newFaqs.push({ id: Date.now(), question: "New Question?", answer: "Answer" });
                                         updateContent({ faqs: newFaqs });
                                     }}
-                                    className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 font-bold text-xs hover:border-blue-400 hover:text-blue-500 transition-colors"
+                                    className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 font-bold text-xs"
                                 >
-                                    + Add Question
-                                </button>
-                            </div>
-                        )}
-
-                        {/* ================= COMPANY INFO SETTINGS ================= */}
-                        {selectedBlock.type === 'company-info' && (
-                            <div className="space-y-4">
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Content</label>
-                                <textarea
-                                    value={selectedBlock.content?.description || ''}
-                                    onChange={(e) => updateContent({ description: e.target.value })}
-                                    className="w-full px-3 py-2 bg-gray-50 rounded-lg border-none text-sm h-32"
-                                    placeholder="Company description..."
-                                />
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Stats Items</label>
-                                    {selectedBlock.content?.stats?.map((stat, idx) => (
-                                        <div key={idx} className="flex gap-2">
-                                            <input
-                                                value={stat.value}
-                                                onChange={e => {
-                                                    const newStats = [...(selectedBlock.content.stats || [])];
-                                                    newStats[idx] = { ...stat, value: e.target.value };
-                                                    updateContent({ stats: newStats });
-                                                }}
-                                                className="w-1/3 bg-gray-50 rounded px-2 py-1 text-sm border-none"
-                                                placeholder="Value (e.g. 50+)"
-                                            />
-                                            <input
-                                                value={stat.label}
-                                                onChange={e => {
-                                                    const newStats = [...(selectedBlock.content.stats || [])];
-                                                    newStats[idx] = { ...stat, label: e.target.value };
-                                                    updateContent({ stats: newStats });
-                                                }}
-                                                className="flex-1 bg-gray-50 rounded px-2 py-1 text-sm border-none"
-                                                placeholder="Label (e.g. Employees)"
-                                            />
-                                        </div>
-                                    ))}
-                                    <button
-                                        onClick={() => {
-                                            const newStats = [...(selectedBlock.content.stats || [])];
-                                            newStats.push({ value: "100+", label: "New Stat" });
-                                            updateContent({ stats: newStats });
-                                        }}
-                                        className="text-xs text-blue-600 font-bold hover:underline"
-                                    >
-                                        + Add Stat
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ================= TESTIMONIALS SETTINGS ================= */}
-                        {selectedBlock.type === 'testimonials' && (
-                            <div className="space-y-4">
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Testimonial Cards</label>
-                                {selectedBlock.content?.testimonials?.map((t, idx) => (
-                                    <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-100 relative group">
-                                        <button
-                                            onClick={() => {
-                                                const newTests = [...(selectedBlock.content.testimonials || [])];
-                                                newTests.splice(idx, 1);
-                                                updateContent({ testimonials: newTests });
-                                            }}
-                                            className="absolute top-2 right-2 text-gray-300 hover:text-red-500 p-1"
-                                        >
-                                            <Trash2 size={12} />
-                                        </button>
-                                        <div className="flex gap-2 mb-2">
-                                            <img src={t.image} alt="" className="w-10 h-10 rounded-full bg-gray-200 object-cover" />
-                                            <div className="flex-1 space-y-2">
-                                                <input
-                                                    value={t.name}
-                                                    onChange={e => {
-                                                        const newTests = [...(selectedBlock.content.testimonials || [])];
-                                                        newTests[idx] = { ...t, name: e.target.value };
-                                                        updateContent({ testimonials: newTests });
-                                                    }}
-                                                    className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-sm font-bold"
-                                                    placeholder="Name"
-                                                />
-                                                <input
-                                                    value={t.role}
-                                                    onChange={e => {
-                                                        const newTests = [...(selectedBlock.content.testimonials || [])];
-                                                        newTests[idx] = { ...t, role: e.target.value };
-                                                        updateContent({ testimonials: newTests });
-                                                    }}
-                                                    className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-xs"
-                                                    placeholder="Role"
-                                                />
-                                            </div>
-                                        </div>
-                                        <textarea
-                                            value={t.quote}
-                                            onChange={e => {
-                                                const newTests = [...(selectedBlock.content.testimonials || [])];
-                                                newTests[idx] = { ...t, quote: e.target.value };
-                                                updateContent({ testimonials: newTests });
-                                            }}
-                                            className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-xs"
-                                            rows={2}
-                                            placeholder="Quote..."
-                                        />
-                                        <input
-                                            value={t.image}
-                                            onChange={e => {
-                                                const newTests = [...(selectedBlock.content.testimonials || [])];
-                                                newTests[idx] = { ...t, image: e.target.value };
-                                                updateContent({ testimonials: newTests });
-                                            }}
-                                            className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-[10px] mt-2 text-gray-400 font-mono"
-                                            placeholder="Image URL (http...)"
-                                        />
-                                    </div>
-                                ))}
-                                <button
-                                    onClick={() => {
-                                        const newTests = [...(selectedBlock.content.testimonials || [])];
-                                        newTests.push({ name: "New Person", role: "Role", quote: "Great place!", image: "https://i.pravatar.cc/150" });
-                                        updateContent({ testimonials: newTests });
-                                    }}
-                                    className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 font-bold text-xs hover:border-blue-400 hover:text-blue-500 transition-colors"
-                                >
-                                    + Add Testimonial
+                                    + Add FAQ
                                 </button>
                             </div>
                         )}

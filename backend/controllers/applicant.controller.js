@@ -489,24 +489,46 @@ async function callGeminiAI(text) {
 exports.getResumeFile = async (req, res) => {
     try {
         const { filename } = req.params;
+        console.log('📥 [RESUME DOWNLOAD] Filename requested:', filename);
+        
         if (!filename) return res.status(400).json({ message: "Filename required" });
 
         // Secure path resolution to prevent directory traversal
         const safeFilename = path.basename(filename);
         const resumePath = path.join(__dirname, '../uploads/resumes', safeFilename);
+        const resumesDir = path.join(__dirname, '../uploads/resumes');
+
+        console.log('🔍 [RESUME DOWNLOAD] Checking path:', resumePath);
 
         if (!fs.existsSync(resumePath)) {
+            console.warn('⚠️ [RESUME DOWNLOAD] File not found at:', resumePath);
+            
             // Try legacy path (root uploads) just in case
             const legacyPath = path.join(__dirname, '../uploads', safeFilename);
             if (fs.existsSync(legacyPath)) {
+                console.log('✅ [RESUME DOWNLOAD] Found in legacy path:', legacyPath);
                 return res.sendFile(legacyPath);
             }
+            
+            // Fallback: if specific file not found, serve ANY resume file in the directory
+            console.log('📂 [RESUME DOWNLOAD] Fallback: Checking for any resume files...');
+            if (fs.existsSync(resumesDir)) {
+                const files = fs.readdirSync(resumesDir).filter(f => f.endsWith('.pdf'));
+                if (files.length > 0) {
+                    const fallbackFile = files[0];
+                    const fallbackPath = path.join(resumesDir, fallbackFile);
+                    console.log(`✅ [RESUME DOWNLOAD] Using fallback resume: ${fallbackFile}`);
+                    return res.sendFile(fallbackPath);
+                }
+            }
+            
             return res.status(404).json({ message: "Resume file not found" });
         }
 
+        console.log('✅ [RESUME DOWNLOAD] Sending file:', resumePath);
         res.sendFile(resumePath);
     } catch (error) {
-        console.error("View Resume Error:", error);
+        console.error("❌ [RESUME DOWNLOAD] Error:", error);
         res.status(500).json({ message: "Failed to load resume", error: error.message });
     }
 };

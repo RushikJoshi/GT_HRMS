@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
 import api from '../../utils/api';
 import { isCandidateLoggedIn, setCompany, getCompany, getTenantId } from '../../utils/auth';
-import { ArrowLeft, Briefcase, Lock, Mail } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Briefcase, Lock, Mail, ShieldCheck } from 'lucide-react';
 
 export default function CandidateLogin() {
     const [searchParams] = useSearchParams();
@@ -22,7 +22,7 @@ export default function CandidateLogin() {
 
     useEffect(() => {
         if (isCandidateLoggedIn()) {
-            navigate('/jobs/dashboard', { replace: true });
+            navigate('/candidate/dashboard', { replace: true });
         }
     }, [navigate]);
 
@@ -88,105 +88,113 @@ export default function CandidateLogin() {
     if (pageLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="flex flex-col items-center gap-4">
+                    <div className="h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Initialising Portal...</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#FBFCFE] font-sans flex flex-col items-center justify-center py-12 px-4 relative overflow-hidden">
-            {/* Background Glows */}
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-50 rounded-full blur-[120px] -z-10 translate-x-1/4 -translate-y-1/4"></div>
-            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-50 rounded-full blur-[120px] -z-10 -translate-x-1/4 translate-y-1/4"></div>
+        <div className="min-h-screen bg-[#F8FAFC] font-sans flex flex-col items-center justify-center py-12 px-6 relative overflow-hidden selection:bg-indigo-100 selection:text-indigo-600">
+            {/* Background Decorations */}
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-50 rounded-full blur-[100px] -z-10 translate-x-1/3 -translate-y-1/3"></div>
+            <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-violet-50 rounded-full blur-[100px] -z-10 -translate-x-1/3 translate-y-1/3"></div>
 
-            <div className="w-full max-w-md relative">
-                {/* Back Button */}
-                <button
-                    onClick={() => navigate(-1)}
-                    className="absolute -top-16 left-0 p-2.5 bg-white border border-gray-100 rounded-full shadow-sm text-gray-400 hover:text-gray-900 hover:shadow-md transition-all active:scale-95 flex items-center justify-center"
-                >
-                    <ArrowLeft size={18} />
-                </button>
-
-                <div className="text-center mb-8">
-                    {/* Icon Box */}
-                    <div className="inline-flex p-4 bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-50 mb-6 ring-4 ring-blue-50/30">
-                        <Briefcase className="w-10 h-10 text-blue-600" />
+            <div className="w-full max-w-[480px] z-10 animate-in fade-in duration-300">
+                {/* Header/Logo */}
+                <div className="text-center mb-12">
+                    <div className="mx-auto w-16 h-16 bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-800 rounded-3xl flex items-center justify-center shadow-xl shadow-indigo-200 mb-8 transform hover:-rotate-6 transition-transform">
+                        <Briefcase className="text-white w-8 h-8" />
                     </div>
-
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-1">
-                        {company.name || "Test"}
-                    </h1>
-                    <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">Candidate Portal</p>
+                    <h1 className="text-4xl font-bold text-slate-800 tracking-tight mb-3">Welcome Back</h1>
+                    <p className="text-slate-500 font-medium">Continue your journey with <span className="text-indigo-600 font-bold">{company.name}</span></p>
                 </div>
 
-                {/* Form Card */}
-                <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-gray-100/50 p-10">
-                    <div className="text-center mb-10">
-                        <h2 className="text-2xl font-black text-gray-900">Welcome Back</h2>
-                        <p className="text-gray-500 font-medium mt-1">Sign in to access your applications</p>
-                    </div>
-
-                    <form className="space-y-5" onSubmit={handleSubmit}>
+                {/* Login Card */}
+                <div className="bg-white p-10 lg:p-12 rounded-[2.5rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50">
+                    <form onSubmit={handleSubmit} className="space-y-8">
                         {error && (
-                            <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm font-bold border border-red-100 flex items-center gap-3">
-                                <span className="w-5 h-5 flex-shrink-0 bg-red-100 rounded-full flex items-center justify-center text-[10px]">!</span>
+                            <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3 text-rose-600 text-sm font-bold animate-in fade-in slide-in-from-top-2">
+                                <ShieldCheck className="w-5 h-5 flex-shrink-0" />
                                 {error}
                             </div>
                         )}
 
-                        <div className="space-y-4">
-                            <div className="relative group">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-                                <input
-                                    type="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all font-medium text-gray-900 placeholder-gray-400"
-                                    placeholder="Email address"
-                                />
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Email Address</label>
+                                <div className="relative group">
+                                    <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={20} />
+                                    <input
+                                        type="email"
+                                        placeholder="name@example.com"
+                                        className="w-full pl-16 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        required
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                    />
+                                </div>
                             </div>
 
-                            <div className="relative group">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-                                <input
-                                    type="password"
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all font-medium text-gray-900 placeholder-gray-400"
-                                    placeholder="Password"
-                                />
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Password</label>
+                                <div className="relative group">
+                                    <Lock className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={20} />
+                                    <input
+                                        type="password"
+                                        placeholder="••••••••"
+                                        className="w-full pl-16 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        required
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                    />
+                                </div>
                             </div>
+                        </div>
+
+                        <div className="flex items-center justify-between px-2">
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                                <input type="checkbox" className="w-5 h-5 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500/20" />
+                                <span className="text-xs font-bold text-slate-500 group-hover:text-slate-700 transition-colors">Keep me signed in</span>
+                            </label>
+                            <button type="button" className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">Forgot Password?</button>
                         </div>
 
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-4.5 bg-blue-600 text-white rounded-2xl text-base font-black shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] mt-4"
+                            className="w-full bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-800 text-white py-5 rounded-full font-bold shadow-xl shadow-indigo-100 hover:shadow-2xl hover:translate-y-[-2px] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-sm uppercase tracking-widest"
                         >
-                            {loading ? "Signing in..." : "Sign In to Account"}
+                            {loading ? 'Authenticating...' : (
+                                <>
+                                    Sign In to Portal <ArrowRight size={20} />
+                                </>
+                            )}
                         </button>
                     </form>
 
-                    <div className="mt-10 text-center">
-                        <p className="text-gray-500 font-medium">
+                    <div className="mt-10 pt-10 border-t border-slate-50 text-center">
+                        <p className="text-slate-500 text-sm font-medium">
                             Don't have an account?{' '}
                             <Link
-                                to={`/jobs/signup?tenantId=${tenantId}`}
-                                className="text-blue-600 font-black hover:text-blue-700 transition"
+                                to={`/candidate/signup?tenantId=${tenantId}`}
+                                className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors ml-1 underline underline-offset-4 decoration-indigo-200"
                             >
-                                Create Free Account
+                                Start your application
                             </Link>
                         </p>
                     </div>
                 </div>
 
                 <div className="mt-12 text-center">
-                    <p className="text-xs text-gray-300 font-bold uppercase tracking-widest">
-                        &copy; {new Date().getFullYear()} {company.name || "Test"}. Powered by Gitakshmi HRMS
-                    </p>
+                    <Link to={`/jobs/${company.code || tenantId}`} className="text-slate-400 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 hover:text-indigo-500 transition-colors group">
+                        <div className="bg-slate-100 p-2 rounded-xl group-hover:bg-indigo-50 transition-colors">
+                            <ArrowLeft size={16} />
+                        </div>
+                        Back to Career Page
+                    </Link>
                 </div>
             </div>
         </div>

@@ -108,6 +108,9 @@ const compensationRoutes = require('./routes/compensation.routes');
 // Company ID Configuration
 const companyIdConfigRoutes = require('./routes/companyIdConfig.routes');
 
+// Career Page (Optimized for 16MB limit fix)
+const careerOptimizedRoutes = require('./routes/career-optimized.routes');
+
 /* ===============================
    ROUTES (NO TENANT)
 ================================ */
@@ -155,6 +158,8 @@ app.use('/api/salary-structure', salaryStructureRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/compensation', compensationRoutes);
+app.use('/api/career', careerOptimizedRoutes);
+
 /* ===============================
    HRMS ALIAS ROUTES (For Frontend Inconsistencies)
 ================================ */
@@ -177,6 +182,8 @@ app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {
     req.url = '/templates' + req.url;
     return letterRoutes(req, res, next);
 });
+
+app.use(hrmsPrefix + '/interviews', require('./routes/interview.routes'));
 
 // Alias /hrms/hr/ -> hrRoutes (handles /hrms/hr/employees etc)
 // Since hrRoutes already prefixes routes with /hr, we mount it at the root of /api/hrms

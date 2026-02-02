@@ -1,7 +1,7 @@
 require('dotenv').config();
-// Restart trigger 3
+// Restart trigger 4 - Env fix applied
 const http = require('http');
-// RESTART TRIGGER V4
+// RESTART TRIGGER V7 - Force restart for schema update
 const mongoose = require('mongoose');
 const app = require('./app');
 
@@ -108,11 +108,11 @@ async function startServer() {
     // Import and initialize face service
     const RealFaceRecognitionService = require('./services/realFaceRecognition.service');
     const faceServiceInit = new RealFaceRecognitionService();
-    
+
     console.log('⏳ Starting server.listen on port', PORT);
     server.listen(PORT, async () => {
         console.log(`🚀 Server running on port ${PORT}`);
-        
+
         // Load face detection models
         try {
             console.log('📦 Loading face detection models (this may take 30-60 seconds)...');

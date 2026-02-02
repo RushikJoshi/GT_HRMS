@@ -27,7 +27,7 @@ export function JobPortalAuthProvider({ children }) {
 
   // Initialize on mount
   useEffect(() => {
-    const initializeJobPortalAuth = () => {
+    const initializeJobPortalAuth = async () => {
       const candidateToken = localStorage.getItem('token');
       const candidateData = localStorage.getItem('candidate');
 
@@ -53,7 +53,7 @@ export function JobPortalAuthProvider({ children }) {
         let candidateInfo = {
           id: payload.id,
           tenantId: payload.tenantId,
-          role: 'candidate',
+          role: payload.role || 'candidate',
           email: payload.email
         };
 
@@ -64,6 +64,33 @@ export function JobPortalAuthProvider({ children }) {
         }
 
         setCandidate(candidateInfo);
+
+        // Fetch latest info ONLY if role is candidate (otherwise we get 403 for HR/Admin users)
+        console.log(`[JobPortalAuth] Initializing with role: ${candidateInfo.role}`);
+
+        if (candidateInfo.role === 'candidate') {
+          try {
+            const res = await api.get('/candidate/me');
+            if (res.data && res.data.success) {
+              const updatedInfo = { ...candidateInfo, ...res.data.candidate };
+              setCandidate(updatedInfo);
+              localStorage.setItem('candidate', JSON.stringify(updatedInfo));
+            }
+          } catch (apiErr) {
+            console.warn(`[JobPortalAuth] Sync failed: ${apiErr.message} (${apiErr.response?.status})`);
+            // If token is invalid/expired on server (401), clear session
+            if (apiErr.response?.status === 401) {
+              console.warn('Token expired or invalid for candidate');
+              localStorage.removeItem('token');
+              localStorage.removeItem('candidate');
+              setCandidate(null);
+            } else {
+              setCandidate(candidateInfo); // Fallback to token info
+            }
+          }
+        } else {
+          console.log('[JobPortalAuth] Not a candidate session. Skipping API sync.');
+        }
       } catch (e) {
         console.error('Job Portal Auth initialization error:', e);
         localStorage.removeItem('token');
@@ -81,7 +108,7 @@ export function JobPortalAuthProvider({ children }) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await api.post('/jobs/candidate/login', {
+      const res = await api.post('/candidate/login', {
         tenantId,
         email,
         password
@@ -116,7 +143,7 @@ export function JobPortalAuthProvider({ children }) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await api.post('/jobs/candidate/register', data);
+      const res = await api.post('/candidate/register', data);
       return { success: true, ...res.data };
     } catch (error) {
       const message = error.response?.data?.error || error.response?.data?.message || 'Registration failed';

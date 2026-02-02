@@ -98,65 +98,65 @@ const ICONS = {
 const NAV_GROUPS = [
   {
     title: 'Overview',
-    items: [{ to: '/hr', label: 'Dashboard', icon: ICONS.dashboard, end: true }]
+    items: [{ to: '/hrms/hr', label: 'Dashboard', icon: ICONS.dashboard, end: true }]
   },
   {
     title: 'People',
     items: [
-      { to: '/hr/employees', label: 'Employees', icon: ICONS.employees },
-      { to: '/hr/departments', label: 'Departments', icon: ICONS.departments },
-      { to: '/hr/org', label: 'Org Structure', icon: ICONS.org },
-      { to: '/hr/users', label: 'User Management', icon: ICONS.users }
+      { to: '/hrms/hr/employees', label: 'Employees', icon: ICONS.employees },
+      { to: '/hrms/hr/departments', label: 'Departments', icon: ICONS.departments },
+      { to: '/hrms/hr/org', label: 'Org Structure', icon: ICONS.org },
+      { to: '/hrms/hr/users', label: 'User Management', icon: ICONS.users }
     ]
   },
   {
     title: 'Attendance',
     items: [
-      { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.dashboard },
-      { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
+      { to: '/hrms/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.dashboard },
+      { to: '/hrms/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
     ]
   },
   {
     title: 'Leave',
     items: [
-      { to: '/hr/leave-approvals', label: 'Leave Requests', icon: ICONS.leaveRequests },
-      { to: '/hr/leave-policies', label: 'Leave Policies', icon: ICONS.leavePolicies }
+      { to: '/hrms/hr/leave-approvals', label: 'Leave Requests', icon: ICONS.leaveRequests },
+      { to: '/hrms/hr/leave-policies', label: 'Leave Policies', icon: ICONS.leavePolicies }
     ]
   },
   {
     title: 'Payroll',
     items: [
-      { to: '/hr/payroll/dashboard', label: 'Dashboard', icon: ICONS.dashboard },
-      { to: '/hr/payroll/salary-components?tab=earnings', label: 'Salary Components', icon: ICONS.payroll },
-      { to: '/hr/payroll/salary-components?tab=templates', label: 'Salary Templates', icon: ICONS.payroll },
-      { to: '/hr/payroll/compensation', label: 'Employee Compensation', icon: ICONS.payroll },
-      { to: '/hr/payroll/process', label: 'Process Payroll', icon: ICONS.play },
+      { to: '/hrms/hr/payroll/dashboard', label: 'Dashboard', icon: ICONS.dashboard },
+      { to: '/hrms/hr/payroll/salary-components?tab=earnings', label: 'Salary Components', icon: ICONS.payroll },
+      { to: '/hrms/hr/payroll/salary-components?tab=templates', label: 'Salary Templates', icon: ICONS.payroll },
+      { to: '/hrms/hr/payroll/compensation', label: 'Employee Compensation', icon: ICONS.payroll },
+      { to: '/hrms/hr/payroll/process', label: 'Process Payroll', icon: ICONS.play },
 
-      { to: '/hr/payroll/run', label: 'Run History', icon: ICONS.calendar },
-      { to: '/hr/payroll/payslips', label: 'Payslips', icon: ICONS.document },
-      { to: '/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.document }
+      { to: '/hrms/hr/payroll/run', label: 'Run History', icon: ICONS.calendar },
+      { to: '/hrms/hr/payroll/payslips', label: 'Payslips', icon: ICONS.document },
+      { to: '/hrms/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.document }
     ]
   },
   {
     title: 'Hiring',
     items: [
       {
-        label: 'Requirements',
+        label: 'Recruitment',
         icon: ICONS.requirements,
         children: [
-          { to: '/hr/requirements', label: 'Job List' },
-          { to: '/hr/create-requirement', label: 'Create Requirement' }
+          { to: '/hrms/hr/requirements', label: 'Job List' },
+          { to: '/hrms/hr/create-requirement', label: 'Create Recruitment' }
         ]
       },
       {
         label: 'Applicants',
         icon: ICONS.applicants,
         children: [
-          { to: '/hr/applicants', label: 'External' },
-          { to: '/hr/internal-applicants', label: 'Internal' }
+          { to: '/hrms/hr/applicants', label: 'External' },
+          { to: '/hrms/hr/internal-applicants', label: 'Internal' }
         ]
       },
-      { to: '/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
+      { to: '/hrms/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
     ]
   },
   {
@@ -166,13 +166,13 @@ const NAV_GROUPS = [
         label: 'Templates',
         icon: ICONS.templates,
         children: [
-          { to: '/hr/letter-templates', label: 'Letter Editor' },
-          { to: '/hr/letter-settings', label: 'Letter Settings' },
-          { to: '/hr/payslip-templates', label: 'Payslip Templates' }
+          { to: '/hrms/hr/letter-templates', label: 'Letter Editor' },
+          { to: '/hrms/hr/letter-settings', label: 'Letter Settings' },
+          { to: '/hrms/hr/payslip-templates', label: 'Payslip Templates' }
         ]
       },
-      { to: '/hr/access', label: 'Access Control', icon: ICONS.access },
-      { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings }
+      { to: '/hrms/hr/access', label: 'Access Control', icon: ICONS.access },
+      { to: '/hrms/hr/settings/company', label: 'Company Settings', icon: ICONS.settings }
     ]
   },
   {
@@ -186,8 +186,8 @@ const NAV_GROUPS = [
           </svg>
         ),
         children: [
-          { to: '/hr/career-builder', label: 'Edit Career Page' },
-          { to: '/hr/apply-builder', label: 'Edit Apply Page' }
+          { to: '/hrms/hr/career-builder', label: 'Edit Career Page' },
+          { to: '/hrms/hr/apply-builder', label: 'Edit Apply Page' }
         ]
       },
       {
@@ -229,7 +229,8 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
   };
 
   return (
-    <aside className={`h-full bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col w-full`}>
+    <aside className="h-full bg-gradient-to-b from-[#0F172A] via-[#111827] to-[#0F172A] border-r border-indigo-900/40 text-slate-300 flex flex-col w-full relative">
+      <div className="absolute inset-0 bg-indigo-500/5 pointer-events-none"></div>
       {/* Header */}
       <div className="p-4 border-b border-slate-800 flex justify-between items-center">
         {!collapsed && (
@@ -278,7 +279,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                     <button
                       onClick={() => toggleGroup(item.label)}
                       className={`w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                        ${hasActiveChild ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`}
+                        ${hasActiveChild ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'hover:bg-indigo-500/10 hover:text-indigo-300'}`}
                     >
                       {item.icon}
                       {!collapsed && (
@@ -306,7 +307,8 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                           </NavLink>
                         ))}
                       </div>
-                    )}
+                    )
+                    }
                   </div>
                 );
               }
@@ -318,7 +320,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                   onClick={() => onNavigate && onNavigate()}
                   className={({ isActive }) =>
                     `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                     ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`
+                     ${isActive ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'hover:bg-indigo-500/10 hover:text-indigo-300'}`
                   }
                 >
                   {item.icon}
@@ -339,7 +341,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
           </div>
         )}
       </div>
-    </aside>
+    </aside >
   );
 }
 

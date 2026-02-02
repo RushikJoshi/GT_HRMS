@@ -1,5 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import {
+    Briefcase,
+    Users,
+    Clock,
+    MapPin,
+    Shield,
+    Eye,
+    EyeOff,
+    Plus,
+    Trash2,
+    Check,
+    ArrowRight,
+    ArrowLeft,
+    Building2,
+    Calendar,
+    ChevronRight,
+    Search,
+    Type,
+    List,
+    Layers,
+    Save,
+    X
+} from 'lucide-react';
 
 export default function RequirementForm({ onClose, onSuccess, initialData, isEdit, isModal = true }) {
     const [formData, setFormData] = useState({
@@ -13,33 +36,30 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
         expYears: '',
         expMonths: '',
         salaryMin: '',
-        salaryMax: ''
+        salaryMax: '',
+        visibility: 'External'
     });
 
     const [customFields, setCustomFields] = useState([]);
     const [step, setStep] = useState(1); // 1 = Details, 2 = Hiring Stages
 
-    // Track which fields are visible to the public
     const [publicFields, setPublicFields] = useState(new Set([
         'jobTitle', 'department', 'vacancy', 'description',
         'workMode', 'jobType', 'experience', 'salary'
     ]));
 
-    // Enhanced Workflow with detailed interview stages
     const [workflow, setWorkflow] = useState([
         { name: 'Shortlisted', type: 'screening' },
         { name: 'Interview', type: 'interview', interviewType: 'Technical', interviewer: '', description: '' }
     ]);
 
     const [saving, setSaving] = useState(false);
-
-    // Prevent double-click save on step transition
     const [canSave, setCanSave] = useState(false);
 
     useEffect(() => {
         if (step === 2) {
             setCanSave(false);
-            const timer = setTimeout(() => setCanSave(true), 1000); // 1-second delay
+            const timer = setTimeout(() => setCanSave(true), 1000);
             return () => clearTimeout(timer);
         }
     }, [step]);
@@ -57,7 +77,8 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                 expYears: initialData.minExperienceMonths ? Math.floor(initialData.minExperienceMonths / 12) : '',
                 expMonths: initialData.minExperienceMonths ? initialData.minExperienceMonths % 12 : '',
                 salaryMin: initialData.salaryMin || '',
-                salaryMax: initialData.salaryMax || ''
+                salaryMax: initialData.salaryMax || '',
+                visibility: initialData.visibility || 'External'
             });
             if (initialData.customFields && Array.isArray(initialData.customFields)) {
                 setCustomFields(initialData.customFields);
@@ -66,7 +87,6 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                 setPublicFields(new Set(initialData.publicFields));
             }
             if (initialData.workflow && Array.isArray(initialData.workflow)) {
-                // Convert old string-based workflow to new object-based format
                 const editable = initialData.workflow
                     .filter(s => s !== 'Applied' && s !== 'Finalized' && s !== 'Rejected' && s !== 'Selected')
                     .map(stage => {
@@ -106,7 +126,6 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
         setPublicFields(newSet);
     };
 
-    // Enhanced Workflow Handlers
     const addStage = () => {
         setWorkflow([...workflow, {
             name: 'New Round',
@@ -131,9 +150,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
 
     async function submit(e) {
         e.preventDefault();
-
         if (step === 1) {
-            // Basic validation for Step 1
             if (!formData.jobTitle || !formData.department || !formData.vacancy) {
                 alert('Please fill in Job Title, Department and Vacancy');
                 return;
@@ -143,28 +160,19 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
         }
 
         setSaving(true);
-
-        // Filter out empty custom fields
         const validCustomFields = customFields.filter(f => f.label.trim() !== '' && f.value.trim() !== '');
-
-        // Construct simplified workflow to save - convert objects to strings for backend compatibility
         const fullWorkflow = ['Applied', ...workflow.filter(w => w.name && w.name.trim() !== '').map(w => w.name), 'Finalized'];
-
-        // Store detailed workflow separately for future use
         const detailedWorkflow = workflow.filter(w => w.name && w.name.trim() !== '');
-
-        // Convert Years and Months to total months
         const totalMonths = (parseInt(formData.expYears) || 0) * 12 + (parseInt(formData.expMonths) || 0);
 
-        // Convert Set to Array for storage
         const payload = {
             ...formData,
             minExperienceMonths: totalMonths,
-            maxExperienceMonths: totalMonths, // Syncing both for now as per simple requirement
+            maxExperienceMonths: totalMonths,
             customFields: validCustomFields,
             publicFields: Array.from(publicFields),
             workflow: fullWorkflow,
-            detailedWorkflow: detailedWorkflow // Store enhanced workflow data
+            detailedWorkflow: detailedWorkflow
         };
 
         try {
@@ -189,522 +197,496 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
         }
     }
 
-    // Helper for label with visibility toggle
-    const LabelWithToggle = ({ label, fieldKey, required, id }) => (
-        <div className="flex justify-between items-center mb-1">
-            <label htmlFor={id} className="block text-sm font-medium text-slate-700 cursor-pointer">
-                {label} {required && <span className="text-red-500">*</span>}
-            </label>
+    const LabelWithToggle = ({ label, fieldKey, required, id, icon: Icon }) => (
+        <div className="flex justify-between items-center mb-2 px-1">
+            <div className="flex items-center gap-2">
+                {Icon && <Icon size={14} className="text-slate-400" />}
+                <label htmlFor={id} className="text-[12px] font-bold text-slate-700 cursor-pointer tracking-tight">
+                    {label} {required && <span className="text-rose-500">*</span>}
+                </label>
+            </div>
             <button
                 type="button"
                 onClick={() => togglePublic(fieldKey)}
-                className={`text-xs flex items-center gap-1 px-2 py-0.5 rounded border transition ${publicFields.has(fieldKey) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}
-                title={publicFields.has(fieldKey) ? "Visible on Public Page" : "Hidden from Public Page"}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${publicFields.has(fieldKey)
+                        ? 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                        : 'bg-slate-50 text-slate-400 border-slate-200'
+                    }`}
             >
-                {publicFields.has(fieldKey) ? (
-                    <>
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                        Public
-                    </>
-                ) : (
-                    <>
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                        Hidden
-                    </>
-                )}
+                {publicFields.has(fieldKey) ? <Eye size={10} /> : <EyeOff size={10} />}
+                {publicFields.has(fieldKey) ? 'Public' : 'Hidden'}
             </button>
         </div>
     );
 
     const FormContent = (
-        <form onSubmit={submit} className={isModal ? "p-6 overflow-y-auto" : "bg-white p-6 rounded-lg shadow-sm border border-slate-200"}>
-            {!isModal && (
-                <div className="mb-6 border-b border-slate-100 pb-4">
-                    <div className='flex justify-between items-center'>
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-800">
-                                {isEdit ? 'Edit Requirement' : 'New Job Requirement'}
-                                {initialData?.jobOpeningId && <span className="ml-3 text-sm font-mono bg-slate-100 px-2 py-1 rounded text-slate-600 border border-slate-200 select-all cursor-pointer" title="Click to copy" onClick={() => navigator.clipboard.writeText(initialData.jobOpeningId)}>{initialData.jobOpeningId}</span>}
+        <form onSubmit={submit} className="flex flex-col h-full font-sans">
+            {/* Header / Stepper */}
+            <div className={`px-10 py-8 border-b border-slate-100 bg-white sticky top-0 z-10 ${isModal ? 'rounded-t-[2rem]' : ''}`}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tighter">
+                                {isEdit ? 'Update Recruitment' : 'Job Information'}
                             </h2>
-                            <p className="text-slate-500 mt-1">
-                                {step === 1 ? 'Step 1: Job Details' : 'Step 2: Hiring Process'}
+                            {initialData?.jobOpeningId && (
+                                <span className="text-[10px] font-mono bg-slate-100 text-slate-500 px-3 py-1 rounded-lg border border-slate-200 uppercase tracking-widest font-bold">
+                                    REF: {initialData.jobOpeningId}
+                                </span>
+                            )}
+                        </div>
+                        {!isModal && (
+                            <p className="text-sm text-slate-500 font-medium mt-1">
+                                Step {step}: {step === 1 ? 'Fundamental Details' : 'Hiring Workflow Design'}
                             </p>
-                        </div>
-                        {/* Step Indicator */}
-                        <div className="flex items-center gap-2">
-                            <span className={`w-3 h-3 rounded-full ${step === 1 ? 'bg-blue-600' : 'bg-slate-300'}`}></span>
-                            <span className={`w-3 h-3 rounded-full ${step === 2 ? 'bg-blue-600' : 'bg-slate-300'}`}></span>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {step === 1 ? (
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                        <LabelWithToggle label="Job Title" fieldKey="jobTitle" required id="jobTitle" />
-                        <input
-                            id="jobTitle"
-                            required
-                            autoFocus
-                            value={formData.jobTitle}
-                            onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
-                            placeholder="e.g. Senior Developer"
-                        />
+                        )}
                     </div>
 
-                    <div>
-                        <LabelWithToggle label="Department" fieldKey="department" required />
-                        <select
-                            required
-                            value={formData.department}
-                            onChange={e => setFormData({ ...formData, department: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                        >
-                            <option value="">Select Department</option>
-                            <option value="HR">HR</option>
-                            <option value="IT">IT</option>
-                            <option value="Sales">Sales</option>
-                            <option value="Marketing">Marketing</option>
-                            <option value="Finance">Finance</option>
-                            <option value="Operations">Operations</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <LabelWithToggle label="Vacancy" fieldKey="vacancy" required />
-                        <input
-                            required
-                            type="number"
-                            min="1"
-                            value={formData.vacancy}
-                            onChange={e => setFormData({ ...formData, vacancy: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                    </div>
-
-                    <div>
-                        <LabelWithToggle label="Job Type" fieldKey="jobType" />
-                        <select
-                            value={formData.jobType}
-                            onChange={e => setFormData({ ...formData, jobType: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                        >
-                            <option value="Full Time">Full Time</option>
-                            <option value="Part Time">Part Time</option>
-                            <option value="Contract">Contract</option>
-                            <option value="Internship">Internship</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <LabelWithToggle label="Work Mode" fieldKey="workMode" />
-                        <select
-                            value={formData.workMode}
-                            onChange={e => setFormData({ ...formData, workMode: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                        >
-                            <option value="On-site">On-site</option>
-                            <option value="Remote">Remote</option>
-                            <option value="Hybrid">Hybrid</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <LabelWithToggle label="Experience" fieldKey="experience" />
-                        <div className="flex gap-2">
-                            <input
-                                type="number"
-                                placeholder="Years"
-                                value={formData.expYears}
-                                onChange={e => setFormData({ ...formData, expYears: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                            <span className="self-center text-slate-400">-</span>
-                            <input
-                                type="number"
-                                placeholder="Months"
-                                value={formData.expMonths}
-                                onChange={e => setFormData({ ...formData, expMonths: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="">
-                        <LabelWithToggle label="Priority" fieldKey="priority" />
-                        <select
-                            value={formData.priority}
-                            onChange={e => setFormData({ ...formData, priority: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                        >
-                            <option value="High">High</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Low">Low</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Job Posting Type</label>
-                        <select
-                            value={formData.visibility}
-                            onChange={e => setFormData({ ...formData, visibility: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                        >
-                            <option value="External">External (Public)</option>
-                            <option value="Internal">Internal (Employees Only)</option>
-                        </select>
-                    </div>
-
-                    <div className="col-span-2">
-                        <LabelWithToggle label="Salary Range (Annual)" fieldKey="salary" />
-                        <div className="flex gap-2">
-                            <input
-                                type="number"
-                                placeholder="Min Salary"
-                                value={formData.salaryMin}
-                                onChange={e => setFormData({ ...formData, salaryMin: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                            <span className="self-center text-slate-400">-</span>
-                            <input
-                                type="number"
-                                placeholder="Max Salary"
-                                value={formData.salaryMax}
-                                onChange={e => setFormData({ ...formData, salaryMax: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="col-span-2">
-                        <LabelWithToggle label="Description" fieldKey="description" />
-                        <textarea
-                            rows="3"
-                            value={formData.description}
-                            onChange={e => setFormData({ ...formData, description: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="Job details, key responsibilities, etc..."
-                        />
-                    </div>
-
-                    <div className="col-span-2 mt-4 pt-4 border-t border-slate-100">
-                        {/* Custom Fields Section */}
-                        <div className="flex justify-between items-center mb-3">
-                            <label className="block text-sm font-bold text-slate-700">Ad-hoc Details</label>
-                            <button type="button" onClick={addCustomField} className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-                                + Add Detail
+                    <div className="flex items-center gap-6">
+                        <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200/50">
+                            <button
+                                type="button"
+                                onClick={() => step === 2 && setStep(1)}
+                                className={`flex items-center gap-2.5 px-6 py-2 rounded-xl text-xs font-bold transition-all ${step === 1 ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/50' : 'text-slate-400 hover:text-slate-500'}`}
+                            >
+                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 1 ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-white'}`}>1</div>
+                                Core Details
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => step === 1 && formData.jobTitle && formData.department && setStep(2)}
+                                className={`flex items-center gap-2.5 px-6 py-2 rounded-xl text-xs font-bold transition-all ${step === 2 ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/50' : 'text-slate-400 hover:text-slate-500'}`}
+                            >
+                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 2 ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-white'}`}>2</div>
+                                Hiring Pipeline
                             </button>
                         </div>
+                        {isModal && (
+                            <button onClick={onClose} className="p-2.5 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-full transition-colors">
+                                <X size={20} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
 
-                        <div className="space-y-2">
-                            {customFields.map((field, index) => (
-                                <div key={index} className="flex gap-2 items-start bg-slate-50 p-2 rounded border border-slate-100">
-                                    {/* Public Toggle */}
-                                    <button
-                                        type="button"
-                                        onClick={() => updateCustomField(index, 'isPublic', !field.isPublic)}
-                                        className={`mt-1 p-1.5 rounded border transition ${field.isPublic ? 'bg-green-100 text-green-700 border-green-200' : 'bg-white text-slate-400 border-slate-200'}`}
-                                        title={field.isPublic ? "Visible Publicly" : "Hidden Publicly"}
-                                    >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            {field.isPublic ? (
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            ) : (
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                            )}
-                                        </svg>
-                                    </button>
+            <div className={`flex-1 overflow-y-auto ${isModal ? 'p-10' : 'p-12'}`}>
+                {step === 1 ? (
+                    <div className="mx-auto grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 animate-in fade-in slide-in-from-bottom-3 duration-700">
+                        {/* Core Info */}
+                        <div className="md:col-span-2 group">
+                            <LabelWithToggle label="Job Title" fieldKey="jobTitle" required id="jobTitle" icon={Type} />
+                            <input
+                                id="jobTitle"
+                                required
+                                autoFocus
+                                value={formData.jobTitle}
+                                onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all hover:border-slate-300 placeholder:text-slate-300 text-lg tracking-tight"
+                                placeholder="e.g. Senior Software Architect"
+                            />
+                        </div>
 
-                                    {/* Type Selector */}
-                                    <div className="w-28">
+                        <div className="space-y-1">
+                            <LabelWithToggle label="Department" fieldKey="department" required icon={Building2} />
+                            <select
+                                required
+                                value={formData.department}
+                                onChange={e => setFormData({ ...formData, department: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all appearance-none hover:border-slate-300 cursor-pointer"
+                            >
+                                <option value="">Select Department</option>
+                                <option value="HR">HR & Management</option>
+                                <option value="IT">IT & Engineering</option>
+                                <option value="Sales">Sales & Marketing</option>
+                                <option value="Marketing">Creative & Media</option>
+                                <option value="Finance">Finance & Legal</option>
+                                <option value="Operations">Operations</option>
+                            </select>
+                        </div>
+
+                        <div className="space-y-1">
+                            <LabelWithToggle label="Vacancy" fieldKey="vacancy" required icon={Users} />
+                            <input
+                                required
+                                type="number"
+                                min="1"
+                                value={formData.vacancy}
+                                onChange={e => setFormData({ ...formData, vacancy: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all hover:border-slate-300"
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <LabelWithToggle label="Job Type" fieldKey="jobType" icon={Clock} />
+                            <select
+                                value={formData.jobType}
+                                onChange={e => setFormData({ ...formData, jobType: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all appearance-none hover:border-slate-300 cursor-pointer"
+                            >
+                                <option value="Full Time">Full Time</option>
+                                <option value="Part Time">Part Time</option>
+                                <option value="Contract">Contractual</option>
+                                <option value="Internship">Internship</option>
+                            </select>
+                        </div>
+
+                        <div className="space-y-1">
+                            <LabelWithToggle label="Work Mode" fieldKey="workMode" icon={MapPin} />
+                            <select
+                                value={formData.workMode}
+                                onChange={e => setFormData({ ...formData, workMode: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all appearance-none hover:border-slate-300 cursor-pointer"
+                            >
+                                <option value="On-site">On-site (Office)</option>
+                                <option value="Remote">Remote (WFH)</option>
+                                <option value="Hybrid">Hybrid (Flexible)</option>
+                            </select>
+                        </div>
+
+                        {/* Experience */}
+                        <div className="space-y-1">
+                            <LabelWithToggle label="Experience" fieldKey="experience" icon={Calendar} />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        placeholder="Years"
+                                        value={formData.expYears}
+                                        onChange={e => setFormData({ ...formData, expYears: e.target.value })}
+                                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all hover:border-slate-300"
+                                    />
+                                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Yrs</span>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        placeholder="Months"
+                                        value={formData.expMonths}
+                                        onChange={e => setFormData({ ...formData, expMonths: e.target.value })}
+                                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all hover:border-slate-300"
+                                    />
+                                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mos</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <LabelWithToggle label="Priority Level" fieldKey="priority" icon={Shield} />
+                            <select
+                                value={formData.priority}
+                                onChange={e => setFormData({ ...formData, priority: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all appearance-none hover:border-slate-300 cursor-pointer"
+                            >
+                                <option value="High">Urgent Priority</option>
+                                <option value="Medium">Medium Priority</option>
+                                <option value="Low">Low Priority</option>
+                            </select>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[12px] font-bold text-slate-700 mb-2 px-1 flex items-center gap-2 tracking-tight">
+                                <Search size={14} className="text-slate-400" />
+                                Job Posting Type
+                            </label>
+                            <select
+                                value={formData.visibility}
+                                onChange={e => setFormData({ ...formData, visibility: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all appearance-none hover:border-slate-300 cursor-pointer"
+                            >
+                                <option value="External">External (Public Career Page)</option>
+                                <option value="Internal">Internal (Employee Referral Only)</option>
+                            </select>
+                        </div>
+
+                        <div className="md:col-span-2 space-y-1">
+                            <LabelWithToggle label="Annual Salary Range" fieldKey="salary" />
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+                                        <span className="text-slate-400 font-bold">₹</span>
+                                    </div>
+                                    <input
+                                        type="number"
+                                        placeholder="Min Salary"
+                                        value={formData.salaryMin}
+                                        onChange={e => setFormData({ ...formData, salaryMin: e.target.value })}
+                                        className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all hover:border-slate-300"
+                                    />
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-300 uppercase tracking-widest group-hover:text-slate-400 transition-colors">Minimum</div>
+                                </div>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+                                        <span className="text-slate-400 font-bold">₹</span>
+                                    </div>
+                                    <input
+                                        type="number"
+                                        placeholder="Max Salary"
+                                        value={formData.salaryMax}
+                                        onChange={e => setFormData({ ...formData, salaryMax: e.target.value })}
+                                        className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all hover:border-slate-300"
+                                    />
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-300 uppercase tracking-widest group-hover:text-slate-400 transition-colors">Maximum</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2 space-y-1">
+                            <LabelWithToggle label="Job Description & Responsibilities" fieldKey="description" icon={List} />
+                            <textarea
+                                rows="6"
+                                value={formData.description}
+                                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-slate-900 font-semibold transition-all hover:border-slate-300 resize-none leading-relaxed"
+                                placeholder="Outline the role's mission, key responsibilities, and required qualifications..."
+                            />
+                        </div>
+
+                        {/* Ad-hoc Details */}
+                        <div className="md:col-span-2 mt-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
+                                    <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">Additional Specifications</h3>
+                                </div>
+                                <button type="button" onClick={addCustomField} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors flex items-center gap-1.5">
+                                    <Plus size={14} /> Add Parameter
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4">
+                                {customFields.map((field, index) => (
+                                    <div key={index} className="flex flex-wrap md:flex-nowrap gap-4 items-center bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                                        <button
+                                            type="button"
+                                            onClick={() => updateCustomField(index, 'isPublic', !field.isPublic)}
+                                            className={`p-2.5 rounded-xl transition-all border ${field.isPublic ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}
+                                            title={field.isPublic ? "Visible" : "Hidden"}
+                                        >
+                                            {field.isPublic ? <Eye size={18} /> : <EyeOff size={18} />}
+                                        </button>
+
                                         <select
                                             value={field.type || 'text'}
                                             onChange={(e) => updateCustomField(index, 'type', e.target.value)}
-                                            className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                            className="px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all"
                                         >
-                                            <option value="text">Text</option>
-                                            <option value="number">Number</option>
-                                            <option value="date">Date</option>
-                                            <option value="textarea">Long Text</option>
-                                            <option value="dropdown">Dropdown</option>
+                                            <option value="text">Short Text</option>
+                                            <option value="number">Numeric</option>
+                                            <option value="date">Calendar</option>
+                                            <option value="textarea">Paragraph</option>
+                                            <option value="dropdown">Options List</option>
                                         </select>
-                                    </div>
 
-                                    {/* Label Input */}
-                                    <div className="w-32">
                                         <input
                                             type="text"
-                                            placeholder="Label"
+                                            placeholder="Label (e.g. Notice Period)"
                                             list="adhoc-suggestions"
                                             value={field.label}
                                             onChange={(e) => updateCustomField(index, 'label', e.target.value)}
-                                            className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                            className="flex-1 min-w-[150px] px-5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:bg-white transition-all"
                                         />
-                                    </div>
-                                    <datalist id="adhoc-suggestions">
-                                        <option value="Shift Timing" />
-                                        <option value="Notice Period" />
-                                        <option value="Gender Preference" />
-                                        <option value="Languages Required" />
-                                        <option value="Qualification" />
-                                        <option value="HR Contact Number" />
-                                        <option value="Certifications" />
-                                        <option value="Bond Period" />
-                                        <option value="Benefits" />
-                                    </datalist>
 
-                                    {/* Dynamic Value Input */}
-                                    <div className="flex-1">
-                                        {field.type === 'textarea' ? (
-                                            <textarea
-                                                rows="1"
-                                                placeholder="Value"
-                                                value={field.value}
-                                                onChange={(e) => updateCustomField(index, 'value', e.target.value)}
-                                                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                                            />
-                                        ) : field.type === 'dropdown' ? (
-                                            <input
-                                                type="text"
-                                                placeholder="Options (comma separated, e.g. Yes, No)"
-                                                value={field.value}
-                                                onChange={(e) => updateCustomField(index, 'value', e.target.value)}
-                                                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500 border-dashed bg-slate-50"
-                                            />
-                                        ) : (
-                                            <input
-                                                type={field.type || 'text'}
-                                                placeholder="Value"
-                                                value={field.value}
-                                                onChange={(e) => updateCustomField(index, 'value', e.target.value)}
-                                                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                            />
-                                        )}
-                                    </div>
+                                        <input
+                                            type={field.type === 'dropdown' ? 'text' : field.type || 'text'}
+                                            placeholder={field.type === 'dropdown' ? "Options (comma separated)" : "Requirement Value"}
+                                            value={field.value}
+                                            onChange={(e) => updateCustomField(index, 'value', e.target.value)}
+                                            className="flex-[2] min-w-[200px] px-5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-600 outline-none focus:bg-white transition-all shadow-inner"
+                                        />
 
-                                    {/* Delete Button */}
-                                    <button type="button" onClick={() => removeCustomField(index)} className="mt-1 text-red-400 hover:text-red-600 p-1">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
-                                </div>
-                            ))}
-                            {customFields.length === 0 && (
-                                <div className="text-xs text-slate-400 italic text-center py-2 bg-slate-50 rounded border border-dashed border-slate-200">
-                                    No custom fields.
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                <div className="space-y-6">
-                    {/* Hiring Process Configurator */}
-                    <div>
-                        <div className="flex justify-between items-center mb-4">
-                            <div>
-                                <h3 className="text-lg font-bold text-slate-800">Hiring Stages</h3>
-                                <p className="text-sm text-slate-500">Define the interview and selection rounds.</p>
-                            </div>
-                            <button type="button" onClick={addStage} className="text-sm text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-md hover:bg-indigo-100 font-medium flex items-center gap-1">
-                                + Add Stage
-                            </button>
-                        </div>
-                        <div className="space-y-3">
-                            {/* Fixed Start */}
-                            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200 shadow-sm opacity-90">
-                                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-700 font-bold border border-green-200">S</span>
-                                <div className="flex-1 font-semibold text-green-900">Applied</div>
-                            </div>
-
-                            {/* Dynamic Middle Stages */}
-                            {workflow.map((stage, index) => (
-                                <div key={index} className="p-4 rounded-lg bg-white border-2 border-slate-200 shadow-sm hover:border-blue-400 transition-colors">
-                                    <div className="flex gap-3 items-start mb-3">
-                                        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold border border-slate-200">{index + 1}</span>
-                                        <div className="flex-1 grid grid-cols-2 gap-3">
-                                            {/* Stage Name */}
-                                            <div className="col-span-2">
-                                                <label className="block text-xs font-medium text-slate-600 mb-1">Stage Name *</label>
-                                                <input
-                                                    type="text"
-                                                    value={stage.name || ''}
-                                                    autoFocus={stage.name === 'New Round'}
-                                                    onChange={(e) => updateStage(index, 'name', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-                                                    placeholder="e.g. Technical Round, HR Interview"
-                                                    list={`stage-name-suggestions-${index}`}
-                                                />
-                                                <datalist id={`stage-name-suggestions-${index}`}>
-                                                    <option value="Shortlisted" />
-                                                    <option value="Phone Screening" />
-                                                    <option value="Technical Round" />
-                                                    <option value="HR Interview" />
-                                                    <option value="Managerial Round" />
-                                                    <option value="Final Interview" />
-                                                    <option value="Assessment" />
-                                                </datalist>
-                                            </div>
-
-                                            {/* Stage Type - Now Custom Input */}
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-600 mb-1">Stage Type</label>
-                                                <input
-                                                    type="text"
-                                                    value={stage.type || ''}
-                                                    onChange={(e) => updateStage(index, 'type', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-                                                    placeholder="e.g. Screening, Interview"
-                                                    list={`stage-type-suggestions-${index}`}
-                                                />
-                                                <datalist id={`stage-type-suggestions-${index}`}>
-                                                    <option value="Screening" />
-                                                    <option value="Interview" />
-                                                    <option value="Assessment" />
-                                                    <option value="Test" />
-                                                    <option value="Other" />
-                                                </datalist>
-                                            </div>
-
-                                            {/* Interview Type - Now Custom Input (only show if type contains 'interview') */}
-                                            {stage.type && stage.type.toLowerCase().includes('interview') && (
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-600 mb-1">Interview Type</label>
-                                                    <input
-                                                        type="text"
-                                                        value={stage.interviewType || ''}
-                                                        onChange={(e) => updateStage(index, 'interviewType', e.target.value)}
-                                                        className="w-full px-3 py-2 border border-slate-300 rounded-md text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-                                                        placeholder="e.g. Technical, HR"
-                                                        list={`interview-type-suggestions-${index}`}
-                                                    />
-                                                    <datalist id={`interview-type-suggestions-${index}`}>
-                                                        <option value="Technical" />
-                                                        <option value="HR" />
-                                                        <option value="Managerial" />
-                                                        <option value="Cultural Fit" />
-                                                        <option value="Final Round" />
-                                                        <option value="Behavioral" />
-                                                    </datalist>
-                                                </div>
-                                            )}
-
-                                            {/* Interviewer Name */}
-                                            {stage.type && stage.type.toLowerCase().includes('interview') && (
-                                                <div className="col-span-2">
-                                                    <label className="block text-xs font-medium text-slate-600 mb-1">Interviewer Name (Optional)</label>
-                                                    <input
-                                                        type="text"
-                                                        value={stage.interviewer || ''}
-                                                        onChange={(e) => updateStage(index, 'interviewer', e.target.value)}
-                                                        className="w-full px-3 py-2 border border-slate-300 rounded-md text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-                                                        placeholder="e.g. John Doe, Tech Lead"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {/* Description */}
-                                            <div className="col-span-2">
-                                                <label className="block text-xs font-medium text-slate-600 mb-1">Description (Optional)</label>
-                                                <textarea
-                                                    rows="2"
-                                                    value={stage.description || ''}
-                                                    onChange={(e) => updateStage(index, 'description', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                                                    placeholder="Brief description of what this stage involves..."
-                                                />
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => removeStage(index)}
-                                            className="text-slate-400 hover:text-red-500 p-2 transition-colors"
-                                            title="Remove Stage"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        <button type="button" onClick={() => removeCustomField(index)} className="p-2.5 text-slate-200 hover:text-rose-500 group-hover:text-slate-300 transition-all">
+                                            <Trash2 size={18} />
                                         </button>
                                     </div>
-                                </div>
-                            ))}
-
-                            {/* Fixed End */}
-                            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 shadow-sm opacity-90">
-                                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-500 font-bold border border-slate-300">E</span>
-                                <div className="flex-1 font-semibold text-slate-700">Finalized (Selected / Rejected)</div>
+                                ))}
+                                {customFields.length === 0 && (
+                                    <div className="text-center py-10 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Optional Supplemental Parameters</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-right-3 duration-700 pb-10">
+                        <div className="text-center space-y-2">
+                            <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Hiring Pipeline Architecture</h3>
+                            <p className="text-base text-slate-500 font-medium">Define the sequential stages from initial application to final selection.</p>
+                        </div>
 
-            <div className="flex justify-between gap-3 pt-6 mt-6 border-t border-slate-100">
+                        <div className="space-y-6 relative">
+                            {/* Decorative Line */}
+                            <div className="absolute left-[2.45rem] top-10 bottom-10 w-0.5 bg-slate-100 hidden md:block"></div>
+
+                            {/* Start Stage */}
+                            <div className="relative flex items-center gap-6 p-6 bg-emerald-50/40 rounded-[2rem] border border-emerald-100 shadow-sm">
+                                <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-lg ring-4 ring-emerald-50 shadow-lg shadow-emerald-100/50 z-10">
+                                    <Check size={24} strokeWidth={3} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">Automated Initialization</p>
+                                    <h4 className="text-lg font-extrabold text-slate-800 tracking-tight">Applied / Sourced</h4>
+                                </div>
+                            </div>
+
+                            {/* Middle Stages */}
+                            {workflow.map((stage, index) => (
+                                <div key={index} className="relative group bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/30 hover:border-indigo-200 hover:shadow-2xl hover:shadow-indigo-100/20 transition-all duration-500">
+                                    <div className="flex justify-between items-start mb-8">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-lg shadow-indigo-100 ring-4 ring-indigo-50">
+                                                {index + 1}
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={stage.name || ''}
+                                                autoFocus={stage.name === 'New Round'}
+                                                onChange={(e) => updateStage(index, 'name', e.target.value)}
+                                                className="text-xl font-extrabold text-slate-900 bg-transparent border-none focus:ring-0 px-0 placeholder:text-slate-200 tracking-tighter"
+                                                placeholder="Stage Title (e.g. Design Challenge)"
+                                            />
+                                        </div>
+                                        <button onClick={() => removeStage(index)} className="p-2.5 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all">
+                                            <Trash2 size={20} />
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1">Round Category</label>
+                                            <select
+                                                value={stage.type || ''}
+                                                onChange={(e) => updateStage(index, 'type', e.target.value)}
+                                                className="w-full px-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-4 focus:ring-indigo-500/5 transition-all appearance-none cursor-pointer"
+                                            >
+                                                <option value="Screening">🔍 Initial Screening</option>
+                                                <option value="Interview">🗣️ Personal Interview</option>
+                                                <option value="Assessment">📝 Written Assessment</option>
+                                                <option value="Test">💻 Practical Test</option>
+                                                <option value="Other">🏷️ Special Category</option>
+                                            </select>
+                                        </div>
+
+                                        {stage.type?.toLowerCase().includes('interview') && (
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1">Interview Format</label>
+                                                <input
+                                                    type="text"
+                                                    value={stage.interviewType || ''}
+                                                    onChange={(e) => updateStage(index, 'interviewType', e.target.value)}
+                                                    className="w-full px-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white transition-all"
+                                                    placeholder="e.g. Video Call / In-Person"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {stage.type?.toLowerCase().includes('interview') && (
+                                            <div className="md:col-span-2 space-y-1.5">
+                                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1">Primary Evaluator Designation</label>
+                                                <input
+                                                    type="text"
+                                                    value={stage.interviewer || ''}
+                                                    onChange={(e) => updateStage(index, 'interviewer', e.target.value)}
+                                                    className="w-full px-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white transition-all"
+                                                    placeholder="e.g. Department Head / VP of Engineering"
+                                                />
+                                            </div>
+                                        )}
+
+                                        <div className="md:col-span-2 space-y-1.5">
+                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1">Evaluation Scorecard Notes</label>
+                                            <textarea
+                                                rows="3"
+                                                value={stage.description || ''}
+                                                onChange={(e) => updateStage(index, 'description', e.target.value)}
+                                                className="w-full px-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold text-slate-600 outline-none focus:bg-white transition-all resize-none shadow-inner"
+                                                placeholder="Briefly describe the success criteria for this specific stage..."
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <button type="button" onClick={addStage} className="w-full py-8 border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group">
+                                <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-indigo-100 group-hover:scale-110 transition-all">
+                                    <Plus size={24} />
+                                </div>
+                                <span className="font-extrabold text-sm uppercase tracking-widest">Append Pipeline Round</span>
+                            </button>
+
+                            {/* End Stage */}
+                            <div className="relative flex items-center gap-6 p-6 bg-slate-50/60 rounded-[2rem] border border-slate-100">
+                                <div className="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center text-white ring-4 ring-slate-100 shadow-lg">
+                                    <Save size={20} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Automated Termination</p>
+                                    <h4 className="text-lg font-extrabold text-slate-600 tracking-tight">Finalized (Offer / Rejection)</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Sticky Actions Footer */}
+            <div className="px-10 py-8 border-t border-slate-100 bg-white flex items-center justify-between gap-6 sticky bottom-0 z-10">
                 <button
                     type="button"
                     onClick={() => {
                         if (step === 2) setStep(1);
-                        else onClose(); // Close if cancelling on step 1
+                        else onClose();
                     }}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-lg border border-slate-200"
+                    className="px-8 py-4 font-bold text-xs uppercase tracking-[0.2em] text-slate-400 hover:text-slate-900 transition-all flex items-center gap-2.5 active:scale-95 group"
                 >
-                    {step === 1 ? 'Cancel' : 'Back'}
+                    {step === 1 ? <Trash2 size={16} /> : <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />}
+                    {step === 1 ? 'Discard Draft' : 'Previous Step'}
                 </button>
 
-                {step === 1 ? (
-                    <button
-                        type="button"
-                        onClick={() => {
-                            // Basic validation for Step 1
-                            if (!formData.jobTitle || !formData.department || !formData.vacancy) {
-                                alert('Please fill in Job Title, Department and Vacancy');
-                                return;
-                            }
-                            setStep(2);
-                        }}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md flex items-center gap-2"
-                    >
-                        Next Channel
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                    </button>
-                ) : (
-                    <button
-                        type="submit"
-                        disabled={saving || !canSave}
-                        className={`px-6 py-2 rounded-lg shadow-md flex items-center gap-2 ${saving || !canSave ? 'bg-green-400 cursor-not-allowed text-slate-100' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                    >
-                        {saving ? (
-                            <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                Saving...
-                            </>
-                        ) : (
-                            <>
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                Save & Configure
-                            </>
-                        )}
-                    </button>
-                )}
+                <div className="flex gap-6">
+                    {step === 1 ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (!formData.jobTitle || !formData.department || !formData.vacancy) {
+                                    alert('Please fill in Job Title, Department and Vacancy');
+                                    return;
+                                }
+                                setStep(2);
+                            }}
+                            className="bg-slate-900 hover:bg-black text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-slate-200 active:scale-95 transition-all flex items-center gap-3 group"
+                        >
+                            Next: Pipeline Design
+                            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        </button>
+                    ) : (
+                        <button
+                            type="submit"
+                            disabled={saving || !canSave}
+                            className={`bg-indigo-600 hover:bg-indigo-700 text-white px-12 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-indigo-100 active:scale-95 transition-all flex items-center gap-3 ${saving || !canSave ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {saving ? 'Processing...' : (isEdit ? 'Sync Configurations' : 'Launch Channel')}
+                            <Check size={20} strokeWidth={3} />
+                        </button>
+                    )}
+                </div>
             </div>
+
+            <datalist id="adhoc-suggestions">
+                <option value="Notice Period" />
+                <option value="Shift Timing" />
+                <option value="Probation Period" />
+                <option value="Bond/Agreement" />
+                <option value="Qualification" />
+            </datalist>
         </form>
     );
 
     if (isModal) {
         return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
-                    <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                        <div>
-                            <h2 className="text-xl font-bold text-slate-800">
-                                {isEdit ? 'Edit Requirement' : 'New Job Requirement'}
-                                {initialData?.jobOpeningId && <span className="ml-3 text-sm font-mono bg-slate-100 px-2 py-1 rounded text-slate-600 border border-slate-200 select-all cursor-pointer" title="Click to copy" onClick={() => navigator.clipboard.writeText(initialData.jobOpeningId)}>{initialData.jobOpeningId}</span>}
-                            </h2>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                                {step === 1 ? 'Step 1: Job Details' : 'Step 2: Hiring Process'}
-                            </p>
-                        </div>
-                        <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
-                    </div>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xl animate-in fade-in duration-500">
+                <div className="bg-white rounded-[3rem] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.15)] w-full max-w-6xl flex flex-col max-h-[92vh] overflow-hidden border border-white/20">
                     {FormContent}
                 </div>
             </div>

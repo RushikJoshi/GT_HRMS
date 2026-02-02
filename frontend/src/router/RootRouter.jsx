@@ -14,6 +14,7 @@ import { getToken, isValidToken } from '../utils/token';
 
 import HrmsRoutes from './HrmsRoutes';
 import JobPortalRoutes from './JobPortalRoutes';
+import PublicCareerPage from '../pages/PublicCareerPage';
 import NotFound from '../pages/NotFound';
 
 /**
@@ -65,20 +66,24 @@ export default function RootRouter() {
       <Route path="/login" element={<Navigate to="/hrms/login" replace />} />
 
       {/* BACKWARD COMPATIBILITY: Redirect old Job Portal candidate routes to new Job Portal routes */}
-      <Route path="/candidate" element={<Navigate to="/jobs/login" replace />} />
-      <Route path="/candidate/login" element={<Navigate to="/jobs/login" replace />} />
-      <Route path="/candidate/register" element={<Navigate to="/jobs/signup" replace />} />
-      <Route path="/candidate/dashboard" element={<Navigate to="/jobs/dashboard" replace />} />
-      <Route path="/candidate/openpositions" element={<Navigate to="/jobs/openpositions" replace />} />
-      <Route path="/candidate/applications" element={<Navigate to="/jobs/applications" replace />} />
-      <Route path="/candidate/profile" element={<Navigate to="/jobs/profile" replace />} />
-      <Route path="/candidate/*" element={<Navigate to="/jobs/login" replace />} />
+      <Route path="/candidate" element={<Navigate to="/candidate/login" replace />} />
+      <Route path="/candidate/login" element={<Navigate to="/candidate/login" replace />} />
+      <Route path="/candidate/register" element={<Navigate to="/candidate/signup" replace />} />
+      <Route path="/candidate/dashboard" element={<Navigate to="/candidate/dashboard" replace />} />
+      <Route path="/candidate/openpositions" element={<Navigate to="/candidate/openpositions" replace />} />
+      <Route path="/candidate/applications" element={<Navigate to="/candidate/applications" replace />} />
+      <Route path="/candidate/profile" element={<Navigate to="/candidate/profile" replace />} />
+      <Route path="/candidate/*" element={<Navigate to="/candidate/login" replace />} />
 
       {/* HRMS System - All routes prefixed with /hrms */}
       <Route path="/hrms/*" element={<HrmsRoutes />} />
 
-      {/* Job Portal System - All routes prefixed with /jobs */}
+      {/* Public Career Page - For customized career page with SEO */}
+      <Route path="/careers/:tenantId" element={<PublicCareerPage />} />
+
+      {/* Job Portal System - All routes prefixed with /candidate */}
       <Route path="/jobs/*" element={<JobPortalRoutes />} />
+      <Route path="/candidate/*" element={<JobPortalRoutes />} />
 
       {/* Catch-all 404 */}
       <Route path="*" element={<NotFound />} />
