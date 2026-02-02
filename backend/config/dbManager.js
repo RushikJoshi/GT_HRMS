@@ -70,14 +70,22 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const EmployeeCompensationSchema = require("../models/EmployeeCompensation");
     const EmployeeCtcVersionSchema = require("../models/EmployeeCtcVersion"); // Start (Active v7.2 - Refresh Timestamp: 2026-01-19T18:55:00)
     const PayslipTemplateSchema = require("../models/PayslipTemplate");
+    const PositionSchema = require("../models/Position");
+    const CompanyIdConfigSchema = require("../models/CompanyIdConfig");
 
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
+      if (!schema) {
+        console.error(`❌ [DB_MANAGER] FATAL: Schema for model '${name}' is ${schema} (Undefined/Null). Check the model file exports.`);
+        return;
+      }
       if (db.models[name] && (forceRefresh || isCritical)) {
         delete db.models[name];
       }
       if (!db.models[name]) {
-        db.model(name, schema);
+        // Handle if schema is actually a Model (extract schema)
+        const schemaToUse = schema.schema || schema;
+        db.model(name, schemaToUse);
       }
     };
 
@@ -127,11 +135,25 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("RequirementTemplate", RequirementTemplateSchema);
     register("Counter", CounterSchema);
     register("PayslipTemplate", PayslipTemplateSchema);
+    register("Position", PositionSchema);
+    register("CompanyIdConfig", CompanyIdConfigSchema);
+
+    // NEW: Payroll Adjustment
+    if (!db.models.PayrollAdjustment) {
+      try {
+        const PayrollAdjustmentSchema = require("../models/PayrollAdjustment");
+        db.model("PayrollAdjustment", PayrollAdjustmentSchema);
+      } catch (e) { console.warn("Failed to load PayrollAdjustment", e.message); }
+    }
 
     // CRITICAL: Register EmployeeCompensation for payroll
     if (!db.models.EmployeeCompensation) {
       db.model("EmployeeCompensation", EmployeeCompensationSchema);
     }
+
+    // Register EmployeeCtcVersion
+    register("EmployeeCtcVersion", EmployeeCtcVersionSchema);
+
     registeredModels.add(tenantId);
     console.log(`✅ [DB_MANAGER] Models registered/refreshed for tenant: ${tenantId}`);
   } catch (err) {
@@ -188,7 +210,7 @@ function clearCache() {
  * @param {mongoose.Connection} db The tenant database connection
  * @returns {Promise<Object>} The updated (or original) employee document
  */
-async function ensureLeavePolicy(employee, db) {
+async function ensureLeavePolicy(employee, db, tenantIdOverride = null) {
   if (!employee) return null;
 
   const LeavePolicy = db.model("LeavePolicy");
@@ -199,7 +221,7 @@ async function ensureLeavePolicy(employee, db) {
     try {
       const existingPolicy = await LeavePolicy.findOne({
         _id: employee.leavePolicy._id || employee.leavePolicy,
-        tenant: new mongoose.Types.ObjectId(employee.tenant)
+        tenant: new mongoose.Types.ObjectId(tenantIdOverride || employee.tenant)
       });
 
       // A policy is only "valid" if it exists AND has at least one rule
@@ -220,8 +242,16 @@ async function ensureLeavePolicy(employee, db) {
   }
 
   try {
-    // Ensure tenant is an ObjectId for consistent matching
-    const tenantId = new mongoose.Types.ObjectId(employee.tenant);
+    // Determine tenant id: prefer override, else employee.tenant, else infer from db name
+    let tenantStr = tenantIdOverride || employee.tenant;
+    if (!tenantStr && db && db.name) {
+      // db.name is like 'company_<tenantId>' for our multi-tenant pattern
+      tenantStr = db.name.replace(/^company_/, '');
+      console.log(`[POLICY_ENFORCEMENT] Inferred tenant from DB name: ${tenantStr}`);
+    }
+
+    if (!tenantStr) throw new Error('Tenant id not available to enforce policy');
+    const tenantId = new mongoose.Types.ObjectId(tenantStr);
 
     // Find latest active 'All' policy for this tenant that HAS rules
     let globalPolicy = await LeavePolicy.findOne({
@@ -242,6 +272,50 @@ async function ensureLeavePolicy(employee, db) {
       if (fallbackPolicy) {
         console.log(`[POLICY_ENFORCEMENT] No global 'All' policy with rules found. Using fallback policy '${fallbackPolicy.name}'`);
         globalPolicy = fallbackPolicy;
+      }
+    }
+
+    // STILL no policy? Create a default 'Standard Leave Policy' for this tenant
+    if (!globalPolicy) {
+      try {
+        console.log('[POLICY_ENFORCEMENT] No active policy found. Creating default Standard Leave Policy...');
+        const defaultPolicy = new LeavePolicy({
+          tenant: tenantId,
+          name: 'Standard Leave Policy',
+          applicableTo: 'All',
+          isActive: true,
+          rules: [
+            { leaveType: 'Casual Leave', totalPerYear: 12, color: '#f59e0b' },
+            { leaveType: 'Sick Leave', totalPerYear: 7, color: '#ef4444' },
+            { leaveType: 'Privilege Leave', totalPerYear: 15, color: '#10b981' }
+          ]
+        });
+        await defaultPolicy.save();
+        globalPolicy = defaultPolicy;
+        console.log('[POLICY_ENFORCEMENT] Default policy created:', defaultPolicy._id);
+
+        // Initialize balances for the employee for current year
+        const LeaveBalance = db.model('LeaveBalance');
+        const year = new Date().getFullYear();
+        for (const rule of globalPolicy.rules) {
+          const exists = await LeaveBalance.findOne({ tenant: tenantId, employee: employee._id, leaveType: rule.leaveType, year });
+          if (!exists) {
+            await new LeaveBalance({
+              tenant: tenantId,
+              employee: employee._id,
+              policy: globalPolicy._id,
+              leaveType: rule.leaveType,
+              year,
+              total: rule.totalPerYear,
+              used: 0,
+              pending: 0,
+              available: rule.totalPerYear
+            }).save();
+            console.log(`[POLICY_ENFORCEMENT] Created balance ${rule.leaveType} (${rule.totalPerYear}) for employee ${employee.employeeId}`);
+          }
+        }
+      } catch (createErr) {
+        console.error('[POLICY_ENFORCEMENT] Error creating default policy:', createErr);
       }
     }
 

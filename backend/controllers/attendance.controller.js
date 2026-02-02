@@ -558,12 +558,14 @@ exports.punch = async (req, res) => {
         attendance.workingHours = calculateWorkingHours(attendance.logs);
 
         // ========== OVERTIME ==========
-        if (settings.overtimeAllowed && attendance.workingHours > 0) {
+        // ========== OVERTIME ==========
+        // Business Rule: Standard Shift = 8 Hours. Calculate overtime if > 8h.
+        if (attendance.workingHours > 0) {
             attendance.overtimeHours = calculateOvertimeHours(
                 attendance.workingHours,
-                settings.shiftStartTime,
-                settings.shiftEndTime,
-                settings.overtimeAfterShiftHours
+                settings.shiftStartTime || "09:00",
+                settings.shiftEndTime || "17:00",
+                settings.overtimeAfterShiftHours // If false/undefined, uses 8h rule
             );
         }
 
@@ -998,6 +1000,8 @@ exports.getTodaySummary = async (req, res) => {
             totalIn,
             totalOut,
             workingHours: attendance.workingHours || 0,
+            overtimeHours: attendance.overtimeHours || 0, // Added field
+            shiftHours: Math.min(attendance.workingHours || 0, 8), // Added field (Max 8h)
             status: attendance.status || 'Not Marked',
             firstPunch: attendance.checkIn || null,
             lastPunch: attendance.checkOut || null,
@@ -1249,6 +1253,7 @@ exports.uploadExcel = async (req, res) => {
 exports.bulkUpload = async (req, res) => {
     try {
         const { records } = req.body;
+        console.log(records);
 
         if (!records || !Array.isArray(records)) {
             return res.status(400).json({
@@ -1384,23 +1389,23 @@ exports.bulkUpload = async (req, res) => {
             }
         }
 
-        // Log audit
-        try {
-            const AuditLog = require('../models/auditLog.model');
-            const auditLog = new AuditLog({
-                tenant: tenantId,
-                user: userId,
-                action: 'BULK_UPLOAD_ATTENDANCE',
-                module: 'Attendance',
-                changes: {
-                    uploadedCount: results.uploadedCount,
-                    failedCount: results.failedCount
-                }
-            });
-            await auditLog.save();
-        } catch (e) {
-            console.error('Audit log error:', e);
-        }
+        // // Log audit
+        // try {
+        //     const AuditLog = require('../models/auditLog.model');
+        //     const auditLog = new AuditLog({
+        //         tenant: tenantId,
+        //         user: userId,
+        //         action: 'BULK_UPLOAD_ATTENDANCE',
+        //         module: 'Attendance',
+        //         changes: {
+        //             uploadedCount: results.uploadedCount,
+        //             failedCount: results.failedCount
+        //         }
+        //     });
+        //     await auditLog.save();
+        // } catch (e) {
+        //     console.error('Audit log error:', e);
+        // }
 
         res.json({
             success: true,

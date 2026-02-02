@@ -20,25 +20,83 @@ const mongoose = require('mongoose');
  */
 async function getEmployeeCompensation(db, tenantId, employeeId) {
     try {
-        // Try to get applicant with populated salarySnapshotId
         const Applicant = db.model('Applicant');
-        
-        const applicant = await Applicant.findOne({
-            tenant: tenantId,
-            // Could match by email or other identifier if employee email available
-        })
-        .populate('salarySnapshotId')
-        .lean();
-        
+        const Employee = db.model('Employee');
+        const EmployeeCompensation = db.model('EmployeeCompensation');
+
+        let applicant = null;
+        let mainComp = null;
+        const employee = await Employee.findById(employeeId);
+
+        if (employee) {
+            // Priority 1: Check EmployeeCompensation model (Master source)
+            mainComp = await EmployeeCompensation.findOne({
+                employeeId: employee._id,
+                isActive: true,
+                status: 'ACTIVE'
+            }).lean();
+
+            if (mainComp) {
+                return {
+                    found: true,
+                    source: 'EMPLOYEE_COMPENSATION',
+                    employeeId,
+                    compensation: {
+                        annualCTC: mainComp.totalCTC || 0,
+                        monthlyCTC: Math.round((mainComp.totalCTC || 0) / 12),
+                        grossEarnings: mainComp.grossA || 0,
+                        totalDeductions: 0, // Simplified for preview
+                        totalBenefits: mainComp.grossB || 0,
+                        earnings: mainComp.components?.filter(c => c.type === 'EARNING').map(e => ({
+                            name: e.name,
+                            monthlyAmount: e.monthlyAmount,
+                            yearlyAmount: e.annualAmount
+                        })) || [],
+                        employeeDeductions: mainComp.components?.filter(c => c.type === 'DEDUCTION').map(d => ({
+                            name: d.name,
+                            monthlyAmount: d.monthlyAmount,
+                            yearlyAmount: d.annualAmount
+                        })) || [],
+                        benefits: mainComp.components?.filter(c => c.type === 'BENEFIT').map(b => ({
+                            name: b.name,
+                            monthlyAmount: b.monthlyAmount,
+                            yearlyAmount: b.annualAmount
+                        })) || [],
+                        effectiveFrom: mainComp.effectiveFrom,
+                        reason: 'ACTIVE_STRUCTURE'
+                    }
+                };
+            }
+
+            // Priority 2: Find applicant linked to this employee
+            applicant = await Applicant.findOne({
+                tenant: tenantId,
+                $or: [
+                    { email: employee.email?.toLowerCase() },
+                    { employeeId: employee._id }
+                ]
+            })
+                .populate('salarySnapshotId')
+                .lean();
+        } else {
+            // Not found as employee, try finding as Applicant directly
+            applicant = await Applicant.findOne({
+                _id: employeeId,
+                tenant: tenantId
+            })
+                .populate('salarySnapshotId')
+                .lean();
+        }
+
         if (!applicant || !applicant.salarySnapshotId) {
             return {
                 found: false,
-                message: 'No compensation record found for employee'
+                message: 'No compensation record found for this person'
             };
         }
-        
+
         const snapshot = applicant.salarySnapshotId;
-        
+
         return {
             found: true,
             source: 'COMPENSATION',
@@ -77,7 +135,7 @@ function convertCompensationToTemplate(compensation) {
         source: 'COMPENSATION',
         annualCTC: compensation.annualCTC,
         monthlyCTC: compensation.monthlyCTC,
-        
+
         // Convert earnings array to template format
         earnings: (compensation.earnings || []).map(e => ({
             name: e.name,
@@ -86,20 +144,20 @@ function convertCompensationToTemplate(compensation) {
             proRata: false, // Snapshot doesn't track proRata, assume false
             taxable: true // Conservative assumption
         })),
-        
+
         // Convert deductions to template format
         employerDeductions: (compensation.benefits || []).map(b => ({
             name: b.name,
             monthlyAmount: b.monthlyAmount || 0
         })),
-        
+
         // Default settings (can be expanded based on compensation data)
         settings: {
             includePensionScheme: true,
             pfWageRestriction: true,
             includeESI: true
         },
-        
+
         // Track source for audit
         _compensationSnapshot: {
             ctc: compensation.annualCTC,
@@ -117,23 +175,23 @@ function convertCompensationToTemplate(compensation) {
  */
 function validateCompensationSource(compensationData) {
     const issues = [];
-    
+
     if (!compensationData.found) {
         issues.push('No compensation record found');
     }
-    
+
     if (compensationData.compensation?.annualCTC <= 0) {
         issues.push('Annual CTC not set or invalid');
     }
-    
+
     if (compensationData.compensation?.monthlyCTC <= 0) {
         issues.push('Monthly CTC not calculated');
     }
-    
+
     if (!compensationData.compensation?.earnings || compensationData.compensation.earnings.length === 0) {
         issues.push('No earnings components defined in compensation');
     }
-    
+
     return {
         valid: issues.length === 0,
         issues
@@ -153,14 +211,14 @@ async function selectPayrollSource(db, tenantId, employeeId, useCompensationSour
             message: 'Using Salary Template (compensation source disabled)'
         };
     }
-    
+
     // Try to fetch compensation
     const compensationData = await getEmployeeCompensation(db, tenantId, employeeId);
-    
+
     // If compensation found and valid, use it
     if (compensationData.found) {
         const validation = validateCompensationSource(compensationData);
-        
+
         if (validation.valid) {
             return {
                 source: 'COMPENSATION',
@@ -181,7 +239,7 @@ async function selectPayrollSource(db, tenantId, employeeId, useCompensationSour
             };
         }
     }
-    
+
     // No compensation found, fallback to template
     return {
         source: 'TEMPLATE',
@@ -203,21 +261,21 @@ function extractCompensationBreakdown(compensation) {
             yearlyAmount: e.yearlyAmount,
             calculationType: e.calculationType
         })),
-        
+
         employeeDeductions: (compensation.employeeDeductions || []).map(d => ({
             name: d.name,
             monthlyAmount: d.monthlyAmount,
             yearlyAmount: d.yearlyAmount,
             calculationType: d.calculationType
         })),
-        
+
         benefits: (compensation.benefits || []).map(b => ({
             name: b.name,
             monthlyAmount: b.monthlyAmount,
             yearlyAmount: b.yearlyAmount,
             calculationType: b.calculationType
         })),
-        
+
         summary: {
             grossEarnings: compensation.grossEarnings,
             totalDeductions: compensation.totalDeductions,

@@ -108,11 +108,42 @@ export default function JobApplication() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleFileChange = (e) => {
+  const [parsing, setParsing] = useState(false);
+
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file && (file.type === 'application/pdf' || file.type.includes('word')) && file.size < 5 * 1024 * 1024) {
       setFormData(prev => ({ ...prev, resume: file }));
       setError('');
+
+      // Auto-Parse Logic
+      setParsing(true);
+      try {
+        const parseData = new FormData();
+        parseData.append('resume', file);
+        if (requirementId) parseData.append('requirementId', requirementId);
+
+        const res = await api.post('/public/resume/parse', parseData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        if (res.data.success && res.data.data) {
+          const ai = res.data.data;
+          setFormData(prev => ({
+            ...prev,
+            name: prev.name || ai.fullName || '',
+            email: prev.email || ai.email || '',
+            mobile: prev.mobile || ai.phone || '',
+            // Auto-fill experience if field existed or add to notes?
+            // Providing what we have
+          }));
+        }
+      } catch (err) {
+        console.error("Parse failed", err);
+      } finally {
+        setParsing(false);
+      }
+
     } else {
       setError('Please upload a PDF or Word file under 5MB.');
     }

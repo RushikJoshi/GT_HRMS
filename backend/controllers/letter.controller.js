@@ -156,6 +156,8 @@ const normalizeSalaryKey = (name) => {
     if (/book|periodical/i.test(n)) return 'books';
     if (/uniform/i.test(n)) return 'uniform';
     if (/mobile|phone/i.test(n)) return 'mobile';
+    if (/compensatory/i.test(n)) return 'compensatory';
+    if (/leave/i.test(n)) return 'leave';
     if (/special|allowance/i.test(n)) return 'special';
     if (/pt|prof|tax/i.test(n)) return 'pt';
     if (/^pf$|provident/i.test(n) && !/employer/i.test(n)) return 'pf';
@@ -1437,6 +1439,51 @@ exports.generateJoiningLetter = async (req, res) => {
 
         console.log("salaryComponents (FINAL STRICT) =>", salaryComponents);
 
+        // --- GENERATE APPOINTMENT REFERENCE NUMBER ---
+        let generatedRefNo = null;
+        try {
+            const companyIdConfig = require('./companyIdConfig.controller');
+            const tenantId = req.user?.tenantId || req.tenantId;
+
+            // Fetch Company Profile for company code and branch code
+            const { CompanyProfile } = getModels(req);
+            const companyProfile = await CompanyProfile.findOne({ tenantId: tenantId });
+
+            const companyCode = companyProfile?.companyCode || 'GTPL';
+            const branchCode = companyProfile?.branchCode || 'AHM';
+
+            // Get department code for reference number
+            const deptName = targetType === 'employee' ? (target.department || 'GEN') : (target.requirementId?.department?.name || 'GEN');
+            const deptCode = deptName.substring(0, 3).toUpperCase();
+
+            console.log('🔍 [JOINING LETTER] ID Generation Context:', {
+                companyCode,
+                branchCode,
+                deptCode,
+                targetType,
+                department: deptName
+            });
+
+            // Generate APPOINTMENT ID with all replacements
+            const appointmentIdResult = await companyIdConfig.generateIdInternal({
+                tenantId: tenantId,
+                entityType: 'APPOINTMENT',
+                increment: true,
+                extraReplacements: {
+                    '{{COMPANY}}': companyCode,
+                    '{{BRANCH}}': branchCode,
+                    '{{DEPT}}': deptCode
+                }
+            });
+
+            generatedRefNo = appointmentIdResult.id;
+            console.log('✅ [JOINING LETTER] Generated Reference Number:', generatedRefNo);
+        } catch (idErr) {
+            console.warn("⚠️ [JOINING LETTER] Could not generate reference number:", idErr.message);
+            console.error("⚠️ [JOINING LETTER] ID Generation Error Stack:", idErr.stack);
+            generatedRefNo = `APPT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(5, '0')}`;
+        }
+
         // A. Basic Placeholders
         // Normalize target for mapOfferToJoiningData
         const normalizedTarget = {
@@ -1475,11 +1522,13 @@ exports.generateJoiningLetter = async (req, res) => {
             salary_table_text_block: salaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n'),
             SALARY_TABLE: salaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n'),
 
-            // Custom Overrides for Ref No and Issue Date
-            ref_no: refNo || basicData.ref_no,
-            refNo: refNo || basicData.ref_no,
-            ref_code: refNo || basicData.ref_no,
-            reference_number: refNo || basicData.ref_no,
+            // Custom Overrides for Ref No and Issue Date (Use generated APPOINTMENT ID)
+            ref_no: refNo || generatedRefNo || basicData.ref_no,
+            refNo: refNo || generatedRefNo || basicData.ref_no,
+            ref_code: refNo || generatedRefNo || basicData.ref_no,
+            reference_number: refNo || generatedRefNo || basicData.ref_no,
+            appointment_id: generatedRefNo,
+            APPOINTMENT_ID: generatedRefNo,
             issued_date: issueDate ? new Date(issueDate).toLocaleDateString('en-IN') : (basicData.issued_date || new Date().toLocaleDateString('en-IN')),
             issuedDate: issueDate ? new Date(issueDate).toLocaleDateString('en-IN') : (basicData.issued_date || new Date().toLocaleDateString('en-IN')),
             issue_date: issueDate ? new Date(issueDate).toLocaleDateString('en-IN') : (basicData.issued_date || new Date().toLocaleDateString('en-IN')),
@@ -1568,6 +1617,19 @@ exports.generateJoiningLetter = async (req, res) => {
         });
 
         await generated.save();
+
+        // Increment Appointment ID Sequence (Consume the ID)
+        try {
+            const companyIdConfigController = require('./companyIdConfig.controller');
+            await companyIdConfigController.generateIdInternal({
+                tenantId: req.user.tenantId,
+                entityType: 'APPOINTMENT',
+                increment: true
+            });
+            console.log('✅ [JOINING LETTER] Incremented Appointment ID sequence');
+        } catch (seqError) {
+            console.warn('⚠️ [JOINING LETTER] Failed to increment sequence:', seqError.message);
+        }
 
         // Update Applicant/Employee
         if (targetType === 'applicant') {
@@ -1933,6 +1995,25 @@ exports.generateOfferLetter = async (req, res) => {
             });
 
             await updatedApplicant.save();
+
+            // --- INCREMENT OFFER COUNTER ---
+            try {
+                const companyIdConfig = require('./companyIdConfig.controller');
+                const deptName = updatedApplicant.requirementId?.department?.name || 'GEN';
+                const deptCode = deptName.substring(0, 3).toUpperCase();
+
+                await companyIdConfig.generateIdInternal({
+                    tenantId: req.user?.tenantId || req.tenantId,
+                    entityType: 'OFFER',
+                    increment: true,
+                    extraReplacements: {
+                        '{{DEPT}}': deptCode
+                    }
+                });
+                console.log('✅ [OFFER LETTER] Incrementing sequence for OFFER');
+            } catch (idErr) {
+                console.warn("⚠️ [OFFER LETTER] Could not increment sequence:", idErr.message);
+            }
         }
 
         res.json({
@@ -2151,19 +2232,40 @@ exports.previewJoiningLetter = async (req, res) => {
         const netAnnual = snapshot.summary?.netPay || snapshot.breakdown?.netPay || (grossAAnnual - totalDeductionsAnnual);
 
 
-        // Categorize Benefits for Gross B (Annual) and Gross C (Retirals)
-        const grossBListRaw = benefits.filter(b => /bonus|lta|leave|variable|annual|performance/i.test(b.name || ''));
-        const grossCListRaw = benefits.filter(b => !/bonus|lta|leave|variable|annual|performance/i.test(b.name || ''));
+        // SMART CATEGORIZATION (v10.0)
+        // 1. Compensatory Allowance should be in Gross A (Earnings)
+        const compensatoryFromBenefits = benefits.filter(b => /compensatory/i.test(b.name || ''));
+        const otherBenefits = benefits.filter(b => !/compensatory/i.test(b.name || ''));
 
+        // Add to earnings for representation
+        const enhancedEarnings = [...earnings];
+        compensatoryFromBenefits.forEach(b => {
+            if (!enhancedEarnings.find(e => e.name === b.name)) {
+                enhancedEarnings.push(b);
+            }
+        });
+
+        // 2. Separate Annual (B), Retirals (C), and Insurance (D)
+        const grossBListRaw = otherBenefits.filter(b => /bonus|lta|leave|variable|annual|performance/i.test(b.name || ''));
+        const grossCListRaw = otherBenefits.filter(b => /gratuity|pf|provident|retirals/i.test(b.name || '') && !/bonus|lta|leave|variable|annual|performance/i.test(b.name || ''));
+        const insuranceListRaw = otherBenefits.filter(b => /insurance|mediclaim/i.test(b.name || ''));
+
+        // Anything else goes to Gross C as fallback if not caught
+        const caughtNames = [...grossBListRaw, ...grossCListRaw, ...insuranceListRaw].map(b => b.name);
+        const remainingBenefits = otherBenefits.filter(b => !caughtNames.includes(b.name));
+        const finalGrossCListRaw = [...grossCListRaw, ...remainingBenefits];
+
+        const grossAAnnualTotal = enhancedEarnings.reduce((sum, e) => sum + (e.yearly || 0), 0);
         const grossBAnnualTotal = grossBListRaw.reduce((sum, b) => sum + (b.yearly || 0), 0);
-        const grossCAnnualTotal = grossCListRaw.reduce((sum, b) => sum + (b.yearly || 0), 0);
+        const grossCAnnualTotal = finalGrossCListRaw.reduce((sum, b) => sum + (b.yearly || 0), 0);
+        const insuranceAnnualTotal = insuranceListRaw.reduce((sum, b) => sum + (b.yearly || 0), 0);
 
         const totals = {
             grossA: {
-                monthly: Math.round(grossAAnnual / 12),
-                yearly: Math.round(grossAAnnual),
-                formattedM: safeCur(grossAAnnual / 12),
-                formattedY: safeCur(grossAAnnual)
+                monthly: Math.round(grossAAnnualTotal / 12),
+                yearly: Math.round(grossAAnnualTotal),
+                formattedM: safeCur(grossAAnnualTotal / 12),
+                formattedY: safeCur(grossAAnnualTotal)
             },
             grossB: {
                 monthly: Math.round(grossBAnnualTotal / 12),
@@ -2176,6 +2278,12 @@ exports.previewJoiningLetter = async (req, res) => {
                 yearly: Math.round(grossCAnnualTotal),
                 formattedM: safeCur(grossCAnnualTotal / 12),
                 formattedY: safeCur(grossCAnnualTotal)
+            },
+            grossD: {
+                monthly: Math.round(insuranceAnnualTotal / 12),
+                yearly: Math.round(insuranceAnnualTotal),
+                formattedM: safeCur(insuranceAnnualTotal / 12),
+                formattedY: safeCur(insuranceAnnualTotal)
             },
             deductions: {
                 monthly: Math.round(totalDeductionsAnnual / 12),
@@ -2205,18 +2313,18 @@ exports.previewJoiningLetter = async (req, res) => {
         // ... (rest of logic same) ...
 
         const salaryStructure = {
-            earnings: earnings.map(e => ({ name: e.name || '', monthly: safeCur(e.monthly), yearly: safeCur(e.yearly) })),
+            earnings: enhancedEarnings.map(e => ({ name: e.name || '', monthly: safeCur(e.monthly), yearly: safeCur(e.yearly) })),
             deductions: employeeDeductions.map(d => ({ name: d.name || '', monthly: safeCur(d.monthly), yearly: safeCur(d.yearly) })),
-            benefits: benefits.map(b => ({ name: b.name || '', monthly: safeCur(b.monthly), yearly: safeCur(b.yearly) })),
+            benefits: otherBenefits.map(b => ({ name: b.name || '', monthly: safeCur(b.monthly), yearly: safeCur(b.yearly) })),
             totals: totals
         };
 
-        // RECONSTRUCTED: enhancedSalaryComponents for table rendering
+        // RECONSTRUCTED: enhancedSalaryComponents for table rendering (v10.1)
         const salaryComponents = [];
 
         // A - Monthly Benefits (Gross A)
         salaryComponents.push({ name: 'A – Monthly Benefits', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
-        earnings.forEach(e => {
+        enhancedEarnings.forEach(e => {
             const m = safeCur(e.monthly);
             const y = safeCur(e.yearly);
             salaryComponents.push({ name: e.name, monthly: m, yearly: y, annual: y, MONTHLY: m, YEARLY: y, ANNUAL: y });
@@ -2262,7 +2370,7 @@ exports.previewJoiningLetter = async (req, res) => {
         // C - Retirals
         salaryComponents.push({ name: '', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
         salaryComponents.push({ name: 'C – Retirals Company\'s Benefits', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
-        grossCListRaw.forEach(b => {
+        finalGrossCListRaw.forEach(b => {
             const m = safeCur(b.monthly);
             const y = safeCur(b.yearly);
             salaryComponents.push({ name: b.name, monthly: m, yearly: y, annual: y, MONTHLY: m, YEARLY: y, ANNUAL: y });
@@ -2273,10 +2381,24 @@ exports.previewJoiningLetter = async (req, res) => {
             MONTHLY: totals.grossC.formattedM, YEARLY: totals.grossC.formattedY, ANNUAL: totals.grossC.formattedY
         });
 
+        // D - Other Benefits
+        salaryComponents.push({ name: '', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
+        salaryComponents.push({ name: 'D – Other Benefits', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
+        insuranceListRaw.forEach(b => {
+            const m = safeCur(b.monthly);
+            const y = safeCur(b.yearly);
+            salaryComponents.push({ name: b.name, monthly: m, yearly: y, annual: y, MONTHLY: m, YEARLY: y, ANNUAL: y });
+        });
+        salaryComponents.push({
+            name: 'GROSS D',
+            monthly: totals.grossD.formattedM, yearly: totals.grossD.formattedY, annual: totals.grossD.formattedY,
+            MONTHLY: totals.grossD.formattedM, YEARLY: totals.grossD.formattedY, ANNUAL: totals.grossD.formattedY
+        });
+
         // Final CTC
         salaryComponents.push({ name: '', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
         salaryComponents.push({
-            name: 'Computed CTC (A+B+C)',
+            name: 'Computed CTC (A+B+C+D)',
             monthly: totals.computedCTC.formattedM, yearly: totals.computedCTC.formattedY, annual: totals.computedCTC.formattedY,
             MONTHLY: totals.computedCTC.formattedM, YEARLY: totals.computedCTC.formattedY, ANNUAL: totals.computedCTC.formattedY
         });
@@ -2313,7 +2435,7 @@ exports.previewJoiningLetter = async (req, res) => {
             reference_number: refNo
         };
 
-        // DYNAMIC FLATTENING for Static Templates
+        // DYNAMIC FLATTENING for Static Templates (v10.1)
         const flatComponentMap = {};
         const populateFlatMap = (items) => {
             items.forEach(item => {
@@ -2329,12 +2451,12 @@ exports.previewJoiningLetter = async (req, res) => {
             });
         };
 
-        populateFlatMap(earnings);
+        populateFlatMap(enhancedEarnings);
         populateFlatMap(employeeDeductions);
-        populateFlatMap(benefits);
+        populateFlatMap(otherBenefits);
 
         // Fix BASIC specifically
-        const basicComp = earnings.find(e => e.name.toUpperCase().trim() === 'BASIC' || e.code === 'BASIC' || e.name.toUpperCase().trim().includes('BASIC SALARY'));
+        const basicComp = enhancedEarnings.find(e => e.name.toUpperCase().trim() === 'BASIC' || e.code === 'BASIC' || e.name.toUpperCase().trim().includes('BASIC SALARY'));
         if (basicComp) {
             flatComponentMap['BASIC_MONTHLY'] = safeCur(basicComp.monthly);
             flatComponentMap['BASIC_YEARLY'] = safeCur(basicComp.yearly);
@@ -2352,17 +2474,21 @@ exports.previewJoiningLetter = async (req, res) => {
             ...(req.calculatedSalaryData || {}),
             ...(req.flatSalaryData || {}),
 
-            // Hardcoded totals
+            // Hardcoded totals matching all possible DOCX tags
             GROSS_A_MONTHLY: totals.grossA.formattedM,
             GROSS_A_YEARLY: totals.grossA.formattedY,
             GROSS_B_MONTHLY: totals.grossB.formattedM,
             GROSS_B_YEARLY: totals.grossB.formattedY,
             GROSS_C_MONTHLY: totals.grossC.formattedM,
             GROSS_C_YEARLY: totals.grossC.formattedY,
+            GROSS_D_MONTHLY: totals.grossD.formattedM,
+            GROSS_D_YEARLY: totals.grossD.formattedY,
             NET_SALARY_MONTHLY: totals.net.formattedM,
             NET_SALARY_YEARLY: totals.net.formattedY,
             CTC_MONTHLY: totals.computedCTC.formattedM,
             CTC_YEARLY: totals.computedCTC.formattedY,
+            TAKE_HOME_MONTHLY: totals.net.formattedM,
+            TAKE_HOME_YEARLY: totals.net.formattedY,
 
             salary_table_text_block: enhancedSalaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n'),
             SALARY_TABLE: enhancedSalaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n')

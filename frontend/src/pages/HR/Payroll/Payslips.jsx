@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../utils/api';
 import { formatDateDDMMYYYY } from '../../../utils/dateUtils';
-import { FileText, Download, Filter, Search, Eye, X } from 'lucide-react';
+import { FileText, Download, Filter, Search, Eye, X, Settings2 } from 'lucide-react';
+import PayrollCorrectionModal from '../../../components/Payroll/PayrollCorrectionModal';
+import { Tooltip } from 'antd';
 
 export default function Payslips() {
     const [payslips, setPayslips] = useState([]);
@@ -10,6 +12,7 @@ export default function Payslips() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [searchTerm, setSearchTerm] = useState('');
     const [previewPayslip, setPreviewPayslip] = useState(null);
+    const [correctionState, setCorrectionState] = useState({ visible: false, run: null });
 
     useEffect(() => {
         loadPayslips();
@@ -149,6 +152,17 @@ export default function Payslips() {
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
                                             <div className="flex items-center justify-end gap-2">
+                                                <Tooltip title="Correct / Adjust in future payroll">
+                                                    <button
+                                                        onClick={() => setCorrectionState({
+                                                            visible: true,
+                                                            run: { _id: p.payrollRunId, month: p.month, year: p.year }
+                                                        })}
+                                                        className="text-orange-600 hover:text-orange-800 font-medium inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-orange-50 text-xs"
+                                                    >
+                                                        <Settings2 className="h-3.5 w-3.5" /> Correct
+                                                    </button>
+                                                </Tooltip>
                                                 <button
                                                     onClick={() => setPreviewPayslip(p)}
                                                     className="text-emerald-600 hover:text-emerald-800 font-medium inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-emerald-50 text-xs"
@@ -179,6 +193,12 @@ export default function Payslips() {
                     onDownload={() => downloadPDF(previewPayslip)}
                 />
             )}
+            {/* Correction Modal */}
+            <PayrollCorrectionModal
+                visible={correctionState.visible}
+                onCancel={() => setCorrectionState({ visible: false, run: null })}
+                payrollRun={correctionState.run}
+            />
         </div>
     );
 }
@@ -265,6 +285,36 @@ function PayslipPreviewModal({ payslip, onClose, onDownload }) {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Adjustments (Corrections/Arrears) */}
+                    {payslip.adjustmentsSnapshot?.length > 0 && (
+                        <div>
+                            <h4 className="font-semibold text-slate-900 mb-3 text-orange-600 flex items-center gap-2">
+                                <Settings2 className="w-4 h-4" /> Adjustments & Corrections
+                            </h4>
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="text-gray-500 text-xs border-b">
+                                        <th className="text-left font-normal py-1">Description</th>
+                                        <th className="text-right font-normal py-1">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {payslip.adjustmentsSnapshot.map((adj, i) => (
+                                        <tr key={i} className="border-b border-slate-50 last:border-0 italic text-gray-600">
+                                            <td className="py-2">
+                                                {adj.type?.replace(/_/g, ' ')}
+                                                <div className="text-[10px] text-gray-400 not-italic">Ref: {adj.reason}</div>
+                                            </td>
+                                            <td className={`py-2 text-right font-medium ${adj.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                {adj.amount >= 0 ? '+' : ''}₹{adj.amount?.toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
 
                     {/* Net Pay */}
                     <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">

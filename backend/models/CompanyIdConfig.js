@@ -9,8 +9,39 @@ const CompanyIdConfigSchema = new Schema({
     },
     entityType: {
         type: String,
-        enum: ['EMPLOYEE', 'JOB', 'OFFER', 'APPLICATION', 'PAYSLIP', 'CANDIDATE'],
+        enum: ['EMPLOYEE', 'JOB', 'POS', 'OFFER', 'APPLICATION', 'PAYSLIP', 'CANDIDATE', 'INTERVIEW', 'APPOINTMENT', 'EXPERIENCE', 'RELIEVING', 'CUSTOM'],
         required: true
+    },
+    customEntityName: {
+        type: String, // e.g. "Identity Card", "Appointment Letter"
+        trim: true
+    },
+    targetModule: {
+        type: String, // e.g. "Employee Profile", "Onboarding"
+        trim: true
+    },
+    companyCode: {
+        type: String,
+        trim: true,
+        uppercase: true
+    },
+    branchCode: {
+        type: String,
+        trim: true,
+        uppercase: true
+    },
+    departmentCode: {
+        type: String,
+        trim: true,
+        uppercase: true
+    },
+    formatTemplate: {
+        type: String,
+        default: '{{PREFIX}}/{{YEAR}}/{{COUNTER}}'
+    },
+    useFinancialYear: {
+        type: Boolean,
+        default: true
     },
     prefix: {
         type: String,
@@ -55,6 +86,9 @@ const CompanyIdConfigSchema = new Schema({
         enum: ['NEVER', 'YEARLY', 'MONTHLY'],
         default: 'YEARLY'
     },
+    lastResetPeriod: {
+        type: String  // Stores the period (Year or Year-Month) of last use
+    },
     updatedBy: {
         type: String
     }
@@ -62,7 +96,7 @@ const CompanyIdConfigSchema = new Schema({
     timestamps: true
 });
 
-// Ensure one config per entity per company
-CompanyIdConfigSchema.index({ companyId: 1, entityType: 1 }, { unique: true });
+// Ensure unique config per entity/customName/module per company
+CompanyIdConfigSchema.index({ companyId: 1, entityType: 1, customEntityName: 1, targetModule: 1 }, { unique: true });
 
 module.exports = mongoose.model('CompanyIdConfig', CompanyIdConfigSchema);

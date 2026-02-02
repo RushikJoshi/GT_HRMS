@@ -1,15 +1,13 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { isCandidateLoggedIn } from '../utils/auth';
-import { useAuth } from '../context/AuthContext';
+import { useJobPortalAuth } from '../context/JobPortalAuthContext';
 
 const CandidateProtectedRoute = ({ children }) => {
     const navigate = useNavigate();
-    const { isInitialized } = useAuth();
-    const candidate = JSON.parse(localStorage.getItem("candidate"));
+    const { isInitialized, candidate } = useJobPortalAuth();
 
     useEffect(() => {
-        if (isInitialized && (!candidate || !isCandidateLoggedIn())) {
+        if (isInitialized && !candidate) {
             navigate("/candidate/login?redirect=/candidate/dashboard", { replace: true });
         }
     }, [isInitialized, candidate, navigate]);
@@ -22,7 +20,7 @@ const CandidateProtectedRoute = ({ children }) => {
         );
     }
 
-    if (!candidate || !isCandidateLoggedIn()) {
+    if (!candidate) {
         return null;
     }
 

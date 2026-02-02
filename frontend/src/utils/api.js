@@ -82,13 +82,40 @@ api.interceptors.request.use((config) => {
  * - Prevents redirect loops
  */
 
+// Helper: Parse axios error into structured object
+export function parseAxiosError(error) {
+  if (!error) return { type: 'unknown', message: 'Unknown error' };
+
+  // Network / DNS / Connection refused / timeout
+  if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error') || error.message?.includes('ERR_CONNECTION_REFUSED') || !error.response) {
+    return { type: 'network', message: 'Server unreachable. Please check your connection.' };
+  }
+
+  // Backend responded with a payload
+  const status = error.response?.status;
+  const data = error.response?.data || {};
+  const backendMessage = data.message || data.error || (typeof data === 'string' ? data : null);
+
+  if (status === 401) return { type: 'auth', message: backendMessage || 'Invalid credentials' };
+  if (status >= 400 && status < 500) return { type: 'client', message: backendMessage || 'Invalid request' };
+  return { type: 'server', message: backendMessage || 'Server error. Try again later.' };
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle backend unreachable
-    if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error') || error.message?.includes('ERR_CONNECTION_REFUSED')) {
+    // Attach structured HRMS info to the error for consumers
+    try {
+      error.hrms = parseAxiosError(error);
+    } catch (e) {
+      // ignore parsing issues
+      error.hrms = { type: 'unknown', message: 'Unknown error' };
+    }
+
+    // Emit a user-facing toast for network errors (only once)
+    if (error.hrms?.type === 'network') {
       if (!window.__HRMS_API_ERROR) {
-        window.__HRMS_API_ERROR = 'Backend server is not running. Please start the server.';
+        window.__HRMS_API_ERROR = error.hrms.message;
         if (window.showToast) {
           window.showToast({ message: window.__HRMS_API_ERROR, type: 'error' });
         }
@@ -101,8 +128,9 @@ api.interceptors.response.use(
       // Remove Authorization header so next request won't have it
       delete api.defaults.headers.common["Authorization"];
 
-      // DO NOT redirect here - let ProtectedRoute handle it
-      // The app will detect missing token on next render and show login
+      // Emit global event so AuthContext can handle logout if needed
+      window.dispatchEvent(new Event('auth:unauthorized'));
+
       console.log('401 Unauthorized - token cleared. ProtectedRoute will redirect.');
     }
 

@@ -28,6 +28,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
     const [formData, setFormData] = useState({
         jobTitle: '',
         department: '',
+        positionId: '',
         vacancy: 1,
         description: '',
         priority: 'Medium',
@@ -54,6 +55,15 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
     ]);
 
     const [saving, setSaving] = useState(false);
+    const [positions, setPositions] = useState([]);
+
+    useEffect(() => {
+        api.get('/hrms/positions').then(res => {
+            if (res.data.success) setPositions(res.data.data);
+        }).catch(err => console.error("Error fetching positions", err));
+    }, []);
+
+    // Prevent double-click save on step transition
     const [canSave, setCanSave] = useState(false);
 
     useEffect(() => {

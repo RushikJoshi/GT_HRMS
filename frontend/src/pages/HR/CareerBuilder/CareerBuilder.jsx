@@ -33,7 +33,7 @@ export default function CareerBuilder() {
 
     const fetchJobs = async () => {
         try {
-            const res = await api.get('/hrms/requirements');
+            const res = await api.get('/requirements');
             if (res.data && res.data.requirements) {
                 setJobs(res.data.requirements);
             } else if (Array.isArray(res.data)) {

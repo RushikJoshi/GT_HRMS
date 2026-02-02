@@ -124,7 +124,7 @@ exports.getMyBalances = async (req, res) => {
         // MANDATORY POLICY ENFORCEMENT
         // Ensure employee always has a policy (auto-assign if missing)
         const { ensureLeavePolicy } = require('../config/dbManager');
-        emp = await ensureLeavePolicy(emp, req.tenantDB);
+        emp = await ensureLeavePolicy(emp, req.tenantDB, req.tenantId);
 
         // ALWAYS cast tenantId to ObjectId for query consistency
         const effectiveTenantId = new mongoose.Types.ObjectId(emp.tenant || tenantObjectId);
@@ -209,6 +209,24 @@ exports.applyLeave = async (req, res) => {
         // If HR or PSA, they can apply on behalf
         const isHR = ['hr', 'admin', 'psa'].includes(req.user.role);
         const employeeId = (isHR && targetId) ? targetId : req.user.id;
+
+        // ENFORCE: Employee must have a leave policy before applying for leave.
+        // HR/admin users can apply on behalf of employees even if the employee has no policy assigned.
+        if (!isHR) {
+            let applicant = await Employee.findById(employeeId).select('leavePolicy tenant');
+
+            // Attempt to auto-assign a default policy if missing
+            try {
+                const { ensureLeavePolicy } = require('../config/dbManager');
+                applicant = await ensureLeavePolicy(applicant, req.tenantDB, req.tenantId);
+            } catch (e) {
+                console.error('[APPLY_LEAVE] ensureLeavePolicy error:', e);
+            }
+
+            if (!applicant || !applicant.leavePolicy) {
+                return res.status(403).json({ message: "NO_LEAVE_POLICY_ASSIGNED" });
+            }
+        }
 
         const start = new Date(startDate);
         const end = new Date(endDate || startDate);
@@ -383,8 +401,14 @@ exports.approveLeave = async (req, res) => {
         });
 
         if (balance) {
-            balance.used = (balance.used || 0) + request.daysCount;
-            balance.blocked = Math.max(0, (balance.blocked || 0) - request.daysCount);
+            const paid = request.paidLeaveDays || 0;
+            // Move pending -> used for the paid portion
+            balance.pending = Math.max(0, (balance.pending || 0) - paid);
+            balance.used = (balance.used || 0) + paid;
+            // Defensive: ensure available is recalculated correctly
+            if (typeof balance.available === 'number') {
+                balance.available = Math.max(0, (balance.total || 0) - (balance.used || 0) - (balance.pending || 0));
+            }
             await balance.save();
         }
 
@@ -444,7 +468,13 @@ exports.rejectLeave = async (req, res) => {
         });
 
         if (balance) {
-            balance.blocked = Math.max(0, (balance.blocked || 0) - request.daysCount);
+            const paid = request.paidLeaveDays || 0;
+            // Release pending allocation for the paid portion
+            balance.pending = Math.max(0, (balance.pending || 0) - paid);
+            // Recompute available defensively
+            if (typeof balance.available === 'number') {
+                balance.available = Math.max(0, (balance.total || 0) - (balance.used || 0) - (balance.pending || 0));
+            }
             await balance.save();
         }
 
@@ -781,7 +811,11 @@ exports.cancelLeave = async (req, res) => {
 
         if (balance) {
             if (request.status === 'Pending') {
-                balance.pending -= request.daysCount;
+                const paid = request.paidLeaveDays || 0;
+                balance.pending = Math.max(0, (balance.pending || 0) - paid);
+                if (typeof balance.available === 'number') {
+                    balance.available = Math.max(0, (balance.total || 0) - (balance.used || 0) - (balance.pending || 0));
+                }
             }
             await balance.save();
         }

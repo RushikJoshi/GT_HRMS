@@ -5,7 +5,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { UIContext } from '../../context/UIContext';
-import { FileText, Calendar as CalendarIcon, Users, Clock, CheckCircle, AlertCircle, RefreshCw, LogIn, LogOut, Briefcase } from 'lucide-react';
+import { FileText, Edit2, X, Calendar as CalendarIcon, Users, Clock, CheckCircle, AlertCircle, RefreshCw, LogIn, LogOut, Briefcase } from 'lucide-react';
 import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/dateUtils';
 
 import RegularizationRequest from '../Leaves/RegularizationRequest';
@@ -21,6 +21,7 @@ import ReportingTree from '../../components/ReportingTree';
 import InternalJobs from './InternalJobs';
 import MyApplications from './MyApplications';
 import FaceAttendance from './FaceAttendance';
+import WorkingHoursCard from '../../components/WorkingHoursCard';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -33,6 +34,7 @@ export default function EmployeeDashboard() {
   const [leaves, setLeaves] = useState([]);
   const [balances, setBalances] = useState([]);
   const [hasLeavePolicy, setHasLeavePolicy] = useState(true); // Default true to avoid flash
+  const [policyRequesting, setPolicyRequesting] = useState(false);
   const [stats, setStats] = useState({
     presentDays: 0,
     leavesTaken: 0,
@@ -44,6 +46,7 @@ export default function EmployeeDashboard() {
   const [clocking, setClocking] = useState(false);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [isCheckedOut, setIsCheckedOut] = useState(false);
+  const [isFinalCheckOut, setFinalCheckOut] = useState(false);
   const [todayRecord, setTodayRecord] = useState(null);
   const [todaySummary, setTodaySummary] = useState(null);
   const [attendanceSettings, setAttendanceSettings] = useState(null);
@@ -61,7 +64,7 @@ export default function EmployeeDashboard() {
       danger: true,
       onConfirm: async () => {
         try {
-          await api.post(`/hrms/employee/leaves/cancel/${id}`);
+          await api.post(`/employee/leaves/cancel/${id}`);
           showToast('success', 'Success', 'Leave request cancelled successfully');
           fetchDashboardData();
         } catch (err) {
@@ -80,21 +83,41 @@ export default function EmployeeDashboard() {
       setLoading(true);
       const t = new Date().getTime(); // Anti-cache
       const [profileRes, attRes, leaveRes, balanceRes, holidayRes, settingsRes, summaryRes] = await Promise.all([
-        api.get(`/hrms/employee/profile?t=${t}`).catch(err => ({ data: null, error: err })),
-        api.get(`/hrms/attendance/my?t=${t}`).catch(err => ({ data: [], error: err })),
-        api.get(`/hrms/employee/leaves/history?t=${t}`).catch(err => ({ data: [], error: err })),
-        api.get(`/hrms/employee/leaves/balances?t=${t}`).catch(err => ({ data: [], error: err })),
-        api.get(`/hrms/holidays?t=${t}`).catch(() => ({ data: [] })),
-        api.get(`/hrms/attendance/settings?t=${t}`).catch(() => ({ data: null })),
-        api.get(`/hrms/attendance/today-summary?t=${t}`).catch(() => ({ data: null }))
+        api.get(`/employee/profile?t=${t}`).catch(err => ({ data: null, error: err })),
+        api.get(`/attendance/my?t=${t}`).catch(err => ({ data: [], error: err })),
+        api.get(`/employee/leaves/history?t=${t}`).catch(err => ({ data: [], error: err })),
+        api.get(`/employee/leaves/balances?t=${t}`).catch(err => ({ data: [], error: err })),
+        api.get(`/holidays?t=${t}`).catch(() => ({ data: [] })),
+        api.get(`/attendance/settings?t=${t}`).catch(() => ({ data: null })),
+        api.get(`/attendance/today-summary?t=${t}`).catch(() => ({ data: null }))
       ]);
 
       setProfile(profileRes.data);
-      setAttendance(attRes.data);
-      setLeaves(leaveRes.data);
+      const attendanceArray = Array.isArray(attRes.data) ? attRes.data : [];
+      setAttendance(attendanceArray);
+      const leavesArray = Array.isArray(leaveRes.data) ? leaveRes.data : [];
+      setLeaves(leavesArray);
       const balanceData = balanceRes.data?.balances || (Array.isArray(balanceRes.data) ? balanceRes.data : []);
       setBalances(balanceData);
-      setHasLeavePolicy(balanceRes.data?.hasLeavePolicy ?? (balanceData.length > 0));
+      // Prefer authoritative value from profile.leavePolicy, fallback to balances response
+      const profileHasPolicy = Boolean(profileRes.data?.leavePolicy);
+      const computedHasPolicy = profileHasPolicy || (balanceRes.data?.hasLeavePolicy ?? (balanceData.length > 0));
+      setHasLeavePolicy(computedHasPolicy);
+
+      // Auto-attempt self-assignment if no policy found (helps when admin created policies but sync didn't reach this employee)
+      if (!computedHasPolicy) {
+        try {
+          const autoRes = await api.post('/hrms/employee/profile/ensure-policy');
+          if (autoRes?.data?.assigned || autoRes?.data?.hasLeavePolicy) {
+            setHasLeavePolicy(true);
+            if (autoRes.data.balances) setBalances(autoRes.data.balances);
+            if (autoRes.data.profile) setProfile(autoRes.data.profile);
+            showToast('success', 'Policy Assigned', autoRes.data?.message || (autoRes.data?.leavePolicy ? `Assigned policy ${autoRes.data.leavePolicy.name}` : 'Policy assigned'));
+          }
+        } catch (e) {
+          console.warn('[AUTO_ENSURE_POLICY] Auto-assign failed:', e?.response?.data || e.message || e);
+        }
+      }
       setAttendanceSettings(settingsRes?.data);
       setTodaySummary(summaryRes?.data); // New Stats Data
 
@@ -102,7 +125,7 @@ export default function EmployeeDashboard() {
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
 
-      const presentDays = (Array.isArray(attRes.data) ? attRes.data : []).filter(a => {
+      const presentDays = attendanceArray.filter(a => {
         const d = new Date(a.date);
         const status = (a.status || '').toLowerCase();
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear &&
@@ -110,7 +133,7 @@ export default function EmployeeDashboard() {
       }).length;
 
       // Calculate YTD leaves taken from approved leave requests of the current year
-      const leavesTaken = leaveRes.data
+      const leavesTaken = leavesArray
         .filter(l => l.status === 'Approved')
         .filter(l => {
           const startYear = new Date(l.startDate).getFullYear();
@@ -119,7 +142,7 @@ export default function EmployeeDashboard() {
           return startYear === currentYear || endYear === currentYear;
         })
         .reduce((sum, l) => sum + (l.daysCount || 0), 0);
-      const pendingRequests = leaveRes.data.filter(l => l.status === 'Pending').length;
+      const pendingRequests = leavesArray.filter(l => l.status === 'Pending').length;
 
       // Find next holiday (string based comparison to avoid timezone issues)
       const todayStr = new Date().toISOString().split('T')[0];
@@ -207,7 +230,7 @@ export default function EmployeeDashboard() {
 
       // Use unified punch endpoint
       // Use unified punch endpoint
-      const res = await api.post('/hrms/attendance/punch', payload);
+      const res = await api.post('/attendance/punch', payload);
       showToast('success', 'Success', res.data?.message || 'Attendance Updated');
 
       await fetchDashboardData();
@@ -322,14 +345,20 @@ export default function EmployeeDashboard() {
                   { label: 'Total Punches', value: todaySummary?.totalPunches || 0, icon: RefreshCw, color: 'text-slate-400' },
                   { label: 'Punches In', value: todaySummary?.totalIn || 0, icon: LogIn, color: 'text-emerald-500' },
                   { label: 'Punches Out', value: todaySummary?.totalOut || 0, icon: LogOut, color: 'text-blue-500' },
-                  { label: 'Working Hours', value: `${todaySummary?.workingHours || 0}h`, icon: Clock, color: 'text-indigo-500' },
                 ].map((item, idx) => (
-                  <div key={idx} className="bg-white dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-500/30 transition-colors">
+                  <div key={idx} className="bg-white dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-500/30 transition-colors h-full">
                     <item.icon size={16} className={`${item.color} mb-3 opacity-60 group-hover:opacity-100 transition-opacity`} />
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
                     <p className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">{item.value}</p>
                   </div>
                 ))}
+
+                {/* Dynamic Working Hours Card */}
+                <WorkingHoursCard
+                  baseHours={todaySummary?.workingHours || 0}
+                  lastPunchIn={todayRecord?.checkIn ? (isCheckedIn && !isCheckedOut ? todayRecord.logs?.[todayRecord.logs.length - 1]?.time : null) : null}
+                  isActive={isCheckedIn && !isCheckedOut}
+                />
               </div>
             </div>
 
@@ -503,6 +532,31 @@ export default function EmployeeDashboard() {
               </div>
               <h4 className="text-sm font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest">Policy Restriction</h4>
               <p className="text-xs font-medium text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-tight">No leave policy assigned yet. Please contact your HR administrator.</p>
+
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <button className={`px-4 py-2 bg-amber-600 text-white rounded-lg font-bold ${policyRequesting ? 'opacity-60 cursor-wait' : 'hover:bg-amber-700'}`} disabled={policyRequesting} onClick={async () => {
+                  try {
+                    setPolicyRequesting(true);
+                    const res = await api.post('/hrms/employee/profile/ensure-policy');
+
+                    // Immediately reflect assignment in UI if API confirms
+                    if (res.data?.assigned || res.data?.leavePolicy) {
+                      setHasLeavePolicy(true);
+                      if (res.data?.balances) setBalances(res.data.balances);
+                    }
+
+                    // Prefer response message if present
+                    const msg = res.data?.message || (res.data?.leavePolicy ? `Assigned policy: ${res.data.leavePolicy.name}` : 'Policy assignment attempted');
+                    showToast('success', 'Policy Assigned', msg);
+
+                    // Still refresh authoritative data from server
+                  } finally {
+                    setPolicyRequesting(false);
+                  }
+                }}>{policyRequesting ? 'Requesting...' : 'Request Policy Assignment'}</button>
+
+                <button className="px-4 py-2 border border-amber-600 text-amber-700 rounded-lg font-bold bg-white/50" onClick={() => { navigator.clipboard ? navigator.clipboard.writeText('Please contact HR to assign your leave policy') : null; showToast('info', 'Contact HR', 'Message copied to clipboard.'); }}>Contact HR</button>
+              </div>
             </div>
           )}
 
@@ -513,11 +567,8 @@ export default function EmployeeDashboard() {
                 balances={balances}
                 existingLeaves={leaves}
                 editData={editLeave}
-                onCancelEdit={() => setEditLeave(null)}
-                onSuccess={() => {
-                  setEditLeave(null);
-                  fetchDashboardData();
-                }}
+                hasLeavePolicy={hasLeavePolicy}
+                leavePolicy={profile?.leavePolicy || null}
               />
             </div>
 
@@ -599,19 +650,27 @@ export default function EmployeeDashboard() {
                                   className="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors border border-transparent hover:border-indigo-100 dark:hover:border-indigo-800/40"
                                   title="Edit Request"
                                 >
-                                  <FileText size={16} />
+                                  <Edit2 size={16} />
                                 </button>
                                 <button
                                   onClick={() => handleCancelLeave(l._id)}
                                   className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors border border-transparent hover:border-rose-100 dark:hover:border-rose-800/40"
                                   title="Cancel Request"
                                 >
-                                  <AlertCircle size={16} />
+                                  <X size={16} />
                                 </button>
                               </div>
                             ) : (
-                              <div className="text-[10px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest italic pr-2">
-                                Locked
+                              <div className="pr-2">
+                                {l.status === 'Approved' ? (
+                                  <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-200">Approved</span>
+                                ) : l.status === 'Rejected' ? (
+                                  <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-rose-50 text-rose-600 border border-rose-200">Rejected</span>
+                                ) : l.status === 'Cancelled' ? (
+                                  <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200">Cancelled</span>
+                                ) : (
+                                  <div className="text-[10px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest italic pr-2">Locked</div>
+                                )}
                               </div>
                             )}
                           </td>
@@ -643,14 +702,6 @@ export default function EmployeeDashboard() {
         <EmployeeProfileView profile={profile} balances={balances} />
       )}
 
-      {/* PAYSLIPS TAB */}
-      {activeTab === 'payslips' && (
-        <div className="flex flex-col items-center justify-center h-96 text-slate-400">
-          <FileText size={64} className="mb-4 opacity-30" />
-          <p className="text-lg">Payslips module coming soon...</p>
-        </div>
-      )}
-
       {/* REGULARIZATION TAB */}
       {activeTab === 'regularization' && (
         <RegularizationRequest />
@@ -664,7 +715,7 @@ export default function EmployeeDashboard() {
       {/* TEAM LEAVES TAB */}
       {activeTab === 'team-leaves' && (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
-          <LeaveApprovals isManagerView={true} endpoint="/hrms/employee/leaves/team-requests" actionEndpoint="/hrms/employee/leaves/requests" />
+          <LeaveApprovals isManagerView={true} endpoint="/employee/leaves/team-requests" actionEndpoint="/employee/leaves/requests" />
         </div>
       )}
 
@@ -676,8 +727,8 @@ export default function EmployeeDashboard() {
             <RegularizationApprovals
               isManagerView={true}
               category="Attendance"
-              endpoint="/hrms/employee/regularization/team-requests"
-              actionEndpoint="/hrms/employee/regularization/requests"
+              endpoint="/employee/regularization/team-requests"
+              actionEndpoint="/employee/regularization/requests"
             />
           </div>
 
@@ -686,8 +737,8 @@ export default function EmployeeDashboard() {
             <RegularizationApprovals
               isManagerView={true}
               category="Leave"
-              endpoint="/hrms/employee/regularization/team-requests"
-              actionEndpoint="/hrms/employee/regularization/requests"
+              endpoint="/employee/regularization/team-requests"
+              actionEndpoint="/employee/regularization/requests"
             />
           </div>
         </div>

@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const Tenant = require('../models/Tenant');
 const getTenantDB = require('../utils/tenantDB');
 const EmailService = require('../services/email.service');
+const ResumeParserService = require('../services/ResumeParser.service');
 
 /* ----------------------------------------------------
    MULTER CONFIG (RESUME UPLOAD)
@@ -235,36 +236,50 @@ exports.applyJob = [
       console.log(`📝 [APPLY_JOB] Headers:`, req.headers);
       console.log(`📝 [APPLY_JOB] File:`, req.file);
 
-      let {
-        tenantId,
-        requirementId,
-        name,
-        fatherName,
-        email,
-        mobile,
-        experience,
-        address,
-        location,
-        currentCompany,
-        currentDesignation,
-        expectedCTC,
-        linkedin,
-        dob // Added Date of Birth
-      } = req.body;
+      // 1. Resolve Parameters
+      let { tenantId, requirementId, name, fatherName, email, mobile, experience, address, location, currentCompany, currentDesignation, expectedCTC, linkedin, dob } = req.body;
 
-      // Robustly resolve tenantId (Frontend sends it in headers mostly)
-      if (!tenantId) {
+      // Robustly resolve tenantId
+      if (!tenantId || tenantId === 'null' || tenantId === 'undefined') {
         tenantId = req.headers['x-tenant-id'] || req.query.tenantId;
       }
 
-      if (!tenantId || tenantId === 'null' || tenantId === 'undefined' || !requirementId || !name || !email) {
-        console.warn(`[APPLY_JOB] Validation failed. tenantId: ${tenantId}, requirementId: ${requirementId}, name: ${name}, email: ${email}`);
-        return res.status(400).json({
-          error: "Valid tenantId, requirementId, name, and email are required"
-        });
+      if (!tenantId || !requirementId) {
+        return res.status(400).json({ error: "Missing Tenant ID or Requirement ID" });
       }
 
-      // 0. Manual Token Check for Candidate (since this is a public route handle)
+      // 2. Fetch Job Context (Tenant DB)
+      const tenantDB = await getTenantDB(tenantId);
+      const Requirement = tenantDB.model("Requirement");
+      const requirement = await Requirement.findById(requirementId);
+
+      if (!requirement) return res.status(404).json({ error: "Job Requirement not found" });
+
+      // 3. Parse Resume with AI (Pass Job Context)
+      let parseResult = { rawText: "", structuredData: {} };
+      if (req.file) {
+        try {
+          console.log(`🤖 [APPLY_JOB] Parsing Resume for Match Analysis (Job: ${requirement.jobTitle})...`);
+          parseResult = await ResumeParserService.parseResume(
+            req.file.path,
+            req.file.mimetype,
+            requirement.description || "",
+            requirement.jobTitle || ""
+          );
+        } catch (parseErr) {
+          console.error("⚠️ [APPLY_JOB] Parsing Failed:", parseErr.message);
+        }
+      }
+      const { rawText, structuredData } = parseResult;
+
+      // 4. Merge Data
+      if (!name && structuredData.fullName) name = structuredData.fullName;
+      if (!email && structuredData.email) email = structuredData.email;
+      if (!mobile && structuredData.phone) mobile = structuredData.phone;
+      if (!experience && structuredData.totalExperience) experience = structuredData.totalExperience;
+      if (!currentCompany && structuredData.currentCompany) currentCompany = structuredData.currentCompany;
+
+      // 5. Identify Candidate (Auth)
       let candidateId = req.user?.id || null;
       const authHeader = req.headers.authorization || req.headers.Authorization;
       if (!candidateId && authHeader) {
@@ -274,17 +289,11 @@ exports.applyJob = [
           const decoded = jwt.verify(token, process.env.JWT_SECRET || "hrms_secret_key_123");
           candidateId = decoded.id;
         } catch (e) {
-          console.warn("[APPLY_JOB] Token verification failed internally:", e.message);
+          console.warn("[APPLY_JOB] Token verification failed:", e.message);
         }
       }
 
-      const tenantDB = await getTenantDB(tenantId);
       const Applicant = tenantDB.models.Applicant || tenantDB.model("Applicant", ApplicantSchema);
-      const Requirement = tenantDB.model("Requirement");
-
-      const requirement = await Requirement.findById(requirementId);
-      if (!requirement)
-        return res.status(404).json({ error: "Requirement not found" });
 
       const exists = await Applicant.findOne({
         requirementId,
@@ -353,7 +362,14 @@ exports.applyJob = [
           message: 'Your application has been received and is under review.',
           updatedBy: 'Candidate',
           timestamp: new Date()
-        }]
+        }],
+
+        // AI Fields
+        rawOCRText: rawText,
+        aiParsedData: structuredData,
+        parsedSkills: structuredData.skills || [],
+        matchPercentage: structuredData.matchPercentage || 0,
+        parsingStatus: rawText ? 'Completed' : 'Pending'
       });
 
       await applicant.save();
@@ -508,3 +524,52 @@ exports.getCareerCustomization = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch career customization" });
   }
 };
+
+/* ----------------------------------------------------
+   PARSE RESUME (PUBLIC - PRE-FILL)
+---------------------------------------------------- */
+exports.parseResumePublic = [
+  upload.single('resume'),
+  async (req, res) => {
+    try {
+      const { requirementId } = req.body;
+      console.log(`🤖 [PARSE_RESUME_PUBLIC] Parsing...`);
+
+      let jobDescription = "";
+      let jobTitle = "";
+
+      if (requirementId) {
+        const tenantId = req.headers['x-tenant-id'] || req.query.tenantId;
+        if (tenantId) {
+          try {
+            const tenantDB = await getTenantDB(tenantId);
+            const Requirement = tenantDB.model('Requirement');
+            const reqDoc = await Requirement.findById(requirementId).select('jobTitle description');
+            if (reqDoc) {
+              jobTitle = reqDoc.jobTitle;
+              jobDescription = reqDoc.description;
+            }
+          } catch (e) { }
+        }
+      }
+
+      if (!req.file) return res.status(400).json({ error: "No resume file uploaded" });
+
+      const result = await ResumeParserService.parseResume(req.file.path, req.file.mimetype, jobDescription, jobTitle);
+
+      // Cleanup temp file
+      const fs = require('fs');
+      try { fs.unlinkSync(req.file.path); } catch (e) { }
+
+      res.json({
+        success: true,
+        data: result.structuredData,
+        rawText: result.rawText
+      });
+
+    } catch (err) {
+      console.error("❌ [PARSE_RESUME_PUBLIC] Error:", err.message);
+      res.status(500).json({ error: "Failed to parse resume" });
+    }
+  }
+];

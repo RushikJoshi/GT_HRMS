@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Table, Card, Select, Button, DatePicker, 
-    Statistic, Row, Col, Divider, Tag, Space, Modal, 
+import {
+    Table, Card, Select, Button, DatePicker,
+    Statistic, Row, Col, Divider, Tag, Space, Modal,
     Form, Input, Popconfirm, message, Spin, Empty,
     Tooltip, Avatar
 } from 'antd';
-import { 
+import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RechartsTooltip
 } from 'recharts';
-import { 
-    Download, FileJson, Send, CheckCircle, AlertCircle, 
-    TrendingUp, Users, DollarSign, Activity 
+import {
+    Download, FileJson, Send, CheckCircle, AlertCircle,
+    TrendingUp, Users, IndianRupee, Activity
 } from 'lucide-react';
 import api from '../../../utils/api';
 import dayjs from 'dayjs';
@@ -130,8 +130,8 @@ const PayrollReport = () => {
             key: 'actions',
             render: (_, record) => (
                 <Space size="small">
-                    <Button 
-                        type="primary" 
+                    <Button
+                        type="primary"
                         size="small"
                         onClick={() => handleSelectRun(record)}
                     >
