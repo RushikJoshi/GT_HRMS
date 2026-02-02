@@ -1,10 +1,10 @@
 /**
  * ============================================
- * ARCHITECT-GRADE CALCULATION ENGINE (v9.0)
+ * ARCHITECT-GRADE CALCULATION ENGINE (v10.0)
  * ============================================
  * 
  * STRICT BUSINESS RULES:
- * 1. BASIC is always Step 1 (40% of CTC).
+ * 1. BASIC percentage is dynamically fetched from component configuration (fallback: 40% of CTC).
  * 2. All components must specify calculationType and basedOn.
  * 3. SPECIAL_ALLOWANCE is the automatic balancer (Step 3).
  * 4. Validation: Total must match CTC exactly; SA cannot be negative.
@@ -18,10 +18,27 @@ class SalaryCalculationEngine {
         const ctc = this._safeNum(annualCTC);
         if (ctc <= 0) return this._emptyResult(ctc);
 
-        // --- STEP 1: CALCULATE BASIC ---
-        const basicAnnual = this._round(ctc * 0.40);
-        const basicMonthly = this._round(basicAnnual / 12);
         const monthlyCTC = this._round(ctc / 12);
+
+        // Find Basic component from earnings to get its configured percentage
+        const basicComp = (earnings || []).find(e => this._deriveCode(e) === 'BASIC');
+        let basicPercentage = 40; // Default fallback
+
+        if (basicComp) {
+            const calcType = (basicComp.calculationType || basicComp.amountType || '').toUpperCase();
+            if (calcType.includes('PERCENT') && calcType.includes('CTC')) {
+                basicPercentage = parseFloat(basicComp.percentage || basicComp.value || 40);
+                console.log(`🔍 DEBUG: Using Basic percentage from component: ${basicPercentage}%`);
+            }
+        } else {
+            console.log(`🔍 DEBUG: Basic component not found, using fallback: ${basicPercentage}%`);
+        }
+
+        // --- STEP 1: CALCULATE BASIC ---
+        const basicAnnual = this._round(ctc * (basicPercentage / 100));
+        const basicMonthly = this._round(basicAnnual / 12);
+
+        console.log(`🔍 DEBUG: CTC=${ctc}, Basic%=${basicPercentage}, BasicAnnual=${basicAnnual}, BasicMonthly=${basicMonthly}`);
 
         const ctx = {
             annualCTC: ctc,
@@ -51,7 +68,7 @@ class SalaryCalculationEngine {
             code: 'BASIC',
             name: 'Basic Salary',
             calculationType: 'PERCENTAGE',
-            value: 40,
+            value: basicPercentage,
             basedOn: 'CTC',
             monthly: basicMonthly,
             yearly: basicAnnual
@@ -89,6 +106,8 @@ class SalaryCalculationEngine {
         // Special Allowance = CTC - (Sum of Other Earnings + Benefits)
         const saAnnual = this._round(ctc - (totalCalculatedAnnual + totalBenefitsAnnual));
         const saMonthly = this._round(saAnnual / 12);
+
+        console.log(`🔍 DEBUG: Special Allowance: Annual=${saAnnual}, Monthly=${saMonthly}`);
 
         if (saAnnual < 0) {
             throw new Error(`CTC Mismatch: Components total exceeds CTC by ₹${Math.abs(saAnnual)}`);
@@ -130,21 +149,38 @@ class SalaryCalculationEngine {
 
         let monthly = 0;
 
-        if (calcType === 'PERCENTAGE' || calcType.includes('PERCENT')) {
+        // Handle different calculation types
+        if (calcType.includes('PERCENTAGE_OF_CTC') || (calcType.includes('PERCENT') && calcType.includes('CTC'))) {
+            monthly = this._round((ctx.monthlyCTC * value) / 100);
+            console.log(`🔍 DEBUG: ${comp.name} = ${value}% of CTC (${ctx.monthlyCTC}) = ${monthly}`);
+        } else if (calcType.includes('PERCENTAGE_OF_BASIC') || (calcType.includes('PERCENT') && basedOn === 'BASIC')) {
+            monthly = this._round((ctx.basicMonthly * value) / 100);
+            console.log(`🔍 DEBUG: ${comp.name} = ${value}% of Basic (${ctx.basicMonthly}) = ${monthly}`);
+        } else if (calcType === 'PERCENTAGE' || calcType.includes('PERCENT')) {
+            // Generic percentage - use basedOn to determine base
             const base = (basedOn === 'BASIC') ? ctx.basicMonthly : ctx.monthlyCTC;
             monthly = this._round((base * value) / 100);
-        } else {
+            console.log(`🔍 DEBUG: ${comp.name} = ${value}% of ${basedOn} (${base}) = ${monthly}`);
+        } else if (calcType === 'FLAT_AMOUNT' || calcType === 'FIXED') {
             // FIXED/FLAT
             monthly = this._round(value);
+            console.log(`🔍 DEBUG: ${comp.name} = Flat amount ${monthly}`);
+        } else {
+            // Default to flat amount
+            monthly = this._round(value);
+            console.log(`🔍 DEBUG: ${comp.name} = Default flat amount ${monthly}`);
         }
 
-        // Hardcoded Rules for Retirals (Industry Standard)
+        // Hardcoded Rules for Retirals (Industry Standard) - Override calculated values
         if (code === 'EMPLOYER_PF' || code === 'EMPLOYEE_PF' || code === 'PF') {
             monthly = Math.min(this._round(ctx.basicMonthly * 0.12), 1800);
+            console.log(`🔍 DEBUG: ${comp.name} = PF override (12% of Basic, max 1800) = ${monthly}`);
         } else if (code === 'GRATUITY') {
             monthly = this._round(ctx.basicMonthly * 0.0481);
+            console.log(`🔍 DEBUG: ${comp.name} = Gratuity override (4.81% of Basic) = ${monthly}`);
         } else if (code === 'PROFESSIONAL_TAX') {
             monthly = 200;
+            console.log(`🔍 DEBUG: ${comp.name} = PT override = ${monthly}`);
         }
 
         return {
