@@ -106,20 +106,26 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
     };
 
     const handleTabClick = (id) => {
-        // ALWAYS update the active tab state first to ensure UI resets
-        setActiveTab(id);
-
+        // 1. Navigation Logic
         if (id === 'payslips') {
             navigate('/employee/payslips');
-        } else if (id === 'dashboard') {
-            navigate('/employee/dashboard');
+        } else {
+            // All other items are tabs within the EmployeeDashboard
+            // If we are not on the dashboard route, navigate back to it
+            if (window.location.pathname !== '/employee/dashboard') {
+                navigate('/employee/dashboard');
+            }
         }
 
+        // 2. State & UI Logic
+        // Always call setActiveTab to ensure highlighting and tab selection are in sync
+        setActiveTab(id);
         if (onClose) onClose();
     };
 
     return (
-        <aside className="w-full h-full bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col shadow-lg overflow-hidden">
+        <aside className="w-full h-full bg-gradient-to-b from-[#0F172A] via-[#1E1B4B] to-[#0F172A] border-r border-indigo-900/30 text-slate-300 flex flex-col shadow-2xl overflow-hidden relative">
+            <div className="absolute inset-0 bg-indigo-500/5 pointer-events-none opacity-30"></div>
 
             {/* Header / Brand */}
             <div className="px-4 py-6 flex-shrink-0 border-b border-slate-800">

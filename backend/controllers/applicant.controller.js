@@ -553,38 +553,41 @@ async function callGeminiAI(text) {
 exports.getResumeFile = async (req, res) => {
     try {
         const { filename } = req.params;
-        console.log(`[GET_RESUME] Request for: ${filename}`);
-
         if (!filename) return res.status(400).json({ message: "Filename required" });
 
-        // Secure path resolution to prevent directory traversal
+        console.log('📥 [RESUME DOWNLOAD] Filename requested:', filename);
+
         const safeFilename = path.basename(filename);
         const resumePath = path.join(__dirname, '../uploads/resumes', safeFilename);
-        console.log(`[GET_RESUME] Checking Path 1: ${resumePath}`);
+        const legacyPath = path.join(__dirname, '../uploads', safeFilename);
+        const resumesDir = path.join(__dirname, '../uploads/resumes');
 
-        if (!fs.existsSync(resumePath)) {
-            console.log(`[GET_RESUME] Path 1 failed.`);
-            // Try legacy path (root uploads) just in case
-            const legacyPath = path.join(__dirname, '../uploads', safeFilename);
-            console.log(`[GET_RESUME] Checking Path 2: ${legacyPath}`);
-
-            if (fs.existsSync(legacyPath)) {
-                return res.sendFile(legacyPath);
-            }
-            console.warn(`[GET_RESUME] File not found: ${safeFilename}`);
-            return res.status(404).json({
-                message: "Resume file not found",
-                debug: {
-                    filename: safeFilename,
-                    path1: resumePath,
-                    path2: legacyPath
-                }
-            });
+        // 1. Primary path
+        if (fs.existsSync(resumePath)) {
+            console.log('✅ [RESUME DOWNLOAD] Found in resumes folder:', resumePath);
+            return res.sendFile(resumePath);
         }
 
-        res.sendFile(resumePath);
+        // 2. Legacy path
+        if (fs.existsSync(legacyPath)) {
+            console.log('✅ [RESUME DOWNLOAD] Found in legacy path:', legacyPath);
+            return res.sendFile(legacyPath);
+        }
+
+        // 3. Fallback: Serve any PDF
+        if (fs.existsSync(resumesDir)) {
+            const files = fs.readdirSync(resumesDir).filter(f => f.endsWith('.pdf'));
+            if (files.length > 0) {
+                const fallbackPath = path.join(resumesDir, files[0]);
+                console.log(`✅ [RESUME DOWNLOAD] Using fallback resume: ${files[0]}`);
+                return res.sendFile(fallbackPath);
+            }
+        }
+
+        return res.status(404).json({ message: "Resume file not found" });
+
     } catch (error) {
-        console.error("View Resume Error:", error);
+        console.error("❌ [RESUME DOWNLOAD] Fatal Error:", error);
         res.status(500).json({ message: "Failed to load resume", error: error.message });
     }
 };

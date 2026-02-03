@@ -79,8 +79,10 @@ const NAV_GROUPS = [
   {
     title: 'Attendance',
     items: [
+
       { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.attendance },
       { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
+
     ]
   },
   {
@@ -93,7 +95,7 @@ const NAV_GROUPS = [
   {
     title: 'Payroll',
     items: [
-      { to: '/hr/payroll/dashboard', label: 'Dashboard', icon: ICONS.payrollDashboard },
+      { to: '/hr/payroll/dashboard', label: 'Payroll Dashboard', icon: ICONS.payrollDashboard },
       { to: '/hr/payroll/salary-components', label: 'Salary Components', icon: ICONS.salaryComponents },
       { to: '/hr/payroll/compensation', label: 'Employee Compensation', icon: ICONS.compensation },
       { to: '/hr/payroll/process', label: 'Process Payroll', icon: ICONS.process },
@@ -106,12 +108,14 @@ const NAV_GROUPS = [
     title: 'Hiring',
     items: [
       {
-        label: 'Requirements',
+        label: 'Recruitment',
         icon: ICONS.requirements,
         children: [
+
           { to: '/hr/requirements', label: 'Job List' },
           { to: '/hr/create-requirement', label: 'Create Requirement' },
           { to: '/hr/positions', label: 'Position Master' }
+
         ]
       },
       {
@@ -187,7 +191,8 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
   };
 
   return (
-    <aside className={`h-full bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col w-full`}>
+    <aside className="h-full bg-gradient-to-b from-[#0F172A] via-[#111827] to-[#0F172A] border-r border-indigo-900/40 text-slate-300 flex flex-col w-full relative">
+      <div className="absolute inset-0 bg-indigo-500/5 pointer-events-none"></div>
       {/* Header */}
       <div className="p-4 border-b border-slate-800 flex justify-between items-center">
         {!collapsed && (
@@ -244,7 +249,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                       aria-label={item.label}
                       title={item.label}
                       className={`w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                        ${hasActiveChild ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`}
+                        ${hasActiveChild ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'hover:bg-indigo-500/10 hover:text-indigo-300'}`}
                     >
                       {item.icon}
                       {!collapsed && (
@@ -272,7 +277,8 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                           </NavLink>
                         ))}
                       </div>
-                    )}
+                    )
+                    }
                   </div>
                 );
               }
@@ -284,6 +290,8 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                   aria-label={item.label}
                   title={item.label}
                   onClick={() => onNavigate && onNavigate()}
+
+
                   className={({ isActive }) => {
                     // Custom active check for links with query parameters
                     let active = isActive;
@@ -296,6 +304,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                     return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
                      ${active ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`;
                   }}
+
                 >
                   {item.icon}
                   {!collapsed && <span>{item.label}</span>}
@@ -315,7 +324,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
           </div>
         )}
       </div>
-    </aside>
+    </aside >
   );
 }
 

@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -110,7 +111,10 @@ const OutletProxy = () => <Outlet />;
 export default function AppRoutes() {
     return (
         <Routes>
+            {/* Root - Auto Redirect based on Auth */}
             <Route path="/" element={<AutoHome />} />
+
+
 
             {/* --- PUBLIC AUTH ROUTES (EXISTING - KEEP FOR BACKWARD COMPATIBILITY) --- */}
             <Route path="/login" element={<Login />} />
@@ -142,6 +146,7 @@ export default function AppRoutes() {
             <Route element={<CandidateProtectedRoute><OutletProxy /></CandidateProtectedRoute>}>
                 <Route path="/candidate/application/:applicationId" element={<ApplicationTrack />} />
             </Route>
+
 
             <Route path="/apply-job/:requirementId" element={<JobApplication />} />
 
@@ -345,6 +350,7 @@ export default function AppRoutes() {
 
             <Route path="/verify-company/:token" element={<VerifyCompany />} />
             <Route path="*" element={<NotFound />} />
+
         </Routes>
     );
 }

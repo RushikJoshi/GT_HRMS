@@ -16,12 +16,14 @@ const NATIONALITIES = [
 import ApplyLeaveForm from '../../components/ApplyLeaveForm';
 import SalaryAssignmentModal from '../../components/Payroll/SalaryAssignmentModal';
 import EmployeeProfileView from '../../components/EmployeeProfileView';
+import EmployeeExcelUploadModal from '../../components/HR/EmployeeExcelUploadModal';
 import { Calendar as CalendarIcon, User, Search, Filter, Plus, FileText, Edit2, Trash2, Eye, IndianRupee } from 'lucide-react';
 
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [openForm, setOpenForm] = useState(false);
+  const [openUploadPopup, setOpenUploadPopup] = useState(false)
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [applyingLeave, setApplyingLeave] = useState(null);
@@ -93,6 +95,7 @@ export default function Employees() {
   function openNew() { setEditing(null); setViewing(null); setOpenForm(true); }
   function openEdit(e) { setEditing(e); setViewing(null); setOpenForm(true); }
   function openView(e) { setEditing(e); setViewing(true); setOpenForm(true); }
+  function openUpload() { setOpenUploadPopup(true); }
 
   function remove(id) {
     showConfirmToast({
@@ -167,6 +170,7 @@ export default function Employees() {
     } finally { setGeneratingJoining(false); }
   };
 
+
   if (openForm) {
     if (viewing) {
       return (
@@ -201,7 +205,6 @@ export default function Employees() {
       </div>
     );
   }
-
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
@@ -214,7 +217,7 @@ export default function Employees() {
             {showDrafts ? 'Hide Drafts' : 'Drafts'}
           </button>
           <button onClick={openNew} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employee</button>
-          <button onClick={openNew} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employees From Excel</button>
+          <button onClick={openUpload} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employees From Excel</button>
         </div>
       </div>
 
@@ -608,6 +611,17 @@ export default function Employees() {
           />
         )
       }
+
+      {/* Excel Upload Modal */}
+      <EmployeeExcelUploadModal
+        isOpen={openUploadPopup}
+        onClose={() => setOpenUploadPopup(false)}
+        onSuccess={() => {
+          setOpenUploadPopup(false);
+          showToast('success', 'Success', 'Employees uploaded successfully!');
+          load();
+        }}
+      />
 
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 sm:p-6">
         <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-3">Employees by Department</h3>

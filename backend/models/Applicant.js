@@ -113,7 +113,8 @@ const ApplicantSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
   }],
 
-  // Audited Salary Revisions
+  customData: { type: mongoose.Schema.Types.Mixed },
+
   salaryHistory: [{
     version: Number,
     effectiveFrom: Date,
@@ -131,8 +132,6 @@ const ApplicantSchema = new mongoose.Schema({
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
 
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
 });
 
 ApplicantSchema.index({ requirementId: 1, status: 1 });

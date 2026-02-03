@@ -1,147 +1,152 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
-import { Briefcase, MapPin, Clock, Search, Filter, ArrowRight, AlertCircle } from 'lucide-react';
 import { getTenantId } from '../../utils/auth';
+import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
+import {
+    Briefcase, MapPin, Clock, Search, Filter,
+    ArrowRight, Star, AlertCircle, Building2, Globe
+} from 'lucide-react';
 
 export default function CandidateOpenPositions() {
     const navigate = useNavigate();
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
     const [error, setError] = useState(null);
+    const { candidate } = useJobPortalAuth();
+    const [tenantId, setTenantIdState] = useState(getTenantId() || candidate?.tenantId);
 
-    const fetchJobs = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const tid = getTenantId();
+    useEffect(() => {
+        const fetchJobs = async () => {
+            const tid = tenantId || getTenantId() || candidate?.tenantId;
+            console.log('🔍 [CANDIDATE_OPEN_POSITIONS] Fetching jobs for tenant:', tid);
+
             if (!tid) {
-                setError("Company context missing. Please reload the portal.");
+                console.warn('⚠️ [CANDIDATE_OPEN_POSITIONS] No tenantId found');
                 setLoading(false);
                 return;
             }
 
-            // Using the robust public jobs endpoint we recently updated
-            const res = await api.get(`/public/jobs?tenantId=${tid}`);
-            const fetchedJobs = Array.isArray(res.data) ? res.data : (res.data?.jobs || []);
-            setJobs(fetchedJobs);
-        } catch (err) {
-            console.error("Fetch Jobs Error:", err);
-            setError(err.response?.data?.error || "Failed to load open positions. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
+            try {
+                // Use the query param version which is more robust
+                const res = await api.get(`/public/jobs?tenantId=${tid}`);
+                console.log(`✅ [CANDIDATE_OPEN_POSITIONS] Found ${res.data?.length || 0} jobs`);
+                setJobs(res.data || []);
+            } catch (err) {
+                console.error("Failed to fetch jobs:", err);
+                setError("Failed to load positions. Please try refreshing.");
+            } finally {
+                setLoading(false);
+            }
+        };
         fetchJobs();
-    }, [fetchJobs]);
+    }, [tenantId, candidate]);
 
-    const filteredJobs = (Array.isArray(jobs) ? jobs : []).filter(j =>
-        (j?.jobTitle?.toLowerCase() || '').includes(search.toLowerCase()) ||
-        (j?.department?.toLowerCase() || '').includes(search.toLowerCase())
+    const filteredJobs = jobs.filter(job =>
+        job?.jobTitle?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+        job?.department?.toLowerCase()?.includes(searchTerm.toLowerCase())
     );
 
     if (loading) return (
         <div className="h-[60vh] flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
-                <div className="h-12 w-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-gray-400 font-bold text-xs uppercase tracking-widest">Finding Opportunities...</p>
-            </div>
-        </div>
-    );
-
-    if (error) return (
-        <div className="h-[60vh] flex items-center justify-center">
-            <div className="max-w-md bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-100 text-center">
-                <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-                <h3 className="text-xl font-black text-gray-900 mb-2">Notice</h3>
-                <p className="text-gray-500 font-medium mb-8">{error}</p>
-                <button
-                    onClick={fetchJobs}
-                    className="bg-gray-900 text-white px-10 py-4 rounded-2xl font-black hover:bg-black transition-all shadow-xl shadow-gray-200"
-                >
-                    Retry Search
-                </button>
+                <div className="h-12 w-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Scanning Positions...</p>
             </div>
         </div>
     );
 
     return (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700 pb-20">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div>
-                    <h1 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tight leading-tight">
-                        Open Positions<span className="text-blue-600">.</span>
-                    </h1>
-                    <p className="text-gray-500 font-medium mt-3 text-lg">Find and apply to your next career milestone.</p>
-                </div>
-
-                {/* Search Bar */}
-                <div className="relative w-full max-w-md group">
-                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
-                    <input
-                        type="text"
-                        placeholder="Search roles or departments..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full bg-white border border-gray-100 pl-16 pr-8 py-5 rounded-[2rem] shadow-sm hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-bold text-gray-700"
-                    />
+        <div className="space-y-10 animate-in fade-in duration-200">
+            {/* Header / Search - Luxury Style */}
+            {/* Header / Search - Corporate Style */}
+            <div className="bg-white p-10 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden">
+                <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-8">
+                    <div className="max-w-xl">
+                        <div className="inline-flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-lg mb-4">
+                            <Globe size={12} className="text-premium-blue" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Active Opportunities</span>
+                        </div>
+                        <h1 className="text-3xl font-bold text-deep-navy tracking-tight mb-3">
+                            Find your <span className="text-premium-blue">milestone</span>.
+                        </h1>
+                        <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                            Join a team of visionaries and builders. Shape the future with us.
+                        </p>
+                    </div>
+                    <div className="relative w-full lg:w-[450px]">
+                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Search by title, category..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-soft-bg border border-gray-100 focus:ring-2 focus:ring-premium-blue/20 focus:bg-white px-14 py-4 rounded-[1.5rem] text-sm font-bold text-deep-navy outline-none transition-all placeholder:text-slate-400"
+                        />
+                    </div>
                 </div>
             </div>
 
-            {/* Jobs Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredJobs.length > 0 ? filteredJobs.map(job => (
-                    <div
-                        key={job?._id || Math.random()}
-                        className="bg-white rounded-[3rem] p-10 border border-gray-50 shadow-sm hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 transition-all duration-500 flex flex-col h-full group relative overflow-hidden h-full"
-                    >
-                        <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-[4rem] flex items-center justify-center transition-all duration-500 group-hover:bg-blue-600">
-                            <Briefcase className="w-8 h-8 text-blue-600 group-hover:text-white transition-colors" />
-                        </div>
+            {/* Grid */}
+            {filteredJobs.length === 0 ? (
+                <div className="bg-white p-20 rounded-[2.5rem] border border-gray-100 text-center shadow-sm">
+                    <div className="bg-slate-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                        <Search size={32} className="text-slate-300" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-800 mb-2">No matching positions</h3>
+                    <p className="text-slate-400 font-medium max-w-xs mx-auto">Try adjusting your filters or search terms to find what you're looking for.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                    {filteredJobs.map((job) => (
+                        <div
+                            key={job._id}
+                            className="group bg-white p-6 rounded-[1.5rem] border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all duration-300 relative flex flex-col h-full overflow-hidden"
+                        >
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="h-14 w-14 rounded-[1.2rem] bg-icon-bg flex items-center justify-center text-premium-blue shadow-sm group-hover:scale-105 transition-all duration-300 relative">
+                                    <Building2 size={22} />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-[10px] uppercase tracking-wide">New</span>
+                                    <button className="h-9 w-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-warning-red hover:bg-red-50 transition-all">
+                                        <Star size={16} />
+                                    </button>
+                                </div>
+                            </div>
 
-                        <div className="pr-12">
-                            <h3 className="text-xl font-black text-gray-900 line-clamp-2 leading-tight tracking-tight group-hover:text-blue-600 transition-colors">
-                                {job?.jobTitle || 'Untitled Position'}
+                            <h3 className="text-xl font-bold text-deep-navy tracking-tight mb-2 leading-tight group-hover:text-premium-blue transition-colors">
+                                {job?.jobTitle}
                             </h3>
-                            <div className="flex items-center gap-2 mt-3">
-                                <span className="text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-100/50">{job?.department || 'General'}</span>
-                            </div>
-                        </div>
+                            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mb-6">
+                                {job?.department || 'General'}
+                            </p>
 
-                        <div className="mt-10 space-y-4 flex-grow">
-                            <div className="flex items-center gap-4 text-gray-400 group-hover:text-gray-600 transition-colors">
-                                <MapPin className="w-4 h-4" />
-                                <span className="text-sm font-bold text-gray-600 tracking-tight">{job?.location || 'Remote'}</span>
+                            <div className="grid grid-cols-1 gap-3 mb-8">
+                                <div className="flex items-center gap-3">
+                                    <MapPin size={16} className="text-slate-400" />
+                                    <span className="text-slate-600 font-medium text-sm">Remote / Global</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <Briefcase size={16} className="text-slate-400" />
+                                    <span className="text-slate-600 font-medium text-sm">Full Time</span>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-4 text-gray-400 group-hover:text-gray-600 transition-colors">
-                                <Clock className="w-4 h-4" />
-                                <span className="text-sm font-bold text-gray-600 tracking-tight">{job?.employmentType || 'Full-time'}</span>
-                            </div>
-                        </div>
 
-                        <div className="mt-12 border-t border-gray-50 pt-10">
-                            <button
-                                onClick={() => navigate(`/apply-job/${job?._id}?tenantId=${getTenantId()}`)}
-                                className="w-full bg-gray-900 text-white rounded-2xl py-4.5 font-black shadow-xl shadow-gray-200 hover:bg-blue-600 hover:shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-3"
-                            >
-                                Apply Now <ArrowRight className="w-5 h-5" />
-                            </button>
+                            <div className="mt-auto">
+                                <button
+                                    onClick={() => navigate(`/apply-job/${job._id}?tenantId=${tenantId || getTenantId()}`)}
+                                    className="w-full bg-premium-blue hover:bg-premium-blue-dark text-white py-4 rounded-[1.2rem] font-bold text-xs uppercase tracking-[0.15em] transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md shadow-blue-200"
+                                >
+                                    <span>Apply Position</span>
+                                    <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                )) : (
-                    <div className="col-span-full py-20 text-center bg-white rounded-[3rem] border-2 border-dashed border-gray-100 flex flex-col items-center">
-                        <div className="h-20 w-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
-                            <Search className="w-10 h-10 text-gray-200" />
-                        </div>
-                        <h3 className="text-2xl font-black text-gray-900 tracking-tight">No matches found</h3>
-                        <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2">Try adjusting your search terms or filters.</p>
-                    </div>
-                )}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
