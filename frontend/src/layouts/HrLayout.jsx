@@ -29,12 +29,15 @@ export default function HRLayout() {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed w-64 md:w-72 h-screen transform transition-transform duration-300 ease-in-out z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <HRSidebar onNavigate={() => setSidebarOpen(false)} />
+      <div className={`fixed w-64 md:w-72 h-screen transform transition-transform duration-300 ease-in-out z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <HRSidebar
+          onNavigate={() => { if (window.innerWidth < 768) setSidebarOpen(false); }}
+          toggleCollapse={() => setSidebarOpen(false)}
+        />
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col w-full md:ml-72 min-h-screen">
+      <div className={`flex-1 flex flex-col w-full transition-all duration-300 ease-in-out min-h-screen ${sidebarOpen ? 'md:ml-72' : 'ml-0'}`}>
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-3 md:p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -49,7 +52,7 @@ export default function HRLayout() {
             </button>
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition flex-shrink-0"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition flex-shrink-0"
               aria-label="Toggle sidebar"
             >
               <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -85,31 +85,30 @@ export default function AttendanceCalendar({
     }, [holidays]);
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="flex flex-wrap gap-x-6 gap-y-2 p-4 bg-slate-50 border-b border-slate-200">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-visible">
+            <div className="flex flex-wrap gap-x-4 gap-y-2 p-3 bg-slate-50 border-b border-slate-200">
                 {Object.keys(LEGEND_LABELS).map(key => {
                     if (key === 'DEFAULT') return null;
-                    if (selectionMode && key === 'DEFAULT') return null;
                     const styles = getStatusStyles(key);
                     return (
-                        <div key={key} className="flex items-center gap-2">
-                            <div className={`h-2 w-2 rounded-full ${styles.dot}`}></div>
-                            <span className="text-xs font-medium text-slate-600">{LEGEND_LABELS[key]}</span>
+                        <div key={key} className="flex items-center gap-1.5">
+                            <div className={`h-1.5 w-1.5 rounded-full ${styles.dot}`}></div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{LEGEND_LABELS[key]}</span>
                         </div>
                     );
                 })}
             </div>
 
-            <div className="p-4 md:p-6 bg-white">
-                <div className="grid grid-cols-7 gap-1 md:gap-3">
+            <div className="p-4 bg-white">
+                <div className="grid grid-cols-7 gap-1 md:gap-2">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                        <div key={day} className={`text-center py-2 text-xs font-semibold uppercase tracking-wider ${day === 'Sun' ? 'text-rose-500' : 'text-slate-400'}`}>
+                        <div key={day} className={`text-center py-1 text-[10px] font-black uppercase tracking-widest ${day === 'Sun' ? 'text-rose-500' : 'text-slate-400'}`}>
                             {day}
                         </div>
                     ))}
 
                     {calendarArray.map((cell, i) => {
-                        if (cell.type === 'empty') return <div key={`empty-${i}`} className="h-24 md:h-28 invisible"></div>;
+                        if (cell.type === 'empty') return <div key={`empty-${i}`} className="h-[100px] invisible"></div>;
 
                         const { dateStr, dayNum, isWeeklyOff, isSunday, isToday, isFuture } = cell;
                         const attendance = attendanceMap[dateStr];
@@ -117,36 +116,23 @@ export default function AttendanceCalendar({
                         const disabledReason = disabledDates[dateStr];
                         const isSelected = selectedDate === dateStr;
 
-                        // Derive final status (prefer backend-provided finalStatus). Keep logic outside JSX and use single helper for UI mapping.
                         const deriveFinalStatus = (dayObj, holidayFlag, weeklyOffFlag) => {
-                            // Resolve final status with strict rules and DEFAULT fallback
-                            // 1. Server/higher-priority holiday
                             const serverFinal = (dayObj?.finalStatus || '').toString().toUpperCase();
                             if (serverFinal === 'HOLIDAY') return STATUS.HOLIDAY;
                             if (holidayFlag) return STATUS.HOLIDAY;
-
-                            // 2. Local weekend override
                             if (weeklyOffFlag) return STATUS.WEEKLY_OFF;
-
-                            // 3. Approved leave
                             if (dayObj?.approvedLeave?.exists) {
                                 return dayObj.approvedLeave.isHalfDay ? STATUS.HALF_DAY : STATUS.LEAVE;
                             }
-
-                            // 4. Attendance (only when attendance.exists === true)
                             const attendanceExists = !!dayObj?.attendance?.exists;
                             const attStatus = (dayObj?.attendance?.status || '').toString().toUpperCase();
                             if (attendanceExists && attStatus === 'ON_DUTY') return STATUS.ON_DUTY;
                             if (attendanceExists && attStatus === 'PRESENT') return STATUS.PRESENT;
                             if (attendanceExists && attStatus === 'ABSENT') return STATUS.ABSENT;
-
-                            // 5. Default (no color, no badge)
                             return STATUS.DEFAULT;
                         };
 
                         const finalStatus = deriveFinalStatus(attendance, !!holiday, isWeeklyOff);
-
-                        // Central UI helper returns styles + label
                         const ui = getCalendarUI(finalStatus, attendance?.approvedLeave?.leaveType);
                         const styles = { container: ui.container, border: ui.border, text: ui.text, dot: ui.dot };
                         const badgeLabel = ui.label;
@@ -173,9 +159,9 @@ export default function AttendanceCalendar({
                                     const mergedDayObj = Object.assign({}, attendance || {}, { isHoliday: !!holiday, isWeeklyOff, finalStatus });
                                     if (!disabledReason) onDateClick?.(dateStr, mergedDayObj);
                                 }}
-                                className={`group relative h-24 md:h-28 p-2.5 rounded-xl border transition-all duration-200 flex flex-col justify-between
-                                    ${disabledReason && selectionMode ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer hover:-translate-y-1 hover:shadow-md hover:border-blue-200 hover:z-10'}
-                                    ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1 z-20 shadow-md' : ''}
+                                className={`group relative h-[100px] p-2 rounded-xl border transition-all duration-200 flex flex-col justify-between
+                                    ${disabledReason && selectionMode ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer hover:shadow-md hover:border-blue-200 hover:-translate-y-0.5'}
+                                    ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1 z-10 shadow-md scale-[1.02] bg-blue-50/10' : ''}
                                     ${isToday && !isSelected ? 'ring-1 ring-blue-500 ring-offset-1' : ''}
                                     ${styles.container} ${styles.border}
                                 `}
@@ -185,40 +171,35 @@ export default function AttendanceCalendar({
                                 } : {}}>
 
                                 <div className="flex justify-between items-start">
-                                    <span className={`text-sm font-semibold h-7 w-7 rounded-full flex items-center justify-center 
+                                    <span className={`text-[11px] font-black h-5 w-5 rounded-lg flex items-center justify-center 
                                         ${isSunday ? 'text-rose-600' : 'text-slate-700'}
                                         ${isSelected ? 'bg-blue-600 text-white shadow-sm' : ''}
                                         ${isToday && !isSelected ? 'bg-blue-100 text-blue-700' : ''}
                                     `}>
                                         {dayNum}
                                     </span>
-                                    {holiday && <Coffee size={14} className={styles.text} />}
-                                    {Icon && !holiday && <Icon size={14} className={styles.text} style={finalStatus === STATUS.LEAVE && attendance?.leaveColor ? { color: attendance.leaveColor } : {}} />}
+                                    {holiday ? <Coffee size={12} className={styles.text} /> : Icon && <Icon size={12} className={styles.text} style={finalStatus === STATUS.LEAVE && attendance?.leaveColor ? { color: attendance.leaveColor } : {}} />}
                                 </div>
 
-                                <div className="space-y-0.5 px-0.5">
-                                    <div className={`text-[10px] font-semibold truncate ${styles.text}`}>
+                                <div className="space-y-0.5">
+                                    <div className={`text-[9px] leading-tight font-black truncate uppercase tracking-tighter ${styles.text}`}>
                                         {holiday ? holiday.name : ''}
                                     </div>
 
                                     {attendance?.checkIn && (
-                                        <div className="flex flex-col text-[9px] font-medium text-slate-500 leading-tight">
-                                            <span>{new Date(attendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                            {attendance.checkOut && <span>{new Date(attendance.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+                                        <div className="flex items-center gap-1 text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
+                                            <Clock size={8} />
+                                            <span>{new Date(attendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
                                         </div>
                                     )}
 
-                                    {attendance?.workingHours > 0 && (
-                                        <div className="text-[9px] font-medium text-slate-400">
-                                            {attendance.workingHours}h
-                                        </div>
-                                    )}
-
-                                    {/* Badge */}
-                                    {badgeLabel && (
-                                        <div className={`inline-flex items-center justify-center mt-2 px-2 py-0.5 rounded-full text-[11px] font-semibold ${styles.container} ${styles.border} ${styles.text}`}>
+                                    {/* Compact Status Indicator */}
+                                    {badgeLabel ? (
+                                        <div className={`mt-auto text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest border inline-block ${styles.container} ${styles.border} ${styles.text}`}>
                                             {badgeLabel}
                                         </div>
+                                    ) : (
+                                        <div className="h-4"></div>
                                     )}
                                 </div>
                             </div>

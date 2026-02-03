@@ -326,8 +326,8 @@ export default function EmployeeDashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Left Column: Clock + Stats */}
-            <div className="lg:col-span-2 space-y-6">
+            {/* Left Column: Attendance Clock + Recent Activity */}
+            <div className="lg:col-span-3 space-y-6">
               <AttendanceClock
                 isCheckedIn={isCheckedIn}
                 isCheckedOut={isCheckedOut}
@@ -339,123 +339,134 @@ export default function EmployeeDashboard() {
                 error={clockError}
               />
 
-              {/* Today's Stats Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: 'Total Punches', value: todaySummary?.totalPunches || 0, icon: RefreshCw, color: 'text-slate-400' },
-                  { label: 'Punches In', value: todaySummary?.totalIn || 0, icon: LogIn, color: 'text-emerald-500' },
-                  { label: 'Punches Out', value: todaySummary?.totalOut || 0, icon: LogOut, color: 'text-blue-500' },
-                ].map((item, idx) => (
-                  <div key={idx} className="bg-white dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-500/30 transition-colors h-full">
-                    <item.icon size={16} className={`${item.color} mb-3 opacity-60 group-hover:opacity-100 transition-opacity`} />
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
-                    <p className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">{item.value}</p>
-                  </div>
-                ))}
+              {/* Recent Activity Log */}
+              <div className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                    Recent Activity
+                  </h3>
+                  <button onClick={() => setActiveTab('attendance')} className="text-[10px] font-black text-indigo-500 hover:text-indigo-600 uppercase tracking-widest border-b-2 border-transparent hover:border-indigo-500 transition-all">View All History</button>
+                </div>
 
-                {/* Dynamic Working Hours Card */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {attendance.slice(0, 3).map(att => (
+                    <div key={att._id} className="aspect-square flex flex-col items-center justify-center text-center p-0.5 rounded-md bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/20 transition-all group relative overflow-hidden max-w-[72px] w-full mx-auto">
+                      <div className="absolute top-0.5 right-0.5">
+                        {att.isLate && <span className="text-[4px] font-black text-amber-500 bg-amber-500/10 px-0.5 py-0.25 rounded uppercase tracking-widest">LATE</span>}
+                      </div>
+
+                      <div className="flex flex-col items-center mb-0">
+                        <span className="text-[5px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0">
+                          {new Date(att.date).toLocaleDateString([], { month: 'short' })}
+                        </span>
+                        <span className="text-sm font-black text-slate-800 dark:text-white leading-none">
+                          {new Date(att.date).getDate()}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-0 mb-0.5">
+                        <span className="text-[5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">
+                          {att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                        </span>
+                        <span className="text-[7px] font-black text-slate-700 dark:text-slate-200 tracking-tight leading-none">
+                          {att.workingHours || 0}h Total
+                        </span>
+                      </div>
+
+                      <span className={`px-1 py-0.25 rounded text-[5px] font-black uppercase tracking-widest border w-[90%] ${att.status?.toLowerCase() === 'present'
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50'
+                        : 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800/50'
+                        }`}>
+                        {att.status || 'present'}
+                      </span>
+                    </div>
+                  ))}
+                  {attendance.length === 0 && (
+                    <div className="col-span-full text-center py-6 flex flex-col items-center gap-1.5">
+                      <Clock size={20} className="text-slate-200 dark:text-slate-800" />
+                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">No activity</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+
+            {/* Right Column: Policy, Overtime, Geo-Fencing System */}
+            <div className="lg:col-span-2 space-y-6">
+
+              {/* Policy Framework Card */}
+              <div className="bg-slate-900 border border-slate-800 text-white p-6 rounded-2xl shadow-2xl overflow-hidden relative group">
+                <div className="absolute top-[-40px] right-[-40px] opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
+                  <Clock size={240} />
+                </div>
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex flex-col">
+                      <h3 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2">
+                        Policy Framework
+                      </h3>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Attendance Protocols</span>
+                    </div>
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-lg font-bold tracking-widest shadow-[0_0_15px_rgba(99,102,241,0.2)]">v2.1 Active</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-y-8 gap-x-4">
+                    {[
+                      { label: 'Shift Windows', value: attendanceSettings ? `${attendanceSettings.shiftStartTime} - ${attendanceSettings.shiftEndTime}` : '-- : --', icon: Clock, color: 'text-indigo-400' },
+                      { label: 'Punch Architecture', value: attendanceSettings ? `${attendanceSettings.punchMode} PUNCH` : '--', icon: CheckCircle, color: 'text-emerald-400' },
+                      { label: 'Late Grace Period', value: attendanceSettings ? `${attendanceSettings.lateMarkThresholdMinutes} Minutes` : '--', icon: AlertCircle, color: 'text-amber-400' },
+                      { label: 'Min. Full Day', value: attendanceSettings ? `${attendanceSettings.fullDayThresholdHours} Hours` : '--', icon: CalendarIcon, color: 'text-blue-400' },
+                    ].map((config, i) => (
+                      <div key={i} className="flex items-start gap-3 group/item">
+                        <config.icon size={16} className={`mt-0.5 ${config.color} opacity-60`} />
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 group-hover/item:text-slate-400 transition-colors">{config.label}</span>
+                          <span className="text-sm font-black tracking-tight text-slate-200">{config.value}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Overtime Monitoring Section */}
+              <div className="h-fit">
                 <WorkingHoursCard
                   baseHours={todaySummary?.workingHours || 0}
                   lastPunchIn={todayRecord?.checkIn ? (isCheckedIn && !isCheckedOut ? todayRecord.logs?.[todayRecord.logs.length - 1]?.time : null) : null}
                   isActive={isCheckedIn && !isCheckedOut}
                 />
               </div>
-            </div>
 
-            {/* Policy Summary & Recent Log */}
-            <div className="lg:col-span-3 space-y-6">
-              {/* Applied Policy Summary */}
-              <div className="bg-slate-900 border border-slate-800 text-white p-6 rounded-2xl shadow-2xl overflow-hidden relative group">
-                <div className="absolute top-[-40px] right-[-40px] opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
-                  <Clock size={240} />
-                </div>
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_indigo]"></div>
-                      Policy Framework
-                    </h3>
-                    <span className="text-[10px] bg-white/5 border border-white/10 px-3 py-1 rounded-full text-slate-400 font-bold tracking-widest">v2.1 Active</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-8">
-                    {[
-                      { label: 'Shift Windows', value: attendanceSettings ? `${attendanceSettings.shiftStartTime} - ${attendanceSettings.shiftEndTime}` : '-- : --', color: 'text-indigo-400' },
-                      { label: 'Punch Architecture', value: attendanceSettings ? `${attendanceSettings.punchMode} PUNCH` : '--', color: 'text-blue-400' },
-                      { label: 'Late Grace Period', value: attendanceSettings ? `${attendanceSettings.lateMarkThresholdMinutes} MINUTES` : '--', color: 'text-emerald-400' },
-                      { label: 'Min. Full Day', value: attendanceSettings ? `${attendanceSettings.fullDayThresholdHours} HOURS` : '--', color: 'text-amber-400' },
-                    ].map((config, i) => (
-                      <div key={i} className="group/item">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 group-hover/item:text-slate-400 transition-colors">{config.label}</p>
-                        <p className={`text-sm font-black tracking-tight ${config.color}`}>{config.value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
-                        <Briefcase size={14} className="text-slate-400" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Geo-Fencing System</span>
-                    </div>
-                    <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-xl border transition-all ${attendanceSettings?.locationRestrictionMode === 'none'
-                      ? 'bg-slate-800/50 text-slate-500 border-slate-700/50'
-                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(52,211,153,0.1)]'}`}>
-                      {attendanceSettings?.locationRestrictionMode === 'none' ? 'Bypassed' : `Restricted: ${attendanceSettings?.locationRestrictionMode}`}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent Attendance Log */}
-              <div className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest flex items-center gap-2">
-                    Recent Activity
-                    <span className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-900 text-[8px] flex items-center justify-center font-black">5</span>
-                  </h3>
-                  <button onClick={() => setActiveTab('attendance')} className="text-[10px] font-black text-indigo-500 hover:text-indigo-600 uppercase tracking-widest border-b-2 border-transparent hover:border-indigo-500 transition-all">View All History</button>
-                </div>
-
+              {/* Geo-Fencing System Section */}
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                  <Briefcase size={12} />
+                  Geo-Fencing System
+                </h3>
                 <div className="space-y-3">
-                  {attendance.slice(0, 5).map(att => (
-                    <div key={att._id} className="flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/30 hover:shadow-md transition-all group">
+                  {[
+                    { label: 'Total Punches', value: todaySummary?.totalPunches || 0, icon: RefreshCw, color: 'text-slate-400', bg: 'bg-slate-50 dark:bg-slate-800' },
+                    { label: 'Punches In', value: todaySummary?.totalIn || 0, icon: LogIn, color: 'text-emerald-500', bg: 'bg-emerald-50/50 dark:bg-emerald-900/10' },
+                    { label: 'Punches Out', value: todaySummary?.totalOut || 0, icon: LogOut, color: 'text-blue-500', bg: 'bg-blue-50/50 dark:bg-blue-900/10' },
+                  ].map((item, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm flex items-center justify-between group hover:border-indigo-500/30 transition-all">
                       <div className="flex items-center gap-4">
-                        <div className="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/20 transition-colors">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">{new Date(att.date).toLocaleDateString([], { month: 'short' })}</span>
-                          <span className="text-lg font-black text-slate-800 dark:text-white leading-none mt-0.5">{new Date(att.date).getDate()}</span>
+                        <div className={`p-2.5 rounded-lg ${item.bg} ${item.color} group-hover:scale-110 transition-transform`}>
+                          <item.icon size={18} />
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                            {att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'} · {att.checkOut ? new Date(att.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                          </span>
-                          <div className="flex items-center gap-2 mt-1">
-                            {att.isLate && <span className="text-[8px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded tracking-widest">LATE</span>}
-                            {att.isEarlyOut && <span className="text-[8px] font-black text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded tracking-widest">EARLY</span>}
-                            <span className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-tight">{att.workingHours || 0}h Total</span>
-                          </div>
+                        <div>
+                          <p className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{item.value}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{item.label}</p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border ${att.status?.toLowerCase() === 'present'
-                          ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50'
-                          : 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800/50'
-                          }`}>
-                          {att.status || 'present'}
-                        </span>
                       </div>
                     </div>
                   ))}
-                  {attendance.length === 0 && (
-                    <div className="text-center py-12 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center gap-4">
-                      <Clock size={40} className="text-slate-200 dark:text-slate-800" />
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No recent data available</p>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
+
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

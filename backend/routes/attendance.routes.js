@@ -31,5 +31,6 @@ router.post('/bulk-upload', auth.authenticate, auth.requireHr, attendCtrl.bulkUp
 router.get('/calendar', auth.authenticate, attendCtrl.getCalendar); // All authenticated users can view calendar
 // Attendance by date for admin/HR - shows employees list + summary for the date
 router.get('/by-date', auth.authenticate, auth.requireHr, attendCtrl.getByDate);
+router.get('/employee/:employeeId/:date', auth.authenticate, auth.requireHr, attendCtrl.getEmployeeDateDetail);
 
 module.exports = router;

@@ -27,7 +27,8 @@ import {
   Lock,
   Settings2,
   Brush,
-  ExternalLink
+  ExternalLink,
+  X
 } from 'lucide-react';
 
 /* ================= ICONS ================= */
@@ -196,8 +197,12 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
           </div>
         )}
         {toggleCollapse && (
-          <button onClick={toggleCollapse} className="text-slate-400 hover:text-white">
-            ☰
+          <button
+            onClick={toggleCollapse}
+            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95"
+            aria-label="Close sidebar"
+          >
+            <X size={20} />
           </button>
         )}
       </div>
