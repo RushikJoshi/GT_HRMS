@@ -138,12 +138,18 @@ router.use('/hr/offer-templates', require('./offerTemplate.routes'));
 // Career Builder
 router.use('/hr/career', require('./career.routes'));
 
+
+// BULk Upload Template
+
+router.get('/hr/bulk/template', auth.authenticate, auth.requireAdminOrHr, empCtrl.downloadBulkUploadTemp);
+router.post('/hr/bulk/upload', auth.authenticate, auth.requireAdminOrHr, empCtrl.bulkUploadEmployees);
 /* -----------------------------------------
    CANDIDATE STATUS TRACKER
 ----------------------------------------- */
 router.get('/hr/candidate-status', trackerCtrl.getCandidates);
 router.get('/hr/candidate-status/:id', trackerCtrl.getCandidateById);
 router.get('/hr/candidate-status/:id/timeline', trackerCtrl.getTimeline);
+router.get('/hr/candidate/:id/status', trackerCtrl.getStatus); // NEW ROUTE
 router.post('/hr/candidate-status/:id/status', trackerCtrl.updateStatus);
 router.post('/hr/candidate-status/seed', trackerCtrl.seedData);
 

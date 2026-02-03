@@ -2,6 +2,7 @@ const Tenant = require("../models/Tenant");
 const CounterSchema = require("../models/Counter");
 const mongoose = require("mongoose");
 const CompanyIdConfig = require('../models/CompanyIdConfig');
+const DocumentCounter = require('../models/DocumentCounter');
 
 // Global counter model (stored in main connection, not tenant databases)
 let GlobalCounter;
@@ -31,7 +32,8 @@ function getModels(req) {
     return {
       Employee: db.model("Employee"),
       LeavePolicy: db.model("LeavePolicy"),
-      LeaveBalance: db.model("LeaveBalance")
+      LeaveBalance: db.model("LeaveBalance"),
+      Department: db.model("Department")
       // Counter is now global, not per-tenant
     };
   } catch (err) {
@@ -1396,6 +1398,1030 @@ exports.getHierarchy = async (req, res) => {
       success: false,
       error: 'hierarchy_failed',
       message: err.message || 'Unknown error occurred while building hierarchy'
+    });
+  }
+};
+
+/* -----------------------------------------
+   BULK UPLOAD TEMPLATE
+----------------------------------------- */
+// exports.downloadBulkUploadTemp = async (req, res) => {
+//   try {
+//     const XLSX = require('xlsx');
+
+//     // Create a new workbook
+//     const workbook = XLSX.utils.book_new();
+
+//     // Sample data with all possible columns
+//     const sampleData = [
+//       {
+//         'Employee ID': 'EMP001',
+//         'First Name': 'John',
+//         'Middle Name': 'M',
+//         'Last Name': 'Doe',
+//         'Email': 'john.doe@company.com',
+//         'Contact No': '9876543210',
+//         'Gender': 'Male',
+//         'Date of Birth': '1990-01-15',
+//         'Marital Status': 'Single',
+//         'Blood Group': 'O+',
+//         'Nationality': 'Indian',
+//         'Father Name': 'James Doe',
+//         'Mother Name': 'Jane Doe',
+//         'Emergency Contact Name': 'Jane Doe',
+//         'Emergency Contact Number': '9876543211',
+//         'Temp Address Line 1': '123 Main St',
+//         'Temp Address Line 2': 'Apt 4B',
+//         'Temp City': 'New York',
+//         'Temp State': 'NY',
+//         'Temp Pin Code': '10001',
+//         'Temp Country': 'USA',
+//         'Perm Address Line 1': '456 Oak Ave',
+//         'Perm Address Line 2': 'House 5',
+//         'Perm City': 'Boston',
+//         'Perm State': 'MA',
+//         'Perm Pin Code': '02101',
+//         'Perm Country': 'USA',
+//         'Joining Date': '2024-01-01',
+//         'Department': 'Tech',
+//         'Role': 'employee',
+//         'Job Type': 'Full-Time',
+//         'Bank Name': 'State Bank',
+//         'Account Number': '123456789',
+//         'IFSC Code': 'SBIN0001234',
+//         'Branch Name': 'Main Branch',
+//         'Bank Location': 'New York'
+//       }
+//     ];
+
+//     // Add headers with description
+//     const headers = [
+//       'Employee ID (Required)',
+//       'First Name (Required)',
+//       'Middle Name',
+//       'Last Name (Required)',
+//       'Email (Required)',
+//       'Contact No',
+//       'Gender (M/F/Other)',
+//       'Date of Birth (YYYY-MM-DD)',
+//       'Marital Status',
+//       'Blood Group',
+//       'Nationality',
+//       'Father Name',
+//       'Mother Name',
+//       'Emergency Contact Name',
+//       'Emergency Contact Number',
+//       'Temp Address Line 1',
+//       'Temp Address Line 2',
+//       'Temp City',
+//       'Temp State',
+//       'Temp Pin Code',
+//       'Temp Country',
+//       'Perm Address Line 1',
+//       'Perm Address Line 2',
+//       'Perm City',
+//       'Perm State',
+//       'Perm Pin Code',
+//       'Perm Country',
+//       'Joining Date (YYYY-MM-DD, Required)',
+//       'Department',
+//       'Role',
+//       'Job Type',
+//       'Bank Name',
+//       'Account Number',
+//       'IFSC Code',
+//       'Branch Name',
+//       'Bank Location'
+//     ];
+
+//     // Create worksheet with sample data
+//     const worksheet = XLSX.utils.json_to_sheet(sampleData, { header: 1 });
+
+//     // Set column widths for better readability
+//     worksheet['!cols'] = [
+//       { wch: 12 },
+//       { wch: 12 },
+//       { wch: 12 },
+//       { wch: 12 },
+//       { wch: 20 },
+//       { wch: 12 },
+//       { wch: 10 },
+//       { wch: 15 },
+//       { wch: 15 },
+//       { wch: 12 },
+//       { wch: 12 },
+//       { wch: 15 },
+//       { wch: 15 },
+//       { wch: 20 },
+//       { wch: 20 },
+//       { wch: 20 },
+//       { wch: 20 },
+//       { wch: 15 },
+//       { wch: 12 },
+//       { wch: 12 },
+//       { wch: 12 },
+//       { wch: 20 },
+//       { wch: 20 },
+//       { wch: 15 },
+//       { wch: 12 },
+//       { wch: 12 },
+//       { wch: 12 },
+//       { wch: 15 },
+//       { wch: 15 },
+//       { wch: 12 },
+//       { wch: 12 },
+//       { wch: 15 },
+//       { wch: 18 },
+//       { wch: 12 },
+//       { wch: 15 },
+//       { wch: 15 }
+//     ];
+
+//     // Add the worksheet to the workbook
+//     XLSX.utils.book_append_sheet(workbook, worksheet, 'Employee Template');
+
+//     // Generate buffer
+//     const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+//     // Send file as response
+//     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+//     res.setHeader('Content-Disposition', `attachment; filename="Employee_Bulk_Upload_Template_${Date.now()}.xlsx"`);
+//     res.setHeader('Content-Length', buffer.length);
+//     res.end(buffer);
+//   } catch (err) {
+//     console.error('Error generating template:', err);
+//     res.status(500).json({
+//       success: false,
+//       error: 'template_generation_failed',
+//       message: err.message || 'Failed to generate template'
+//     });
+//   }
+// };
+function autoFitColumns(worksheet, data) {
+  const colWidths = [];
+
+  data.forEach(row => {
+    row.forEach((cell, colIndex) => {
+      const cellValue = cell ? cell.toString() : '';
+      colWidths[colIndex] = Math.max(
+        colWidths[colIndex] || 10,
+        cellValue.length + 2
+      );
+    });
+  });
+
+  worksheet['!cols'] = colWidths.map(wch => ({ wch }));
+}
+
+exports.downloadBulkUploadTemp = async (req, res) => {
+  try {
+    const XLSX = require('xlsx');
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Headers (first row)
+    const headers = [
+      'Sr. No',
+      'Employee ID (Optional - Auto-generated if blank)',
+      'First Name (Required)',
+      'Middle Name',
+      'Last Name (Required)',
+      'Email (Required)',
+      'Contact No',
+      'Gender (M/F/Other)',
+      'Date of Birth (YYYY-MM-DD)',
+      'Marital Status',
+      'Blood Group',
+      'Nationality',
+      'Father Name',
+      'Mother Name',
+      'Emergency Contact Name',
+      'Emergency Contact Number',
+      'Temp Address Line 1',
+      'Temp Address Line 2',
+      'Temp City',
+      'Temp State',
+      'Temp Pin Code',
+      'Temp Country',
+      'Perm Address Line 1',
+      'Perm Address Line 2',
+      'Perm City',
+      'Perm State',
+      'Perm Pin Code',
+      'Perm Country',
+      'Joining Date (YYYY-MM-DD, Required)',
+      'Department',
+      'Role',
+      'Job Type',
+      'Password',
+      'Bank Name',
+      'Account Number',
+      'IFSC Code',
+      'Branch Name',
+      'Bank Location'
+    ];
+
+    // Sample row (second row)
+    const sampleRow = [
+      '1',
+      '', // Leave blank for auto-generation
+      'Dhiren',
+      'Vinodbhai',
+      'Makwana',
+      'dhiren.makwana@gitakshmi.com',
+      '9876543210',
+      'Male',
+      '1990-01-15',
+      'Single',
+      'O+',
+      'Indian',
+      'Vinodbhai',
+      'Hemlattaben',
+      'Vinodbhai',
+      '9876543211',
+      '123 Main St',
+      'Apt 4B',
+      'Gandhinagar',
+      'Gujarat',
+      '382721',
+      'India',
+      '47 Kaivnna',
+      'Panchvati',
+      'Ahmedabad',
+      'Gujarat',
+      '380001',
+      'India',
+      '2025-12-31',
+      'Tech',
+      'employee',
+      'Full-Time',
+      '123456',
+      'State Bank',
+      '123456789',
+      'SBIN0001234',
+      'Main Branch',
+      'Ahmedabad'
+    ];
+
+    // Create worksheet (Array of Arrays)
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      headers,
+      sampleRow
+    ]);
+
+    autoFitColumns(worksheet, [headers, sampleRow]);
+    // Style header row (bold + center)
+    const headerStyle = {
+      font: { bold: true },
+      alignment: { horizontal: 'center', vertical: 'center' }
+    };
+
+    // Apply style to each header cell
+    headers.forEach((_, index) => {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: index });
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].s = headerStyle;
+      }
+    });
+
+    // Column widths
+    worksheet['!cols'] = [
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+      { wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 18 },
+      { wch: 15 }, { wch: 12 }, { wch: 14 }, { wch: 16 },
+      { wch: 16 }, { wch: 22 }, { wch: 22 }, { wch: 22 },
+      { wch: 22 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+      { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 16 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 20 },
+      { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 16 },
+      { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 16 }
+    ];
+
+    // Append sheet
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Employee Template');
+
+    // Generate buffer
+    const buffer = XLSX.write(workbook, {
+      bookType: 'xlsx',
+      type: 'buffer'
+    });
+
+    // Send response
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Employee_Bulk_Upload_Template_${Date.now()}.xlsx"`
+    );
+    res.setHeader('Content-Length', buffer.length);
+
+    res.end(buffer);
+  } catch (err) {
+    console.error('Error generating template:', err);
+    res.status(500).json({
+      success: false,
+      error: 'template_generation_failed',
+      message: err.message || 'Failed to generate template'
+    });
+  }
+};
+
+/* -----------------------------------------
+   BULK UPLOAD EMPLOYEES
+----------------------------------------- */
+
+/**
+ * Helper: Generate next sequential employee ID
+ * Format: EMP{NNNN} (e.g., EMP0001, EMP0002, etc.)
+ */
+async function generateNextEmployeeId(Employee, tenantId, startFrom = 1) {
+  try {
+    // Find all existing employees with IDs matching EMP pattern
+    const existingEmps = await Employee.find({
+      tenant: tenantId,
+      employeeId: /^EMP\d+$/i
+    }).select('employeeId').lean();
+
+    let maxNumber = 0;
+
+    // Extract numeric parts and find the highest
+    existingEmps.forEach(emp => {
+      const match = emp.employeeId.match(/^EMP(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNumber) {
+          maxNumber = num;
+        }
+      }
+    });
+
+    // Start from the higher of: maxNumber + 1 or startFrom
+    const nextNumber = Math.max(maxNumber + 1, startFrom);
+
+    // Return formatted ID with 4-digit padding
+    return `EMP${String(nextNumber).padStart(4, '0')}`;
+  } catch (err) {
+    console.error('Error generating employee ID:', err);
+    // Fallback to timestamp-based ID
+    return `EMP${Date.now().toString().slice(-8)}`;
+  }
+}
+
+exports.bulkUploadEmployees = async (req, res) => {
+  try {
+    const { records } = req.body;
+
+    // ====== INPUT VALIDATION ======
+    if (!records || !Array.isArray(records)) {
+      return res.status(400).json({
+        success: false,
+        message: "Records must be an array",
+        uploadedCount: 0,
+        failedCount: 0,
+        errors: ["Invalid request format - records must be an array"]
+      });
+    }
+
+    if (records.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No records provided",
+        uploadedCount: 0,
+        failedCount: 0,
+        errors: ["No employee records to upload"]
+      });
+    }
+
+    if (records.length > 1000) {
+      return res.status(400).json({
+        success: false,
+        message: "Maximum 1000 records allowed per upload",
+        uploadedCount: 0,
+        failedCount: records.length,
+        errors: ["Exceeded maximum record limit of 1000 records"]
+      });
+    }
+
+    const { Employee, Department, LeavePolicy } = getModels(req);
+    const tenantId = req.tenantId;
+    const userId = req.user.id;
+
+    // Fetch Company ID Configuration
+    const companyConfig = await CompanyIdConfig.findOne({
+      companyId: tenantId,
+      entityType: 'EMPLOYEE'
+    }).lean();
+
+    // Policy Configuration
+    const prefix = companyConfig?.prefix || 'EMP';
+    const suffix = ''; // Schema doesn't support suffix yet
+    const padding = companyConfig?.padding || 4;
+    const startFrom = companyConfig?.startFrom || 1;
+
+    // Construct Regex for matching ID pattern: ^PREFIX(\d+)SUFFIX$
+    // Escape special regex chars in prefix/suffix
+    const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const prefixRegex = escapeRegExp(prefix);
+    const suffixRegex = escapeRegExp(suffix);
+    const idPattern = new RegExp(`^${prefixRegex}(\\d+)${suffixRegex}$`, 'i');
+
+    const results = {
+      uploadedCount: 0,
+      failedCount: 0,
+      errors: [],
+      warnings: [],
+      processedIds: [],
+      autoGeneratedIds: []
+    };
+
+    // ====== HELPER FUNCTIONS ======
+
+    // Helper: Normalize column names (remove spaces, special chars, and parentheses with content)
+    const normalize = (s) => {
+      if (!s) return '';
+      // Remove content in parentheses first, then normalize
+      return s.toString()
+        .replace(/\([^)]*\)/g, '') // Remove anything in parentheses
+        .toLowerCase()
+        .replace(/\s/g, '')
+        .replace(/[^a-z0-9]/g, '');
+    };
+
+    // Helper: Validate email with better domain checking
+    const validateEmail = (email) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+      return emailRegex.test(email);
+    };
+
+    // Helper: Validate date
+    const validateDate = (dateVal) => {
+      if (!dateVal) return null;
+      let dateObj;
+
+      if (dateVal instanceof Date) {
+        dateObj = dateVal;
+      } else {
+        const dateStr = dateVal.toString().trim();
+        // Try parsing YYYY-MM-DD format
+        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (match) {
+          dateObj = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00Z`);
+        } else {
+          dateObj = new Date(dateStr);
+        }
+      }
+
+      if (isNaN(dateObj.getTime())) {
+        throw new Error(`Invalid date format: ${dateVal}`);
+      }
+      return dateObj;
+    };
+
+    // Helper: Validate phone number
+    const validatePhone = (phone) => {
+      if (!phone) return true; // Optional field
+      const phoneRegex = /^[+]?[\d\s\-()]{7,20}$/;
+      return phoneRegex.test(phone);
+    };
+
+    // ====== PRE-PROCESSING & CACHING ======
+
+    // Cache for lookups
+    const deptCache = {};
+    const policyCache = {};
+    const processedEmails = new Set();
+    const processedEmpIds = new Set();
+
+    // Pre-cache departments
+    const allDepts = await Department.find({ tenant: tenantId }).select('_id name').lean();
+    allDepts.forEach(d => {
+      deptCache[d.name.toLowerCase().trim()] = d._id;
+    });
+
+    // Pre-cache leave policies
+    const allPolicies = await LeavePolicy.find({ tenant: tenantId }).select('_id name').lean();
+    allPolicies.forEach(p => {
+      policyCache[p.name.toLowerCase().trim()] = p._id;
+    });
+
+    // Get default leave policy if needed
+    const defaultPolicy = allPolicies.length > 0 ? allPolicies[0]._id : null;
+
+    // Pre-fetch existing employees for bulk checking
+    const existingEmps = await Employee.find({ tenant: tenantId }).select('employeeId email').lean();
+    const existingEmpIds = new Set(existingEmps.map(e => e.employeeId.toLowerCase()));
+    const existingEmails = new Set(existingEmps.map(e => e.email.toLowerCase()));
+
+    // ====== FIRST PASS: COLLECT PROVIDED EMPLOYEE IDs & IDENTIFY MISSING ======
+    const recordsNeedingIds = [];
+    const providedIds = new Set();
+
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      let empId = '';
+
+      // Extract Employee ID if provided
+      for (const key of Object.keys(row)) {
+        const normKey = normalize(key);
+        if (normKey.includes('employeeid') || normKey.includes('empid')) {
+          empId = row[key] ? row[key].toString().trim() : '';
+          break;
+        }
+      }
+
+      if (empId) {
+        providedIds.add(empId.toLowerCase());
+      } else {
+        recordsNeedingIds.push(i);
+      }
+    }
+
+    // ====== AUTO-GENERATE EMPLOYEE IDs FOR MISSING ONES ======
+    const autoGeneratedMap = new Map(); // index -> generated ID
+
+    if (recordsNeedingIds.length > 0) {
+      let currentIdNumber = startFrom;
+
+      // Find the starting number based on policy
+      const allExistingIds = await Employee.find({
+        tenant: tenantId,
+        employeeId: { $regex: idPattern }
+      }).select('employeeId').lean();
+
+      let maxNumber = 0;
+      allExistingIds.forEach(emp => {
+        const match = emp.employeeId.match(idPattern);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNumber) maxNumber = num;
+        }
+      });
+
+      // Start strictly after the max existing number, or from the policy startFrom if no IDs exist
+      currentIdNumber = Math.max(maxNumber + 1, startFrom);
+
+      // Generate IDs for records that need them
+      for (const index of recordsNeedingIds) {
+        let generatedId;
+        let attempts = 0;
+
+        // Ensure generated ID doesn't conflict with provided IDs or existing IDs or already processed IDs
+        do {
+          const numStr = String(currentIdNumber).padStart(padding, '0');
+          generatedId = `${prefix}${numStr}${suffix}`;
+          currentIdNumber++;
+          attempts++;
+
+          if (attempts > 10000) {
+            throw new Error('Unable to generate unique employee ID after 10000 attempts');
+          }
+        } while (
+          providedIds.has(generatedId.toLowerCase()) || // Conflict with ID provided in THIS file
+          existingEmpIds.has(generatedId.toLowerCase()) || // Conflict with ID in DB
+          processedEmpIds.has(generatedId.toLowerCase())   // Conflict with ID generated for previous row in this loop
+        );
+
+        autoGeneratedMap.set(index, generatedId);
+        results.autoGeneratedIds.push(generatedId);
+        processedEmpIds.add(generatedId.toLowerCase());
+      }
+    }
+
+    // ====== SECOND PASS: PROCESS EACH RECORD ======
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      const rowIdx = i + 2; // 1-indexed + header row
+
+      try {
+        // ====== EXTRACT FIELDS ======
+        let empId = '';
+        let firstName = '';
+        let middleName = '';
+        let lastName = '';
+        let email = '';
+        let contactNo = '';
+        let gender = '';
+        let dob = null;
+        let joiningDate = null;
+        let departmentName = '';
+        let role = '';
+        let jobType = '';
+        let maritalStatus = '';
+        let nationality = '';
+        let bloodGroup = '';
+        let fatherName = '';
+        let motherName = '';
+        let emergencyContactName = '';
+        let emergencyContactNumber = '';
+        let bankName = '';
+        let accountNumber = '';
+        let ifscCode = '';
+        let branchName = '';
+        let bankLocation = '';
+        let policyName = '';
+        let password = '';
+        let tempAddr = {};
+        let permAddr = {};
+
+        // Parse row data
+        for (const key of Object.keys(row)) {
+          const normKey = normalize(key);
+          const val = row[key];
+
+          if (normKey.includes('employeeid') || normKey.includes('empid')) {
+            empId = val ? val.toString().trim() : '';
+          } else if (normKey === 'firstname' || normKey === 'first') {
+            firstName = val ? val.toString().trim() : '';
+          } else if (normKey === 'middlename' || normKey === 'middle') {
+            middleName = val ? val.toString().trim() : '';
+          } else if (normKey === 'lastname' || normKey === 'last') {
+            lastName = val ? val.toString().trim() : '';
+          } else if (normKey === 'email' || normKey.includes('emailaddress')) {
+            email = val ? val.toString().trim().toLowerCase() : '';
+          } else if (normKey === 'contactno' || normKey.includes('phone') || normKey.includes('mobile')) {
+            contactNo = val ? val.toString().trim() : '';
+          } else if (normKey === 'gender') {
+            gender = val ? val.toString().trim() : '';
+          } else if (normKey === 'dob' || normKey === 'dateofbirth') {
+            dob = val;
+          } else if (normKey === 'joiningdate' || normKey === 'doj') {
+            joiningDate = val;
+          } else if (normKey === 'department') {
+            departmentName = val ? val.toString().trim() : '';
+          } else if (normKey === 'role' || normKey === 'designation') {
+            role = val ? val.toString().trim() : '';
+          } else if (normKey === 'jobtype') {
+            jobType = val ? val.toString().trim() : '';
+          } else if (normKey === 'maritalstatus') {
+            maritalStatus = val ? val.toString().trim() : '';
+          } else if (normKey === 'nationality') {
+            nationality = val ? val.toString().trim() : '';
+          } else if (normKey === 'bloodgroup') {
+            bloodGroup = val ? val.toString().trim() : '';
+          } else if (normKey === 'fathername') {
+            fatherName = val ? val.toString().trim() : '';
+          } else if (normKey === 'mothername') {
+            motherName = val ? val.toString().trim() : '';
+          } else if (normKey === 'emergencycontactname') {
+            emergencyContactName = val ? val.toString().trim() : '';
+          } else if (normKey === 'emergencycontactnumber') {
+            emergencyContactNumber = val ? val.toString().trim() : '';
+          } else if (normKey === 'bankname') {
+            bankName = val ? val.toString().trim() : '';
+          } else if (normKey === 'accountnumber') {
+            accountNumber = val ? val.toString().trim() : '';
+          } else if (normKey === 'ifscode' || normKey === 'ifsc') {
+            ifscCode = val ? val.toString().trim() : '';
+          } else if (normKey === 'branchname') {
+            branchName = val ? val.toString().trim() : '';
+          } else if (normKey === 'banklocation') {
+            bankLocation = val ? val.toString().trim() : '';
+          } else if (normKey === 'leavepolicy') {
+            policyName = val ? val.toString().trim() : '';
+          } else if (normKey === 'password') {
+            password = val ? val.toString().trim() : '';
+          } else if (normKey.includes('tempaddressline1')) {
+            tempAddr.line1 = val ? val.toString().trim() : '';
+          } else if (normKey.includes('tempaddressline2')) {
+            tempAddr.line2 = val ? val.toString().trim() : '';
+          } else if (normKey.includes('tempcity')) {
+            tempAddr.city = val ? val.toString().trim() : '';
+          } else if (normKey.includes('tempstate')) {
+            tempAddr.state = val ? val.toString().trim() : '';
+          } else if (normKey.includes('temppincode')) {
+            tempAddr.pinCode = val ? val.toString().trim() : '';
+          } else if (normKey.includes('tempcountry')) {
+            tempAddr.country = val ? val.toString().trim() : '';
+          } else if (normKey.includes('permaddressline1')) {
+            permAddr.line1 = val ? val.toString().trim() : '';
+          } else if (normKey.includes('permaddressline2')) {
+            permAddr.line2 = val ? val.toString().trim() : '';
+          } else if (normKey.includes('permcity')) {
+            permAddr.city = val ? val.toString().trim() : '';
+          } else if (normKey.includes('permstate')) {
+            permAddr.state = val ? val.toString().trim() : '';
+          } else if (normKey.includes('permpincode')) {
+            permAddr.pinCode = val ? val.toString().trim() : '';
+          } else if (normKey.includes('permcountry')) {
+            permAddr.country = val ? val.toString().trim() : '';
+          }
+        }
+
+        // ====== AUTO-GENERATE EMPLOYEE ID IF MISSING ======
+        if (!empId) {
+          if (autoGeneratedMap.has(i)) {
+            empId = autoGeneratedMap.get(i);
+          } else {
+            throw new Error('Employee ID generation failed - internal error');
+          }
+        }
+
+        // ====== VALIDATION ======
+
+        // Required fields validation
+        if (!empId) throw new Error('Employee ID is required or could not be generated');
+        if (!firstName) throw new Error('First Name is required');
+        if (!lastName) throw new Error('Last Name is required');
+        if (!email) throw new Error('Email is required');
+        if (!joiningDate) throw new Error('Joining Date is required');
+
+        // Employee ID validation
+        const empIdLower = empId.toLowerCase();
+        if (!/^[a-zA-Z0-9\-_]{1,50}$/.test(empId)) {
+          throw new Error(`Invalid Employee ID format: ${empId} (use alphanumeric, dash, or underscore only)`);
+        }
+
+        // Check for duplicate Employee ID (within current batch or existing)
+        if (processedEmpIds.has(empIdLower) && !autoGeneratedMap.has(i)) {
+          throw new Error(`Duplicate Employee ID in current batch: ${empId}`);
+        }
+        if (existingEmpIds.has(empIdLower)) {
+          throw new Error(`Employee ID "${empId}" already exists in system`);
+        }
+
+        // Email validation
+        if (!validateEmail(email)) {
+          throw new Error(`Invalid email format: ${email}`);
+        }
+
+        // Check for duplicate Email (within current batch or existing)
+        const emailLower = email.toLowerCase();
+        if (processedEmails.has(emailLower)) {
+          throw new Error(`Duplicate email in current batch: ${email}`);
+        }
+        if (existingEmails.has(emailLower)) {
+          throw new Error(`Email "${email}" already exists in system`);
+        }
+
+        // First/Last Name length validation
+        if (firstName.length < 2) throw new Error('First Name must be at least 2 characters');
+        if (lastName.length < 2) throw new Error('Last Name must be at least 2 characters');
+
+        // Contact number validation
+        if (contactNo && !validatePhone(contactNo)) {
+          results.warnings.push(`Row ${rowIdx}: Contact number format may be invalid - "${contactNo}"`);
+        }
+
+        // Parse and validate dates
+        let dobDate = null;
+        let joiningDateObj = null;
+
+        if (dob) {
+          try {
+            dobDate = validateDate(dob);
+            const age = (new Date() - dobDate) / (365.25 * 24 * 60 * 60 * 1000);
+            if (age < 18) {
+              results.warnings.push(`Row ${rowIdx}: Employee appears to be under 18 years old`);
+            }
+            if (dobDate > new Date()) {
+              throw new Error('Date of Birth cannot be in the future');
+            }
+          } catch (err) {
+            results.warnings.push(`Row ${rowIdx}: ${err.message} - will skip DOB`);
+            dobDate = null;
+          }
+        }
+
+        try {
+          joiningDateObj = validateDate(joiningDate);
+          if (joiningDateObj > new Date()) {
+            results.warnings.push(`Row ${rowIdx}: Joining Date is in the future`);
+          }
+        } catch (err) {
+          throw new Error(`Invalid Joining Date: ${err.message}`);
+        }
+
+        // Validate Gender
+        let validGender = null;
+        if (gender) {
+          const normalizedGender = gender.toLowerCase();
+          if (['male', 'm'].includes(normalizedGender)) {
+            validGender = 'Male';
+          } else if (['female', 'f'].includes(normalizedGender)) {
+            validGender = 'Female';
+          } else if (['other', 'o'].includes(normalizedGender)) {
+            validGender = 'Other';
+          } else {
+            results.warnings.push(`Row ${rowIdx}: Invalid gender value "${gender}" - will skip`);
+          }
+        }
+
+        // Validate Job Type
+        let validJobType = null;
+        if (jobType) {
+          const normalizedJobType = jobType.toLowerCase().replace(/\s/g, '');
+          if (['fulltime', 'ft', 'full-time'].includes(normalizedJobType)) {
+            validJobType = 'Full-Time';
+          } else if (['parttime', 'pt', 'part-time'].includes(normalizedJobType)) {
+            validJobType = 'Part-Time';
+          } else if (['internship', 'intern'].includes(normalizedJobType)) {
+            validJobType = 'Internship';
+          } else {
+            results.warnings.push(`Row ${rowIdx}: Invalid job type "${jobType}" - will use Full-Time`);
+            validJobType = 'Full-Time';
+          }
+        } else {
+          validJobType = 'Full-Time';
+        }
+
+        // Resolve Department
+        let departmentId = null;
+        if (departmentName) {
+          const deptLower = departmentName.toLowerCase().trim();
+          departmentId = deptCache[deptLower];
+          if (!departmentId) {
+            results.warnings.push(`Row ${rowIdx}: Department "${departmentName}" not found - will be left blank`);
+          }
+        }
+
+        // Resolve Leave Policy
+        let policyId = null;
+        if (policyName) {
+          const policyLower = policyName.toLowerCase().trim();
+          policyId = policyCache[policyLower];
+          if (!policyId) {
+            results.warnings.push(`Row ${rowIdx}: Leave Policy "${policyName}" not found - will use default`);
+            if (defaultPolicy) policyId = defaultPolicy;
+          }
+        } else if (defaultPolicy) {
+          policyId = defaultPolicy;
+        }
+
+        // Hash password if provided, or generate default password
+        let hashedPassword = undefined;
+        if (password) {
+          // User provided a password - hash it
+          try {
+            const bcrypt = require('bcryptjs');
+            const salt = await bcrypt.genSalt(10);
+            hashedPassword = await bcrypt.hash(password, salt);
+          } catch (hashErr) {
+            results.warnings.push(`Row ${rowIdx}: Failed to hash password - will use default password`);
+            // Fall through to generate default password
+          }
+        }
+
+        // If no password provided or hashing failed, generate default password
+        if (!hashedPassword) {
+          try {
+            const bcrypt = require('bcryptjs');
+            const salt = await bcrypt.genSalt(10);
+            // Use employeeId as default password (e.g., EMP0001)
+            const defaultPassword = empId;
+            hashedPassword = await bcrypt.hash(defaultPassword, salt);
+            results.warnings.push(`Row ${rowIdx}: No password provided - default password set to Employee ID (${empId})`);
+          } catch (hashErr) {
+            results.warnings.push(`Row ${rowIdx}: Failed to generate default password - employee may not be able to log in`);
+          }
+        }
+
+        // ====== CREATE EMPLOYEE DOCUMENT ======
+        const newEmployee = new Employee({
+          tenant: tenantId,
+          employeeId: empId,
+          firstName,
+          middleName: middleName || undefined,
+          lastName,
+          email,
+          password: hashedPassword,
+          contactNo: contactNo || undefined,
+          gender: validGender || undefined,
+          dob: dobDate,
+          joiningDate: joiningDateObj,
+          departmentId,
+          department: departmentName || undefined,
+          role: role || undefined,
+          jobType: validJobType,
+          maritalStatus: maritalStatus || undefined,
+          nationality: nationality || undefined,
+          bloodGroup: bloodGroup || undefined,
+          fatherName: fatherName || undefined,
+          motherName: motherName || undefined,
+          emergencyContactName: emergencyContactName || undefined,
+          emergencyContactNumber: emergencyContactNumber || undefined,
+          leavePolicy: policyId,
+          bankDetails: (bankName || accountNumber || ifscCode) ? {
+            bankName: bankName || undefined,
+            accountNumber: accountNumber || undefined,
+            ifsc: ifscCode || undefined,
+            branchName: branchName || undefined,
+            location: bankLocation || undefined
+          } : undefined,
+          tempAddress: Object.keys(tempAddr).length > 0 ? tempAddr : undefined,
+          permAddress: Object.keys(permAddr).length > 0 ? permAddr : undefined,
+          status: 'Active',
+          lastStep: 6 // Mark as completed
+        });
+
+        // Save with detailed error logging
+        try {
+          await newEmployee.save();
+          results.uploadedCount++;
+          results.processedIds.push(empId);
+          processedEmpIds.add(empIdLower);
+          processedEmails.add(emailLower);
+        } catch (saveErr) {
+          // Detailed save error logging
+          console.error(`Row ${rowIdx} save failed:`, saveErr);
+          throw new Error(`Failed to save employee: ${saveErr.message}`);
+        }
+
+      } catch (error) {
+        results.failedCount++;
+        const errorMsg = `Row ${rowIdx}: ${error.message}`;
+        results.errors.push(errorMsg);
+        console.error('Bulk upload row error:', errorMsg, error);
+      }
+    }
+
+    // ====== UPDATE CENTRALIZED ID COUNTER (Prevent collisions with single add) ======
+    if (results.uploadedCount > 0) {
+      let maxIdNum = 0;
+      // Scan all processed IDs (both provided and generated) to find the absolute max counter
+      for (const pid of processedEmpIds) {
+        const match = pid.match(idPattern);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxIdNum) maxIdNum = num;
+        }
+      }
+
+      if (maxIdNum > 0) {
+        try {
+          // DocumentCounter uses key 'EMP' for Employees (based on DEFAULT_DOC_TYPES in companyIdConfig)
+          const docKey = 'EMP';
+          const resetPolicy = companyConfig?.resetPolicy || 'NEVER';
+          const financialYear = resetPolicy === 'NEVER' ? 'GLOBAL' : (companyConfig?.financialYear || 'GLOBAL');
+
+          await DocumentCounter.findOneAndUpdate(
+            {
+              companyId: tenantId,
+              documentType: docKey,
+              financialYear: financialYear
+            },
+            { $max: { lastNumber: maxIdNum } }, // Only update if our max is larger 
+            { upsert: true, new: true }
+          );
+
+          // Also try to update 'EMPLOYEE' key just in case legacy config uses it
+          await DocumentCounter.findOneAndUpdate(
+            {
+              companyId: tenantId,
+              documentType: 'EMPLOYEE',
+              financialYear: financialYear
+            },
+            { $max: { lastNumber: maxIdNum } },
+            { upsert: true, new: true }
+          );
+
+        } catch (syncErr) {
+          console.warn('DocumentCounter sync warning:', syncErr.message);
+          // Non-fatal, don't fail the upload
+        }
+      }
+    }
+
+    // ====== PREPARE RESPONSE ======
+    const allFailed = results.uploadedCount === 0;
+    const allSucceeded = results.failedCount === 0;
+
+    let message = '';
+    if (allSucceeded) {
+      message = `Successfully uploaded all ${results.uploadedCount} employee(s)`;
+      if (results.autoGeneratedIds.length > 0) {
+        message += ` (${results.autoGeneratedIds.length} ID(s) auto-generated)`;
+      }
+    } else if (allFailed) {
+      message = `Failed to upload all ${results.failedCount} employee(s)`;
+    } else {
+      message = `Uploaded ${results.uploadedCount} employee(s) successfully, ${results.failedCount} failed`;
+      if (results.autoGeneratedIds.length > 0) {
+        message += ` (${results.autoGeneratedIds.length} ID(s) auto-generated)`;
+      }
+    }
+
+    res.json({
+      success: !allFailed, // Only success if at least one record uploaded
+      uploadedCount: results.uploadedCount,
+      failedCount: results.failedCount,
+      errors: results.errors,
+      warnings: results.warnings,
+      autoGeneratedIds: results.autoGeneratedIds,
+      message
+    });
+
+  } catch (err) {
+    console.error("Bulk upload error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Bulk upload failed due to server error",
+      error: err.message,
+      uploadedCount: 0,
+      failedCount: 0,
+      errors: [err.message || 'An unexpected error occurred']
     });
   }
 };

@@ -16,6 +16,7 @@ const TrackerCandidateSchema = new mongoose.Schema({
         enum: ['HR', 'Technical', 'Final'],
         default: 'HR'
     },
+    resume: { type: String }, // Path or URL to resume
     createdAt: { type: Date, default: Date.now }
 });
 

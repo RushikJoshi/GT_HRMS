@@ -81,10 +81,10 @@ exports.getPublicJobs = async (req, res) => {
         { visibility: null }
       ]
     })
-      .select('jobTitle department vacancy createdAt tenant visibility employmentType location minExperienceMonths maxExperienceMonths description')
+      .select('jobTitle department vacancy createdAt publishedAt tenant visibility employmentType location minExperienceMonths maxExperienceMonths description')
       .sort({ createdAt: -1 });
 
-    console.log(`✅ [GET_PUBLIC_JOBS] Found ${jobs.length} jobs for ${tenant.name}`);
+    console.log(`✅ [GET_PUBLIC_JOBS] Found ${jobs.length} jobs for ${tenant.name}. IDs: ${jobs.map(j => j._id).join(', ')}`);
     res.json(jobs);
   } catch (err) {
     console.error("❌ [GET_PUBLIC_JOBS] Error:", err.message);
@@ -103,9 +103,15 @@ exports.getPublicJobsByCompanyCode = async (req, res) => {
     if (!companyCode)
       return res.status(400).json({ error: "Company code required" });
 
-    const tenant = await Tenant.findOne({ code: companyCode });
+    let tenant;
+    if (mongoose.Types.ObjectId.isValid(companyCode)) {
+      tenant = await Tenant.findById(companyCode);
+    } else {
+      tenant = await Tenant.findOne({ code: companyCode });
+    }
+
     if (!tenant) {
-      console.warn(`❌ [GET_JOBS_BY_CODE] Tenant not found: ${companyCode}`);
+      console.warn(`❌ [GET_JOBS_BY_CODE] Tenant not found for identifier: ${companyCode}`);
       return res.status(404).json({ error: "Company not found" });
     }
 
@@ -120,14 +126,14 @@ exports.getPublicJobsByCompanyCode = async (req, res) => {
         { visibility: null }
       ]
     })
-      .select('jobTitle department vacancy createdAt tenant visibility employmentType location minExperienceMonths maxExperienceMonths description')
+      .select('jobTitle department vacancy createdAt publishedAt tenant visibility employmentType location minExperienceMonths maxExperienceMonths description')
       .sort({ createdAt: -1 });
 
-    console.log(`✅ [GET_JOBS_BY_CODE] Found ${jobs.length} jobs for ${tenant.name}`);
+    console.log(`✅ [GET_JOBS_BY_CODE] Found ${jobs.length} jobs for ${tenant.name}. IDs: ${jobs.map(j => j._id).join(', ')}`);
     res.json(jobs);
   } catch (err) {
     console.error("❌ [GET_JOBS_BY_CODE] Error:", err.message);
-    res.status(500).json({ error: "Failed to fetch jobs" });
+    res.status(500).json({ error: "Failed to fetch jobs: " + err.message });
   }
 };
 
@@ -206,7 +212,7 @@ exports.getPublicJobById = async (req, res) => {
     const Requirement = tenantDB.model("Requirement");
 
     const job = await Requirement.findOne({ _id: id })
-      .select('jobTitle department vacancy status description jobVisibility minExperienceMonths maxExperienceMonths salaryMin salaryMax jobType workMode publicFields customFields');
+      .select('jobTitle department vacancy status description jobVisibility minExperienceMonths maxExperienceMonths salaryMin salaryMax jobType workMode publicFields customFields createdAt publishedAt');
 
     if (!job) {
       return res.status(404).json({ error: "Job not found" });
@@ -301,6 +307,36 @@ exports.applyJob = [
 
       const resumeFilename = req.file?.filename || null;
 
+      // --- COLLECT DYNAMIC FIELDS ---
+      const standardFields = ['tenantId', 'requirementId', 'name', 'fatherName', 'email', 'mobile', 'experience', 'address', 'location', 'currentCompany', 'currentDesignation', 'expectedCTC', 'linkedin', 'dob', 'resume', 'consent'];
+      const customData = {};
+
+      Object.keys(req.body).forEach(key => {
+        if (!standardFields.includes(key)) {
+          customData[key] = req.body[key];
+        }
+      });
+
+      // --- DOB FORMATTING (BACKEND ROBUSTNESS) ---
+      let parsedDob = dob;
+      if (dob && typeof dob === 'string' && dob.includes('/')) {
+        try {
+          const [d, m, y] = dob.split('/');
+          if (d && m && y && y.length === 4) {
+            parsedDob = new Date(`${y}-${m}-${d}`);
+          }
+        } catch (e) {
+          console.warn("⚠️ [APPLY_JOB] Date parsing failed:", dob);
+        }
+      }
+
+      // --- LOG FOR DEBUGGING ---
+      try {
+        const fs = require('fs');
+        const logMsg = `[${new Date().toISOString()}] APPLY_JOB: name=${name}, email=${email}, tenantId=${tenantId}, requirementId=${requirementId}, dob=${dob}\n`;
+        fs.appendFileSync(path.join(__dirname, '../apply_debug.log'), logMsg);
+      } catch (e) { /* ignore log errors */ }
+
       // Create new applicant
       const applicant = new Applicant({
         tenant: tenantDB.tenantId,
@@ -317,8 +353,9 @@ exports.applyJob = [
         currentDesignation: currentDesignation?.trim(),
         expectedCTC: expectedCTC?.trim(),
         linkedin: linkedin?.trim(),
-        dob: dob || null, // Allow DOB to be saved
+        dob: parsedDob || null, // Allow DOB to be saved
         resume: resumeFilename,
+        customData: customData, // Save dynamic fields
         status: 'Applied',
         timeline: [{
           status: 'Applied',
@@ -439,15 +476,49 @@ exports.getCareerCustomization = async (req, res) => {
 
     if (!tenant) return res.status(404).json({ error: "Company not found" });
 
-    // Look into Tenant DB for customization saved via Career Builder
+    // 1. Attempt Check Optimized Published Page (New System - Central DB)
+    const PublishedCareerPage = require('../models/PublishedCareerPage');
+    const publishedPage = await PublishedCareerPage.findOne({ tenantId: tenant._id.toString() }).lean();
+
+    // 2. Look into Tenant DB for legacy customization (Apply Page Builder data)
     const tenantDB = await getTenantDB(tenant._id);
     const CompanyProfileSchema = require('../models/CompanyProfile');
     const CompanyProfile = tenantDB.models.CompanyProfile || tenantDB.model("CompanyProfile", CompanyProfileSchema);
+    const profile = await CompanyProfile.findOne({}).lean();
 
-    const profile = await CompanyProfile.findOne({});
-    const customization = profile?.meta?.careerCustomization || tenant.meta?.careerCustomization || null;
+    const legacyCustomization = profile?.meta?.careerCustomization || tenant.meta?.careerCustomization || null;
 
-    res.json(customization);
+    // Merge Logic: Prioritize the latest 'applyPage' and 'theme' from Published Page
+    let finalCustomization = { ...legacyCustomization };
+
+    if (publishedPage) {
+      // 1. Theme Sync
+      if (publishedPage.theme) {
+        finalCustomization.theme = publishedPage.theme;
+      }
+      // 2. Apply Page Sync (The crucial part!)
+      if (publishedPage.applyPage && Object.keys(publishedPage.applyPage).length > 0) {
+        finalCustomization.applyPage = publishedPage.applyPage;
+      }
+      // 3. SEO Settings Sync
+      if (publishedPage.seo) {
+        finalCustomization.seoSettings = {
+          seo_title: publishedPage.seo.title,
+          seo_description: publishedPage.seo.description,
+          seo_keywords: publishedPage.seo.keywords,
+          seoSlug: publishedPage.seo.slug
+        };
+      }
+    }
+
+    // Return null ONLY if both sources are completely empty
+    if (!legacyCustomization && (!publishedPage || !publishedPage.applyPage)) {
+      // Check if we still have at least a theme to return
+      if (finalCustomization.theme) return res.json(finalCustomization);
+      return res.json(null);
+    }
+
+    res.json(finalCustomization);
   } catch (err) {
     console.error("Get career customization error:", err);
     res.status(500).json({ error: "Failed to fetch career customization" });

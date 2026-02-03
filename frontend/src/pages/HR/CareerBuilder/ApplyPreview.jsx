@@ -1,7 +1,8 @@
 import React from 'react';
 import { UploadCloud, ChevronDown, User, MapPin, Briefcase } from 'lucide-react';
 
-export default function ApplyPreview({ config, selectedSectionId, onSelectSection }) {
+export default function ApplyPreview({ config, selectedSectionId, onSelectSection, previewMode = 'desktop' }) {
+    const isMobileView = previewMode === 'mobile';
 
     // Helper to calculate grid span based on width prop
     const getGridSpan = (width) => {
@@ -14,21 +15,38 @@ export default function ApplyPreview({ config, selectedSectionId, onSelectSectio
     };
 
     return (
-        <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden min-h-[800px] border border-gray-100 flex flex-col">
+        <div className={`bg-white flex flex-col ${isMobileView ? 'min-h-full w-full' : 'rounded-[2rem] shadow-2xl min-h-[800px] border border-gray-100 overflow-hidden'}`}>
 
             {/* 1. Header / Banner Area */}
-            <div className={`h-48 w-full bg-gradient-to-r ${config.theme?.bannerGradient || 'from-blue-600 to-purple-600'} relative`}>
-                <div className="absolute inset-0 bg-black/10"></div>
+            <div
+                onClick={() => onSelectSection('hero')}
+                className={`h-48 w-full relative cursor-pointer group transition-all duration-300 ${selectedSectionId === 'hero' ? 'ring-4 ring-blue-500 ring-inset ring-offset-0 z-20 shadow-2xl' : ''}`}
+                style={config.banner?.bgType === 'image' ? {
+                    backgroundImage: `url(${config.banner.bgImage})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                } : {}}
+            >
+                {config.banner?.bgType !== 'image' && (
+                    <div className={`absolute inset-0 bg-gradient-to-r ${config.banner?.bgColor || 'from-blue-600 to-purple-600'}`}></div>
+                )}
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
+
                 <div className="absolute bottom-0 left-0 w-full p-8 text-white">
                     <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-lg text-xs font-bold uppercase tracking-wider mb-3 inline-block">
                         Engineering
                     </span>
-                    <h1 className="text-3xl font-black mb-1">Senior Frontend Engineer</h1>
-                    <div className="flex items-center gap-4 text-sm font-medium opacity-90">
-                        <span className="flex items-center gap-1"><MapPin size={14} /> Remote</span>
-                        <span className="flex items-center gap-1"><Briefcase size={14} /> Full-time</span>
-                    </div>
+                    <h1 className="text-3xl font-black mb-1">{config.banner?.title || 'Senior Frontend Engineer'}</h1>
+                    <p className="text-sm font-medium opacity-90 max-w-lg line-clamp-2">
+                        {config.banner?.subtitle || 'Remote • Full-time • Join our growing team in building the next generation of HR technology.'}
+                    </p>
                 </div>
+
+                {selectedSectionId === 'hero' && (
+                    <div className="absolute top-4 left-4 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full shadow-lg">
+                        Hero Section
+                    </div>
+                )}
             </div>
 
             {/* 2. Form Content */}

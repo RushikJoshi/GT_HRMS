@@ -1,7 +1,7 @@
 require('dotenv').config();
-// Restart trigger 3
+// Restart trigger 4 - Env fix applied
 const http = require('http');
-// RESTART TRIGGER V4
+// RESTART TRIGGER V7 - Force restart for schema update
 const mongoose = require('mongoose');
 const app = require('./app');
 

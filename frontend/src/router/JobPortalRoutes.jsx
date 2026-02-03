@@ -38,7 +38,7 @@ function JobPortalProtectedRoute({ children }) {
   }
 
   if (!candidate) {
-    return <Navigate to="/jobs/login" replace />;
+    return <Navigate to="/candidate/login" replace />;
   }
 
   return children;
@@ -51,12 +51,11 @@ function JobPortalProtectedRoute({ children }) {
 function JobPortalRoutesContent() {
   return (
     <Routes>
-      {/* Public Job Portal Routes */}
+      {/* Public Candidate Routes */}
       <Route path="login" element={<CandidateLogin />} />
       <Route path="signup" element={<CandidateSignup />} />
-      <Route path=":tenantId" element={<Jobs />} />
 
-      {/* Protected Job Portal Routes */}
+      {/* Protected Candidate Routes */}
       <Route
         path="/"
         element={
@@ -66,7 +65,6 @@ function JobPortalRoutesContent() {
         }
       >
         <Route path="dashboard" element={<CandidateDashboard />} />
-        <Route path="openpositions" element={<CandidateOpenPositions />} />
         <Route path="open-positions" element={<CandidateOpenPositions />} />
         <Route path="applications" element={<CandidateApplications />} />
         <Route path="profile" element={<CandidateProfile />} />
@@ -81,29 +79,16 @@ function JobPortalRoutesContent() {
         }
       />
 
-      <Route
-        path="apply-job/:requirementId"
-        element={
-          <JobPortalProtectedRoute>
-            <JobApplication />
-          </JobPortalProtectedRoute>
-        }
-      />
-
-      {/* 404 for Job Portal */}
-      <Route path="*" element={<NotFound />} />
+      {/* 404 for Candidate Portal */}
+      <Route path="*" element={<Navigate to="login" replace />} />
     </Routes>
   );
 }
 
 /**
- * Export with Provider
- * Wraps ONLY Job Portal routes with JobPortalAuthProvider
+ * Export without Provider
+ * Wrapped by JobPortalAuthProvider in AppRoutes
  */
 export default function JobPortalRoutes() {
-  return (
-    <JobPortalAuthProvider>
-      <JobPortalRoutesContent />
-    </JobPortalAuthProvider>
-  );
+  return <JobPortalRoutesContent />;
 }

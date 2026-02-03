@@ -40,7 +40,14 @@ const api = axios.create({
  * - Ensures all requests include proper authentication and tenant context
  */
 api.interceptors.request.use((config) => {
-  const token = getToken();
+  // Try HRMS token first (sessionStorage)
+  let token = sessionStorage.getItem('token');
+
+  // If no HRMS token, try Job Portal token (localStorage)
+  if (!token) {
+    token = localStorage.getItem('token');
+  }
+
   if (token) {
     // Attach JWT token for authentication
     config.headers.Authorization = `Bearer ${token}`;

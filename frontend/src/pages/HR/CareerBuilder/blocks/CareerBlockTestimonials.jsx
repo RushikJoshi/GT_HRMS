@@ -1,7 +1,8 @@
 import React from 'react';
 import { Quote } from 'lucide-react';
 
-export default function CareerBlockTestimonials({ content }) {
+export default function CareerBlockTestimonials({ content, previewMode = 'desktop' }) {
+    const isMobile = previewMode === 'mobile';
     const { title = "Voices of Gitakshmi", testimonials = [] } = content || {};
 
     const defaultTestimonials = [
@@ -13,10 +14,10 @@ export default function CareerBlockTestimonials({ content }) {
     const displayTestimonials = testimonials.length > 0 ? testimonials : defaultTestimonials;
 
     return (
-        <section className="py-24 bg-blue-600">
-            <div className="max-w-[90rem] mx-auto px-8 sm:px-12 lg:px-16 text-center">
-                <h2 className="text-4xl font-black text-white mb-20 tracking-tight">{title}</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <section className={`${isMobile ? 'py-12' : 'py-24'} bg-blue-600`}>
+            <div className={`max-w-[90rem] mx-auto ${isMobile ? 'px-6' : 'px-8 sm:px-12 lg:px-16'} text-center`}>
+                <h2 className={`${isMobile ? 'text-2xl mb-12' : 'text-4xl mb-20'} font-black text-white tracking-tight`}>{title}</h2>
+                <div className={`grid ${isMobile ? 'grid-cols-1 gap-6' : 'grid-cols-1 md:grid-cols-3 gap-8'}`}>
                     {displayTestimonials.map((t, idx) => (
                         <div key={idx} className="bg-white p-8 rounded-[2rem] shadow-xl relative">
                             <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg border-4 border-blue-600">
