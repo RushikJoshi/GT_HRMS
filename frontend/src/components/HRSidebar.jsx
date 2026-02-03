@@ -100,7 +100,7 @@ const NAV_GROUPS = [
       { to: '/hr/payroll/process', label: 'Process Payroll', icon: ICONS.process },
       { to: '/hr/payroll/run', label: 'Run History', icon: ICONS.runHistory },
       { to: '/hr/payroll/payslips', label: 'Payslips', icon: ICONS.payslips },
-      { to: '/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.payslipDesign }
+      // { to: '/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.payslipDesign }
     ]
   },
   {
