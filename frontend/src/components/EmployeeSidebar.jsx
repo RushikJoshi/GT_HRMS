@@ -106,17 +106,8 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
     };
 
     const handleTabClick = (id) => {
-<<<<<<< HEAD
-        // ALWAYS update the active tab state first to ensure UI resets
-        setActiveTab(id);
 
-        if (id === 'payslips') {
-            navigate('/employee/payslips');
-        } else if (id === 'dashboard') {
-            navigate('/employee/dashboard');
-        }
 
-=======
         // 1. Navigation Logic
         if (id === 'payslips') {
             navigate('/employee/payslips');
@@ -131,7 +122,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
         // 2. State & UI Logic
         // Always call setActiveTab to ensure highlighting and tab selection are in sync
         setActiveTab(id);
->>>>>>> main
+
         if (onClose) onClose();
     };
 
