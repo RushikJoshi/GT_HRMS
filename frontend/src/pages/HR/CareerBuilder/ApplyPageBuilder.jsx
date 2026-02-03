@@ -15,6 +15,7 @@ export default function ApplyPageBuilder() {
         theme: { primaryColor: '#4F46E5' }
     });
     const [selectedSectionId, setSelectedSectionId] = useState(null);
+    const [previewMode, setPreviewMode] = useState("desktop");
 
     useEffect(() => {
         fetchConfig();
@@ -261,13 +262,49 @@ export default function ApplyPageBuilder() {
 
                 {/* CENTER: Canvas / Preview */}
                 <div className="flex-1 bg-gray-100 relative overflow-hidden flex flex-col items-center">
-                    <div className="w-full h-full p-8 overflow-y-auto scrollbar-hide">
-                        <div className="min-h-full transition-all duration-300 mx-auto max-w-[800px] pb-20">
-                            {/* We limit width to 800px for a realistic form preview */}
+                    <style>{`
+                        .mobile-preview {
+                            width: 390px;
+                            height: 844px;
+                            margin: 20px auto;
+                            border: 12px solid #1a1a1a;
+                            border-radius: 40px;
+                            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+                            overflow-y: auto;
+                            overflow-x: hidden;
+                            background: white;
+                            position: relative;
+                            scrollbar-width: none;
+                        }
+                        .mobile-preview::-webkit-scrollbar {
+                            display: none;
+                        }
+                        .mobile-preview::before {
+                            content: '';
+                            position: sticky;
+                            top: 0;
+                            left: 50%;
+                            transform: translateX(-50%);
+                            width: 150px;
+                            height: 25px;
+                            background: #1a1a1a;
+                            border-bottom-left-radius: 20px;
+                            border-bottom-right-radius: 20px;
+                            z-index: 100;
+                        }
+                        .desktop-preview {
+                            width: 100%;
+                            border: none;
+                            box-shadow: none;
+                        }
+                    `}</style>
+                    <div className="w-full h-full p-8 overflow-y-auto scrollbar-hide flex justify-center">
+                        <div className={`transition-all duration-500 ease-in-out ${previewMode === "mobile" ? "mobile-preview" : "desktop-preview max-w-[800px] mx-auto pb-20"}`}>
                             <ApplyPreview
                                 config={config}
                                 selectedSectionId={selectedSectionId}
                                 onSelectSection={setSelectedSectionId}
+                                previewMode={previewMode}
                             />
                         </div>
                     </div>
@@ -278,6 +315,8 @@ export default function ApplyPageBuilder() {
                     config={config}
                     selectedSectionId={selectedSectionId}
                     onUpdateSection={updateSection}
+                    previewMode={previewMode}
+                    setPreviewMode={setPreviewMode}
                 />
 
             </div>

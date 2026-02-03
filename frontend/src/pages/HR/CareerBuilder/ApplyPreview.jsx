@@ -1,7 +1,8 @@
 import React from 'react';
 import { UploadCloud, ChevronDown, User, MapPin, Briefcase } from 'lucide-react';
 
-export default function ApplyPreview({ config, selectedSectionId, onSelectSection }) {
+export default function ApplyPreview({ config, selectedSectionId, onSelectSection, previewMode = 'desktop' }) {
+    const isMobileView = previewMode === 'mobile';
 
     // Helper to calculate grid span based on width prop
     const getGridSpan = (width) => {
@@ -14,7 +15,7 @@ export default function ApplyPreview({ config, selectedSectionId, onSelectSectio
     };
 
     return (
-        <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden min-h-[800px] border border-gray-100 flex flex-col">
+        <div className={`bg-white flex flex-col ${isMobileView ? 'min-h-full w-full' : 'rounded-[2rem] shadow-2xl min-h-[800px] border border-gray-100 overflow-hidden'}`}>
 
             {/* 1. Header / Banner Area */}
             <div
