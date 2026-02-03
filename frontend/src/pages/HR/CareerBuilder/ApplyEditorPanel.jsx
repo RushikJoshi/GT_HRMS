@@ -1,16 +1,56 @@
 import React, { useState } from 'react';
 import { Settings, Trash2, Plus, GripVertical, X } from 'lucide-react';
 
-export default function ApplyEditorPanel({ config, selectedSectionId, onUpdateSection }) {
+export default function ApplyEditorPanel({ config, selectedSectionId, onUpdateSection, previewMode, setPreviewMode }) {
+
+    const getButtonStyle = (mode) => {
+        const isActive = previewMode === mode;
+        return {
+            height: '38px',
+            padding: '0 20px',
+            borderRadius: '6px',
+            fontSize: '13px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            backgroundColor: isActive ? '#4A5DFF' : '#ffffff',
+            color: isActive ? '#ffffff' : '#333333',
+            border: isActive ? '1px solid #4A5DFF' : '1px solid #E0E0E0',
+        };
+    };
 
     // Find the currently selected section
     const currentSection = config.sections.find(s => s.id === selectedSectionId);
+
+    const renderPreviewSwitcher = () => (
+        <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">Preview Mode</label>
+            <div className="flex items-center gap-[12px]">
+                <button
+                    style={getButtonStyle('desktop')}
+                    onClick={() => setPreviewMode('desktop')}
+                >
+                    Desktop Preview
+                </button>
+                <button
+                    style={getButtonStyle('mobile')}
+                    onClick={() => setPreviewMode('mobile')}
+                >
+                    Mobile Preview
+                </button>
+            </div>
+        </div>
+    );
 
     // SPECIAL CASE: Hero Section
     if (selectedSectionId === 'hero') {
         const banner = config.banner || {};
         return (
             <div className="w-96 bg-white border-l border-gray-200 flex flex-col shrink-0 h-full overflow-hidden text-gray-800 font-sans z-30 shadow-xl">
+                {renderPreviewSwitcher()}
                 <div className="px-6 py-5 border-b border-gray-100 bg-white">
                     <h2 className="text-sm font-black text-gray-900 tracking-tight text-blue-600">Hero Section</h2>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Banner Customization</p>
@@ -139,6 +179,7 @@ export default function ApplyEditorPanel({ config, selectedSectionId, onUpdateSe
 
     return (
         <div className="w-96 bg-white border-l border-gray-200 flex flex-col shrink-0 h-full overflow-hidden text-gray-800 font-sans z-30 shadow-xl">
+            {renderPreviewSwitcher()}
             {/* Header */}
             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-white">
                 <div>
