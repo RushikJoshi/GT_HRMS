@@ -49,7 +49,7 @@ export default function CareerBuilder() {
             setLoading(true);
 
 
-            const res = await api.get('/hr/career/customize');
+            const res = await api.get('/career/draft');
 
 
 
@@ -174,11 +174,10 @@ export default function CareerBuilder() {
                 return rest;
             });
 
-            await Promise.all([
-                api.post('/career/sections/save', { sections: cleanSections, theme: config.theme })
-            ]);
+            await api.post('/career/sections/save', { sections: cleanSections, theme: config.theme });
 
             // 2. Trigger Publish
+            const res = await api.post('/career/publish');
 
             if (res.data && res.data.success) {
                 message.success("🎉 Career Page Published Live!");
