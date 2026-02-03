@@ -74,9 +74,7 @@ export default function AttendanceClock({
     // If NOT overtime: Scale based on 8h (0 to 100% of 8h)
     // If OVERTIME: Scale based on Total Worked Time (Blue portion shrinks, Green portion grows)
 
-    // VISUAL FIX: Scale is ALWAYS based on Shift Duration (8h).
-    // This ensures Blue fills 100% when shift is done, and Green wraps around (Lap 2).
-    const totalScaleSeconds = SHIFT_DURATION;
+    const totalScaleSeconds = isOvertime ? workedSeconds : SHIFT_DURATION;
 
     // Avoid division by zero
     const safeTotalScale = totalScaleSeconds > 0 ? totalScaleSeconds : 1;
@@ -99,11 +97,7 @@ export default function AttendanceClock({
     // If we want it to start at `len`, offset should be `-len`.
 
     const greenDashArray = `${greenRatio * circumference} ${circumference}`;
-
-    // Fix: Green starts where Blue ends.
-    // If Blue is 100% (Ratio 1), Offset = 0 (Start at Top).
-    // Formula per requirement: circumference * (1 - shiftProgress)
-    const greenDashOffset = circumference * (1 - blueRatio);
+    const greenDashOffset = -(blueRatio * circumference);
 
     // UI Configuration
     const isMultipleMode = settings?.punchMode === 'multiple';
@@ -141,8 +135,8 @@ export default function AttendanceClock({
             <div className="relative mb-8 w-64 h-64 flex items-center justify-center group/clock transition-transform duration-300">
 
                 {/* SVG Progress Ring */}
-                <div className="absolute inset-0 transform -rotate-90">
-                    <svg className="w-full h-full" viewBox="0 0 256 256">
+                <div className="absolute inset-0 transform -rotate-90 scale-x-[-1]">
+                    <svg className="w-full h-full" viewBox="0 0 256 256" style={{ transform: 'rotate(-180deg)' }}>
                         <defs>
                             <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" stopColor="#6366f1" />

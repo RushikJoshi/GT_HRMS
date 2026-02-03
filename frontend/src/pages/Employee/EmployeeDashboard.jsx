@@ -349,9 +349,9 @@ export default function EmployeeDashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Clock (Interactive Zone) */}
-            <div className="xl:col-span-5 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* Left Column: Attendance Clock + Recent Activity */}
+            <div className="lg:col-span-3 space-y-6">
               <AttendanceClock
                 isCheckedIn={isCheckedIn}
                 isCheckedOut={isCheckedOut}
@@ -363,21 +363,55 @@ export default function EmployeeDashboard() {
                 error={clockError}
               />
 
-              {/* Advanced System Metrics */}
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { label: 'Total Punches', value: todaySummary?.totalPunches || 0, icon: RefreshCw, color: 'text-indigo-400' },
-                  { label: 'Inbound', value: todaySummary?.totalIn || 0, icon: LogIn, color: 'text-emerald-500' },
-                  { label: 'Outbound', value: todaySummary?.totalOut || 0, icon: LogOut, color: 'text-rose-500' },
-                ].map((item, idx) => (
-                  <div key={idx} className="bg-white dark:bg-slate-800/40 backdrop-blur-md p-5 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-500/40 transition-all duration-300">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center mb-4 transition-transform group-hover:scale-110">
-                      <item.icon size={18} className={`${item.color} opacity-80 group-hover:opacity-100 transition-opacity`} />
+              {/* Recent Activity Log */}
+              <div className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                    Recent Activity
+                  </h3>
+                  <button onClick={() => setActiveTab('attendance')} className="text-[10px] font-black text-indigo-500 hover:text-indigo-600 uppercase tracking-widest border-b-2 border-transparent hover:border-indigo-500 transition-all">View All History</button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {attendance.slice(0, 3).map(att => (
+                    <div key={att._id} className="aspect-square flex flex-col items-center justify-center text-center p-0.5 rounded-md bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/20 transition-all group relative overflow-hidden max-w-[72px] w-full mx-auto">
+                      <div className="absolute top-0.5 right-0.5">
+                        {att.isLate && <span className="text-[4px] font-black text-amber-500 bg-amber-500/10 px-0.5 py-0.25 rounded uppercase tracking-widest">LATE</span>}
+                      </div>
+
+                      <div className="flex flex-col items-center mb-0">
+                        <span className="text-[5px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0">
+                          {new Date(att.date).toLocaleDateString([], { month: 'short' })}
+                        </span>
+                        <span className="text-sm font-black text-slate-800 dark:text-white leading-none">
+                          {new Date(att.date).getDate()}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-0 mb-0.5">
+                        <span className="text-[5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">
+                          {att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                        </span>
+                        <span className="text-[7px] font-black text-slate-700 dark:text-slate-200 tracking-tight leading-none">
+                          {att.workingHours || 0}h Total
+                        </span>
+                      </div>
+
+                      <span className={`px-1 py-0.25 rounded text-[5px] font-black uppercase tracking-widest border w-[90%] ${att.status?.toLowerCase() === 'present'
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50'
+                        : 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800/50'
+                        }`}>
+                        {att.status || 'present'}
+                      </span>
                     </div>
-                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">{item.label}</p>
-                    <p className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{item.value}</p>
-                  </div>
-                ))}
+                  ))}
+                  {attendance.length === 0 && (
+                    <div className="col-span-full text-center py-6 flex flex-col items-center gap-1.5">
+                      <Clock size={20} className="text-slate-200 dark:text-slate-800" />
+                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">No activity</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* High Fidelity Working Hours Terminal */}
@@ -388,132 +422,82 @@ export default function EmployeeDashboard() {
               />
             </div>
 
-            {/* Right Column: Information Network */}
-            <div className="xl:col-span-7 space-y-6">
-              {/* Policy Framework Console */}
-              <div className="bg-slate-900 border border-slate-800 text-white p-8 rounded-3xl shadow-2xl overflow-hidden relative group">
-                <div className="absolute top-[-60px] right-[-60px] opacity-[0.05] group-hover:rotate-12 transition-transform duration-1000">
-                  <Clock size={320} />
+
+            {/* Right Column: Policy, Overtime, Geo-Fencing System */}
+            <div className="lg:col-span-2 space-y-6">
+
+              {/* Policy Framework Card */}
+              <div className="bg-slate-900 border border-slate-800 text-white p-6 rounded-2xl shadow-2xl overflow-hidden relative group">
+                <div className="absolute top-[-40px] right-[-40px] opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
+                  <Clock size={240} />
                 </div>
                 <div className="relative z-10">
                   <div className="flex items-center justify-between mb-8">
                     <div className="flex flex-col">
-                      <h3 className="text-xs font-black uppercase tracking-[0.25em] text-indigo-400 mb-1">
+                      <h3 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2">
                         Policy Framework
                       </h3>
-                      <div className="flex items-center gap-2">
-                        <div className="h-1 w-8 bg-indigo-500 rounded-full"></div>
-                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Standard Protocol</span>
-                      </div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Attendance Protocols</span>
                     </div>
-                    <span className="text-[10px] bg-indigo-500 text-white px-4 py-1.5 rounded-full font-black tracking-[0.1em] shadow-[0_0_20px_rgba(99,102,241,0.3)] border border-indigo-400">v2.4 ACTIVE</span>
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-lg font-bold tracking-widest shadow-[0_0_15px_rgba(99,102,241,0.2)]">v2.1 Active</span>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                  <div className="grid grid-cols-2 gap-y-8 gap-x-4">
                     {[
-                      { label: 'Shift Window', value: attendanceSettings ? `${attendanceSettings.shiftStartTime} - ${attendanceSettings.shiftEndTime}` : '-- : --', color: 'text-indigo-400' },
-                      { label: 'Architecture', value: attendanceSettings ? `${attendanceSettings.punchMode} PUNCH` : '--', color: 'text-blue-400' },
-                      { label: 'Grace Period', value: attendanceSettings ? `${attendanceSettings.lateMarkThresholdMinutes} MIN` : '--', color: 'text-emerald-400' },
-                      { label: 'Full Day Unit', value: attendanceSettings ? `${attendanceSettings.fullDayThresholdHours} HRS` : '--', color: 'text-amber-400' },
+                      { label: 'Shift Windows', value: attendanceSettings ? `${attendanceSettings.shiftStartTime} - ${attendanceSettings.shiftEndTime}` : '-- : --', icon: Clock, color: 'text-indigo-400' },
+                      { label: 'Punch Architecture', value: attendanceSettings ? `${attendanceSettings.punchMode} PUNCH` : '--', icon: CheckCircle, color: 'text-emerald-400' },
+                      { label: 'Late Grace Period', value: attendanceSettings ? `${attendanceSettings.lateMarkThresholdMinutes} Minutes` : '--', icon: AlertCircle, color: 'text-amber-400' },
+                      { label: 'Min. Full Day', value: attendanceSettings ? `${attendanceSettings.fullDayThresholdHours} Hours` : '--', icon: CalendarIcon, color: 'text-blue-400' },
                     ].map((config, i) => (
-                      <div key={i} className="space-y-2 group/item">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover/item:text-slate-400 transition-colors">{config.label}</p>
-                        <p className={`text-sm font-black tracking-tight ${config.color}`}>{config.value}</p>
+                      <div key={i} className="flex items-start gap-3 group/item">
+                        <config.icon size={16} className={`mt-0.5 ${config.color} opacity-60`} />
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 group-hover/item:text-slate-400 transition-colors">{config.label}</span>
+                          <span className="text-sm font-black tracking-tight text-slate-200">{config.value}</span>
+                        </div>
                       </div>
                     ))}
                   </div>
-
-                  <div className="mt-10 pt-8 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500/10 transition-colors">
-                        <Briefcase size={20} className="text-slate-400 group-hover:text-indigo-400 transition-colors" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Geo-Fencing System</span>
-                        <span className="text-xs font-bold text-slate-300">Biometric Location Validation</span>
-                      </div>
-                    </div>
-                    <span className={`text-[10px] font-black uppercase tracking-[0.15em] px-6 py-2.5 rounded-2xl border transition-all duration-500 ${attendanceSettings?.locationRestrictionMode === 'none'
-                      ? 'bg-slate-800/50 text-slate-500 border-slate-700/50 hover:border-slate-600'
-                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.1)] hover:shadow-emerald-500/20'}`}>
-                      {attendanceSettings?.locationRestrictionMode === 'none' ? 'Protocol Bypassed' : `Security Restricted: ${attendanceSettings?.locationRestrictionMode}`}
-                    </span>
-                  </div>
                 </div>
               </div>
 
-              {/* Activity Timeline Dashboard */}
-              <div className="bg-white dark:bg-slate-800/40 backdrop-blur-md p-8 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm relative overflow-hidden group">
-                <div className="flex justify-between items-end mb-8 relative z-10">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">Activity Streams</h3>
-                      <div className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-900 text-[8px] font-black text-slate-500">REALTIME</div>
-                    </div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Your recent activity logs</p>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('attendance')}
-                    className="group-link flex items-center gap-2 text-[10px] font-black text-indigo-500 hover:text-indigo-600 uppercase tracking-widest transition-all"
-                  >
-                    System History
-                    <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                  </button>
-                </div>
+              {/* Overtime Monitoring Section */}
+              <div className="h-fit">
+                <WorkingHoursCard
+                  baseHours={todaySummary?.workingHours || 0}
+                  lastPunchIn={todayRecord?.checkIn ? (isCheckedIn && !isCheckedOut ? todayRecord.logs?.[todayRecord.logs.length - 1]?.time : null) : null}
+                  isActive={isCheckedIn && !isCheckedOut}
+                />
+              </div>
 
-                <div className="space-y-4 relative z-10">
-                  {attendance.slice(0, 5).map((att, i) => (
-                    <div key={att._id} className="flex items-center justify-between p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/5 transition-all group/row animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
-                      <div className="flex items-center gap-5">
-                        <div className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm group-hover/row:border-indigo-200 dark:group-hover/row:border-indigo-800 transition-colors">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter leading-none">{new Date(att.date).toLocaleDateString([], { month: 'short' })}</span>
-                          <span className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{new Date(att.date).getDate()}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-tight">Terminal Interaction</span>
-                            <span className="text-[8px] font-black text-slate-400 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded uppercase tracking-widest">Log #{i + 1}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1.5 opacity-60">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                              <LogIn size={12} /> {att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
-                            </div>
-                            <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                              <LogOut size={12} /> {att.checkOut ? new Date(att.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
+              {/* Geo-Fencing System Section */}
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                  <Briefcase size={12} />
+                  Geo-Fencing System
+                </h3>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Total Punches', value: todaySummary?.totalPunches || 0, icon: RefreshCw, color: 'text-slate-400', bg: 'bg-slate-50 dark:bg-slate-800' },
+                    { label: 'Punches In', value: todaySummary?.totalIn || 0, icon: LogIn, color: 'text-emerald-500', bg: 'bg-emerald-50/50 dark:bg-emerald-900/10' },
+                    { label: 'Punches Out', value: todaySummary?.totalOut || 0, icon: LogOut, color: 'text-blue-500', bg: 'bg-blue-50/50 dark:bg-blue-900/10' },
+                  ].map((item, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm flex items-center justify-between group hover:border-indigo-500/30 transition-all">
                       <div className="flex items-center gap-4">
-                        <div className="flex flex-col items-end mr-2">
-                          <span className="text-sm font-black text-slate-900 dark:text-white tracking-tighter">{att.workingHours || 0}h Total</span>
-                          <div className="flex gap-1 mt-1">
-                            {att.isLate && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Late Entry"></div>}
-                            {att.isEarlyOut && <div className="w-1.5 h-1.5 rounded-full bg-orange-500" title="Early Exit"></div>}
-                          </div>
+                        <div className={`p-2.5 rounded-lg ${item.bg} ${item.color} group-hover:scale-110 transition-transform`}>
+                          <item.icon size={18} />
                         </div>
-                        <span className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${att.status?.toLowerCase() === 'present'
-                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
-                          : 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.05)]'
-                          }`}>
-                          {att.status || 'Verified'}
-                        </span>
+                        <div>
+                          <p className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{item.value}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{item.label}</p>
+                        </div>
                       </div>
                     </div>
                   ))}
-                  {attendance.length === 0 && (
-                    <div className="text-center py-20 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800 bg-slate-50/30 flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center mb-2">
-                        <Clock size={32} className="text-slate-200 dark:text-slate-800" />
-                      </div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">No Temporal Data Detected</p>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
+
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
