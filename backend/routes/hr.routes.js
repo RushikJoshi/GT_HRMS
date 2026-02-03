@@ -138,6 +138,11 @@ router.use('/hr/offer-templates', require('./offerTemplate.routes'));
 // Career Builder
 router.use('/hr/career', require('./career.routes'));
 
+
+// BULk Upload Template
+
+router.get('/hr/bulk/template', auth.authenticate, auth.requireAdminOrHr, empCtrl.downloadBulkUploadTemp);
+router.post('/hr/bulk/upload', auth.authenticate, auth.requireAdminOrHr, empCtrl.bulkUploadEmployees);
 /* -----------------------------------------
    CANDIDATE STATUS TRACKER
 ----------------------------------------- */

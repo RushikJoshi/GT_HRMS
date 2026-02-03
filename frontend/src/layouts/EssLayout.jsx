@@ -173,8 +173,8 @@ export default function EssLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-[#0F172A] p-6 lg:p-10 custom-scrollbar">
-          <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <main className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-[#0F172A] p-4 lg:p-8 custom-scrollbar">
+          <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
             <Outlet context={{ activeTab, setActiveTab }} />
           </div>
         </main>
