@@ -106,6 +106,8 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
     };
 
     const handleTabClick = (id) => {
+
+
         // 1. Navigation Logic
         if (id === 'payslips') {
             navigate('/employee/payslips');
@@ -120,6 +122,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
         // 2. State & UI Logic
         // Always call setActiveTab to ensure highlighting and tab selection are in sync
         setActiveTab(id);
+
         if (onClose) onClose();
     };
 
