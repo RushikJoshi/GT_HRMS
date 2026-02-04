@@ -109,7 +109,7 @@ export default function CandidateDashboard() {
             {/* Luxury Header Section */}
             {/* Luxury Header Section */}
             {/* Luxury Header Section */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-premium-blue to-premium-blue-dark rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl shadow-blue-200/50">
+            <div className="relative overflow-hidden bg-premium-gradient rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl shadow-blue-200/50">
                 {/* Minimal Background Elements */}
                 <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-[80px] -mr-32 -mt-32"></div>
                 <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-mint-aqua/10 rounded-full blur-[60px] -ml-24 -mb-24"></div>

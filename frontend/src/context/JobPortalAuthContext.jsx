@@ -161,6 +161,20 @@ export function JobPortalAuthProvider({ children }) {
     setCandidate(null);
   }, []);
 
+  const refreshCandidate = useCallback(async () => {
+    if (!candidate) return;
+    try {
+      const res = await api.get('/candidate/me');
+      if (res.data && res.data.success) {
+        const updatedInfo = { ...candidate, ...res.data.candidate };
+        setCandidate(updatedInfo);
+        localStorage.setItem('candidate', JSON.stringify(updatedInfo));
+      }
+    } catch (apiErr) {
+      console.warn(`[JobPortalAuth] Refresh failed: ${apiErr.message}`);
+    }
+  }, [candidate]);
+
   const value = {
     candidate,
     isInitialized,
@@ -168,7 +182,8 @@ export function JobPortalAuthProvider({ children }) {
     error,
     loginCandidate,
     registerCandidate,
-    logoutCandidate
+    logoutCandidate,
+    refreshCandidate
   };
 
   return (

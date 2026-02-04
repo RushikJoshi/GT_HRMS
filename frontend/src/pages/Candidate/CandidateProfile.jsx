@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 export default function CandidateProfile() {
-    const { candidate } = useJobPortalAuth();
+    const { candidate, refreshCandidate } = useJobPortalAuth();
     const [profileData, setProfileData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
@@ -43,7 +43,7 @@ export default function CandidateProfile() {
                 phone: profileData?.phone || '',
                 professionalTier: profileData?.professionalTier || 'Technical Leader',
             });
-            setProfileImageUrl(profileData?.profileImageUrl || candidate?.profileImageUrl || '');
+            setProfileImageUrl(profileData?.profileImageUrl || candidate?.profileImageUrl || candidate?.profilePic || '');
         }
     }, [candidate, profileData]);
 
@@ -94,7 +94,8 @@ export default function CandidateProfile() {
             });
             setEditMode(false);
             setProfileImage(null);
-            fetchProfile();
+            await fetchProfile();
+            await refreshCandidate(); // Refresh the global candidate state
         } catch (err) {
             alert('Failed to update profile.');
         }
@@ -117,7 +118,7 @@ export default function CandidateProfile() {
     return (
         <div className="space-y-10 animate-in fade-in duration-200 pb-20">
             {/* Luxury Profile Header Banner */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-premium-blue to-premium-blue-dark rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-200/50">
+            <div className="relative overflow-hidden bg-premium-gradient rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-200/50">
                 {/* Minimal Background Elements */}
                 <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-[80px] -mr-32 -mt-32"></div>
                 <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-mint-aqua/10 rounded-full blur-[60px] -ml-24 -mb-24"></div>
