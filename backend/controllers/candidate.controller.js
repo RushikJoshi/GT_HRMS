@@ -155,7 +155,8 @@ exports.loginCandidate = async (req, res) => {
                 id: candidate._id,
                 name: candidate.name,
                 email: candidate.email,
-                mobile: candidate.mobile
+                mobile: candidate.mobile,
+                profilePic: candidate.profilePic
             }
         });
     } catch (err) {
@@ -181,7 +182,8 @@ exports.getCandidateMe = async (req, res) => {
                 id: candidate._id,
                 name: candidate.name,
                 email: candidate.email,
-                mobile: candidate.mobile
+                mobile: candidate.mobile,
+                profilePic: candidate.profilePic
             }
         });
     } catch (err) {

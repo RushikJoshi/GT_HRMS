@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from '../components/candidate/Header';
-import { useAuth } from '../context/AuthContext';
+import { useJobPortalAuth } from '../context/JobPortalAuthContext';
 
 export default function CandidateLayout() {
-    const { user } = useAuth();
+    const { candidate } = useJobPortalAuth();
     const [companyName, setCompanyName] = useState('Gitakshmi');
 
     useEffect(() => {
-        if (user?.companyName) {
-            setCompanyName(user.companyName);
+        if (candidate?.companyName) {
+            setCompanyName(candidate.companyName);
         } else {
             const comp = localStorage.getItem('companyName');
             if (comp) setCompanyName(comp);
         }
-    }, [user]);
+    }, [candidate]);
 
     return (
         <div className="bg-[#F8FAFC] min-h-screen">

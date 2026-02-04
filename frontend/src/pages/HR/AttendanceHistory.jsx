@@ -37,8 +37,8 @@ export default function AttendanceHistory() {
     if (Object.keys(newAttendance).length === 0) {
       return [
         { label: 'Total Employees', value: '0', icon: Users, color: 'blue', bgColor: 'bg-blue-500' },
-        { label: 'Avg Attendance', value: '0%', icon: TrendingUp, color: 'green', bgColor: 'bg-green-500' },
-        { label: 'Total Working Hours', value: '0h', icon: Clock, color: 'cyan', bgColor: 'bg-cyan-500' },
+        { label: 'Avg Attendance', value: '0', icon: TrendingUp, color: 'green', bgColor: 'bg-green-500' },
+        { label: 'Total Working Hours', value: '0', icon: Clock, color: 'cyan', bgColor: 'bg-cyan-500' },
         // { label: 'Total Weekly Offs', value: '0', icon: Calendar, color: 'purple', bgColor: 'bg-purple-500' },
       ];
     }
@@ -174,7 +174,7 @@ export default function AttendanceHistory() {
     try {
       setDeletingFaceId(employeeId);
       const res = await api.delete(`/attendance/face/delete?employeeId=${employeeId}`);
-      
+
       if (res.data.success) {
         setFaceStatusMap(prev => ({
           ...prev,
@@ -217,7 +217,7 @@ export default function AttendanceHistory() {
         employeeId: selectedEmployeeForFace._id,
         status: 'pending'
       });
-      
+
       if (res.data.success) {
         alert('Face registration initiated. Please ask the employee to complete registration.');
         closeFaceRegistrationModal();
@@ -249,7 +249,7 @@ export default function AttendanceHistory() {
   // Handle file upload
   const handleFileUpload = (event) => {
     const file = event.target.files?.[0];
-    
+
     if (!file) {
       setUploadErrors(['Please select a file to upload']);
       setUploadedFile(null);
@@ -259,7 +259,7 @@ export default function AttendanceHistory() {
     // Validate file type
     const validTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv'];
     const validExtensions = /\.(xlsx|xls|csv)$/i;
-    
+
     if (!validExtensions.test(file.name) && !validTypes.includes(file.type)) {
       setUploadErrors(['Invalid file format. Please upload Excel (.xlsx, .xls) or CSV (.csv) file']);
       setUploadedFile(null);
@@ -275,7 +275,7 @@ export default function AttendanceHistory() {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-        
+
         if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
           setUploadErrors(['File is empty or corrupted. Please check your Excel file']);
           return;
@@ -294,7 +294,7 @@ export default function AttendanceHistory() {
         // Check required columns (more flexible - check for partial matches)
         const fileColumns = Object.keys(jsonData[0]);
         const requiredColumns = ['Employee ID', 'Date', 'Status', 'Check In', 'Check Out'];
-        const missingColumns = requiredColumns.filter(col => 
+        const missingColumns = requiredColumns.filter(col =>
           !fileColumns.some(fc => fc.toLowerCase().includes(col.toLowerCase()))
         );
 
@@ -366,11 +366,11 @@ export default function AttendanceHistory() {
             if (response.data.errors?.length > 0) {
               alert(`⚠️ ${response.data.errors.length} records failed:\n${response.data.errors.slice(0, 5).join('\n')}`);
             }
-            
+
             // Refresh attendance data
             const newData = await getEmployeeAttendance();
             processAttendanceData(newData);
-            
+
             // Close modal and reset
             setShowUploadModal(false);
             setUploadedFile(null);
@@ -499,7 +499,7 @@ export default function AttendanceHistory() {
       try {
         setLoading(true);
         const data = await getEmployeeAttendance();
-        
+
         // Process attendance data: Group by employee with status counts
         const result = data.reduce((acc, item) => {
           const empId = item.employee._id;
@@ -533,7 +533,7 @@ export default function AttendanceHistory() {
           }
 
           acc[empId].days.add(day);
-          
+
           // Calculate working hours from punch data
           if (item.checkIn && item.checkOut) {
             const checkInTime = new Date(item.checkIn);
@@ -543,7 +543,7 @@ export default function AttendanceHistory() {
               acc[empId].workingHours += parseFloat(hoursWorked.toFixed(2));
             }
           }
-          
+
           // Track status by category
           if (status === 'present') {
             acc[empId].presentDays.add(day);
@@ -563,7 +563,7 @@ export default function AttendanceHistory() {
 
           // Calculate attendance rate (present / working days, excluding weekly off and holidays)
           const workingDays = acc[empId].days.size - acc[empId].weeklyOffDays.size - acc[empId].holidayDays.size;
-          acc[empId].attendanceRate = workingDays > 0 
+          acc[empId].attendanceRate = workingDays > 0
             ? Math.round((acc[empId].presentDays.size / workingDays) * 100)
             : 0;
 
@@ -597,25 +597,25 @@ export default function AttendanceHistory() {
   const filteredEmployees = Object.keys(newAttendance).filter((empId) => {
     const employee = newAttendance[empId];
     const searchLower = searchTerm.toLowerCase();
-    
+
     // Search filter
-    const matchesSearch = 
+    const matchesSearch =
       employee.name.toLowerCase().includes(searchLower) ||
       employee.empId.toLowerCase().includes(searchLower) ||
       employee.role.toLowerCase().includes(searchLower);
-    
+
     // Department filter
-    const matchesDepartment = 
-      selectedDepartment === 'All Departments' || 
+    const matchesDepartment =
+      selectedDepartment === 'All Departments' ||
       employee.role === selectedDepartment;
-    
+
     // Status filter
     let matchesStatus = true;
     if (selectedStatus !== 'All Status') {
       const employeeStatus = getStatusCategory(employee.attendanceRate);
       matchesStatus = employeeStatus === selectedStatus;
     }
-    
+
     return matchesSearch && matchesDepartment && matchesStatus;
   });
 
@@ -745,7 +745,7 @@ export default function AttendanceHistory() {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-2xl px-3 py-2">
-              <button 
+              <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
                 className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition disabled:opacity-50"
@@ -753,7 +753,7 @@ export default function AttendanceHistory() {
                 <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
               </button>
               <span className="font-black text-slate-700 dark:text-slate-300 px-2 text-xs uppercase tracking-widest">{selectedMonth}</span>
-              <button 
+              <button
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
                 className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition disabled:opacity-50"
@@ -761,7 +761,7 @@ export default function AttendanceHistory() {
                 <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-400" />
               </button>
             </div>
-            <button 
+            <button
               onClick={handleExportReport}
               disabled={exporting || Object.keys(newAttendance).length === 0}
               className="flex items-center gap-2 px-5 py-3 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -951,8 +951,8 @@ export default function AttendanceHistory() {
                         {Object.keys(newAttendance).length === 0 ? 'No attendance records found' : 'No matching employees found'}
                       </p>
                       <p className="text-slate-400 dark:text-slate-500 text-sm">
-                        {Object.keys(newAttendance).length === 0 
-                          ? 'There are no employee attendance records to display' 
+                        {Object.keys(newAttendance).length === 0
+                          ? 'There are no employee attendance records to display'
                           : `No employees match your search "${searchTerm}"`}
                       </p>
                     </div>
@@ -1179,8 +1179,8 @@ export default function AttendanceHistory() {
                 </h3>
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-4">
                   <p className="text-sm text-blue-700 dark:text-blue-300 font-bold leading-relaxed">
-                    <strong>{selectedEmployeeForDetails.name}</strong> has worked <strong>{selectedEmployeeForDetails.presentDays.size}</strong> days with an attendance rate of <strong>{selectedEmployeeForDetails.attendanceRate}%</strong>. 
-                    Total working hours recorded: <strong>{selectedEmployeeForDetails.workingHours.toFixed(2)} hours</strong>. 
+                    <strong>{selectedEmployeeForDetails.name}</strong> has worked <strong>{selectedEmployeeForDetails.presentDays.size}</strong> days with an attendance rate of <strong>{selectedEmployeeForDetails.attendanceRate}%</strong>.
+                    Total working hours recorded: <strong>{selectedEmployeeForDetails.workingHours.toFixed(2)} hours</strong>.
                     Absences: <strong>{selectedEmployeeForDetails.absentDays.size} days</strong>, Leave: <strong>{selectedEmployeeForDetails.leaveDays.size} days</strong>.
                   </p>
                 </div>
