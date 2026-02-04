@@ -273,13 +273,24 @@ export default function CareerBuilder() {
             };
             case 'testimonials': return {
                 title: "What our team says",
-                cards: [
-                    { id: 1, name: "John Doe", role: "Developer", quote: "Great place to work!", image: "" }
-                ]
+                testimonials: [
+                    { id: 1, name: "Sarah Johnson", role: "Software Engineer", quote: "The culture here is unmatched. I've grown more in 6 months than I did in 2 years at my previous job.", image: "https://i.pravatar.cc/150?u=sarah" },
+                    { id: 2, name: "Michael Chen", role: "Product Manager", quote: "I love how everyone is encouraged to take ownership of their work and innovate.", image: "https://i.pravatar.cc/150?u=michael" },
+                    { id: 3, name: "Emily Davis", role: "Design Lead", quote: "Working here gives me the creative freedom I always wanted. The team is incredibly supportive.", image: "https://i.pravatar.cc/150?u=emily" }
+                ],
+                bgColor: "#2563EB",
+                textColor: "#ffffff"
             };
             case 'company-info': return {
                 title: "About Us",
-                description: "We are a great company committed to excellence and innovation."
+                description: "We are a great company committed to excellence and innovation. Our mission is to transform the industry through technology and compassion.",
+                imageUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80",
+                stats: [
+                    { label: "Employees", value: "500+" },
+                    { label: "Offices", value: "10" },
+                    { label: "Countries", value: "5" }
+                ],
+                bgColor: "#f9fafb"
             };
             default: return { title: "New Section" };
         }

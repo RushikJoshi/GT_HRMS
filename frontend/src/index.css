@@ -27,6 +27,13 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  .high-quality-img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
 }
 
 /* Hide spinners for Chrome, Safari, Edge, Opera */

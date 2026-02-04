@@ -49,8 +49,8 @@ export default function RequirementPage() {
         }
     }
 
-    function openNew() { navigate('/hrms/hr/create-requirement'); }
-    function openFormBuilder() { navigate('/hrms/hr/apply-builder'); }
+    function openNew() { navigate('/hr/create-requirement'); }
+    function openFormBuilder() { navigate('/hr/apply-builder'); }
 
     function handleEdit(req) {
         setCurrentReq(req);

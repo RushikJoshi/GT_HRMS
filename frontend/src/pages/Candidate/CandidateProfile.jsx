@@ -5,8 +5,11 @@ import ImageCropModal from '../../components/candidate/ImageCropModal';
 import {
     User, Mail, Phone, MapPin, FileText,
     Edit3, CheckCircle2, CloudUpload, ShieldCheck,
-    Calendar, Shield, AlertCircle, Camera
+    Calendar, Shield, AlertCircle, Camera, X
 } from 'lucide-react';
+import { API_ROOT } from '../../utils/api';
+import Cropper from 'react-easy-crop';
+import { Modal, Slider } from 'antd';
 
 export default function CandidateProfile() {
     const { candidate, refreshCandidate } = useJobPortalAuth();
@@ -19,6 +22,13 @@ export default function CandidateProfile() {
     const [showCropModal, setShowCropModal] = useState(false);
     const [selectedImageForCrop, setSelectedImageForCrop] = useState(null);
     const fileInputRef = useRef(null);
+
+    // Cropper State
+    const [showCropper, setShowCropper] = useState(false);
+    const [imageToCrop, setImageToCrop] = useState(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
     const fetchProfile = useCallback(async () => {
         setLoading(true);
@@ -60,7 +70,7 @@ export default function CandidateProfile() {
     if (loading) return (
         <div className="h-[60vh] flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
-                <div className="h-12 w-12 border-4 border-premium-blue border-t-transparent rounded-full animate-spin"></div>
+                <div className="h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
                 <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Profile...</p>
             </div>
         </div>
@@ -68,6 +78,9 @@ export default function CandidateProfile() {
 
     const handleEditClick = () => setEditMode(true);
     const handleCancelEdit = () => {
+        if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(profileImageUrl);
+        }
         setEditMode(false);
         setEditFields({
             name: profileData?.name || candidate?.name || '',
@@ -75,6 +88,8 @@ export default function CandidateProfile() {
             phone: profileData?.phone || '',
             professionalTier: profileData?.professionalTier || 'Technical Leader',
         });
+        setProfileImageUrl(profileData?.profileImageUrl || candidate?.profileImageUrl || '');
+        setProfileImage(null);
     };
     const handleFieldChange = (e) => {
         const { name, value } = e.target;
@@ -84,7 +99,8 @@ export default function CandidateProfile() {
 
     const handleSaveEdit = async () => {
         try {
-            let uploadedImageUrl = profileImageUrl;
+            let finalImageUrl = profileData?.profileImageUrl || ''; // Use the existing server path by default
+
             // If a new image is selected, upload it first
             if (profileImage) {
                 const formData = new FormData();
@@ -92,21 +108,31 @@ export default function CandidateProfile() {
                 const uploadRes = await api.post('/candidate/profile/upload-photo', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
-                uploadedImageUrl = uploadRes.data?.url || uploadedImageUrl;
+                if (uploadRes.data?.url) {
+                    finalImageUrl = uploadRes.data.url;
+                }
             }
+
             // Update profile info
             await api.put('/candidate/profile', {
                 name: editFields.name,
                 email: editFields.email,
                 phone: editFields.phone,
                 professionalTier: editFields.professionalTier,
-                profileImageUrl: uploadedImageUrl
+                profileImageUrl: finalImageUrl
             });
+
+            // Cleanup
+            if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(profileImageUrl);
+            }
+
             setEditMode(false);
             setProfileImage(null);
             await fetchProfile();
             await refreshCandidate(); // Refresh the global candidate state
         } catch (err) {
+            console.error("Save error:", err);
             alert('Failed to update profile.');
         }
     };
@@ -121,12 +147,20 @@ export default function CandidateProfile() {
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
+<<<<<<< Updated upstream
             // Show preview for cropping
             const reader = new FileReader();
             reader.onload = () => {
                 setSelectedImageForCrop(reader.result);
                 setShowCropModal(true);
             };
+=======
+            const reader = new FileReader();
+            reader.addEventListener('load', () => {
+                setImageToCrop(reader.result);
+                setShowCropper(true);
+            });
+>>>>>>> Stashed changes
             reader.readAsDataURL(file);
         }
         // Reset file input
@@ -174,13 +208,77 @@ export default function CandidateProfile() {
         setSelectedImageForCrop(null);
     };
 
+    const onCropComplete = (croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    };
+
+    const createImage = (url) =>
+        new Promise((resolve, reject) => {
+            const image = new Image();
+            image.addEventListener('load', () => resolve(image));
+            image.addEventListener('error', (error) => reject(error));
+            image.setAttribute('crossOrigin', 'anonymous');
+            image.src = url;
+        });
+
+    const getCroppedImg = async (imageSrc, pixelCrop) => {
+        const image = await createImage(imageSrc);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = pixelCrop.width;
+        canvas.height = pixelCrop.height;
+
+        ctx.drawImage(
+            image,
+            pixelCrop.x,
+            pixelCrop.y,
+            pixelCrop.width,
+            pixelCrop.height,
+            0,
+            0,
+            pixelCrop.width,
+            pixelCrop.height
+        );
+
+        return new Promise((resolve) => {
+            canvas.toBlob((blob) => {
+                resolve(blob);
+            }, 'image/jpeg', 0.95);
+        });
+    };
+
+    const handleCropSave = async () => {
+        try {
+            const croppedImageBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
+            const file = new File([croppedImageBlob], 'profile.jpg', { type: 'image/jpeg' });
+
+            setProfileImage(file);
+            setProfileImageUrl(URL.createObjectURL(croppedImageBlob));
+            setEditMode(true);
+            setShowCropper(false);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const getFullImageUrl = (path) => {
+        if (!path) return '';
+        if (path.startsWith('blob:') || path.startsWith('http')) return path;
+        return `${API_ROOT}${path}`;
+    };
+
     return (
         <div className="space-y-10 animate-in fade-in duration-200 pb-20">
             {/* Luxury Profile Header Banner */}
+<<<<<<< Updated upstream
             <div className="relative overflow-hidden bg-premium-gradient rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-200/50">
+=======
+            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-900/10">
+>>>>>>> Stashed changes
                 {/* Minimal Background Elements */}
-                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-[80px] -mr-32 -mt-32"></div>
-                <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-mint-aqua/10 rounded-full blur-[60px] -ml-24 -mb-24"></div>
+                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 rounded-full blur-[80px] -mr-32 -mt-32"></div>
+                <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-blue-400/20 rounded-full blur-[60px] -ml-24 -mb-24"></div>
 
                 <div className="absolute inset-0 p-12 lg:p-20 flex items-end">
                     <div className="relative z-10 w-full flex flex-col md:flex-row md:items-end justify-between gap-10">
@@ -188,9 +286,9 @@ export default function CandidateProfile() {
                             <div className="relative group">
                                 <div className="h-32 w-32 lg:h-40 lg:w-40 rounded-[2.5rem] bg-white p-1 shadow-xl relative z-10 overflow-hidden cursor-pointer" onClick={handleCameraClick}>
                                     {profileImageUrl ? (
-                                        <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover rounded-[2rem]" />
+                                        <img src={getFullImageUrl(profileImageUrl)} alt="Profile" className="w-full h-full object-cover rounded-[2rem] shadow-sm high-quality-img" style={{ imageRendering: 'auto' }} />
                                     ) : (
-                                        <div className="w-full h-full rounded-[2rem] bg-slate-100 flex items-center justify-center text-premium-blue font-bold text-5xl uppercase shadow-inner">
+                                        <div className="w-full h-full rounded-[2rem] bg-slate-50 flex items-center justify-center text-indigo-600 font-bold text-5xl uppercase shadow-inner">
                                             {candidate?.name?.charAt(0) || 'C'}
                                         </div>
                                     )}
@@ -201,7 +299,11 @@ export default function CandidateProfile() {
                                         style={{ display: 'none' }}
                                         onChange={handleFileChange}
                                     />
+<<<<<<< Updated upstream
                                     <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer backdrop-blur-md rounded-[2rem]">
+=======
+                                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer">
+>>>>>>> Stashed changes
                                         <div className="flex flex-col items-center gap-2">
                                             <Camera className="text-white w-8 h-8" />
                                             <span className="text-[10px] font-bold uppercase text-white tracking-widest">Update Photo</span>
@@ -209,12 +311,12 @@ export default function CandidateProfile() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="mb-4">
-                                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-xl mb-6 border border-white/20">
+                            <div className="mb-4 text-white">
+                                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-xl mb-6 border border-white/20 text-white">
                                     <ShieldCheck size={14} className="text-emerald-400" />
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">Verified Professional</span>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Verified Professional</span>
                                 </div>
-                                <h1 className="text-5xl lg:text-7xl font-black text-white tracking-tight leading-none mb-6">
+                                <h1 className="text-5xl lg:text-7xl font-black tracking-tight leading-none mb-6">
                                     {candidate?.name || 'Your Profile'}<span className="text-emerald-400">.</span>
                                 </h1>
                                 <div className="flex items-center gap-6 text-white/80 font-bold text-sm">
@@ -257,8 +359,8 @@ export default function CandidateProfile() {
                 {/* Left Side: Stats & Info */}
                 <div className="lg:col-span-8 space-y-10">
                     <div className="bg-white p-10 lg:p-12 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden">
-                        <h3 className="text-xl font-bold text-deep-navy tracking-tight mb-8 flex items-center gap-4">
-                            <div className="bg-icon-bg p-3 rounded-xl text-premium-blue">
+                        <h3 className="text-xl font-bold text-slate-900 tracking-tight mb-8 flex items-center gap-4">
+                            <div className="bg-slate-100 p-3 rounded-xl text-indigo-600">
                                 <User size={20} />
                             </div>
                             Personal Overview
@@ -271,9 +373,9 @@ export default function CandidateProfile() {
                                 { label: 'Contact Number', value: profileData?.phone || 'Not provided', icon: Phone },
                                 { label: 'Professional Tier', value: 'Technical Leader', icon: ShieldCheck }
                             ].map((info, idx) => (
-                                <div key={idx} className="group relative">
-                                    <div className="absolute -left-6 top-0 bottom-0 w-1 bg-slate-100 group-hover:bg-indigo-600 transition-colors"></div>
-                                    <p className="text-[11px] font-black text-slate-300 uppercase tracking-[0.2em] mb-3 flex items-center gap-3">
+                                <div key={idx} className="group relative text-slate-800">
+                                    <div className="absolute -left-6 top-0 bottom-0 w-1 bg-slate-100 group-hover:bg-indigo-600 transition-colors text-indigo-600"></div>
+                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-3">
                                         <info.icon size={14} className="text-indigo-600" />
                                         {info.label}
                                     </p>
@@ -287,7 +389,7 @@ export default function CandidateProfile() {
                             ].map((info, idx) => (
                                 <div key={idx} className="group relative">
                                     <div className="absolute -left-6 top-0 bottom-0 w-1 bg-slate-100 group-hover:bg-indigo-600 transition-colors"></div>
-                                    <p className="text-[11px] font-black text-slate-300 uppercase tracking-[0.2em] mb-3 flex items-center gap-3">
+                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-3">
                                         <info.icon size={14} className="text-indigo-600" />
                                         {info.label}
                                     </p>
@@ -312,7 +414,7 @@ export default function CandidateProfile() {
                             Professional Assets
                         </h3>
 
-                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center group cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all">
+                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center group cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
                             <div className="bg-white w-20 h-20 rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6 group-hover:rotate-6 transition-transform">
                                 <CloudUpload size={32} className="text-indigo-600" />
                             </div>
@@ -327,16 +429,17 @@ export default function CandidateProfile() {
                 <div className="lg:col-span-4 space-y-10">
 
 
-                    <div className="bg-premium-blue p-8 rounded-[1.5rem] text-white shadow-lg shadow-blue-200">
+                    <div className="bg-indigo-600 p-8 rounded-[1.5rem] text-white shadow-lg shadow-indigo-200">
                         <div className="bg-white/20 w-12 h-12 rounded-xl flex items-center justify-center mb-6 border border-white/20">
                             <AlertCircle size={24} className="text-white" />
                         </div>
                         <h4 className="text-lg font-bold tracking-tight mb-3 leading-tight">Complete your profile</h4>
                         <p className="text-white/90 text-sm font-medium mb-6 leading-relaxed">Profiles with 100% completion are 4x more likely to be noticed.</p>
-                        <button className="w-full bg-white text-premium-blue py-3.5 rounded-[1rem] font-bold text-[10px] uppercase tracking-widest shadow-lg hover:bg-slate-50 transition-all">Finish Now</button>
+                        <button className="w-full bg-white text-indigo-600 py-3.5 rounded-[1rem] font-bold text-[10px] uppercase tracking-widest shadow-lg hover:bg-slate-50 transition-all">Finish Now</button>
                     </div>
                 </div>
             </div>
+<<<<<<< Updated upstream
 
             {/* Image Crop Modal */}
             {showCropModal && selectedImageForCrop && (
@@ -346,6 +449,47 @@ export default function CandidateProfile() {
                     onCropComplete={handleCropComplete}
                 />
             )}
+=======
+            {/* Image Cropper Modal */}
+            <Modal
+                title="Adjust Profile Photo"
+                open={showCropper}
+                onOk={handleCropSave}
+                onCancel={() => setShowCropper(false)}
+                okText="Apply Crop"
+                width={600}
+                centered
+                styles={{ body: { padding: 0 } }}
+                className="luxury-modal"
+            >
+                <div className="relative h-[400px] w-full bg-slate-900 overflow-hidden">
+                    <Cropper
+                        image={imageToCrop}
+                        crop={crop}
+                        zoom={zoom}
+                        aspect={1}
+                        onCropChange={setCrop}
+                        onCropComplete={onCropComplete}
+                        onZoomChange={setZoom}
+                        cropShape="round"
+                        showGrid={false}
+                    />
+                </div>
+                <div className="p-6 bg-white">
+                    <div className="flex items-center gap-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Zoom</span>
+                        <Slider
+                            min={1}
+                            max={3}
+                            step={0.1}
+                            value={zoom}
+                            onChange={(value) => setZoom(value)}
+                            className="flex-1"
+                        />
+                    </div>
+                </div>
+            </Modal>
+>>>>>>> Stashed changes
         </div>
     );
 }

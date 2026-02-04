@@ -50,19 +50,12 @@ export default function CandidateTimeline() {
             const statusRes = await api.get(`/hr/candidate/${id}/status`);
             setTimeline(statusRes.data || {});
 
-
-            // Get timeline
-            const tRes = await api.get(`/hr/candidate-status/${id}/timeline`);
-            setTimeline(tRes.data || []);
-
-
             // Fetch interview if exists (optional)
             try {
-                const iRes = await api.get(`/interviews/${id}`);
+                const iRes = await api.get(`/hrms/interviews/${id}`);
                 if (iRes.data) {
                     setInterview(iRes.data);
                 }
-
             } catch (iErr) {
                 setInterview(null);
             }
