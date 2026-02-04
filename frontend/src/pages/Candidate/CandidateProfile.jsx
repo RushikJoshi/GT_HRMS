@@ -7,7 +7,6 @@ import {
     Edit3, CheckCircle2, CloudUpload, ShieldCheck,
     Calendar, Shield, AlertCircle, Camera, X
 } from 'lucide-react';
-import { API_ROOT } from '../../utils/api';
 import Cropper from 'react-easy-crop';
 import { Modal, Slider } from 'antd';
 
@@ -41,7 +40,6 @@ export default function CandidateProfile() {
             setLoading(false);
         }
     }, []);
-
 
     useEffect(() => {
         fetchProfile();
@@ -91,17 +89,16 @@ export default function CandidateProfile() {
         setProfileImageUrl(profileData?.profileImageUrl || candidate?.profileImageUrl || '');
         setProfileImage(null);
     };
+
     const handleFieldChange = (e) => {
         const { name, value } = e.target;
         setEditFields((prev) => ({ ...prev, [name]: value }));
     };
 
-
     const handleSaveEdit = async () => {
         try {
-            let finalImageUrl = profileData?.profileImageUrl || ''; // Use the existing server path by default
+            let finalImageUrl = profileData?.profileImageUrl || '';
 
-            // If a new image is selected, upload it first
             if (profileImage) {
                 const formData = new FormData();
                 formData.append('profileImage', profileImage);
@@ -113,7 +110,6 @@ export default function CandidateProfile() {
                 }
             }
 
-            // Update profile info
             await api.put('/candidate/profile', {
                 name: editFields.name,
                 email: editFields.email,
@@ -122,7 +118,6 @@ export default function CandidateProfile() {
                 profileImageUrl: finalImageUrl
             });
 
-            // Cleanup
             if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
                 URL.revokeObjectURL(profileImageUrl);
             }
@@ -130,13 +125,12 @@ export default function CandidateProfile() {
             setEditMode(false);
             setProfileImage(null);
             await fetchProfile();
-            await refreshCandidate(); // Refresh the global candidate state
+            await refreshCandidate();
         } catch (err) {
             console.error("Save error:", err);
             alert('Failed to update profile.');
         }
     };
-
 
     const handleCameraClick = () => {
         if (fileInputRef.current) {
@@ -147,197 +141,14 @@ export default function CandidateProfile() {
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            // Show preview for cropping
-            const reader = new FileReader();
-            reader.onload = () => {
-                setSelectedImageForCrop(reader.result);
-                setShowCropModal(true);
-            };
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
             const reader = new FileReader();
             reader.addEventListener('load', () => {
                 setImageToCrop(reader.result);
                 setShowCropper(true);
             });
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
             reader.readAsDataURL(file);
         }
-        // Reset file input
         e.target.value = '';
-    };
-
-    const handleCropComplete = async (croppedImageBlob) => {
-        setShowCropModal(false);
-
-        if (!croppedImageBlob) return;
-
-        try {
-            // Show preview immediately
-            const previewUrl = URL.createObjectURL(croppedImageBlob);
-            setProfileImageUrl(previewUrl);
-
-            // Upload to server
-            const formData = new FormData();
-            formData.append('profileImage', croppedImageBlob, 'profile.jpg');
-            const uploadRes = await api.post('/candidate/profile/upload-photo', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            const uploadedImageUrl = uploadRes.data?.url || previewUrl;
-
-            // Update profile with new image
-            await api.put('/candidate/profile', {
-                name: candidate?.name,
-                email: candidate?.email,
-                phone: profileData?.phone,
-                professionalTier: profileData?.professionalTier || 'Technical Leader',
-                profileImageUrl: uploadedImageUrl
-            });
-
-            setProfileImageUrl(uploadedImageUrl);
-            await fetchProfile();
-            await refreshCandidate();
-        } catch (err) {
-            console.error('Failed to upload profile picture:', err);
-            alert('Failed to upload profile picture. Please try again.');
-        }
-    };
-
-    const handleCloseCropModal = () => {
-        setShowCropModal(false);
-        setSelectedImageForCrop(null);
-    };
-
-    const onCropComplete = (croppedArea, croppedAreaPixels) => {
-        setCroppedAreaPixels(croppedAreaPixels);
-    };
-
-    const createImage = (url) =>
-        new Promise((resolve, reject) => {
-            const image = new Image();
-            image.addEventListener('load', () => resolve(image));
-            image.addEventListener('error', (error) => reject(error));
-            image.setAttribute('crossOrigin', 'anonymous');
-            image.src = url;
-        });
-
-    const getCroppedImg = async (imageSrc, pixelCrop) => {
-        const image = await createImage(imageSrc);
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        canvas.width = pixelCrop.width;
-        canvas.height = pixelCrop.height;
-
-        ctx.drawImage(
-            image,
-            pixelCrop.x,
-            pixelCrop.y,
-            pixelCrop.width,
-            pixelCrop.height,
-            0,
-            0,
-            pixelCrop.width,
-            pixelCrop.height
-        );
-
-        return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/jpeg', 0.95);
-        });
-    };
-
-    const handleCropSave = async () => {
-        try {
-            const croppedImageBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
-            const file = new File([croppedImageBlob], 'profile.jpg', { type: 'image/jpeg' });
-
-            setProfileImage(file);
-            setProfileImageUrl(URL.createObjectURL(croppedImageBlob));
-            setEditMode(true);
-            setShowCropper(false);
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
-    const getFullImageUrl = (path) => {
-        if (!path) return '';
-        if (path.startsWith('blob:') || path.startsWith('http')) return path;
-        return `${API_ROOT}${path}`;
-    };
-
-    const onCropComplete = (croppedArea, croppedAreaPixels) => {
-        setCroppedAreaPixels(croppedAreaPixels);
-    };
-
-    const createImage = (url) =>
-        new Promise((resolve, reject) => {
-            const image = new Image();
-            image.addEventListener('load', () => resolve(image));
-            image.addEventListener('error', (error) => reject(error));
-            image.setAttribute('crossOrigin', 'anonymous');
-            image.src = url;
-        });
-
-    const getCroppedImg = async (imageSrc, pixelCrop) => {
-        const image = await createImage(imageSrc);
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        canvas.width = pixelCrop.width;
-        canvas.height = pixelCrop.height;
-
-        ctx.drawImage(
-            image,
-            pixelCrop.x,
-            pixelCrop.y,
-            pixelCrop.width,
-            pixelCrop.height,
-            0,
-            0,
-            pixelCrop.width,
-            pixelCrop.height
-        );
-
-        return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/jpeg', 0.95);
-        });
-    };
-
-    const handleCropSave = async () => {
-        try {
-            const croppedImageBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
-            const file = new File([croppedImageBlob], 'profile.jpg', { type: 'image/jpeg' });
-
-            setProfileImage(file);
-            setProfileImageUrl(URL.createObjectURL(croppedImageBlob));
-            setEditMode(true);
-            setShowCropper(false);
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
-    const getFullImageUrl = (path) => {
-        if (!path) return '';
-        if (path.startsWith('blob:') || path.startsWith('http')) return path;
-        return `${API_ROOT}${path}`;
     };
 
     const onCropComplete = (croppedArea, croppedAreaPixels) => {
@@ -403,19 +214,7 @@ export default function CandidateProfile() {
     return (
         <div className="space-y-10 animate-in fade-in duration-200 pb-20">
             {/* Luxury Profile Header Banner */}
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
             <div className="relative overflow-hidden bg-premium-gradient rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-200/50">
-=======
-            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-900/10">
->>>>>>> Stashed changes
-=======
-            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-900/10">
->>>>>>> Stashed changes
-=======
-            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-900/10">
->>>>>>> Stashed changes
                 {/* Minimal Background Elements */}
                 <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 rounded-full blur-[80px] -mr-32 -mt-32"></div>
                 <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-blue-400/20 rounded-full blur-[60px] -ml-24 -mb-24"></div>
@@ -439,19 +238,7 @@ export default function CandidateProfile() {
                                         style={{ display: 'none' }}
                                         onChange={handleFileChange}
                                     />
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
                                     <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer backdrop-blur-md rounded-[2rem]">
-=======
-                                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer">
->>>>>>> Stashed changes
-=======
-                                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer">
->>>>>>> Stashed changes
-=======
-                                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer">
->>>>>>> Stashed changes
                                         <div className="flex flex-col items-center gap-2">
                                             <Camera className="text-white w-8 h-8" />
                                             <span className="text-[10px] font-bold uppercase text-white tracking-widest">Update Photo</span>
@@ -575,8 +362,6 @@ export default function CandidateProfile() {
 
                 {/* Right Side: Quick Stats */}
                 <div className="lg:col-span-4 space-y-10">
-
-
                     <div className="bg-indigo-600 p-8 rounded-[1.5rem] text-white shadow-lg shadow-indigo-200">
                         <div className="bg-white/20 w-12 h-12 rounded-xl flex items-center justify-center mb-6 border border-white/20">
                             <AlertCircle size={24} className="text-white" />
@@ -587,23 +372,7 @@ export default function CandidateProfile() {
                     </div>
                 </div>
             </div>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 
-            {/* Image Crop Modal */}
-            {showCropModal && selectedImageForCrop && (
-                <ImageCropModal
-                    image={selectedImageForCrop}
-                    onClose={handleCloseCropModal}
-                    onCropComplete={handleCropComplete}
-                />
-            )}
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
             {/* Image Cropper Modal */}
             <Modal
                 title="Adjust Profile Photo"
@@ -643,13 +412,6 @@ export default function CandidateProfile() {
                     </div>
                 </div>
             </Modal>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
         </div>
     );
 }
