@@ -82,7 +82,7 @@ export default function CandidateDashboard() {
     if (loading) return (
         <div className="h-[60vh] flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
-                <div className="h-12 w-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
                 <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Dashboard...</p>
             </div>
         </div>
@@ -96,7 +96,7 @@ export default function CandidateDashboard() {
                 <p className="text-slate-500 font-medium mb-8 leading-relaxed">{error}</p>
                 <button
                     onClick={fetchData}
-                    className="bg-gradient-to-r from-indigo-600 to-indigo-800 text-white px-10 py-3.5 rounded-full font-bold hover:shadow-lg hover:shadow-indigo-200 transition-all flex items-center gap-2 mx-auto"
+                    className="bg-indigo-600 text-white px-10 py-3.5 rounded-full font-bold hover:bg-indigo-700 transition-all flex items-center gap-2 mx-auto"
                 >
                     Retry Now
                 </button>
@@ -111,36 +111,35 @@ export default function CandidateDashboard() {
             {/* Luxury Header Section */}
             <div className="relative overflow-hidden bg-premium-gradient rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl shadow-blue-200/50">
                 {/* Minimal Background Elements */}
-                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-[80px] -mr-32 -mt-32"></div>
-                <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-mint-aqua/10 rounded-full blur-[60px] -ml-24 -mb-24"></div>
+                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 rounded-full blur-[80px] -mr-32 -mt-32"></div>
+                <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-blue-400/20 rounded-full blur-[60px] -ml-24 -mb-24"></div>
 
                 <div className="relative z-10">
-                    <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md w-fit px-4 py-1.5 rounded-full mb-6 border border-white/20">
-                        <div className="w-1.5 h-1.5 bg-mint-aqua rounded-full"></div>
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/90">Executive Dashboard</span>
+                    <div className="flex items-center gap-3 bg-white/20 backdrop-blur-md w-fit px-4 py-1.5 rounded-full mb-6 border border-white/30">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white">Candidate Dashboard</span>
                     </div>
 
                     <div className="max-w-3xl">
-                        <h1 className="text-5xl lg:text-7xl font-black tracking-tight leading-tight mb-6">
-                            Welcome back, <span className="text-emerald-300">{candidate?.name?.split(' ')[0] || 'Candidate'}</span><span className="text-white">.</span>
+                        <h1 className="text-5xl lg:text-7xl font-black tracking-tight leading-tight mb-6 text-white">
+                            Welcome back, <span className="text-emerald-300">{candidate?.name?.split(' ')[0] || 'Candidate'}</span>.
                         </h1>
-                        <p className="text-white/80 font-medium text-xl leading-relaxed max-w-2xl">
+                        <p className="text-white/90 font-medium text-xl leading-relaxed max-w-2xl">
                             You're doing great. You have <span className="text-white font-bold">{stats.total}</span> active applications
                             at <span className="text-white font-bold">{companyName || 'our firm'}</span>.
-                            Let's find your next big opportunity today.
                         </p>
                     </div>
 
                     <div className="flex flex-wrap gap-4 mt-12">
                         <button
                             onClick={() => navigate('/candidate/open-positions')}
-                            className="px-8 py-4 bg-white hover:bg-slate-50 text-premium-blue rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-900/5 flex items-center gap-3 active:scale-95 border border-transparent"
+                            className="px-8 py-4 bg-white hover:bg-slate-100 text-indigo-600 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg flex items-center gap-3 active:scale-95"
                         >
                             View Openings <ArrowRight size={16} />
                         </button>
                         <button
                             onClick={() => navigate('/candidate/profile')}
-                            className="px-8 py-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-2xl font-black text-xs uppercase tracking-widest transition-all backdrop-blur-md active:scale-95"
+                            className="px-8 py-4 bg-white/10 hover:bg-white/20 text-white border border-white/30 rounded-2xl font-black text-xs uppercase tracking-widest transition-all backdrop-blur-md active:scale-95"
                         >
                             Update Profile
                         </button>
@@ -166,10 +165,10 @@ export default function CandidateDashboard() {
                         <div className="flex items-start justify-between">
                             <div className="relative z-10">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">{stat.label}</p>
-                                <h3 className="text-4xl font-extrabold text-deep-navy tracking-tight">{stat.value}</h3>
+                                <h3 className="text-4xl font-extrabold text-slate-800 tracking-tight">{stat.value}</h3>
                             </div>
 
-                            <div className="w-14 h-14 bg-icon-bg/50 group-hover:bg-premium-blue group-hover:text-white text-premium-blue rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 ease-out">
+                            <div className="w-14 h-14 bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white text-indigo-600 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 ease-out">
                                 <stat.icon className="w-6 h-6" />
                             </div>
                         </div>

@@ -60,8 +60,8 @@ export default function Header() {
                             className={({ isActive }) => `
                                 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2.5 border border-transparent
                                 ${isActive
-                                    ? 'bg-slate-50 text-slate-900 border-slate-100'
-                                    : 'text-slate-400 hover:text-indigo-600 hover:bg-white'}
+                                    ? 'bg-indigo-50 text-indigo-600 border-indigo-100 shadow-sm'
+                                    : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}
                             `}
                         >
                             <item.icon className="w-4 h-4" />

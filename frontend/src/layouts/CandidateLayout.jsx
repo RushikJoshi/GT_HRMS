@@ -17,7 +17,7 @@ export default function CandidateLayout() {
     }, [candidate]);
 
     return (
-        <div className="bg-[#F8FAFC] min-h-screen">
+        <div className="bg-slate-50 min-h-screen">
             <div className="flex flex-col min-h-screen">
                 <Header />
 

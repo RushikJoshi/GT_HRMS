@@ -460,7 +460,7 @@ export default function JobApplication() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 selection:bg-indigo-100 selection:text-indigo-600 font-sans">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100 h-20">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-full flex items-center justify-between">
+        <div className="px-6 lg:px-10 h-full flex items-center">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
@@ -474,7 +474,7 @@ export default function JobApplication() {
         </div>
       </nav>
 
-      <div className="pt-28 pb-20 max-w-[1600px] mx-auto px-4 lg:px-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+      <div className="pt-28 pb-20 max-w-[1500px] mx-auto px-4 lg:px-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
         {/* Unified Card Container */}
         <div className="bg-white rounded-[3.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.08)] overflow-hidden border border-white/50">
 

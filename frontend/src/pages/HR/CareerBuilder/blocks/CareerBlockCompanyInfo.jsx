@@ -1,4 +1,4 @@
-import React from 'react';
+import { API_ROOT } from '../../../../utils/api';
 
 export default function CareerBlockCompanyInfo({ content }) {
     const {
@@ -13,13 +13,20 @@ export default function CareerBlockCompanyInfo({ content }) {
         bgColor = "bg-gray-50"
     } = content || {};
 
+    const getImageUrl = (url) => {
+        if (!url) return '';
+        if (url.startsWith('http')) return url;
+        if (url.startsWith('/')) return `${API_ROOT}${url}`;
+        return url;
+    };
+
     return (
         <section className={`py-24 ${bgColor}`}>
             <div className="max-w-[90rem] mx-auto px-8 sm:px-12 lg:px-16">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                     <div>
                         <h2 className="text-4xl font-black text-gray-900 mb-6 tracking-tight">{title}</h2>
-                        <p className="text-lg text-gray-600 mb-10 leading-relaxed">
+                        <p className="text-lg text-gray-600 mb-10 leading-relaxed whitespace-pre-line">
                             {description}
                         </p>
                         <div className="grid grid-cols-3 gap-8">
@@ -33,9 +40,9 @@ export default function CareerBlockCompanyInfo({ content }) {
                     </div>
                     <div className="relative">
                         <div className="aspect-video rounded-[2rem] overflow-hidden shadow-2xl">
-                            <img src={imageUrl} alt="Company Culture" className="w-full h-full object-cover" />
+                            <img src={getImageUrl(imageUrl)} alt="Company Culture" className="w-full h-full object-cover" />
                         </div>
-                        <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-blue-600 rounded-3xl -z-10"></div>
+                        <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-blue-600 rounded-3xl -z-10 opacity-10"></div>
                     </div>
                 </div>
             </div>
