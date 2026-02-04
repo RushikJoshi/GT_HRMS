@@ -368,12 +368,14 @@ export default function HRDashboard() {
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Duration</span>
                       <div className="flex items-center gap-2 font-bold text-slate-700 text-sm">
                         <Calendar size={16} className="text-indigo-400" />
-                        {l.from ? (
+                        {l.startDate && l.endDate ? (
                           <span>
-                            {new Date(l.from).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            {new Date(l.startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                             <span className="mx-2 text-slate-300">➜</span>
-                            {new Date(l.to).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            {new Date(l.endDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                           </span>
+                        ) : l.startDate ? (
+                          <span>{new Date(l.startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                         ) : <span className="italic text-slate-400">Date info missing</span>}
                       </div>
                     </div>

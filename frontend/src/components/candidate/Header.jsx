@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
 import { getCompany } from '../../utils/auth';
+import { API_ROOT } from '../../utils/api';
 import { ArrowLeft, LogOut, User as UserIcon, Bell, LayoutDashboard, Briefcase, FileText, User } from 'lucide-react';
 
 export default function Header() {
@@ -89,7 +90,7 @@ export default function Header() {
                     >
                         {candidate?.profilePic ? (
                             <img
-                                src={candidate.profilePic}
+                                src={candidate.profilePic.startsWith('http') || candidate.profilePic.startsWith('blob:') ? candidate.profilePic : `${API_ROOT}${candidate.profilePic}`}
                                 alt="Profile"
                                 className="w-full h-full object-cover rounded-lg"
                                 onError={(e) => {
