@@ -149,6 +149,7 @@ export default function CandidateProfile() {
         if (file) {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             // Show preview for cropping
             const reader = new FileReader();
             reader.onload = () => {
@@ -158,12 +159,17 @@ export default function CandidateProfile() {
 =======
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
             const reader = new FileReader();
             reader.addEventListener('load', () => {
                 setImageToCrop(reader.result);
                 setShowCropper(true);
             });
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -334,12 +340,76 @@ export default function CandidateProfile() {
         return `${API_ROOT}${path}`;
     };
 
+    const onCropComplete = (croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    };
+
+    const createImage = (url) =>
+        new Promise((resolve, reject) => {
+            const image = new Image();
+            image.addEventListener('load', () => resolve(image));
+            image.addEventListener('error', (error) => reject(error));
+            image.setAttribute('crossOrigin', 'anonymous');
+            image.src = url;
+        });
+
+    const getCroppedImg = async (imageSrc, pixelCrop) => {
+        const image = await createImage(imageSrc);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = pixelCrop.width;
+        canvas.height = pixelCrop.height;
+
+        ctx.drawImage(
+            image,
+            pixelCrop.x,
+            pixelCrop.y,
+            pixelCrop.width,
+            pixelCrop.height,
+            0,
+            0,
+            pixelCrop.width,
+            pixelCrop.height
+        );
+
+        return new Promise((resolve) => {
+            canvas.toBlob((blob) => {
+                resolve(blob);
+            }, 'image/jpeg', 0.95);
+        });
+    };
+
+    const handleCropSave = async () => {
+        try {
+            const croppedImageBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
+            const file = new File([croppedImageBlob], 'profile.jpg', { type: 'image/jpeg' });
+
+            setProfileImage(file);
+            setProfileImageUrl(URL.createObjectURL(croppedImageBlob));
+            setEditMode(true);
+            setShowCropper(false);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const getFullImageUrl = (path) => {
+        if (!path) return '';
+        if (path.startsWith('blob:') || path.startsWith('http')) return path;
+        return `${API_ROOT}${path}`;
+    };
+
     return (
         <div className="space-y-10 animate-in fade-in duration-200 pb-20">
             {/* Luxury Profile Header Banner */}
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             <div className="relative overflow-hidden bg-premium-gradient rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-200/50">
+=======
+            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-900/10">
+>>>>>>> Stashed changes
 =======
             <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-900/10">
 >>>>>>> Stashed changes
@@ -371,7 +441,11 @@ export default function CandidateProfile() {
                                     />
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                                     <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer backdrop-blur-md rounded-[2rem]">
+=======
+                                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer">
+>>>>>>> Stashed changes
 =======
                                     <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer">
 >>>>>>> Stashed changes
@@ -515,6 +589,7 @@ export default function CandidateProfile() {
             </div>
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
             {/* Image Crop Modal */}
             {showCropModal && selectedImageForCrop && (
@@ -525,6 +600,8 @@ export default function CandidateProfile() {
                 />
             )}
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
             {/* Image Cropper Modal */}
@@ -567,6 +644,9 @@ export default function CandidateProfile() {
                 </div>
             </Modal>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
