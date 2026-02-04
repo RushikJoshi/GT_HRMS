@@ -109,19 +109,7 @@ export default function CandidateDashboard() {
             {/* Luxury Header Section */}
             {/* Luxury Header Section */}
             {/* Luxury Header Section */}
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
             <div className="relative overflow-hidden bg-premium-gradient rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl shadow-blue-200/50">
-=======
-            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl">
->>>>>>> Stashed changes
-=======
-            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl">
->>>>>>> Stashed changes
-=======
-            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl">
->>>>>>> Stashed changes
                 {/* Minimal Background Elements */}
                 <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 rounded-full blur-[80px] -mr-32 -mt-32"></div>
                 <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-blue-400/20 rounded-full blur-[60px] -ml-24 -mb-24"></div>

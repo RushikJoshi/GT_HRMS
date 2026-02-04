@@ -81,9 +81,6 @@ export default function Header() {
 
                 <div className="flex items-center gap-4">
                     <div className="text-right hidden md:block">
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
                         <p className="text-[13px] font-black text-slate-800 leading-none mb-1">{candidate?.name || 'Candidate'}</p>
                         <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Global Account</p>
                     </div>
@@ -105,31 +102,6 @@ export default function Header() {
                         <div className={`h-full w-full bg-slate-50 rounded-lg flex items-center justify-center group-hover:bg-blue-50 transition-colors ${candidate?.profilePic ? 'hidden' : 'flex'}`}>
                             {candidate?.name ? (
                                 <span className="text-slate-600 font-black text-sm group-hover:text-premium-blue">{candidate.name.charAt(0)}</span>
-=======
-                        <p className="text-[13px] font-black text-slate-900 leading-none mb-1">{user?.name || 'Candidate'}</p>
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Global Account</p>
-                    </div>
-=======
-                        <p className="text-[13px] font-black text-slate-900 leading-none mb-1">{user?.name || 'Candidate'}</p>
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Global Account</p>
-                    </div>
->>>>>>> Stashed changes
-=======
-                        <p className="text-[13px] font-black text-slate-900 leading-none mb-1">{user?.name || 'Candidate'}</p>
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Global Account</p>
-                    </div>
->>>>>>> Stashed changes
-                    <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 p-1 shadow-sm group cursor-pointer hover:border-indigo-200 transition-colors">
-                        <div className="h-full w-full bg-slate-50 rounded-lg flex items-center justify-center overflow-hidden group-hover:bg-indigo-50 transition-colors">
-                            {user?.name ? (
-                                <span className="text-slate-900 font-black text-sm group-hover:text-indigo-600">{user.name.charAt(0)}</span>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                             ) : (
                                 <UserIcon className="w-4 h-4 text-slate-400" />
                             )}
