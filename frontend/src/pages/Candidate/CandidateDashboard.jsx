@@ -110,7 +110,11 @@ export default function CandidateDashboard() {
             {/* Luxury Header Section */}
             {/* Luxury Header Section */}
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             <div className="relative overflow-hidden bg-premium-gradient rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl shadow-blue-200/50">
+=======
+            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl">
+>>>>>>> Stashed changes
 =======
             <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-700 rounded-[1.5rem] p-10 lg:p-14 text-white shadow-xl">
 >>>>>>> Stashed changes
