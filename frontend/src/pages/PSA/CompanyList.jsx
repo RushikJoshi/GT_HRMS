@@ -101,9 +101,9 @@ export default function CompanyList() {
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {[
-                        { label: 'Total Organizations', value: stats.total, icon: Users, color: 'bg-indigo-600', bg: 'bg-indigo-50', text: 'text-indigo-600' },
-                        { label: 'Active Tenants', value: stats.active, icon: Activity, color: 'bg-emerald-600', bg: 'bg-emerald-50', text: 'text-emerald-600' },
-                        { label: 'Pending/Inactive', value: stats.inactive, icon: Power, color: 'bg-slate-400', bg: 'bg-slate-50', text: 'text-slate-500' }
+                        { label: 'Total Companies', value: stats.total, icon: Users, color: 'bg-indigo-600', bg: 'bg-indigo-50', text: 'text-indigo-600' },
+                        { label: 'Active Companies', value: stats.active, icon: Activity, color: 'bg-emerald-600', bg: 'bg-emerald-50', text: 'text-emerald-600' },
+                        { label: 'Inactive Companies', value: stats.inactive, icon: Power, color: 'bg-slate-400', bg: 'bg-slate-50', text: 'text-slate-500' }
                     ].map((s, i) => (
                         <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-5 group hover:shadow-md transition-shadow">
                             <div className={`w-14 h-14 ${s.bg} ${s.text} rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110`}>

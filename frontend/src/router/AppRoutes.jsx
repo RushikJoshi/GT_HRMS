@@ -341,6 +341,15 @@ export default function AppRoutes() {
             >
                 <Route index element={<Navigate to="/employee/dashboard" replace />} />
                 <Route path="dashboard" element={<EmployeeDashboard />} />
+                <Route path="leaves" element={<EmployeeDashboard />} />
+                <Route path="attendance" element={<EmployeeDashboard />} />
+                <Route path="regularization" element={<EmployeeDashboard />} />
+                <Route path="profile" element={<EmployeeDashboard />} />
+                <Route path="team-attendance" element={<EmployeeDashboard />} />
+                <Route path="team-leaves" element={<EmployeeDashboard />} />
+                <Route path="team-regularization" element={<EmployeeDashboard />} />
+                <Route path="internal-jobs" element={<EmployeeDashboard />} />
+                <Route path="my-applications" element={<EmployeeDashboard />} />
                 <Route path="payslips" element={<ESSPayslips />} />
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
                 <Route path="my-requests" element={<MyRequests />} />

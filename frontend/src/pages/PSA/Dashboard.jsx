@@ -68,7 +68,7 @@ export default function Dashboard() {
         <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Active Tenants</p>
+              <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Active Companies</p>
               <p className="text-4xl font-bold text-gray-900 mt-3 group-hover:scale-105 transition-transform origin-left">
                 {stats.active ?? 0}
               </p>
@@ -86,7 +86,7 @@ export default function Dashboard() {
         <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Inactive / Suspended</p>
+              <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Inactive Companies</p>
               <p className="text-4xl font-bold text-gray-900 mt-3 group-hover:scale-105 transition-transform origin-left">
                 {stats.inactive ?? 0}
               </p>
