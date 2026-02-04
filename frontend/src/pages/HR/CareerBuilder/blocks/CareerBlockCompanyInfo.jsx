@@ -9,11 +9,12 @@ export default function CareerBlockCompanyInfo({ content }) {
             { label: "Employees", value: "500+" },
             { label: "Offices", value: "10" },
             { label: "Countries", value: "5" }
-        ]
+        ],
+        bgColor = "bg-gray-50"
     } = content || {};
 
     return (
-        <section className="py-24 bg-gray-50">
+        <section className={`py-24 ${bgColor}`}>
             <div className="max-w-[90rem] mx-auto px-8 sm:px-12 lg:px-16">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                     <div>

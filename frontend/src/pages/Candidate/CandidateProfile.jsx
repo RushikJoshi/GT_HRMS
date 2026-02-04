@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
-import api, { API_ROOT } from '../../utils/api';
-import ImageCropModal from '../../components/candidate/ImageCropModal';
+import api from '../../utils/api';
 import {
     User, Mail, Phone, MapPin, FileText,
     Edit3, CheckCircle2, CloudUpload, ShieldCheck,
-    Calendar, Shield, AlertCircle, Camera
+    Calendar, Shield, AlertCircle
 } from 'lucide-react';
 
 export default function CandidateProfile() {
@@ -14,11 +13,6 @@ export default function CandidateProfile() {
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [editFields, setEditFields] = useState({ name: '', email: '', phone: '', professionalTier: '' });
-    const [profileImage, setProfileImage] = useState(null);
-    const [profileImageUrl, setProfileImageUrl] = useState('');
-    const [showCropModal, setShowCropModal] = useState(false);
-    const [selectedImageForCrop, setSelectedImageForCrop] = useState(null);
-    const fileInputRef = useRef(null);
 
     const fetchProfile = useCallback(async () => {
         setLoading(true);
@@ -46,14 +40,6 @@ export default function CandidateProfile() {
                 phone: profileData?.phone || '',
                 professionalTier: profileData?.professionalTier || 'Technical Leader',
             });
-
-            // Get profile picture URL and ensure it's a full URL
-            const picUrl = profileData?.profileImageUrl || candidate?.profileImageUrl || candidate?.profilePic || '';
-            if (picUrl && !picUrl.startsWith('http') && !picUrl.startsWith('blob:')) {
-                setProfileImageUrl(`${API_ROOT}${picUrl}`);
-            } else {
-                setProfileImageUrl(picUrl);
-            }
         }
     }, [candidate, profileData]);
 
@@ -84,26 +70,14 @@ export default function CandidateProfile() {
 
     const handleSaveEdit = async () => {
         try {
-            let uploadedImageUrl = profileImageUrl;
-            // If a new image is selected, upload it first
-            if (profileImage) {
-                const formData = new FormData();
-                formData.append('profileImage', profileImage);
-                const uploadRes = await api.post('/candidate/profile/upload-photo', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                uploadedImageUrl = uploadRes.data?.url || uploadedImageUrl;
-            }
             // Update profile info
             await api.put('/candidate/profile', {
                 name: editFields.name,
                 email: editFields.email,
                 phone: editFields.phone,
-                professionalTier: editFields.professionalTier,
-                profileImageUrl: uploadedImageUrl
+                professionalTier: editFields.professionalTier
             });
             setEditMode(false);
-            setProfileImage(null);
             await fetchProfile();
             await refreshCandidate(); // Refresh the global candidate state
         } catch (err) {
@@ -112,67 +86,7 @@ export default function CandidateProfile() {
     };
 
 
-    const handleCameraClick = () => {
-        if (fileInputRef.current) {
-            fileInputRef.current.click();
-        }
-    };
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            // Show preview for cropping
-            const reader = new FileReader();
-            reader.onload = () => {
-                setSelectedImageForCrop(reader.result);
-                setShowCropModal(true);
-            };
-            reader.readAsDataURL(file);
-        }
-        // Reset file input
-        e.target.value = '';
-    };
-
-    const handleCropComplete = async (croppedImageBlob) => {
-        setShowCropModal(false);
-
-        if (!croppedImageBlob) return;
-
-        try {
-            // Show preview immediately
-            const previewUrl = URL.createObjectURL(croppedImageBlob);
-            setProfileImageUrl(previewUrl);
-
-            // Upload to server
-            const formData = new FormData();
-            formData.append('profileImage', croppedImageBlob, 'profile.jpg');
-            const uploadRes = await api.post('/candidate/profile/upload-photo', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            const uploadedImageUrl = uploadRes.data?.url || previewUrl;
-
-            // Update profile with new image
-            await api.put('/candidate/profile', {
-                name: candidate?.name,
-                email: candidate?.email,
-                phone: profileData?.phone,
-                professionalTier: profileData?.professionalTier || 'Technical Leader',
-                profileImageUrl: uploadedImageUrl
-            });
-
-            setProfileImageUrl(uploadedImageUrl);
-            await fetchProfile();
-            await refreshCandidate();
-        } catch (err) {
-            console.error('Failed to upload profile picture:', err);
-            alert('Failed to upload profile picture. Please try again.');
-        }
-    };
-
-    const handleCloseCropModal = () => {
-        setShowCropModal(false);
-        setSelectedImageForCrop(null);
-    };
 
     return (
         <div className="space-y-10 animate-in fade-in duration-200 pb-20">
@@ -185,27 +99,10 @@ export default function CandidateProfile() {
                 <div className="absolute inset-0 p-12 lg:p-20 flex items-end">
                     <div className="relative z-10 w-full flex flex-col md:flex-row md:items-end justify-between gap-10">
                         <div className="flex items-end gap-10">
-                            <div className="relative group">
-                                <div className="h-32 w-32 lg:h-40 lg:w-40 rounded-[2.5rem] bg-white p-1 shadow-xl relative z-10 overflow-hidden cursor-pointer" onClick={handleCameraClick}>
-                                    {profileImageUrl ? (
-                                        <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover rounded-[2rem]" />
-                                    ) : (
-                                        <div className="w-full h-full rounded-[2rem] bg-slate-100 flex items-center justify-center text-premium-blue font-bold text-5xl uppercase shadow-inner">
-                                            {candidate?.name?.charAt(0) || 'C'}
-                                        </div>
-                                    )}
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        ref={fileInputRef}
-                                        style={{ display: 'none' }}
-                                        onChange={handleFileChange}
-                                    />
-                                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer backdrop-blur-md rounded-[2rem]">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <Camera className="text-white w-8 h-8" />
-                                            <span className="text-[10px] font-bold uppercase text-white tracking-widest">Update Photo</span>
-                                        </div>
+                    <div className="relative group">
+                                <div className="h-32 w-32 lg:h-40 lg:w-40 rounded-[2.5rem] bg-white p-1 shadow-xl relative z-10 overflow-hidden">
+                                    <div className="w-full h-full rounded-[2rem] bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 flex items-center justify-center text-white font-bold text-6xl lg:text-7xl shadow-inner">
+                                        {candidate?.name?.charAt(0)?.toUpperCase() || 'C'}
                                     </div>
                                 </div>
                             </div>
@@ -269,7 +166,7 @@ export default function CandidateProfile() {
                                 { label: 'Full Legal Name', value: candidate?.name, icon: User },
                                 { label: 'Primary Email', value: candidate?.email, icon: Mail },
                                 { label: 'Contact Number', value: profileData?.phone || 'Not provided', icon: Phone },
-                                { label: 'Professional Tier', value: 'Technical Leader', icon: ShieldCheck }
+                                { label: 'Professional Tier', value: editFields.professionalTier || 'Not provided', icon: ShieldCheck }
                             ].map((info, idx) => (
                                 <div key={idx} className="group relative">
                                     <div className="absolute -left-6 top-0 bottom-0 w-1 bg-slate-100 group-hover:bg-indigo-600 transition-colors"></div>
@@ -338,14 +235,6 @@ export default function CandidateProfile() {
                 </div>
             </div>
 
-            {/* Image Crop Modal */}
-            {showCropModal && selectedImageForCrop && (
-                <ImageCropModal
-                    image={selectedImageForCrop}
-                    onClose={handleCloseCropModal}
-                    onCropComplete={handleCropComplete}
-                />
-            )}
         </div>
     );
 }

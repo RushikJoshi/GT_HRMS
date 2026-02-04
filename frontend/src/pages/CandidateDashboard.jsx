@@ -129,8 +129,8 @@ export default function CandidateDashboard() {
                             <div className="h-32 bg-gradient-to-br from-gray-900 via-blue-900 to-indigo-900 animate-gradient-x"></div>
                             <div className="px-8 pb-8 relative">
                                 <div className="absolute -top-12 left-8 p-1 bg-white rounded-3xl shadow-2xl">
-                                    <div className="h-24 w-24 bg-gray-100 rounded-2xl flex items-center justify-center border border-gray-50">
-                                        <User className="w-10 h-10 text-gray-400" />
+                                    <div className="h-24 w-24 bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center border border-gray-50 text-white font-bold text-4xl">
+                                        {candidate?.name?.charAt(0)?.toUpperCase() || 'C'}
                                     </div>
                                 </div>
 
