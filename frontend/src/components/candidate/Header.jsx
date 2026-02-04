@@ -108,6 +108,8 @@ export default function Header() {
                         <p className="text-[13px] font-black text-slate-900 leading-none mb-1">{user?.name || 'Candidate'}</p>
                         <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Global Account</p>
                     </div>
+=======
+                        <p className="text-[13px] font-black text-slate-900 leading-none mb-1">{user?.name || 'Candidate'}</p>
                         <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Global Account</p>
                     </div>
 >>>>>>> Stashed changes
