@@ -4,12 +4,7 @@ import { API_ROOT } from '../../../../utils/api';
 
 export default function CareerBlockTestimonials({ content, previewMode = 'desktop' }) {
     const isMobile = previewMode === 'mobile';
-    const {
-        title = "Voices of Gitakshmi",
-        testimonials = [],
-        bgColor = "#2563EB",
-        textColor = "#ffffff"
-    } = content || {};
+    const { title = "Voices of Gitakshmi", testimonials = [], bgColor = "bg-blue-600" } = content || {};
 
     const defaultTestimonials = [
         { name: "Sarah Johnson", role: "Software Engineer", quote: "The culture here is unmatched. I've grown more in 6 months than I did in 2 years at my previous job.", image: "https://i.pravatar.cc/150?u=sarah" },
@@ -27,7 +22,7 @@ export default function CareerBlockTestimonials({ content, previewMode = 'deskto
     };
 
     return (
-        <section className={`${isMobile ? 'py-12' : 'py-24'}`} style={{ backgroundColor: bgColor }}>
+        <section className={`${isMobile ? 'py-12' : 'py-24'} ${bgColor}`}>
             <div className={`max-w-[90rem] mx-auto ${isMobile ? 'px-6' : 'px-8 sm:px-12 lg:px-16'} text-center`}>
                 <h2 className={`${isMobile ? 'text-2xl mb-12' : 'text-4xl mb-20'} font-black tracking-tight`} style={{ color: textColor }}>{title}</h2>
                 <div className={`grid ${isMobile ? 'grid-cols-1 gap-6' : 'grid-cols-1 md:grid-cols-3 gap-8'}`}>
