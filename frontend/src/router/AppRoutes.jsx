@@ -36,6 +36,7 @@ import HRDashboard from '../pages/HR/HRDashboard';
 import Employees from '../pages/HR/Employees';
 import Departments from '../pages/HR/Departments';
 import LeavePolicies from '../pages/HR/LeavePolicies';
+import Leaves from '../pages/HR/Leaves';
 import LeaveApprovals from '../pages/HR/LeaveApprovals';
 import RegularizationApprovals from '../pages/HR/RegularizationApprovals';
 import OrgStructure from '../pages/HR/OrgStructure';
@@ -205,6 +206,7 @@ export default function AppRoutes() {
                 <Route path="departments" element={<Departments />} />
                 <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
                 <Route path="leave-approvals" element={<LeaveApprovals />} />
+                <Route path="leave-requests" element={<Leaves />} />
                 <Route path="leave-approvals/regularization" element={<RegularizationApprovals category="Leave" />} />
                 <Route path="attendance" element={<AttendanceAdmin />} />
                 <Route path="attendance/correction" element={<RegularizationApprovals category="Attendance" />} />
@@ -271,6 +273,7 @@ export default function AppRoutes() {
                 <Route path="departments" element={<Departments />} />
                 <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
                 <Route path="leave-approvals" element={<LeaveApprovals />} />
+                <Route path="leave-requests" element={<Leaves />} />
                 <Route path="leave-approvals/regularization" element={<RegularizationApprovals category="Leave" />} />
                 <Route path="attendance" element={<AttendanceAdmin />} />
                 <Route path="attendance/correction" element={<RegularizationApprovals category="Attendance" />} />

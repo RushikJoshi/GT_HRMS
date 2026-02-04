@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
-import api from '../../utils/api';
+import api, { API_ROOT } from '../../utils/api';
+import ImageCropModal from '../../components/candidate/ImageCropModal';
 import {
     User, Mail, Phone, MapPin, FileText,
     Edit3, CheckCircle2, CloudUpload, ShieldCheck,
@@ -15,6 +16,8 @@ export default function CandidateProfile() {
     const [editFields, setEditFields] = useState({ name: '', email: '', phone: '', professionalTier: '' });
     const [profileImage, setProfileImage] = useState(null);
     const [profileImageUrl, setProfileImageUrl] = useState('');
+    const [showCropModal, setShowCropModal] = useState(false);
+    const [selectedImageForCrop, setSelectedImageForCrop] = useState(null);
     const fileInputRef = useRef(null);
 
     const fetchProfile = useCallback(async () => {
@@ -43,7 +46,14 @@ export default function CandidateProfile() {
                 phone: profileData?.phone || '',
                 professionalTier: profileData?.professionalTier || 'Technical Leader',
             });
-            setProfileImageUrl(profileData?.profileImageUrl || candidate?.profileImageUrl || candidate?.profilePic || '');
+
+            // Get profile picture URL and ensure it's a full URL
+            const picUrl = profileData?.profileImageUrl || candidate?.profileImageUrl || candidate?.profilePic || '';
+            if (picUrl && !picUrl.startsWith('http') && !picUrl.startsWith('blob:')) {
+                setProfileImageUrl(`${API_ROOT}${picUrl}`);
+            } else {
+                setProfileImageUrl(picUrl);
+            }
         }
     }, [candidate, profileData]);
 
@@ -101,8 +111,9 @@ export default function CandidateProfile() {
         }
     };
 
+
     const handleCameraClick = () => {
-        if (editMode && fileInputRef.current) {
+        if (fileInputRef.current) {
             fileInputRef.current.click();
         }
     };
@@ -110,9 +121,57 @@ export default function CandidateProfile() {
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            setProfileImage(file);
-            setProfileImageUrl(URL.createObjectURL(file));
+            // Show preview for cropping
+            const reader = new FileReader();
+            reader.onload = () => {
+                setSelectedImageForCrop(reader.result);
+                setShowCropModal(true);
+            };
+            reader.readAsDataURL(file);
         }
+        // Reset file input
+        e.target.value = '';
+    };
+
+    const handleCropComplete = async (croppedImageBlob) => {
+        setShowCropModal(false);
+
+        if (!croppedImageBlob) return;
+
+        try {
+            // Show preview immediately
+            const previewUrl = URL.createObjectURL(croppedImageBlob);
+            setProfileImageUrl(previewUrl);
+
+            // Upload to server
+            const formData = new FormData();
+            formData.append('profileImage', croppedImageBlob, 'profile.jpg');
+            const uploadRes = await api.post('/candidate/profile/upload-photo', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            const uploadedImageUrl = uploadRes.data?.url || previewUrl;
+
+            // Update profile with new image
+            await api.put('/candidate/profile', {
+                name: candidate?.name,
+                email: candidate?.email,
+                phone: profileData?.phone,
+                professionalTier: profileData?.professionalTier || 'Technical Leader',
+                profileImageUrl: uploadedImageUrl
+            });
+
+            setProfileImageUrl(uploadedImageUrl);
+            await fetchProfile();
+            await refreshCandidate();
+        } catch (err) {
+            console.error('Failed to upload profile picture:', err);
+            alert('Failed to upload profile picture. Please try again.');
+        }
+    };
+
+    const handleCloseCropModal = () => {
+        setShowCropModal(false);
+        setSelectedImageForCrop(null);
     };
 
     return (
@@ -142,10 +201,10 @@ export default function CandidateProfile() {
                                         style={{ display: 'none' }}
                                         onChange={handleFileChange}
                                     />
-                                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer backdrop-blur-md">
+                                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer backdrop-blur-md rounded-[2rem]">
                                         <div className="flex flex-col items-center gap-2">
                                             <Camera className="text-white w-8 h-8" />
-                                            <span className="text-[10px] font-bold uppercase text-white tracking-widest">Update</span>
+                                            <span className="text-[10px] font-bold uppercase text-white tracking-widest">Update Photo</span>
                                         </div>
                                     </div>
                                 </div>
@@ -278,6 +337,15 @@ export default function CandidateProfile() {
                     </div>
                 </div>
             </div>
+
+            {/* Image Crop Modal */}
+            {showCropModal && selectedImageForCrop && (
+                <ImageCropModal
+                    image={selectedImageForCrop}
+                    onClose={handleCloseCropModal}
+                    onCropComplete={handleCropComplete}
+                />
+            )}
         </div>
     );
 }

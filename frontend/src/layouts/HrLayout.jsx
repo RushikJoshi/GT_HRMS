@@ -41,7 +41,7 @@ export default function HRLayout() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-3 md:p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
+            {/* <button
               onClick={() => navigate(-1)}
               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition flex-shrink-0"
               title="Go Back"
@@ -49,7 +49,7 @@ export default function HRLayout() {
               <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-            </button>
+            </button> */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition flex-shrink-0"
