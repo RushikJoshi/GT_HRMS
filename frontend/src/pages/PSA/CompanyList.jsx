@@ -23,6 +23,8 @@ export default function CompanyList() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [revealPassword, setRevealPassword] = useState({});
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     // Environment helper
     const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
@@ -69,6 +71,17 @@ export default function CompanyList() {
         c.meta?.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Reset to page 1 when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    const totalPages = Math.ceil(filteredCompanies.length / itemsPerPage) || 1;
+    const currentCompanies = filteredCompanies.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
     const stats = {
         total: companies.length,
         active: companies.filter(c => c.status === 'active').length,
@@ -101,9 +114,9 @@ export default function CompanyList() {
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {[
-                        { label: 'Total Organizations', value: stats.total, icon: Users, color: 'bg-indigo-600', bg: 'bg-indigo-50', text: 'text-indigo-600' },
-                        { label: 'Active Tenants', value: stats.active, icon: Activity, color: 'bg-emerald-600', bg: 'bg-emerald-50', text: 'text-emerald-600' },
-                        { label: 'Pending/Inactive', value: stats.inactive, icon: Power, color: 'bg-slate-400', bg: 'bg-slate-50', text: 'text-slate-500' }
+                        { label: 'Total Companies', value: stats.total, icon: Users, color: 'bg-indigo-600', bg: 'bg-indigo-50', text: 'text-indigo-600' },
+                        { label: 'Active Companies', value: stats.active, icon: Activity, color: 'bg-emerald-600', bg: 'bg-emerald-50', text: 'text-emerald-600' },
+                        { label: 'Inactive Companies', value: stats.inactive, icon: Power, color: 'bg-slate-400', bg: 'bg-slate-50', text: 'text-slate-500' }
                     ].map((s, i) => (
                         <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-5 group hover:shadow-md transition-shadow">
                             <div className={`w-14 h-14 ${s.bg} ${s.text} rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110`}>
@@ -154,10 +167,10 @@ export default function CompanyList() {
                             <tbody className="divide-y divide-slate-50">
                                 {loading ? (
                                     <tr><td colSpan="5" className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse">Synchronizing Data...</td></tr>
-                                ) : filteredCompanies.length === 0 ? (
+                                ) : currentCompanies.length === 0 ? (
                                     <tr><td colSpan="5" className="p-12 text-center text-slate-400 font-medium">No organizations found in the current landscape.</td></tr>
                                 ) : (
-                                    filteredCompanies.map((company) => (
+                                    currentCompanies.map((company) => (
                                         <tr key={company._id} className="hover:bg-indigo-50/20 transition-all group">
                                             <td className="px-8 py-6 min-w-[280px]">
                                                 <div className="flex items-center gap-4">
@@ -205,8 +218,8 @@ export default function CompanyList() {
                                             </td>
                                             <td className="px-8 py-6">
                                                 <div className={`${company.status === 'active'
-                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                                        : 'bg-rose-50 text-rose-600 border-rose-100'
+                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                    : 'bg-rose-50 text-rose-600 border-rose-100'
                                                     } flex items-center gap-2 w-fit px-3.5 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest whitespace-nowrap`}>
                                                     <div className={`w-1.5 h-1.5 rounded-full ${company.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></div>
                                                     {company.status === 'active' ? 'Operational' : 'Restricted'}
@@ -238,8 +251,8 @@ export default function CompanyList() {
                                                     <button
                                                         onClick={() => handleToggleStatus(company)}
                                                         className={`w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 transition-all shadow-sm shrink-0 ${company.status === 'active'
-                                                                ? 'text-rose-400 hover:bg-rose-600 hover:text-white'
-                                                                : 'text-emerald-400 hover:bg-emerald-600 hover:text-white'
+                                                            ? 'text-rose-400 hover:bg-rose-600 hover:text-white'
+                                                            : 'text-emerald-400 hover:bg-emerald-600 hover:text-white'
                                                             }`}
                                                         title={company.status === 'active' ? 'Kill Process' : 'Resume Process'}
                                                     >
@@ -254,11 +267,43 @@ export default function CompanyList() {
                         </table>
                     </div>
 
-                    <div className="p-6 bg-slate-50/50 border-t border-slate-50 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest decoration-indigo-200 underline-offset-4">
-                            End of organizational landscape • {filteredCompanies.length} entries shown
-                        </p>
+                    {/* Pagination Controls - Always Visible */}
+                    <div className="px-8 py-6 bg-slate-50/30 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Page {currentPage} of {totalPages} • Showing {currentCompanies.length} of {filteredCompanies.length} Organizations
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-900 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-500"
+                            >
+                                Previous
+                            </button>
+                            <div className="flex items-center gap-1.5 mx-2">
+                                {[...Array(totalPages)].map((_, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => setCurrentPage(i + 1)}
+                                        className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === i + 1
+                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 scale-110'
+                                            : 'text-slate-400 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200'
+                                            }`}
+                                    >
+                                        {i + 1}
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-900 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-500"
+                            >
+                                Next
+                            </button>
+                        </div>
                     </div>
+
                 </div>
             </div>
         </div>

@@ -1,21 +1,27 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
 import api from '../../utils/api';
 import {
     User, Mail, Phone, MapPin, FileText,
     Edit3, CheckCircle2, CloudUpload, ShieldCheck,
-    Calendar, Shield, AlertCircle, Camera
+    Calendar, Shield, AlertCircle
 } from 'lucide-react';
+import Cropper from 'react-easy-crop';
+import { Modal, Slider } from 'antd';
 
 export default function CandidateProfile() {
-    const { candidate } = useJobPortalAuth();
+    const { candidate, refreshCandidate } = useJobPortalAuth();
     const [profileData, setProfileData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [editFields, setEditFields] = useState({ name: '', email: '', phone: '', professionalTier: '' });
-    const [profileImage, setProfileImage] = useState(null);
-    const [profileImageUrl, setProfileImageUrl] = useState('');
-    const fileInputRef = useRef(null);
+
+    // Cropper State
+    const [showCropper, setShowCropper] = useState(false);
+    const [imageToCrop, setImageToCrop] = useState(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
     const fetchProfile = useCallback(async () => {
         setLoading(true);
@@ -28,7 +34,6 @@ export default function CandidateProfile() {
             setLoading(false);
         }
     }, []);
-
 
     useEffect(() => {
         fetchProfile();
@@ -43,14 +48,13 @@ export default function CandidateProfile() {
                 phone: profileData?.phone || '',
                 professionalTier: profileData?.professionalTier || 'Technical Leader',
             });
-            setProfileImageUrl(profileData?.profileImageUrl || candidate?.profileImageUrl || '');
         }
     }, [candidate, profileData]);
 
     if (loading) return (
         <div className="h-[60vh] flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
-                <div className="h-12 w-12 border-4 border-premium-blue border-t-transparent rounded-full animate-spin"></div>
+                <div className="h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
                 <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Profile...</p>
             </div>
         </div>
@@ -58,6 +62,9 @@ export default function CandidateProfile() {
 
     const handleEditClick = () => setEditMode(true);
     const handleCancelEdit = () => {
+        if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(profileImageUrl);
+        }
         setEditMode(false);
         setEditFields({
             name: profileData?.name || candidate?.name || '',
@@ -65,96 +72,65 @@ export default function CandidateProfile() {
             phone: profileData?.phone || '',
             professionalTier: profileData?.professionalTier || 'Technical Leader',
         });
+        setProfileImageUrl(profileData?.profileImageUrl || candidate?.profileImageUrl || '');
+        setProfileImage(null);
     };
+
     const handleFieldChange = (e) => {
         const { name, value } = e.target;
         setEditFields((prev) => ({ ...prev, [name]: value }));
     };
 
-
     const handleSaveEdit = async () => {
         try {
-            let uploadedImageUrl = profileImageUrl;
-            // If a new image is selected, upload it first
-            if (profileImage) {
-                const formData = new FormData();
-                formData.append('profileImage', profileImage);
-                const uploadRes = await api.post('/candidate/profile/upload-photo', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                uploadedImageUrl = uploadRes.data?.url || uploadedImageUrl;
-            }
             // Update profile info
             await api.put('/candidate/profile', {
                 name: editFields.name,
                 email: editFields.email,
                 phone: editFields.phone,
-                professionalTier: editFields.professionalTier,
-                profileImageUrl: uploadedImageUrl
+                professionalTier: editFields.professionalTier
             });
+
+            if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(profileImageUrl);
+            }
+
             setEditMode(false);
-            setProfileImage(null);
-            fetchProfile();
+            await fetchProfile();
+            await refreshCandidate();
         } catch (err) {
+            console.error("Save error:", err);
             alert('Failed to update profile.');
         }
     };
 
-    const handleCameraClick = () => {
-        if (editMode && fileInputRef.current) {
-            fileInputRef.current.click();
-        }
-    };
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setProfileImage(file);
-            setProfileImageUrl(URL.createObjectURL(file));
-        }
-    };
+
 
     return (
         <div className="space-y-10 animate-in fade-in duration-200 pb-20">
             {/* Luxury Profile Header Banner */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-premium-blue to-premium-blue-dark rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-200/50">
+            <div className="relative overflow-hidden bg-premium-gradient rounded-[1.5rem] h-72 lg:h-80 shadow-xl shadow-blue-200/50">
                 {/* Minimal Background Elements */}
-                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-[80px] -mr-32 -mt-32"></div>
-                <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-mint-aqua/10 rounded-full blur-[60px] -ml-24 -mb-24"></div>
+                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 rounded-full blur-[80px] -mr-32 -mt-32"></div>
+                <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-blue-400/20 rounded-full blur-[60px] -ml-24 -mb-24"></div>
 
                 <div className="absolute inset-0 p-12 lg:p-20 flex items-end">
                     <div className="relative z-10 w-full flex flex-col md:flex-row md:items-end justify-between gap-10">
                         <div className="flex items-end gap-10">
-                            <div className="relative group">
-                                <div className="h-32 w-32 lg:h-40 lg:w-40 rounded-[2.5rem] bg-white p-1 shadow-xl relative z-10 overflow-hidden cursor-pointer" onClick={handleCameraClick}>
-                                    {profileImageUrl ? (
-                                        <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover rounded-[2rem]" />
-                                    ) : (
-                                        <div className="w-full h-full rounded-[2rem] bg-slate-100 flex items-center justify-center text-premium-blue font-bold text-5xl uppercase shadow-inner">
-                                            {candidate?.name?.charAt(0) || 'C'}
-                                        </div>
-                                    )}
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        ref={fileInputRef}
-                                        style={{ display: 'none' }}
-                                        onChange={handleFileChange}
-                                    />
-                                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer backdrop-blur-md">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <Camera className="text-white w-8 h-8" />
-                                            <span className="text-[10px] font-bold uppercase text-white tracking-widest">Update</span>
-                                        </div>
+                    <div className="relative group">
+                                <div className="h-32 w-32 lg:h-40 lg:w-40 rounded-[2.5rem] bg-white p-1 shadow-xl relative z-10 overflow-hidden">
+                                    <div className="w-full h-full rounded-[2rem] bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 flex items-center justify-center text-white font-bold text-6xl lg:text-7xl shadow-inner">
+                                        {candidate?.name?.charAt(0)?.toUpperCase() || 'C'}
                                     </div>
                                 </div>
                             </div>
-                            <div className="mb-4">
-                                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-xl mb-6 border border-white/20">
+                            <div className="mb-4 text-white">
+                                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-xl mb-6 border border-white/20 text-white">
                                     <ShieldCheck size={14} className="text-emerald-400" />
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">Verified Professional</span>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Verified Professional</span>
                                 </div>
-                                <h1 className="text-5xl lg:text-7xl font-black text-white tracking-tight leading-none mb-6">
+                                <h1 className="text-5xl lg:text-7xl font-black tracking-tight leading-none mb-6">
                                     {candidate?.name || 'Your Profile'}<span className="text-emerald-400">.</span>
                                 </h1>
                                 <div className="flex items-center gap-6 text-white/80 font-bold text-sm">
@@ -197,8 +173,8 @@ export default function CandidateProfile() {
                 {/* Left Side: Stats & Info */}
                 <div className="lg:col-span-8 space-y-10">
                     <div className="bg-white p-10 lg:p-12 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden">
-                        <h3 className="text-xl font-bold text-deep-navy tracking-tight mb-8 flex items-center gap-4">
-                            <div className="bg-icon-bg p-3 rounded-xl text-premium-blue">
+                        <h3 className="text-xl font-bold text-slate-900 tracking-tight mb-8 flex items-center gap-4">
+                            <div className="bg-slate-100 p-3 rounded-xl text-indigo-600">
                                 <User size={20} />
                             </div>
                             Personal Overview
@@ -209,11 +185,11 @@ export default function CandidateProfile() {
                                 { label: 'Full Legal Name', value: candidate?.name, icon: User },
                                 { label: 'Primary Email', value: candidate?.email, icon: Mail },
                                 { label: 'Contact Number', value: profileData?.phone || 'Not provided', icon: Phone },
-                                { label: 'Professional Tier', value: 'Technical Leader', icon: ShieldCheck }
+                                { label: 'Professional Tier', value: editFields.professionalTier || 'Not provided', icon: ShieldCheck }
                             ].map((info, idx) => (
-                                <div key={idx} className="group relative">
-                                    <div className="absolute -left-6 top-0 bottom-0 w-1 bg-slate-100 group-hover:bg-indigo-600 transition-colors"></div>
-                                    <p className="text-[11px] font-black text-slate-300 uppercase tracking-[0.2em] mb-3 flex items-center gap-3">
+                                <div key={idx} className="group relative text-slate-800">
+                                    <div className="absolute -left-6 top-0 bottom-0 w-1 bg-slate-100 group-hover:bg-indigo-600 transition-colors text-indigo-600"></div>
+                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-3">
                                         <info.icon size={14} className="text-indigo-600" />
                                         {info.label}
                                     </p>
@@ -227,7 +203,7 @@ export default function CandidateProfile() {
                             ].map((info, idx) => (
                                 <div key={idx} className="group relative">
                                     <div className="absolute -left-6 top-0 bottom-0 w-1 bg-slate-100 group-hover:bg-indigo-600 transition-colors"></div>
-                                    <p className="text-[11px] font-black text-slate-300 uppercase tracking-[0.2em] mb-3 flex items-center gap-3">
+                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-3">
                                         <info.icon size={14} className="text-indigo-600" />
                                         {info.label}
                                     </p>
@@ -252,7 +228,7 @@ export default function CandidateProfile() {
                             Professional Assets
                         </h3>
 
-                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center group cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all">
+                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center group cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
                             <div className="bg-white w-20 h-20 rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6 group-hover:rotate-6 transition-transform">
                                 <CloudUpload size={32} className="text-indigo-600" />
                             </div>
@@ -265,18 +241,17 @@ export default function CandidateProfile() {
 
                 {/* Right Side: Quick Stats */}
                 <div className="lg:col-span-4 space-y-10">
-
-
-                    <div className="bg-premium-blue p-8 rounded-[1.5rem] text-white shadow-lg shadow-blue-200">
+                    <div className="bg-indigo-600 p-8 rounded-[1.5rem] text-white shadow-lg shadow-indigo-200">
                         <div className="bg-white/20 w-12 h-12 rounded-xl flex items-center justify-center mb-6 border border-white/20">
                             <AlertCircle size={24} className="text-white" />
                         </div>
                         <h4 className="text-lg font-bold tracking-tight mb-3 leading-tight">Complete your profile</h4>
                         <p className="text-white/90 text-sm font-medium mb-6 leading-relaxed">Profiles with 100% completion are 4x more likely to be noticed.</p>
-                        <button className="w-full bg-white text-premium-blue py-3.5 rounded-[1rem] font-bold text-[10px] uppercase tracking-widest shadow-lg hover:bg-slate-50 transition-all">Finish Now</button>
+                        <button className="w-full bg-white text-indigo-600 py-3.5 rounded-[1rem] font-bold text-[10px] uppercase tracking-widest shadow-lg hover:bg-slate-50 transition-all">Finish Now</button>
                     </div>
                 </div>
             </div>
+
         </div>
     );
 }

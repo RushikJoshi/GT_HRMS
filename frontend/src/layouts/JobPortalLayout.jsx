@@ -51,7 +51,7 @@ export default function JobPortalLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-soft-bg font-sans flex flex-col selection:bg-premium-blue/20 selection:text-premium-blue">
+    <div className="min-h-screen bg-slate-50 font-sans flex flex-col selection:bg-indigo-100 selection:text-indigo-600">
       {/* LUXURY TOP HEADER */}
       <header className="h-24 bg-white/80 backdrop-blur-xl border-b border-gray-100 flex items-center justify-between px-10 lg:px-16 sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-12">
@@ -59,9 +59,9 @@ export default function JobPortalLayout() {
           <div className="flex items-center gap-6">
             <button
               onClick={() => navigate(`/jobs/${tenantId}`)}
-              className="group flex items-center gap-4 text-deep-navy/70 hover:text-premium-blue transition-all font-black text-[10px] uppercase tracking-[0.2em]"
+              className="group flex items-center gap-4 text-slate-500 hover:text-indigo-600 transition-all font-black text-[10px] uppercase tracking-[0.2em]"
             >
-              <div className="bg-white p-3 rounded-2xl group-hover:bg-premium-blue group-hover:text-white transition-all transform group-hover:scale-110 shadow-sm border border-gray-100">
+              <div className="bg-white p-3 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-all transform group-hover:scale-110 shadow-sm border border-gray-100">
                 <ArrowLeft size={20} />
               </div>
               <span className="hidden sm:inline">Portal Hub</span>
@@ -79,8 +79,8 @@ export default function JobPortalLayout() {
                 className={({ isActive }) => `
                   flex items-center gap-3 px-7 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all relative overflow-hidden group
                   ${isActive
-                    ? 'text-white bg-premium-blue shadow-lg shadow-blue-200'
-                    : 'text-deep-navy/60 hover:text-premium-blue hover:bg-white'}
+                    ? 'text-white bg-indigo-600 shadow-lg shadow-indigo-100'
+                    : 'text-slate-500 hover:text-indigo-600 hover:bg-white'}
                 `}
               >
                 <item.icon size={16} className="relative z-10" />
@@ -95,9 +95,9 @@ export default function JobPortalLayout() {
         </div>
 
         <div className="flex items-center gap-6">
-          <button className="p-2.5 text-deep-navy/50 hover:text-premium-blue transition-colors relative bg-white rounded-full border border-gray-100">
+          <button className="p-2.5 text-slate-400 hover:text-indigo-600 transition-colors relative bg-white rounded-full border border-gray-100">
             <Bell size={20} />
-            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-soft-yellow rounded-full border-2 border-white"></span>
+            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
           </button>
 
           <div className="h-8 w-px bg-gray-100 hidden sm:block"></div>
@@ -108,17 +108,17 @@ export default function JobPortalLayout() {
               onClick={() => setProfileOpen(!profileOpen)}
               className="flex items-center gap-4 p-1.5 rounded-[1.5rem] bg-white hover:bg-gray-50 border border-gray-100 transition-all active:scale-[0.98] shadow-sm"
             >
-              <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-premium-blue to-premium-blue-dark flex items-center justify-center text-white shadow-lg shadow-blue-100 ring-4 ring-white">
+              <div className="h-11 w-11 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100 ring-4 ring-white">
                 <span className="font-black text-sm uppercase">{(candidate?.name || 'C').charAt(0)}</span>
               </div>
               <div className="text-left hidden sm:block pr-3">
                 <p className="text-xs font-black text-deep-navy leading-none truncate max-w-[130px]">{candidate?.name || 'Candidate'}</p>
                 <div className="flex items-center gap-1.5 mt-1.5">
-                  <div className="w-1.5 h-1.5 bg-mint-aqua rounded-full animate-pulse"></div>
-                  <p className="text-[9px] text-deep-navy/50 font-black uppercase tracking-widest">Global Account</p>
+                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
+                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Global Account</p>
                 </div>
               </div>
-              <ChevronDown className={`w-4 h-4 text-deep-navy/30 transition-transform duration-500 mr-2 ${profileOpen ? 'rotate-180 text-premium-blue' : ''}`} />
+              <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform duration-500 mr-2 ${profileOpen ? 'rotate-180 text-indigo-600' : ''}`} />
             </button>
 
             {/* Dropdown Menu */}
@@ -132,7 +132,7 @@ export default function JobPortalLayout() {
                   </div>
                   <div className="block lg:hidden px-2 mb-2 border-b border-gray-50 pb-2">
                     {menuItems.map((item) => (
-                      <button key={item.path} onClick={() => { navigate(item.path); setProfileOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-deep-navy/70 hover:bg-soft-bg hover:text-premium-blue transition-all text-sm font-bold">
+                      <button key={item.path} onClick={() => { navigate(item.path); setProfileOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-all text-sm font-bold">
                         <item.icon size={18} /> {item.label}
                       </button>
                     ))}

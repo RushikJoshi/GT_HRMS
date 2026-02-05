@@ -106,20 +106,15 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
     };
 
     const handleTabClick = (id) => {
+
+
         // 1. Navigation Logic
-        if (id === 'payslips') {
-            navigate('/employee/payslips');
-        } else {
-            // All other items are tabs within the EmployeeDashboard
-            // If we are not on the dashboard route, navigate back to it
-            if (window.location.pathname !== '/employee/dashboard') {
-                navigate('/employee/dashboard');
-            }
-        }
+        navigate(`/employee/${id}`);
 
         // 2. State & UI Logic
         // Always call setActiveTab to ensure highlighting and tab selection are in sync
         setActiveTab(id);
+
         if (onClose) onClose();
     };
 

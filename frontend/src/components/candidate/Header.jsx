@@ -1,12 +1,12 @@
 import React from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
 import { getCompany } from '../../utils/auth';
 import { ArrowLeft, LogOut, User as UserIcon, Bell, LayoutDashboard, Briefcase, FileText, User } from 'lucide-react';
 
 export default function Header() {
     const navigate = useNavigate();
-    const { user, logout } = useAuth();
+    const { candidate, logoutCandidate } = useJobPortalAuth();
 
     // Get company for back navigation
     const company = getCompany();
@@ -23,7 +23,7 @@ export default function Header() {
 
     const handleLogout = () => {
         const companyInfo = getCompany();
-        logout();
+        logoutCandidate();
         if (companyInfo && (companyInfo.code || companyInfo.tenantId || companyInfo._id)) {
             navigate(`/jobs/${companyInfo.code || companyInfo.tenantId || companyInfo._id}`);
         } else {
@@ -60,8 +60,8 @@ export default function Header() {
                             className={({ isActive }) => `
                                 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2.5 border border-transparent
                                 ${isActive
-                                    ? 'bg-slate-50 text-slate-900 border-slate-100'
-                                    : 'text-slate-400 hover:text-indigo-600 hover:bg-white'}
+                                    ? 'bg-indigo-50 text-indigo-600 border-indigo-100 shadow-sm'
+                                    : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}
                             `}
                         >
                             <item.icon className="w-4 h-4" />
@@ -72,7 +72,7 @@ export default function Header() {
             </div>
 
             <div className="flex items-center gap-6">
-                <button className="relative text-slate-400 hover:text-indigo-600 transition-colors">
+                <button className="relative text-slate-400 hover:text-premium-blue transition-colors">
                     <Bell className="w-5 h-5" />
                 </button>
 
@@ -80,17 +80,16 @@ export default function Header() {
 
                 <div className="flex items-center gap-4">
                     <div className="text-right hidden md:block">
-                        <p className="text-[13px] font-black text-slate-800 leading-none mb-1">{user?.name || 'Candidate'}</p>
+                        <p className="text-[13px] font-black text-slate-800 leading-none mb-1">{candidate?.name || 'Candidate'}</p>
                         <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Global Account</p>
                     </div>
-                    <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 p-1 shadow-sm group cursor-pointer hover:border-indigo-100 transition-colors">
-                        <div className="h-full w-full bg-slate-50 rounded-lg flex items-center justify-center overflow-hidden group-hover:bg-indigo-50 transition-colors">
-                            {user?.name ? (
-                                <span className="text-slate-600 font-black text-sm group-hover:text-indigo-600">{user.name.charAt(0)}</span>
-                            ) : (
-                                <UserIcon className="w-4 h-4 text-slate-400" />
-                            )}
-                        </div>
+                    <div
+                        className="h-10 w-10 rounded-xl bg-gradient-to-br from-green-400 to-green-600 border border-slate-100 p-1 shadow-sm group cursor-pointer hover:border-premium-blue transition-colors flex items-center justify-center overflow-hidden"
+                        onClick={() => navigate('/candidate/profile')}
+                    >
+                        <span className="text-white font-black text-sm group-hover:scale-110 transition-transform">
+                            {candidate?.name ? candidate.name.charAt(0).toUpperCase() : 'C'}
+                        </span>
                     </div>
                 </div>
 

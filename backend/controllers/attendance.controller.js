@@ -905,25 +905,30 @@ exports.getCalendar = async (req, res) => {
             const dateStr = date.toISOString().split('T')[0];
             const dayOfWeek = date.getDay();
             const isWeeklyOff = settings.weeklyOffDays?.includes(dayOfWeek) || false;
+            const isToday = dateStr === new Date().toISOString().split('T')[0];
+            const isPast = dateStr < new Date().toISOString().split('T')[0];
 
-            // Apply priority: 1. Holiday 2. Weekly Off 3. Attendance 4. Not Marked
+            // Apply priority: 1. Holiday 2. Weekly Off 3. Attendance 4. Absent (Past) 5. Not Marked
             let status = 'not_marked';
             let displayLabel = '';
             let holiday = null;
 
             if (holidayMap[dateStr]) {
-                // Priority 1: Holiday
                 status = 'holiday';
                 displayLabel = holidayMap[dateStr].name;
                 holiday = holidayMap[dateStr];
             } else if (isWeeklyOff) {
-                // Priority 2: Weekly Off
                 status = 'weekly_off';
                 displayLabel = 'Weekly Off';
             } else if (attendanceMap[dateStr]) {
-                // Priority 3: Attendance Status
-                status = attendanceMap[dateStr].status;
-                displayLabel = attendanceMap[dateStr].status;
+                status = (attendanceMap[dateStr].status || 'present').toLowerCase();
+                displayLabel = status.charAt(0).toUpperCase() + status.slice(1);
+            } else if (isPast) {
+                status = 'absent';
+                displayLabel = 'Absent';
+            } else {
+                status = 'not_marked';
+                displayLabel = '--';
             }
 
             calendarDays.push({
@@ -937,15 +942,32 @@ exports.getCalendar = async (req, res) => {
                 isHoliday: !!holidayMap[dateStr],
                 holiday: holiday,
                 attendance: attendanceMap[dateStr] || null,
-                isPast: dateStr < new Date().toISOString().split('T')[0],
-                isToday: dateStr === new Date().toISOString().split('T')[0],
-                isFuture: dateStr > new Date().toISOString().split('T')[0]
+                isPast,
+                isToday,
+                isFuture: !isPast && !isToday
             });
         }
 
+        // Calculate monthly summary
+        const summary = {
+            totalPresent: 0,
+            totalAbsent: 0,
+            totalLeave: 0,
+            totalHolidays: holidays.length,
+            totalWeeklyOff: 0
+        };
+
+        calendarDays.forEach(day => {
+            if (day.status === 'present') summary.totalPresent++;
+            else if (day.status === 'absent') summary.totalAbsent++;
+            else if (day.status === 'leave') summary.totalLeave++;
+            else if (day.status === 'weekly_off') summary.totalWeeklyOff++;
+        });
+
         res.json({
             year: targetYear,
-            month: targetMonth + 1, // Return 1-indexed for frontend
+            month: targetMonth + 1,
+            summary,
             settings: {
                 weeklyOffDays: settings.weeklyOffDays || [0],
                 shiftStartTime: settings.shiftStartTime || "09:00",
@@ -1986,90 +2008,174 @@ exports.deleteFace = async (req, res) => {
 // 10. GET ATTENDANCE BY DATE (Admin/HR) - returns list + summary for the date
 exports.getByDate = async (req, res) => {
     try {
-        const { Attendance, LeaveRequest } = getModels(req);
-        const { date } = req.query;
+        const { Attendance, LeaveRequest, Employee, Holiday, AttendanceSettings } = getModels(req);
+        const { date, filterType } = req.query; // filterType: 'total' | 'present' | 'absent' | 'leave'
 
         if (!date) return res.status(400).json({ error: 'date query parameter is required (YYYY-MM-DD)' });
 
-        const d = new Date(date);
-        const start = new Date(d.setHours(0, 0, 0, 0));
-        const end = new Date(d.setHours(23, 59, 59, 999));
+        const targetDate = new Date(date);
+        targetDate.setHours(0, 0, 0, 0);
+        const endOfDate = new Date(targetDate);
+        endOfDate.setHours(23, 59, 59, 999);
 
-        // Fetch attendance records for the date
-        const records = await Attendance.find({
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isFutureDate = targetDate > today;
+
+        // 1. Fetch data
+        const allEmployees = await Employee.find({
             tenant: req.tenantId,
-            date: { $gte: start, $lte: end }
-        }).populate('employee', 'firstName lastName employeeId department profilePic');
+            isActive: { $ne: false }
+        }).select('firstName lastName employeeId department profilePic').lean();
 
-        // Fetch approved leave requests overlapping this date
+        const attendanceMap = {};
+        const attendanceRecords = await Attendance.find({
+            tenant: req.tenantId,
+            date: targetDate
+        }).lean();
+        attendanceRecords.forEach(r => { attendanceMap[String(r.employee)] = r; });
+
+        const leaveMap = {};
         const leaves = await LeaveRequest.find({
             tenant: req.tenantId,
             status: 'Approved',
-            startDate: { $lte: end },
-            endDate: { $gte: start }
-        }).populate('employee', 'firstName lastName employeeId department profilePic');
+            startDate: { $lte: endOfDate },
+            endDate: { $gte: targetDate }
+        }).lean();
+        leaves.forEach(l => { leaveMap[String(l.employee)] = l; });
 
-        // Merge attendance + leaves into employee-centric list
-        const empMap = {};
+        const holiday = await Holiday.findOne({
+            tenant: req.tenantId,
+            date: targetDate
+        }).lean();
 
-        records.forEach(r => {
-            const emp = r.employee || {};
-            const id = emp._id ? String(emp._id) : String(emp.employeeId || emp);
-            empMap[id] = empMap[id] || {
-                employeeId: emp.employeeId || id,
-                name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Unknown',
-                profilePic: emp.profilePic || '/uploads/default-avatar.png',
-                department: emp.department || emp.departmentId || '-',
-                attendanceStatus: r.status || 'Present',
-                leaveDetails: null
-            };
+        let settings = await AttendanceSettings.findOne({ tenant: req.tenantId });
+        if (!settings) settings = { weeklyOffDays: [0] };
+        const isWeeklyOff = settings.weeklyOffDays.includes(targetDate.getDay());
 
-            empMap[id].attendanceRecord = {
-                checkIn: r.checkIn,
-                checkOut: r.checkOut,
-                workingHours: r.workingHours,
-                status: r.status
-            };
-        });
+        // 2. Compute Statuses for all relevant employees
+        // If FUTURE: Only consider employees with leaves (as Total = Leave count rule)
+        // If PAST/TODAY: Consider all active employees
+        const baseEmployees = isFutureDate
+            ? allEmployees.filter(emp => leaveMap[String(emp._id)])
+            : allEmployees;
 
-        leaves.forEach(l => {
-            const emp = l.employee || {};
-            const id = emp._id ? String(emp._id) : String(emp.employeeId || emp);
-            empMap[id] = empMap[id] || {
-                employeeId: emp.employeeId || id,
-                name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Unknown',
-                profilePic: emp.profilePic || '/uploads/default-avatar.png',
-                department: emp.department || emp.departmentId || '-',
-                attendanceStatus: 'On Leave',
-                leaveDetails: null
-            };
+        const processedEmployees = baseEmployees.map(emp => {
+            const empId = String(emp._id);
+            const att = attendanceMap[empId];
+            const leave = leaveMap[empId];
 
-            empMap[id].leaveDetails = {
-                leaveType: l.leaveType,
-                startDate: l.startDate,
-                endDate: l.endDate,
-                status: l.status,
-                isHalfDay: !!l.isHalfDay
-            };
+            let status = 'Not Marked';
+            let leaveType = leave ? leave.leaveType : null;
 
-            // If there is an attendance record, prefer leaveDetails to mark as on-leave
-            if (!empMap[id].attendanceRecord) {
-                empMap[id].attendanceStatus = 'On Leave';
+            if (isFutureDate) {
+                if (leave) status = 'Leave';
+                else status = 'Not Marked';
+            } else {
+                if (holiday) status = 'Holiday';
+                else if (isWeeklyOff) status = 'Weekly Off';
+                else if (leave) status = 'Leave';
+                else if (att) {
+                    let s = (att.status || 'Present').toLowerCase();
+                    if (s === 'half_day') status = 'Half Day';
+                    else if (s === 'missed_punch') status = 'Missed Punch';
+                    else status = s.charAt(0).toUpperCase() + s.slice(1);
+                } else {
+                    status = 'Absent';
+                }
             }
+
+            return {
+                _id: emp._id,
+                employeeId: emp.employeeId,
+                name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+                department: emp.department || '-',
+                profilePic: emp.profilePic || '/uploads/default-avatar.png',
+                status,
+                leaveType,
+                isFutureDate,
+                attendanceRecord: att ? {
+                    checkIn: att.checkIn,
+                    checkOut: att.checkOut,
+                    workingHours: att.workingHours
+                } : null
+            };
         });
 
-        const employees = Object.values(empMap);
-
+        // 3. Summaries (Rule: For Future, Total = Leave Count)
         const summary = {
-            totalEmployees: employees.length,
-            onLeave: employees.filter(e => (e.attendanceStatus || '').toLowerCase().includes('leave') || e.leaveDetails).length,
-            onDuty: employees.filter(e => (e.attendanceStatus || '').toLowerCase().includes('duty') || (e.attendanceStatus || '').toLowerCase().includes('official')).length,
-            present: employees.filter(e => (e.attendanceStatus || '').toLowerCase() === 'present').length
+            totalEmployees: isFutureDate ? processedEmployees.filter(e => e.status === 'Leave').length : allEmployees.length,
+            present: isFutureDate ? 0 : processedEmployees.filter(e => ['Present', 'Half Day', 'On Duty'].includes(e.status)).length,
+            absent: isFutureDate ? 0 : processedEmployees.filter(e => e.status === 'Absent').length,
+            onLeave: processedEmployees.filter(e => e.status === 'Leave').length,
+            isFutureDate
         };
 
-        return res.json({ date: date, summary, employees, raw: { recordsCount: records.length, leavesCount: leaves.length } });
+        // 4. Filtering by filterType (Summary Card Click)
+        let filteredEmployees = processedEmployees;
+        if (filterType && filterType !== 'total') {
+            if (filterType === 'present') {
+                filteredEmployees = processedEmployees.filter(e => ['Present', 'Half Day', 'On Duty'].includes(e.status));
+            } else if (filterType === 'absent') {
+                filteredEmployees = processedEmployees.filter(e => e.status === 'Absent');
+            } else if (filterType === 'leave') {
+                filteredEmployees = processedEmployees.filter(e => e.status === 'Leave');
+            }
+        }
+
+        return res.json({
+            date,
+            summary,
+            employees: filteredEmployees,
+            holiday: holiday ? holiday.name : null
+        });
+
     } catch (error) {
         console.error('getByDate error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getEmployeeDateDetail = async (req, res) => {
+    try {
+        const { Attendance, LeaveRequest, Employee, Holiday, AttendanceSettings } = getModels(req);
+        const { employeeId, date } = req.params;
+
+        const targetDate = new Date(date);
+        targetDate.setHours(0, 0, 0, 0);
+        const endOfDate = new Date(targetDate);
+        endOfDate.setHours(23, 59, 59, 999);
+
+        const employee = await Employee.findOne({ _id: employeeId, tenant: req.tenantId }).lean();
+        if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+        const attendance = await Attendance.findOne({ employee: employeeId, tenant: req.tenantId, date: targetDate }).lean();
+        const leave = await LeaveRequest.findOne({
+            employee: employeeId,
+            tenant: req.tenantId,
+            status: 'Approved',
+            startDate: { $lte: endOfDate },
+            endDate: { $gte: targetDate }
+        }).lean();
+
+        const holiday = await Holiday.findOne({ tenant: req.tenantId, date: targetDate }).lean();
+        const settings = await AttendanceSettings.findOne({ tenant: req.tenantId });
+        const isWeeklyOff = settings?.weeklyOffDays?.includes(targetDate.getDay());
+
+        res.json({
+            employee: {
+                name: `${employee.firstName} ${employee.lastName}`,
+                employeeId: employee.employeeId,
+                department: employee.department,
+                designation: employee.designation
+            },
+            date: targetDate,
+            attendance,
+            leave,
+            holiday,
+            isWeeklyOff
+        });
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
