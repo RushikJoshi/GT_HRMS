@@ -1268,6 +1268,72 @@ exports.uploadExcel = async (req, res) => {
     }
 };
 
+// 10. DOWNLOAD BULK UPLOAD TEMPLATE
+exports.downloadBulkUploadTemp = async (req, res) => {
+    try {
+        const XLSX = require('xlsx');
+
+        // Create workbook
+        const workbook = XLSX.utils.book_new();
+
+        // Sample data
+        const sampleData = [
+            {
+                'Employee ID': 'EMP001',
+                'Date': '2024-01-01',
+                'Status': 'present',
+                'Check In': '09:00:00',
+                'Check Out': '18:00:00'
+            },
+            {
+                'Employee ID': 'EMP002',
+                'Date': '2024-01-01',
+                'Status': 'absent',
+                'Check In': '',
+                'Check Out': ''
+            }
+        ];
+
+        // Headers (first row)
+        const headers = [
+            'Employee ID (Required)',
+            'Date (YYYY-MM-DD, Required)',
+            'Status (present/absent/leave/half_day/holiday/weekly_off)',
+            'Check In (HH:MM:SS, Optional)',
+            'Check Out (HH:MM:SS, Optional)'
+        ];
+
+        // Convert data to sheet
+        const worksheet = XLSX.utils.json_to_sheet(sampleData);
+
+        // Auto-fit columns
+        const colWidths = [
+            { wch: 25 }, // Employee ID
+            { wch: 15 }, // Date
+            { wch: 45 }, // Status
+            { wch: 25 }, // Check In
+            { wch: 25 }  // Check Out
+        ];
+        worksheet['!cols'] = colWidths;
+
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Template');
+
+        // Generate buffer
+        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+        // Send file
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="Attendance_Bulk_Upload_Template_${Date.now()}.xlsx"`);
+        res.setHeader('Content-Length', buffer.length);
+        res.end(buffer);
+
+    } catch (err) {
+        console.error('Error generating attendance template:', err);
+        res.status(500).json({ error: 'template_generation_failed', message: err.message });
+    }
+};
+
 // Bulk Upload from JSON data (for frontend Excel import)
 exports.bulkUpload = async (req, res) => {
     try {

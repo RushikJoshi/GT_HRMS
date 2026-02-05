@@ -27,6 +27,7 @@ router.get('/settings', auth.authenticate, attendCtrl.getSettings);
 router.put('/settings', auth.authenticate, auth.requireHr, attendCtrl.updateSettings);
 router.post('/override', auth.authenticate, auth.requireHr, attendCtrl.override);
 router.post('/upload-excel', auth.authenticate, auth.requireHr, upload.single('file'), attendCtrl.uploadExcel);
+router.get('/bulk/template', auth.authenticate, auth.requireHr, attendCtrl.downloadBulkUploadTemp);
 router.post('/bulk-upload', auth.authenticate, auth.requireHr, attendCtrl.bulkUpload);
 router.get('/calendar', auth.authenticate, attendCtrl.getCalendar); // All authenticated users can view calendar
 // Attendance by date for admin/HR - shows employees list + summary for the date
