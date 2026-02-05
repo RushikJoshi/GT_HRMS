@@ -104,10 +104,8 @@ const SalaryController = {
                 return res.status(400).json({ success: false, message: "Tenant ID missing" });
             }
 
-            // Ensure tenantDB is available
             if (!req.tenantDB) {
-                const dbManager = require('../config/dbManager');
-                req.tenantDB = dbManager.getTenantDB(tenantId);
+                return res.status(400).json({ success: false, message: "Tenant database not resolved" });
             }
 
             const SalaryComponent = req.tenantDB.model('SalaryComponent');
@@ -121,47 +119,35 @@ const SalaryController = {
                 BenefitComponent.find({ tenantId, isActive: true }).lean()
             ]);
 
+
             console.log(`🔍 DEBUG: Fetched ${dbEarnings.length} earnings, ${dbDeductions.length} deductions, ${dbBenefits.length} benefits from DB`);
 
             // Helper to merge selected components with DB configurations
             const mergeWithDB = (selectedList, dbList) => {
+                const normalize = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, '');
+
                 return (selectedList || []).map(selected => {
-                    // Find matching DB component by ID, Code, or Name
-                    const dbComp = dbList.find(db => {
-                        const sId = selected._id?.toString();
-                        const dId = db._id?.toString();
-                        if (sId && dId && sId === dId) return true;
-
-                        const sCode = selected.code?.toUpperCase().trim();
-                        const dCode = db.code?.toUpperCase().trim();
-                        if (sCode && dCode && sCode === dCode) return true;
-
-                        const sName = selected.name?.trim();
-                        const dName = db.name?.trim();
-                        if (sName && dName && sName === dName) return true;
-
-                        return false;
-                    });
+                    // Find matching DB component
+                    const dbComp = dbList.find(db =>
+                        (db._id && selected._id && db._id.toString() === selected._id.toString()) ||
+                        (db.name && selected.name && normalize(db.name) === normalize(selected.name)) ||
+                        (db.code && selected.code && db.code.toUpperCase() === selected.code.toUpperCase())
+                    );
 
                     if (dbComp) {
-                        console.log(`🔍 DEBUG: Merging ${selected.name} with DB config:`, {
-                            calculationType: dbComp.calculationType,
-                            percentage: dbComp.percentage,
-                            amount: dbComp.amount
-                        });
-                        // Use DB configuration, but keep selected component's structure
                         return {
                             ...selected,
                             ...dbComp,
                             _id: dbComp._id,
-                            calculationType: dbComp.calculationType,
-                            percentage: dbComp.percentage,
-                            amount: dbComp.amount,
-                            value: dbComp.percentage || dbComp.amount || selected.value
+                            calculationType: dbComp.calculationType || selected.calculationType,
+                            percentage: dbComp.percentage || selected.percentage,
+                            amount: dbComp.amount || selected.amount,
+                            // Ensure 'value' is set for the engine
+                            value: dbComp.percentage || dbComp.amount || selected.value || 0
                         };
                     }
 
-                    console.log(`⚠️ WARNING: No DB config found for ${selected.name}, using selected data`);
+                    console.warn(`[SALARY_CONTROLLER] No DB config found for ${selected.name}, using selected data`);
                     return selected;
                 });
             };
