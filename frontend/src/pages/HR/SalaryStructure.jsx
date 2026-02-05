@@ -20,6 +20,7 @@ export default function SalaryStructure() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
     const [candidate, setCandidate] = useState(null);
+    const [targetType, setTargetType] = useState('applicant'); // 'applicant' or 'employee'
 
     // --- UI SELECTION STATE ---
     const [ctcInput, setCtcInput] = useState('');
@@ -56,9 +57,14 @@ export default function SalaryStructure() {
 
     const deriveCode = (c) => {
         if (!c) return '';
-        const raw = (c.code || c.name || '').toUpperCase().trim();
-        if (raw.includes('BASIC')) return 'BASIC';
-        if (raw.includes('SPECIAL')) return 'SPECIAL_ALLOWANCE';
+        // Prioritize code
+        if (c.code) return c.code.toUpperCase().trim();
+
+        const raw = (c.name || '').toUpperCase().trim();
+        // Exact matches
+        if (raw === 'BASIC' || raw === 'BASIC SALARY' || raw === 'BASIC PAY') return 'BASIC';
+        if (raw === 'SPECIAL ALLOWANCE') return 'SPECIAL_ALLOWANCE';
+
         return raw.replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
     };
 
@@ -67,10 +73,28 @@ export default function SalaryStructure() {
         const init = async () => {
             try {
                 setLoading(true);
-                // 1. Fetch Candidate
-                const candidateRes = await api.get(`/requirements/applicants/${candidateId}`).catch(() => api.get(`/hr/employees/${candidateId}`));
-                const cData = candidateRes.data?.data || candidateRes.data;
+                let cData = null;
+                let type = 'applicant';
+
+                // 1. Try Fetching as Applicant first
+                try {
+                    const candidateRes = await api.get(`/requirements/applicants/${candidateId}`);
+                    cData = candidateRes.data?.data || candidateRes.data;
+                    type = 'applicant';
+                } catch (err) {
+                    // If 404 or fails, try as Employee
+                    console.log("Not an applicant, trying employee...");
+                    try {
+                        const empRes = await api.get(`/hr/employees/${candidateId}`);
+                        cData = empRes.data?.data || empRes.data;
+                        type = 'employee';
+                    } catch (empErr) {
+                        throw new Error("ID validation failed. Candidate/Employee not found.");
+                    }
+                }
+
                 setCandidate(cData);
+                setTargetType(type);
 
                 // 2. Fetch Master Components
                 const [eMaster, dMaster, bMaster] = await Promise.all([
@@ -83,7 +107,10 @@ export default function SalaryStructure() {
                 });
 
                 // 3. Fetch Current Snapshot/Calculation
-                const url = `/salary/current?applicantId=${candidateId}`;
+                // Dynamically use applicantId or employeeId
+                const idParam = type === 'applicant' ? `applicantId=${candidateId}` : `employeeId=${candidateId}`;
+                const url = `/salary/current?${idParam}`;
+
                 console.log(`[DEBUG] Fetching salary from: ${url}`);
                 const currentRes = await api.get(url);
                 const sData = currentRes.data?.data;
@@ -135,10 +162,12 @@ export default function SalaryStructure() {
                 selectedDeductions,
                 selectedBenefits
             };
+            console.log("🚀 [SALARY_STRUCTURE] handleCalculate payload:", JSON.stringify(payload, null, 2));
 
             const res = await api.post('/salary/preview', payload);
             if (res.data?.success) {
                 const result = res.data.data;
+                console.log("✅ [SALARY_STRUCTURE] Received calculation result:", result);
                 setSalaryData({
                     annualCTC: result.annualCTC || 0,
                     locked: false,
@@ -162,7 +191,7 @@ export default function SalaryStructure() {
         try {
             setSaving(true);
             const payload = {
-                applicantId: candidateId,
+                [targetType === 'applicant' ? 'applicantId' : 'employeeId']: candidateId, // Dynamic Key
                 annualCTC: safe(ctcInput),
                 earnings: selectedEarnings,
                 deductions: selectedDeductions,
@@ -180,7 +209,10 @@ export default function SalaryStructure() {
     const handleFinalize = async () => {
         try {
             setSaving(true);
-            const res = await api.post('/salary/confirm', { applicantId: candidateId });
+            const payload = {
+                [targetType === 'applicant' ? 'applicantId' : 'employeeId']: candidateId // Dynamic Key
+            };
+            const res = await api.post('/salary/confirm', payload);
             if (res.data?.success) {
                 setSalaryData(p => ({ ...p, locked: true }));
                 alert("Salary Finalized & Locked!");
@@ -196,7 +228,10 @@ export default function SalaryStructure() {
         if (!window.confirm("Unlock this salary? All locked data will become editable.")) return;
         try {
             setSaving(true);
-            await api.post('/salary/unlock', { applicantId: candidateId });
+            const payload = {
+                [targetType === 'applicant' ? 'applicantId' : 'employeeId']: candidateId // Dynamic Key
+            };
+            await api.post('/salary/unlock', payload);
             setSalaryData(p => ({ ...p, locked: false }));
         } catch (err) {
             alert("Unlock Failed");
@@ -210,26 +245,56 @@ export default function SalaryStructure() {
         if (salaryData.locked) return;
         setActiveSection(section);
         const current = section === 'Earnings' ? selectedEarnings : section === 'Deductions' ? selectedDeductions : selectedBenefits;
+        const masterList = availableComponents[section.toLowerCase()] || [];
 
-        let codes = current.map(c => deriveCode(c));
+        // Match existing selected items to Master IDs (Handle Legacy Data without _id)
+        let currentIds = current.map(sel => {
+            // 1. If it already has a valid Master ID
+            if (sel._id && masterList.some(m => m._id === sel._id)) return sel._id;
 
-        // Auto-include mandatory codes if they are in the master list
+            // 2. Fallback: Match by Derived Code
+            const selCode = deriveCode(sel);
+            const match = masterList.find(m => deriveCode(m) === selCode);
+            return match ? match._id : null;
+        }).filter(Boolean).map(id => id.toString()); // Ensure strings
+
+        // FORCE MANDATORY: If section is Earnings, make sure BASIC and SPECIAL_ALLOWANCE are in currentIds if they exist in masterList
         if (section === 'Earnings') {
-            const masterCodes = availableComponents.earnings.map(m => deriveCode(m));
-            if (masterCodes.includes('BASIC') && !codes.includes('BASIC')) codes.push('BASIC');
-            if (masterCodes.includes('SPECIAL_ALLOWANCE') && !codes.includes('SPECIAL_ALLOWANCE')) codes.push('SPECIAL_ALLOWANCE');
+            masterList.forEach(m => {
+                const code = deriveCode(m);
+                if (code === 'BASIC' || code === 'SPECIAL_ALLOWANCE') {
+                    const idStr = m._id?.toString();
+                    if (idStr && !currentIds.includes(idStr)) {
+                        currentIds.push(idStr);
+                    }
+                }
+            });
         }
 
-        setTempSelectedIds(codes);
+        console.log(`🔍 [SALARY_STRUCTURE] openModal(${section}): initializing tempSelectedIds with`, currentIds);
+        setTempSelectedIds(currentIds);
         setShowModal(true);
     };
 
     const confirmSelection = () => {
-        const master = availableComponents[activeSection.toLowerCase()] || [];
-        const filtered = master.filter(m => tempSelectedIds.includes(deriveCode(m)));
-        if (activeSection === 'Earnings') setSelectedEarnings(filtered);
-        else if (activeSection === 'Deductions') setSelectedDeductions(filtered);
-        else setSelectedBenefits(filtered);
+        const sectionKey = activeSection.toLowerCase();
+        const masterList = availableComponents[sectionKey] || [];
+
+        // Use string comparison for safety
+        const newSelectedMaster = masterList.filter(c => tempSelectedIds.includes(c._id?.toString()));
+
+        // PRESERVE ALL NON-MASTER COMPONENTS: 
+        const current = sectionKey === 'earnings' ? selectedEarnings : sectionKey === 'deductions' ? selectedDeductions : selectedBenefits;
+        const remainingComponents = current.filter(c => !masterList.some(m => m._id?.toString() === c._id?.toString()));
+
+        const newSelected = [...newSelectedMaster, ...remainingComponents];
+
+        console.log(`✅ [SALARY_STRUCTURE] confirmSelection(${activeSection}): updating state to`, newSelected);
+
+        if (activeSection === 'Earnings') setSelectedEarnings(newSelected);
+        if (activeSection === 'Deductions') setSelectedDeductions(newSelected);
+        if (activeSection === 'Benefits') setSelectedBenefits(newSelected);
+
         setShowModal(false);
     };
 
@@ -287,17 +352,8 @@ export default function SalaryStructure() {
         }
 
         // 4. Adjust HRA
-        // Default Expectation: HRA = 50% of Basic (Standard) or 40%
-        // We set HRA to absorb the remaining space, leaving 0 for SA (or small buffer)
-        // Actually, SA is the balancer, so SA should take the dust. 
-        // We sets HRA to "Max possible" or "Standard".
-
-        // Let's check current HRA config
         const currentHRA = selectedEarnings.find(e => deriveCode(e) === 'HOUSE_RENT_ALLOWANCE');
         if (currentHRA) {
-            // New Plan: Set HRA to (Remaining - 1200). 1200 for SA buffer (100/mo)
-            // If Remaining is huge, cap HRA at 50% of Basic.
-
             const maxHRA = basicAnnual * 0.50; // Standard Cap
             let newHRAValue = remaining - 1200; // Leave buffer for SA
 
@@ -323,7 +379,6 @@ export default function SalaryStructure() {
             setError(null);
             setTimeout(handleCalculate, 100); // Allow state to update
         } else {
-            // No HRA found? Then the Deficit is from other things.
             alert(`Cannot Auto-Balance: HRA component not found to adjust. Please reduce allowance amounts manually.`);
         }
     };
@@ -367,9 +422,13 @@ export default function SalaryStructure() {
                         <ArrowLeft size={20} className="text-slate-600" />
                     </button>
                     <div className="min-w-0">
-                        <h1 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight truncate">{candidate?.name || 'Loading...'}</h1>
+                        <h1 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight truncate">{candidate?.name || candidate?.firstName + " " + candidate?.lastName || 'Loading...'}</h1>
                         <div className="flex items-center gap-2">
-                            <span className="text-[9px] sm:text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md uppercase whitespace-nowrap">{candidate?.requirementId?.jobTitle || 'CANDIDATE'}</span>
+                            <span className="text-[9px] sm:text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md uppercase whitespace-nowrap">
+                                {targetType === 'applicant'
+                                    ? (candidate?.requirementId?.jobTitle || 'CANDIDATE')
+                                    : (candidate?.designation || candidate?.role || 'EMPLOYEE')}
+                            </span>
                             {salaryData.locked && <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase flex items-center gap-1"><ShieldCheck size={10} /> LOCKED</span>}
                         </div>
                     </div>
@@ -431,7 +490,7 @@ export default function SalaryStructure() {
                 {/* Breakup Section */}
                 <div className="lg:col-span-8 space-y-8 order-2 lg:order-1">
                     {['Earnings', 'Deductions', 'Benefits'].map(section => (
-                        <section key={section} className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100">
+                        <section key={section} className="bg-white rounded-[40px] p-8 shadow-sm border border-slate-100">
                             <div className="flex items-center justify-between mb-8">
                                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
                                     <div className={`w-2 h-6 rounded-full ${section === 'Earnings' ? 'bg-emerald-500' : section === 'Deductions' ? 'bg-rose-500' : 'bg-blue-500'}`} />
@@ -464,6 +523,10 @@ export default function SalaryStructure() {
                                             const sectionKey = section.toLowerCase();
                                             const updatedBreakdown = [...salaryData.breakdown[sectionKey], newComponent];
 
+                                            if (sectionKey === 'earnings') setSelectedEarnings(updatedBreakdown);
+                                            if (sectionKey === 'deductions') setSelectedDeductions(updatedBreakdown);
+                                            if (sectionKey === 'benefits') setSelectedBenefits(updatedBreakdown);
+
                                             // Recalculate totals
                                             const allEarnings = sectionKey === 'earnings' ? updatedBreakdown : salaryData.breakdown.earnings;
                                             const allDeductions = sectionKey === 'deductions' ? updatedBreakdown : salaryData.breakdown.deductions;
@@ -480,11 +543,7 @@ export default function SalaryStructure() {
                                                     ...salaryData.breakdown,
                                                     [sectionKey]: updatedBreakdown
                                                 },
-                                                totals: {
-                                                    grossMonthly,
-                                                    deductionMonthly,
-                                                    netMonthly
-                                                },
+                                                totals: { grossMonthly, deductionMonthly, netMonthly },
                                                 annualCTC
                                             });
 
@@ -508,20 +567,22 @@ export default function SalaryStructure() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 {salaryData.breakdown[section.toLowerCase()]?.map((comp, idx) => (
-                                    <div key={comp.code} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-slate-100 relative">
+                                    <div key={comp.code} className="p-6 bg-slate-50/50 rounded-3xl group hover:bg-white hover:shadow-xl transition-all border border-transparent hover:border-slate-100 relative">
                                         {!salaryData.locked && comp.code !== 'BASIC' && comp.code !== 'SPECIAL_ALLOWANCE' && (
                                             <button
                                                 onClick={() => {
                                                     if (!window.confirm(`Remove ${comp.name}?`)) return;
-
                                                     const sectionKey = section.toLowerCase();
                                                     const updatedBreakdown = salaryData.breakdown[sectionKey].filter((_, i) => i !== idx);
+
+                                                    if (sectionKey === 'earnings') setSelectedEarnings(updatedBreakdown);
+                                                    if (sectionKey === 'deductions') setSelectedDeductions(updatedBreakdown);
+                                                    if (sectionKey === 'benefits') setSelectedBenefits(updatedBreakdown);
 
                                                     // Recalculate totals
                                                     const allEarnings = sectionKey === 'earnings' ? updatedBreakdown : salaryData.breakdown.earnings;
                                                     const allDeductions = sectionKey === 'deductions' ? updatedBreakdown : salaryData.breakdown.deductions;
                                                     const allBenefits = sectionKey === 'benefits' ? updatedBreakdown : salaryData.breakdown.benefits;
-
                                                     const grossMonthly = allEarnings.reduce((sum, e) => sum + safe(e.monthly), 0);
                                                     const deductionMonthly = allDeductions.reduce((sum, d) => sum + safe(d.monthly), 0);
                                                     const netMonthly = grossMonthly - deductionMonthly;
@@ -529,64 +590,51 @@ export default function SalaryStructure() {
 
                                                     setSalaryData({
                                                         ...salaryData,
-                                                        breakdown: {
-                                                            ...salaryData.breakdown,
-                                                            [sectionKey]: updatedBreakdown
-                                                        },
-                                                        totals: {
-                                                            grossMonthly,
-                                                            deductionMonthly,
-                                                            netMonthly
-                                                        },
+                                                        breakdown: { ...salaryData.breakdown, [sectionKey]: updatedBreakdown },
+                                                        totals: { grossMonthly, deductionMonthly, netMonthly },
                                                         annualCTC
                                                     });
-
                                                     setCtcInput(Math.round(annualCTC).toString());
                                                 }}
-                                                className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-600 shadow-lg"
-                                                title="Remove Component"
+                                                className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-600 shadow-lg z-10"
                                             >
                                                 <X size={14} />
                                             </button>
                                         )}
-                                        <div className="flex-1">
-                                            <p className="text-xs font-black text-slate-800 uppercase truncate">{comp.name}</p>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
-                                                    {comp.calculationType} {comp.basedOn !== 'NA' ? `OF ${comp.basedOn}` : ''}
-                                                </span>
-                                                {comp.code === 'SPECIAL_ALLOWANCE' && <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-1.5 rounded uppercase">BALANCER</span>}
+
+                                        <div className="flex items-start justify-between gap-4 mb-4">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight truncate">{comp.name}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase leading-none mt-1">
+                                                    {(comp.calculationType || '').replace(/_/g, ' ')} {comp.basedOn !== 'NA' ? `OF ${comp.basedOn}` : ''}
+                                                </p>
                                             </div>
-                                        </div>
-                                        <div className="text-right">
-                                            {salaryData.locked ? (
-                                                <>
-                                                    <p className="font-black text-slate-900">₹{formatINR(comp.monthly)}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">₹{formatINR(comp.yearly)} /yr</p>
-                                                </>
-                                            ) : (
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[9px] font-bold text-slate-400">₹</span>
+
+                                            <div className="text-right">
+                                                <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-end gap-1.5 min-w-[100px]">
+                                                    <span className="text-[10px] font-bold text-slate-400">₹</span>
+                                                    {salaryData.locked ? (
+                                                        <span className="font-black text-slate-900 text-sm">{Math.round(comp.monthly)}</span>
+                                                    ) : (
                                                         <input
-                                                            type="number"
-                                                            value={Math.round(comp.monthly) || ''}
+                                                            type="text"
+                                                            value={Math.round(comp.monthly) || '0'}
                                                             onChange={(e) => {
                                                                 const newMonthly = safe(e.target.value);
-                                                                const newYearly = newMonthly * 12;
-
-                                                                // Update the component in the breakdown
                                                                 const sectionKey = section.toLowerCase();
                                                                 const updatedBreakdown = [...salaryData.breakdown[sectionKey]];
                                                                 updatedBreakdown[idx] = {
                                                                     ...comp,
                                                                     monthly: newMonthly,
-                                                                    yearly: newYearly,
+                                                                    yearly: newMonthly * 12,
                                                                     value: newMonthly,
                                                                     amount: newMonthly
                                                                 };
 
-                                                                // Recalculate totals
+                                                                if (sectionKey === 'earnings') setSelectedEarnings(updatedBreakdown);
+                                                                if (sectionKey === 'deductions') setSelectedDeductions(updatedBreakdown);
+                                                                if (sectionKey === 'benefits') setSelectedBenefits(updatedBreakdown);
+
                                                                 const allEarnings = sectionKey === 'earnings' ? updatedBreakdown : salaryData.breakdown.earnings;
                                                                 const allDeductions = sectionKey === 'deductions' ? updatedBreakdown : salaryData.breakdown.deductions;
                                                                 const allBenefits = sectionKey === 'benefits' ? updatedBreakdown : salaryData.breakdown.benefits;
@@ -598,28 +646,29 @@ export default function SalaryStructure() {
 
                                                                 setSalaryData({
                                                                     ...salaryData,
-                                                                    breakdown: {
-                                                                        ...salaryData.breakdown,
-                                                                        [sectionKey]: updatedBreakdown
-                                                                    },
-                                                                    totals: {
-                                                                        grossMonthly,
-                                                                        deductionMonthly,
-                                                                        netMonthly
-                                                                    },
+                                                                    breakdown: { ...salaryData.breakdown, [sectionKey]: updatedBreakdown },
+                                                                    totals: { grossMonthly, deductionMonthly, netMonthly },
                                                                     annualCTC
                                                                 });
-
-                                                                // Update CTC input
                                                                 setCtcInput(Math.round(annualCTC).toString());
                                                             }}
-                                                            className="w-24 px-2 py-1 bg-white border border-slate-200 rounded-lg text-sm font-black text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
-                                                            placeholder="0"
+                                                            className="w-16 bg-transparent border-none text-right font-black text-slate-900 text-sm p-0 focus:ring-0 outline-none"
                                                         />
-                                                    </div>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">₹{formatINR(comp.yearly || comp.monthly * 12)} /yr</p>
+                                                    )}
                                                 </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between">
+                                            {comp.code === 'SPECIAL_ALLOWANCE' ? (
+                                                <div className="flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded">
+                                                    <span className="text-[8px] font-black text-blue-600 uppercase tracking-tighter">FIXED</span>
+                                                    <span className="text-[8px] font-black text-white bg-blue-500 px-1 rounded-sm tracking-tighter">BALANCER</span>
+                                                </div>
+                                            ) : (
+                                                <div />
                                             )}
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">₹{formatINR(comp.monthly * 12)} /yr</p>
                                         </div>
                                     </div>
                                 ))}
@@ -659,7 +708,7 @@ export default function SalaryStructure() {
                             <h4 className="font-black uppercase tracking-tight text-sm">System Status</h4>
                         </div>
                         <p className="text-[11px] font-medium leading-relaxed opacity-80">
-                            Calculation Engine v9.0 Active. Every component is derived from CTC. Special Allowance adjusts automatically to ensure 100% precision.
+                            Calculation Engine v11.0 Active. Every component is derived from CTC. Special Allowance adjusts automatically to ensure 100% precision.
                         </p>
                         <div className="mt-6 pt-6 border-t border-white/20 flex items-center justify-between">
                             <span className="text-[10px] font-black uppercase tracking-widest">Integrity Check</span>
@@ -686,16 +735,18 @@ export default function SalaryStructure() {
 
                         <div className="p-8 max-h-[500px] overflow-y-auto grid grid-cols-2 gap-4">
                             {(availableComponents[activeSection.toLowerCase()] || []).map(comp => {
-                                const code = deriveCode(comp);
-                                const isSelected = tempSelectedIds.includes(code);
-                                // Prevent unselecting BASIC or SPECIAL_ALLOWANCE
-                                const isMandatory = code === 'BASIC' || code === 'SPECIAL_ALLOWANCE';
+                                const isSelected = tempSelectedIds.includes(comp._id?.toString());
+                                const isMandatory = (comp.code === 'BASIC' || comp.name === 'Basic Salary' || comp.code === 'SPECIAL_ALLOWANCE') && activeSection === 'Earnings';
 
                                 return (
                                     <button
-                                        key={code}
+                                        key={comp._id}
                                         disabled={isMandatory}
-                                        onClick={() => setTempSelectedIds(p => isSelected ? p.filter(id => id !== code) : [...p, code])}
+                                        onClick={() => {
+                                            if (isMandatory) return;
+                                            const idStr = comp._id?.toString();
+                                            setTempSelectedIds(p => isSelected ? p.filter(id => id !== idStr) : [...p, idStr])
+                                        }}
                                         className={`p-5 rounded-[24px] border-2 text-left transition-all relative overflow-hidden group ${isSelected ? 'border-blue-500 bg-blue-50/50' : 'border-slate-100 bg-white hover:border-slate-200'} ${isMandatory ? 'opacity-50 grayscale' : ''}`}
                                     >
                                         <p className={`font-black uppercase text-xs transition-colors ${isSelected ? 'text-blue-900' : 'text-slate-600'}`}>{comp.name}</p>

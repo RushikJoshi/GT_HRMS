@@ -78,9 +78,18 @@ class SalaryCalculationEngine {
         let totalCalculatedAnnual = basicAnnual;
         let totalBenefitsAnnual = 0;
 
+        console.log(`🚀 [ENGINE] Input Earnings:`, (earnings || []).map(e => e.name));
+
         // Process non-special earnings
-        const filteredEarnings = (earnings || []).filter(e => this._deriveCode(e) !== 'BASIC' && this._deriveCode(e) !== 'SPECIAL_ALLOWANCE');
+        const filteredEarnings = (earnings || []).filter(e => {
+            const code = this._deriveCode(e);
+            const isMandatory = (code === 'BASIC' || code === 'SPECIAL_ALLOWANCE');
+            console.log(`🔍 [ENGINE] Filter check: ${e.name} -> Code: ${code} | Skip: ${isMandatory}`);
+            return !isMandatory;
+        });
+
         filteredEarnings.forEach(e => {
+            console.log(`🔍 [ENGINE] Processing: ${e.name}`);
             const calc = this._processComponent(e, ctx);
             result.earnings.push(calc);
             totalCalculatedAnnual += calc.yearly;
@@ -107,7 +116,7 @@ class SalaryCalculationEngine {
         const saAnnual = this._round(ctc - (totalCalculatedAnnual + totalBenefitsAnnual));
         const saMonthly = this._round(saAnnual / 12);
 
-        console.log(`🔍 DEBUG: Special Allowance: Annual=${saAnnual}, Monthly=${saMonthly}`);
+        console.log(`🔍 [ENGINE] Special Allowance: Annual=${saAnnual}, Monthly=${saMonthly}`);
 
         if (saAnnual < 0) {
             throw new Error(`CTC Mismatch: Components total exceeds CTC by ₹${Math.abs(saAnnual)}`);
@@ -122,6 +131,8 @@ class SalaryCalculationEngine {
             monthly: saMonthly,
             yearly: saAnnual
         });
+
+        console.log(`✅ [ENGINE] Result Earnings:`, result.earnings.map(e => e.name));
 
         // Update Totals
         const totalEarningsAnnual = totalCalculatedAnnual + saAnnual;
@@ -205,15 +216,23 @@ class SalaryCalculationEngine {
 
     static _deriveCode(c) {
         if (!c) return 'UNKNOWN';
-        let raw = (c.code || c.name || '').toUpperCase().trim();
-        if (raw.includes('BASIC')) return 'BASIC';
-        if (raw.includes('SPECIAL') || raw.includes('BALANCER')) return 'SPECIAL_ALLOWANCE';
-        if (raw.includes('PF') || raw.includes('PROVIDENT')) {
+        // Prefer explicit code if available
+        if (c.code) return c.code.toUpperCase().trim();
+
+        let raw = (c.name || '').toUpperCase().trim();
+
+        // Exact matches or known variations
+        if (raw === 'BASIC' || raw === 'BASIC SALARY' || raw === 'BASIC PAY') return 'BASIC';
+        if (raw === 'SPECIAL ALLOWANCE' || raw === 'SPECIAL' || raw === 'BALANCER') return 'SPECIAL_ALLOWANCE';
+
+        if (raw.includes('PROVIDENT FUND') || raw.includes('PF')) {
             if (raw.includes('EMPLOYER')) return 'EMPLOYER_PF';
             return 'EMPLOYEE_PF';
         }
         if (raw.includes('GRATUITY')) return 'GRATUITY';
-        if (raw.includes('PROFESSIONAL TAX') || raw === 'PT') return 'PROFESSIONAL_TAX';
+        if (raw === 'PROFESSIONAL TAX' || raw === 'PT') return 'PROFESSIONAL_TAX';
+
+        // Default: clean string
         return raw.replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
     }
 

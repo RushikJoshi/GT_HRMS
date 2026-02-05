@@ -104,7 +104,15 @@ const SalaryController = {
                 return res.status(400).json({ success: false, message: "Tenant ID missing" });
             }
 
-            const { SalaryComponent, DeductionMaster, BenefitComponent } = require('../config/tenantDB').getModels(req);
+            // Ensure tenantDB is available
+            if (!req.tenantDB) {
+                const dbManager = require('../config/dbManager');
+                req.tenantDB = dbManager.getTenantDB(tenantId);
+            }
+
+            const SalaryComponent = req.tenantDB.model('SalaryComponent');
+            const DeductionMaster = req.tenantDB.model('DeductionMaster');
+            const BenefitComponent = req.tenantDB.model('BenefitComponent');
 
             // Fetch all active components from database
             const [dbEarnings, dbDeductions, dbBenefits] = await Promise.all([
@@ -118,12 +126,22 @@ const SalaryController = {
             // Helper to merge selected components with DB configurations
             const mergeWithDB = (selectedList, dbList) => {
                 return (selectedList || []).map(selected => {
-                    // Find matching DB component by name or code
-                    const dbComp = dbList.find(db =>
-                        db.name === selected.name ||
-                        db.code === selected.code ||
-                        db._id?.toString() === selected._id?.toString()
-                    );
+                    // Find matching DB component by ID, Code, or Name
+                    const dbComp = dbList.find(db => {
+                        const sId = selected._id?.toString();
+                        const dId = db._id?.toString();
+                        if (sId && dId && sId === dId) return true;
+
+                        const sCode = selected.code?.toUpperCase().trim();
+                        const dCode = db.code?.toUpperCase().trim();
+                        if (sCode && dCode && sCode === dCode) return true;
+
+                        const sName = selected.name?.trim();
+                        const dName = db.name?.trim();
+                        if (sName && dName && sName === dName) return true;
+
+                        return false;
+                    });
 
                     if (dbComp) {
                         console.log(`🔍 DEBUG: Merging ${selected.name} with DB config:`, {
@@ -153,19 +171,13 @@ const SalaryController = {
             const mergedDeductions = mergeWithDB(selectedDeductions, dbDeductions);
             const mergedBenefits = mergeWithDB(selectedBenefits, dbBenefits);
 
-            console.log(`🔍 DEBUG: Merged earnings:`, mergedEarnings.map(e => ({
-                name: e.name,
-                calculationType: e.calculationType,
-                percentage: e.percentage,
-                amount: e.amount
-            })));
-
             const result = SalaryCalculationEngine.calculateSalary({
                 annualCTC,
                 earnings: mergedEarnings,
                 deductions: mergedDeductions,
                 benefits: mergedBenefits
             });
+            console.log(`✅ [SALARY_CONTROLLER] Engine Returned ${result.earnings.length} earnings.`);
             res.json({ success: true, data: result });
         } catch (error) {
             console.error('[SALARY_CONTROLLER] Preview Error:', error);
