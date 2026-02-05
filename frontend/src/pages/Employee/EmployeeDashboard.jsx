@@ -423,7 +423,7 @@ export default function EmployeeDashboard() {
 
               {/* Activity Timeline Dashboard */}
               <div className="bg-white dark:bg-slate-800/40 backdrop-blur-md p-8 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm relative overflow-hidden group">
-                <div className="flex justify-between items-end mb-8 relative z-10">
+                <div className="flex justify-between items-end mb-14 relative z-10">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">Activity Streams</h3>
@@ -441,47 +441,88 @@ export default function EmployeeDashboard() {
                 </div>
 
                 <div className="space-y-4 max-h-[400px] md:max-h-[480px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar relative z-10">
-                  {attendance.slice(0, 10).map((att, i) => (
-                    <div key={att._id} className="flex items-center justify-between p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/5 transition-all group/row animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
-                      <div className="flex items-center gap-5">
-                        <div className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm group-hover/row:border-indigo-200 dark:group-hover/row:border-indigo-800 transition-colors">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter leading-none">{new Date(att.date).toLocaleDateString([], { month: 'short' })}</span>
-                          <span className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{new Date(att.date).getDate()}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-tight">Terminal Interaction</span>
-                            <span className="text-[8px] font-black text-slate-400 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded uppercase tracking-widest">Log #{i + 1}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1.5 opacity-60">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                              <LogIn size={12} /> {att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
-                            </div>
-                            <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                              <LogOut size={12} /> {att.checkOut ? new Date(att.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                  {attendance.slice(0, 10).map((att, i) => {
+                    // Logic to calculate duration
+                    const calculateDuration = (attendanceRecord) => {
+                      const status = attendanceRecord.status ? attendanceRecord.status.toLowerCase() : '';
+                      if (!attendanceRecord.checkIn) return '--';
+                      if (status === 'absent') return '--';
 
-                      <div className="flex items-center gap-4">
-                        <div className="flex flex-col items-end mr-2">
-                          <span className="text-sm font-black text-slate-900 dark:text-white tracking-tighter">{att.workingHours || 0}h Total</span>
-                          <div className="flex gap-1 mt-1">
-                            {att.isLate && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Late Entry"></div>}
-                            {att.isEarlyOut && <div className="w-1.5 h-1.5 rounded-full bg-orange-500" title="Early Exit"></div>}
+                      let diff = 0;
+                      const checkInTime = new Date(attendanceRecord.checkIn).getTime();
+
+                      if (attendanceRecord.checkOut) {
+                        const checkOutTime = new Date(attendanceRecord.checkOut).getTime();
+                        diff = checkOutTime - checkInTime;
+                      } else if (status === 'present') {
+                        // Live duration for today
+                        const now = new Date().getTime();
+                        // Only calculate live if it's today's record, otherwise it might be a missed punch out from past
+                        const recordDate = new Date(attendanceRecord.date).toDateString();
+                        const todayDate = new Date().toDateString();
+
+                        if (recordDate === todayDate) {
+                          diff = now - checkInTime;
+                        } else {
+                          // Past record without checkout - show what we have or consider 0 if invalid
+                          // For now, let's treat as 0 or handling 'Missed Punch' logic if exists
+                          // But requirement says "If punch-out is missing: Show live duration or --"
+                          // Let's stick to live if it makes sense, or just --
+                          return '--';
+                        }
+                      }
+
+                      if (diff < 0) diff = 0;
+                      const hrs = Math.floor(diff / (1000 * 60 * 60));
+                      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+                      return `${hrs}h ${mins}m`;
+                    };
+
+                    const durationDisplay = calculateDuration(att);
+
+                    return (
+                      <div key={att._id} className="flex items-center justify-between p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/5 transition-all group/row animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
+                        <div className="flex items-center gap-5">
+                          <div className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm group-hover/row:border-indigo-200 dark:group-hover/row:border-indigo-800 transition-colors">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter leading-none">{new Date(att.date).toLocaleDateString([], { month: 'short' })}</span>
+                            <span className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{new Date(att.date).getDate()}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-tight">Terminal Interaction</span>
+                              <span className="text-[8px] font-black text-slate-400 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded uppercase tracking-widest">Log #{i + 1}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1.5 opacity-60">
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                                <LogIn size={12} /> {att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
+                              </div>
+                              <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                                <LogOut size={12} /> {att.checkOut ? new Date(att.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <span className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${att.status?.toLowerCase() === 'present'
-                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
-                          : 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.05)]'
-                          }`}>
-                          {att.status || 'Verified'}
-                        </span>
+
+                        <div className="flex items-center gap-4">
+                          <div className="flex flex-col items-end mr-2">
+                            <span className="text-sm font-black text-slate-900 dark:text-white tracking-tighter">{durationDisplay}</span>
+                            <div className="flex gap-1 mt-1">
+                              {att.isLate && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Late Entry"></div>}
+                              {att.isEarlyOut && <div className="w-1.5 h-1.5 rounded-full bg-orange-500" title="Early Exit"></div>}
+                            </div>
+                          </div>
+                          <span className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${att.status?.toLowerCase() === 'present'
+                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                            : 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.05)]'
+                            }`}>
+                            {att.status || 'Verified'}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {attendance.length === 0 && (
                     <div className="text-center py-20 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800 bg-slate-50/30 flex flex-col items-center gap-4">
                       <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center mb-2">
@@ -540,18 +581,6 @@ export default function EmployeeDashboard() {
 
       {activeTab === 'leaves' && (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-
-          {/* Header & Quick Stats */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-10 bg-emerald-500 rounded-full"></div>
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em]">Temporal Assets</span>
-              </div>
-              <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none mt-2 uppercase">Time Off Console</h2>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-2">Managing your leave ecosystem and balance quotas.</p>
-            </div>
-          </div>
 
           {!hasLeavePolicy ? (
             <div className="p-12 bg-amber-50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-[2.5rem] text-center shadow-sm">
@@ -678,7 +707,7 @@ export default function EmployeeDashboard() {
                           {leaves.length > 0 ? (
                             leaves.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((leave, i) => (
                               <tr key={leave._id} className="group/row bg-slate-50/50 dark:bg-slate-900/40 hover:bg-white dark:hover:bg-slate-800 border border-transparent hover:border-indigo-500/20 shadow-sm transition-all duration-300 animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
-                                <td className="py-4 pl-4 rounded-l-2xl">
+                                <td className="py-4 pl-4">
                                   <div className="flex flex-col">
                                     <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">{leave.leaveType}</span>
                                     <span className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">Application #{leave._id.slice(-4).toUpperCase()}</span>
@@ -704,7 +733,7 @@ export default function EmployeeDashboard() {
                                     {leave.status}
                                   </span>
                                 </td>
-                                <td className="py-4 pr-4 text-right rounded-r-2xl">
+                                <td className="py-4 pr-4 text-right">
                                   {leave.status === 'Pending' ? (
                                     <div className="flex justify-end gap-2">
                                       <button
