@@ -1,3 +1,4 @@
+import React from 'react';
 import { API_ROOT } from '../../../../utils/api';
 
 export default function CareerBlockCompanyInfo({ content }) {
