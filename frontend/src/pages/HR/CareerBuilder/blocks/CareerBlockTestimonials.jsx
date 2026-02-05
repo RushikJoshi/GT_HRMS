@@ -24,7 +24,7 @@ export default function CareerBlockTestimonials({ content, previewMode = 'deskto
     return (
         <section className={`${isMobile ? 'py-12' : 'py-24'} ${bgColor}`}>
             <div className={`max-w-[90rem] mx-auto ${isMobile ? 'px-6' : 'px-8 sm:px-12 lg:px-16'} text-center`}>
-                <h2 className={`${isMobile ? 'text-2xl mb-12' : 'text-4xl mb-20'} font-black tracking-tight`} style={{ color: textColor }}>{title}</h2>
+                <h2 className={`${isMobile ? 'text-2xl mb-12' : 'text-4xl mb-20'} font-black text-white tracking-tight`}>{title}</h2>
                 <div className={`grid ${isMobile ? 'grid-cols-1 gap-6' : 'grid-cols-1 md:grid-cols-3 gap-8'}`}>
                     {displayTestimonials.map((t, idx) => (
                         <div key={idx} className="bg-white p-8 rounded-[2rem] shadow-xl relative">
