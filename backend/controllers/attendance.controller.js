@@ -11,6 +11,8 @@ const FaceDataSchema = require('../models/FaceData');
 // const OfficeSchema = require('../models/OfficeSchema.model');
 // const CompanyProfile = require('../models/CompanyProfile');
 const Employee = require('../models/Employee');
+const TenantSchema = require('../models/Tenant');
+const Tenant = require('../models/Tenant');
 const FaceRecognitionService = require('../services/faceRecognition.service');
 
 
@@ -22,12 +24,12 @@ const getModels = (req) => {
         Attendance: db.model('Attendance', AttendanceSchema),
         AttendanceSettings: db.model('AttendanceSettings', AttendanceSettingsSchema),
         Employee: db.model('Employee', EmployeeSchema),
+        Tenant: db.models.Tenant || db.model('Tenant', Tenant.schema),
         Holiday: db.model('Holiday', HolidaySchema),
         LeaveRequest: db.model('LeaveRequest', LeaveRequestSchema),
         AuditLog: db.model('AuditLog', AuditLogSchema),
         FaceData: db.model('FaceData', FaceDataSchema),
         // Office: db.model('Office', CompanyProfile)
-        Employee: db.model('Employee', Employee)
     };
 };
 
@@ -72,30 +74,31 @@ exports.validateLocation = async (req, res) => {
         console.log("Request body:", req.body);
 
 
-        Employee.updateOne(
-            { _id: '69661f85507ce0cf47b618ae' },
-            {
-                $set: {
-                    geofance: [
-                        {
-                            lat: 23.021288,
-                            lng: 72.555100
-                        },
-                        {
-                            lat: 23.021188,
-                            lng: 72.554934
-                        },
-                        {
-                            lat: 23.020960,
-                            lng: 72.555106
-                        },
-                        {
-                            lat: 23.021033,
-                            lng: 72.555232
-                        },
-                    ]
-                }
-            });
+        // Employee.updateOne(
+        //     { _id: '69661f85507ce0cf47b618ae' },
+        //     {
+        //         $set: {
+        //             geofance: [
+        //                 {
+        //                     lat: 23.021288,
+        //                     lng: 72.555100
+        //                 },
+        //                 {
+        //                     lat: 23.021188,
+        //                     lng: 72.554934
+        //                 },
+        //                 {
+        //                     lat: 23.020960,
+        //                     lng: 72.555106
+        //                 },
+        //                 {
+        //                     lat: 23.021033,
+        //                     lng: 72.555232
+        //                 },
+        //             ]
+        //         }
+        //     });
+
         const { location, isFaceVerified, tenantId } = req.body;
 
         if (!isFaceVerified) {
@@ -140,12 +143,6 @@ exports.validateLocation = async (req, res) => {
                 message: `Location accuracy too low. Required: ${employee.allowedAccuracy}m, Got: ${location.accuracy}m`
             });
         }
-        demoGeofance = [
-            { "lat": 23.03010, "lng": 72.51790 },
-            { "lat": 23.03010, "lng": 72.51830 },
-            { "lat": 23.03040, "lng": 72.51830 },
-            { "lat": 23.03040, "lng": 72.51790 }
-        ]
 
         // Check if location is inside geofence
         if (employee.geofance && employee.geofance.length > 0) {
@@ -1688,7 +1685,7 @@ exports.verifyFaceAttendance = async (req, res) => {
             });
         }
 
-        const { FaceData, Attendance, Employee } = getModels(req);
+        const { FaceData, Attendance, Employee, AttendanceSettings } = getModels(req);
 
         // ---------- FETCH REGISTERED FACE ----------
         const registeredFace = await FaceData.findOne({
@@ -1826,8 +1823,14 @@ exports.verifyFaceAttendance = async (req, res) => {
 
         console.log(`✅ FACE APPROVED - Distance: ${distance.toFixed(6)} is acceptable`);
 
+        console.log(tenantId);
         // ---------- EMPLOYEE ----------
         const employee = await Employee.findById(employeeId).lean();
+
+        // Use the master Tenant model imported at the top of the file
+        // Use findOne({ tenant: tenantId }) because tenantId is a field, not the document's _id
+        const attendanceSettings = await AttendanceSettings.findOne({ tenant: tenantId }).lean();
+
         if (!employee) {
             return res.status(404).json({ success: false, message: 'Employee not found' });
         }
@@ -1835,7 +1838,10 @@ exports.verifyFaceAttendance = async (req, res) => {
         // ---------- LOCATION ACCURACY ----------
         // Default: 150m (increased from 100m for better real-world GPS performance)
         // Grace margin: 20% tolerance for GPS fluctuations
-        const baseAllowedAccuracy = employee.allowedAccuracy || 150;
+
+        console.log("attendanceSettings ", attendanceSettings)
+
+        const baseAllowedAccuracy = attendanceSettings?.allowedAccuracy || 100;
         const graceMargin = 1.2; // 20% tolerance
         const effectiveAllowedAccuracy = baseAllowedAccuracy * graceMargin;
 

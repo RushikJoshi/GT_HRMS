@@ -49,6 +49,21 @@ const AttendanceSettingsSchema = new mongoose.Schema({
     officeLongitude: { type: Number }, // Office location longitude
     allowedRadiusMeters: { type: Number, default: 100 }, // Allowed radius in meters
 
+
+    geofance: [
+        {
+            lat: Number,
+            lng: Number
+        }
+    ],
+    allowedAccuracy: {
+        type: Number,
+        default: 80
+    },
+    isActive: {
+        type: Boolean,
+        default: true
+    },
     // IP Restriction Configuration
     ipRestrictionEnabled: { type: Boolean, default: false },
     allowedIPRanges: [{ type: String }], // Array of IP addresses or CIDR ranges (e.g., "192.168.1.0/24")
