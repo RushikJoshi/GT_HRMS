@@ -1,0 +1,711 @@
+{
+  "incomingRequest": {
+    "annualCTC": 500000,
+    "selectedEarnings": [
+      {
+        "epf": {
+          "enabled": true,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "_id": "695ca2fed5e025d3747aa6c6",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Basic",
+        "name": "Basic",
+        "payslipName": "Basic",
+        "payType": "FIXED",
+        "calculationType": "PERCENTAGE_OF_CTC",
+        "amount": 0,
+        "percentage": 45,
+        "isActive": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-06T05:51:58.406Z",
+        "updatedAt": "2026-02-02T07:00:18.727Z",
+        "__v": 0,
+        "enabled": true
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "enabled": true,
+        "_id": "695ca68185aafbb81b04c349",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "House Rent Allowance",
+        "payslipName": "House Rent Allowance",
+        "payType": "FIXED",
+        "calculationType": "PERCENTAGE_OF_BASIC",
+        "amount": 0,
+        "percentage": 40,
+        "isActive": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-06T06:06:57.294Z",
+        "updatedAt": "2026-01-06T07:28:47.703Z",
+        "__v": 0
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "enabled": true,
+        "_id": "695cb9f34e408d5c5857dba8",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "MEDICAL REIMBURSEMENT",
+        "payslipName": "MEDICAL REIMBURSEMENT",
+        "payType": "FIXED",
+        "calculationType": "FLAT_AMOUNT",
+        "amount": 1250,
+        "percentage": 0,
+        "isActive": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-06T07:29:55.321Z",
+        "updatedAt": "2026-01-06T07:29:55.321Z",
+        "__v": 0
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "enabled": true,
+        "_id": "695cba274e408d5c5857dbb5",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "CONVEYANCE ALLOWANCE",
+        "payslipName": "CONVEYANCE ALLOWANCE",
+        "payType": "FIXED",
+        "calculationType": "FLAT_AMOUNT",
+        "amount": 1600,
+        "percentage": 0,
+        "isActive": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-06T07:30:47.704Z",
+        "updatedAt": "2026-01-06T07:30:47.704Z",
+        "__v": 0
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "enabled": true,
+        "_id": "695cbab84e408d5c5857dbce",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "SPECIAL ALLOWANCE",
+        "payslipName": "SPECIAL ALLOWANCE",
+        "payType": "FIXED",
+        "calculationType": "PERCENTAGE_OF_CTC",
+        "amount": 0,
+        "percentage": 0,
+        "isActive": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-06T07:33:12.185Z",
+        "updatedAt": "2026-01-06T07:33:12.185Z",
+        "__v": 0
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "enabled": true,
+        "_id": "695cd77b91d45e6ce0233517",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "Education Allowance",
+        "payslipName": "Education Allowance",
+        "payType": "FIXED",
+        "calculationType": "FLAT_AMOUNT",
+        "amount": 100,
+        "percentage": 0,
+        "isActive": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-06T09:35:55.061Z",
+        "updatedAt": "2026-01-06T09:35:55.061Z",
+        "__v": 0
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "enabled": true,
+        "_id": "695cd7a991d45e6ce0233524",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "Book & Periodicals",
+        "payslipName": "Book & Periodicals",
+        "payType": "FIXED",
+        "calculationType": "FLAT_AMOUNT",
+        "amount": 1263,
+        "percentage": 0,
+        "isActive": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-06T09:36:41.959Z",
+        "updatedAt": "2026-01-06T09:36:41.959Z",
+        "__v": 0
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "enabled": true,
+        "_id": "695cd7d391d45e6ce0233531",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "Uniform Allowance",
+        "payslipName": "Uniform Allowance",
+        "payType": "FIXED",
+        "calculationType": "FLAT_AMOUNT",
+        "amount": 1263,
+        "percentage": 0,
+        "isActive": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-06T09:37:23.819Z",
+        "updatedAt": "2026-01-06T09:37:23.819Z",
+        "__v": 0
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "enabled": true,
+        "_id": "695cd7f891d45e6ce023353b",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "Mobile Reimbursement",
+        "payslipName": "Mobile Reimbursement",
+        "payType": "FIXED",
+        "calculationType": "FLAT_AMOUNT",
+        "amount": 632,
+        "percentage": 0,
+        "isActive": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-06T09:38:00.621Z",
+        "updatedAt": "2026-01-06T09:38:00.621Z",
+        "__v": 0
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "_id": "695e4d53c0f24022e5b5cbb6",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "Transport Allowance",
+        "payslipName": "Transport Allowance",
+        "payType": "FIXED",
+        "calculationType": "FLAT_AMOUNT",
+        "amount": 0,
+        "percentage": 0,
+        "isActive": true,
+        "enabled": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-07T12:10:59.023Z",
+        "updatedAt": "2026-01-07T12:10:59.023Z",
+        "__v": 0
+      },
+      {
+        "epf": {
+          "enabled": false,
+          "rule": "ALWAYS"
+        },
+        "esi": {
+          "enabled": false
+        },
+        "_id": "69749b879490d23354511b41",
+        "tenantId": "695c98181a01d447895992ff",
+        "type": "EARNING",
+        "earningType": "Custom Allowance",
+        "name": "Compensatory Allowance",
+        "payslipName": "C",
+        "payType": "FIXED",
+        "calculationType": "FLAT_AMOUNT",
+        "amount": 2077,
+        "percentage": 0,
+        "isActive": true,
+        "enabled": true,
+        "isTaxable": true,
+        "isProRataBasis": false,
+        "includeInSalaryStructure": true,
+        "showInPayslip": true,
+        "isUsedInPayroll": false,
+        "createdAt": "2026-01-24T10:14:31.325Z",
+        "updatedAt": "2026-01-24T10:14:31.325Z",
+        "__v": 0
+      }
+    ],
+    "selectedDeductions": [],
+    "selectedBenefits": []
+  },
+  "dbCounts": {
+    "e": 11,
+    "d": 2,
+    "b": 4
+  },
+  "mergedEarnings": [
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    },
+    {
+      "name": "Basic",
+      "id": "695ca2fed5e025d3747aa6c6"
+    }
+  ],
+  "mergedEarningsFull": [
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "enabled": true,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "enabled": true,
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "enabled": true,
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "enabled": true,
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "enabled": true,
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "enabled": true,
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "enabled": true,
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "enabled": true,
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "enabled": true,
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "enabled": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    },
+    {
+      "epf": {
+        "enabled": true,
+        "rule": "ALWAYS"
+      },
+      "esi": {
+        "enabled": false
+      },
+      "_id": "695ca2fed5e025d3747aa6c6",
+      "tenantId": "695c98181a01d447895992ff",
+      "type": "EARNING",
+      "earningType": "Basic",
+      "name": "Basic",
+      "payslipName": "Basic",
+      "payType": "FIXED",
+      "calculationType": "PERCENTAGE_OF_CTC",
+      "amount": 0,
+      "percentage": 45,
+      "isActive": true,
+      "enabled": true,
+      "isTaxable": true,
+      "isProRataBasis": false,
+      "includeInSalaryStructure": true,
+      "showInPayslip": true,
+      "isUsedInPayroll": false,
+      "createdAt": "2026-01-06T05:51:58.406Z",
+      "updatedAt": "2026-02-02T07:00:18.727Z",
+      "__v": 0,
+      "value": 45
+    }
+  ]
+}

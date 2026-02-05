@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Restart trigger 4 - Env fix applied
+// Restart trigger V10 - Engine logic update 2026-02-04
 const http = require('http');
 // RESTART TRIGGER V7 - Force restart for schema update
 const mongoose = require('mongoose');

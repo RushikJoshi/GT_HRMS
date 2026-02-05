@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api';
 import { formatDateDDMMYYYY } from '../../utils/dateUtils';
 import { DatePicker, Pagination, notification } from 'antd';
@@ -13,6 +14,8 @@ const NATIONALITIES = [
   "Afghan", "Albanian", "Algerian", "American", "Andorran", "Angolan", "Antiguans", "Argentinean", "Armenian", "Australian", "Austrian", "Azerbaijani", "Bahamian", "Bahraini", "Bangladeshi", "Barbadian", "Barbudans", "Batswana", "Belarusian", "Belgian", "Belizean", "Beninese", "Bhutanese", "Bolivian", "Bosnian", "Brazilian", "British", "Bruneian", "Bulgarian", "Burkinabe", "Burmese", "Burundian", "Cambodian", "Cameroonian", "Canadian", "Cape Verdean", "Central African", "Chadian", "Chilean", "Chinese", "Colombian", "Comoran", "Congolese", "Costa Rican", "Croatian", "Cuban", "Cypriot", "Czech", "Danish", "Djibouti", "Dominican", "Dutch", "East Timorese", "Ecuadorean", "Egyptian", "Emirian", "Equatorial Guinean", "Eritrean", "Estonian", "Ethiopian", "Fijian", "Filipino", "Finnish", "French", "Gabonese", "Gambian", "Georgian", "German", "Ghanaian", "Greek", "Grenadian", "Guatemalan", "Guinea-Bissauan", "Guinean", "Guyanese", "Haitian", "Herzegovinian", "Honduran", "Hungarian", "I-Kiribati", "Icelander", "Indian", "Indonesian", "Iranian", "Iraqi", "Irish", "Israeli", "Italian", "Ivorian", "Jamaican", "Japanese", "Jordanian", "Kazakhstani", "Kenyan", "Kittian and Nevisian", "Kuwaiti", "Kyrgyz", "Laotian", "Latvian", "Lebanese", "Liberian", "Libyan", "Liechtensteiner", "Lithuanian", "Luxembourger", "Macedonian", "Malagasy", "Malawian", "Malaysian", "Maldivan", "Malian", "Maltese", "Marshallese", "Mauritanian", "Mauritian", "Mexican", "Micronesian", "Moldovan", "Monacan", "Mongolian", "Moroccan", "Mosotho", "Motswana", "Mozambican", "Namibian", "Nauruan", "Nepalese", "New Zealander", "Ni-Vanuatu", "Nicaraguan", "Nigerian", "Nigerien", "North Korean", "Northern Irish", "Norwegian", "Omani", "Pakistani", "Palauan", "Panamanian", "Papua New Guinean", "Paraguayan", "Peruvian", "Polish", "Portuguese", "Qatari", "Romanian", "Russian", "Rwandan", "Saint Lucian", "Salvadoran", "Samoan", "San Marinese", "Sao Tomean", "Saudi", "Scottish", "Senegalese", "Serbian", "Seychellois", "Sierra Leonean", "Singaporean", "Slovakian", "Slovenian", "Solomon Islander", "Somali", "South African", "South Korean", "Spanish", "Sri Lankan", "Sudanese", "Surinamer", "Swazi", "Swedish", "Swiss", "Syrian", "Taiwanese", "Tajik", "Tanzanian", "Thai", "Togolese", "Tongan", "Trinidadian or Tobagonian", "Tunisian", "Turkish", "Tuvaluan", "Ugandan", "Ukrainian", "Uruguayan", "Uzbekistani", "Venezuelan", "Vietnamese", "Welsh", "Yemenite", "Zambian", "Zimbabwean"
 ];
 
+// const navigate = useNavigate()
+
 import ApplyLeaveForm from '../../components/ApplyLeaveForm';
 import SalaryAssignmentModal from '../../components/Payroll/SalaryAssignmentModal';
 import EmployeeProfileView from '../../components/EmployeeProfileView';
@@ -20,6 +23,7 @@ import EmployeeExcelUploadModal from '../../components/HR/EmployeeExcelUploadMod
 import { Calendar as CalendarIcon, User, Search, Filter, Plus, FileText, Edit2, Trash2, Eye, IndianRupee } from 'lucide-react';
 
 export default function Employees() {
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [openForm, setOpenForm] = useState(false);
@@ -362,7 +366,8 @@ export default function Employees() {
                                 <button onClick={() => setApplyingLeave(emp)} className="p-1.5 rounded hover:bg-emerald-50 transition" title="Apply Leave" aria-label="Apply leave for employee">
                                   <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
                                 </button>
-                                <button onClick={() => setAssigningSalary(emp)} className="p-1.5 rounded hover:bg-purple-50 transition" title="Assign Salary Structure" aria-label="Assign Salary">
+                                {/* <button onClick={() => setAssigningSalary(emp)} className="p-1.5 rounded hover:bg-purple-50 transition" title="Assign Salary Structure" aria-label="Assign Salary"> */}
+                                <button onClick={() => navigate(`/hr/salary-structure/${emp._id}`)} className="p-1.5 rounded hover:bg-purple-50 transition" title="Assign Salary Structure" aria-label="Assign Salary">
                                   <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
                                 </button>
                                 <button
@@ -599,7 +604,7 @@ export default function Employees() {
       }
 
       {/* Salary Assignment Modal */}
-      {
+      {/* {
         assigningSalary && (
           <SalaryAssignmentModal
             employee={assigningSalary}
@@ -609,8 +614,9 @@ export default function Employees() {
               load();
             }}
           />
+          
         )
-      }
+      } */}
 
       {/* Excel Upload Modal */}
       <EmployeeExcelUploadModal

@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useContext } from 'react';
+﻿import React, { useState, useEffect, useContext } from 'react';
 import { Pagination } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { UIContext } from '../../context/UIContext';
-import { FileText, Edit2, X, Calendar as CalendarIcon, Users, Clock, CheckCircle, AlertCircle, RefreshCw, LogIn, LogOut, Briefcase, ChevronRight, Info } from 'lucide-react';
+import { FileText, Edit2, X, Calendar as CalendarIcon, Clock, CheckCircle, AlertCircle, RefreshCw, LogIn, LogOut, Briefcase, ChevronRight, Info } from 'lucide-react';
 import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/dateUtils';
 
 import RegularizationRequest from '../Leaves/RegularizationRequest';
@@ -349,9 +349,12 @@ export default function EmployeeDashboard() {
             </div>
           </div>
 
+
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
             {/* Left Column: Clock (Interactive Zone) */}
             <div className="xl:col-span-5 space-y-6">
+
+
               <AttendanceClock
                 isCheckedIn={isCheckedIn}
                 isCheckedOut={isCheckedOut}
@@ -363,35 +366,8 @@ export default function EmployeeDashboard() {
                 error={clockError}
               />
 
-              {/* Advanced System Metrics */}
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { label: 'Total Punches', value: todaySummary?.totalPunches || 0, icon: RefreshCw, color: 'text-indigo-400' },
-                  { label: 'Inbound', value: todaySummary?.totalIn || 0, icon: LogIn, color: 'text-emerald-500' },
-                  { label: 'Outbound', value: todaySummary?.totalOut || 0, icon: LogOut, color: 'text-rose-500' },
-                ].map((item, idx) => (
-                  <div key={idx} className="bg-white dark:bg-slate-800/40 backdrop-blur-md p-5 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-500/40 transition-all duration-300">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center mb-4 transition-transform group-hover:scale-110">
-                      <item.icon size={18} className={`${item.color} opacity-80 group-hover:opacity-100 transition-opacity`} />
-                    </div>
-                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">{item.label}</p>
-                    <p className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* High Fidelity Working Hours Terminal */}
-              <WorkingHoursCard
-                baseHours={todaySummary?.workingHours || 0}
-                lastPunchIn={todayRecord?.checkIn ? (isCheckedIn && !isCheckedOut ? todayRecord.logs?.[todayRecord.logs.length - 1]?.time : null) : null}
-                isActive={isCheckedIn && !isCheckedOut}
-              />
-            </div>
-
-            {/* Right Column: Information Network */}
-            <div className="xl:col-span-7 space-y-6">
-              {/* Policy Framework Console */}
-              <div className="bg-slate-900 border border-slate-800 text-white p-8 rounded-3xl shadow-2xl overflow-hidden relative group">
+              {/* Policy Framework Console (Moved for balance) */}
+              <div className="bg-slate-900 border border-slate-800 text-white p-6 rounded-3xl shadow-2xl overflow-hidden relative group">
                 <div className="absolute top-[-60px] right-[-60px] opacity-[0.05] group-hover:rotate-12 transition-transform duration-1000">
                   <Clock size={320} />
                 </div>
@@ -409,42 +385,45 @@ export default function EmployeeDashboard() {
                     <span className="text-[10px] bg-indigo-500 text-white px-4 py-1.5 rounded-full font-black tracking-[0.1em] shadow-[0_0_20px_rgba(99,102,241,0.3)] border border-indigo-400">v2.4 ACTIVE</span>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                     {[
                       { label: 'Shift Window', value: attendanceSettings ? `${attendanceSettings.shiftStartTime} - ${attendanceSettings.shiftEndTime}` : '-- : --', color: 'text-indigo-400' },
                       { label: 'Architecture', value: attendanceSettings ? `${attendanceSettings.punchMode} PUNCH` : '--', color: 'text-blue-400' },
                       { label: 'Grace Period', value: attendanceSettings ? `${attendanceSettings.lateMarkThresholdMinutes} MIN` : '--', color: 'text-emerald-400' },
                       { label: 'Full Day Unit', value: attendanceSettings ? `${attendanceSettings.fullDayThresholdHours} HRS` : '--', color: 'text-amber-400' },
                     ].map((config, i) => (
-                      <div key={i} className="space-y-2 group/item">
+                      <div key={i} className="space-y-1.5 group/item">
                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover/item:text-slate-400 transition-colors">{config.label}</p>
                         <p className={`text-sm font-black tracking-tight ${config.color}`}>{config.value}</p>
                       </div>
                     ))}
                   </div>
 
-                  <div className="mt-10 pt-8 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="mt-8 pt-6 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500/10 transition-colors">
-                        <Briefcase size={20} className="text-slate-400 group-hover:text-indigo-400 transition-colors" />
+                      <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500/10 transition-colors">
+                        <Briefcase size={16} className="text-slate-400 group-hover:text-indigo-400 transition-colors" />
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Geo-Fencing System</span>
-                        <span className="text-xs font-bold text-slate-300">Biometric Location Validation</span>
+                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Geo-Fencing System</span>
+                        <span className="text-[10px] font-bold text-slate-400">Biometric Validation Active</span>
                       </div>
                     </div>
-                    <span className={`text-[10px] font-black uppercase tracking-[0.15em] px-6 py-2.5 rounded-2xl border transition-all duration-500 ${attendanceSettings?.locationRestrictionMode === 'none'
+                    <span className={`text-[9px] font-black uppercase tracking-[0.15em] px-5 py-2 rounded-2xl border transition-all duration-500 ${attendanceSettings?.locationRestrictionMode === 'none'
                       ? 'bg-slate-800/50 text-slate-500 border-slate-700/50 hover:border-slate-600'
                       : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.1)] hover:shadow-emerald-500/20'}`}>
-                      {attendanceSettings?.locationRestrictionMode === 'none' ? 'Protocol Bypassed' : `Security Restricted: ${attendanceSettings?.locationRestrictionMode}`}
+                      {attendanceSettings?.locationRestrictionMode === 'none' ? 'Bypassed' : `Security: ${attendanceSettings?.locationRestrictionMode}`}
                     </span>
                   </div>
                 </div>
               </div>
 
+            </div>
+            <div className="xl:col-span-7 space-y-6">
+
               {/* Activity Timeline Dashboard */}
               <div className="bg-white dark:bg-slate-800/40 backdrop-blur-md p-8 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm relative overflow-hidden group">
-                <div className="flex justify-between items-end mb-8 relative z-10">
+                <div className="flex justify-between items-end mb-14 relative z-10">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">Activity Streams</h3>
@@ -461,48 +440,89 @@ export default function EmployeeDashboard() {
                   </button>
                 </div>
 
-                <div className="space-y-4 relative z-10">
-                  {attendance.slice(0, 5).map((att, i) => (
-                    <div key={att._id} className="flex items-center justify-between p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/5 transition-all group/row animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
-                      <div className="flex items-center gap-5">
-                        <div className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm group-hover/row:border-indigo-200 dark:group-hover/row:border-indigo-800 transition-colors">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter leading-none">{new Date(att.date).toLocaleDateString([], { month: 'short' })}</span>
-                          <span className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{new Date(att.date).getDate()}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-tight">Terminal Interaction</span>
-                            <span className="text-[8px] font-black text-slate-400 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded uppercase tracking-widest">Log #{i + 1}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1.5 opacity-60">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                              <LogIn size={12} /> {att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
-                            </div>
-                            <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                              <LogOut size={12} /> {att.checkOut ? new Date(att.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                <div className="space-y-4 max-h-[400px] md:max-h-[480px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar relative z-10">
+                  {attendance.slice(0, 10).map((att, i) => {
+                    // Logic to calculate duration
+                    const calculateDuration = (attendanceRecord) => {
+                      const status = attendanceRecord.status ? attendanceRecord.status.toLowerCase() : '';
+                      if (!attendanceRecord.checkIn) return '--';
+                      if (status === 'absent') return '--';
 
-                      <div className="flex items-center gap-4">
-                        <div className="flex flex-col items-end mr-2">
-                          <span className="text-sm font-black text-slate-900 dark:text-white tracking-tighter">{att.workingHours || 0}h Total</span>
-                          <div className="flex gap-1 mt-1">
-                            {att.isLate && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Late Entry"></div>}
-                            {att.isEarlyOut && <div className="w-1.5 h-1.5 rounded-full bg-orange-500" title="Early Exit"></div>}
+                      let diff = 0;
+                      const checkInTime = new Date(attendanceRecord.checkIn).getTime();
+
+                      if (attendanceRecord.checkOut) {
+                        const checkOutTime = new Date(attendanceRecord.checkOut).getTime();
+                        diff = checkOutTime - checkInTime;
+                      } else if (status === 'present') {
+                        // Live duration for today
+                        const now = new Date().getTime();
+                        // Only calculate live if it's today's record, otherwise it might be a missed punch out from past
+                        const recordDate = new Date(attendanceRecord.date).toDateString();
+                        const todayDate = new Date().toDateString();
+
+                        if (recordDate === todayDate) {
+                          diff = now - checkInTime;
+                        } else {
+                          // Past record without checkout - show what we have or consider 0 if invalid
+                          // For now, let's treat as 0 or handling 'Missed Punch' logic if exists
+                          // But requirement says "If punch-out is missing: Show live duration or --"
+                          // Let's stick to live if it makes sense, or just --
+                          return '--';
+                        }
+                      }
+
+                      if (diff < 0) diff = 0;
+                      const hrs = Math.floor(diff / (1000 * 60 * 60));
+                      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+                      return `${hrs}h ${mins}m`;
+                    };
+
+                    const durationDisplay = calculateDuration(att);
+
+                    return (
+                      <div key={att._id} className="flex items-center justify-between p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/5 transition-all group/row animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
+                        <div className="flex items-center gap-5">
+                          <div className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm group-hover/row:border-indigo-200 dark:group-hover/row:border-indigo-800 transition-colors">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter leading-none">{new Date(att.date).toLocaleDateString([], { month: 'short' })}</span>
+                            <span className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{new Date(att.date).getDate()}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-tight">Terminal Interaction</span>
+                              <span className="text-[8px] font-black text-slate-400 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded uppercase tracking-widest">Log #{i + 1}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1.5 opacity-60">
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                                <LogIn size={12} /> {att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
+                              </div>
+                              <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                                <LogOut size={12} /> {att.checkOut ? new Date(att.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <span className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${att.status?.toLowerCase() === 'present'
-                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
-                          : 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.05)]'
-                          }`}>
-                          {att.status || 'Verified'}
-                        </span>
+
+                        <div className="flex items-center gap-4">
+                          <div className="flex flex-col items-end mr-2">
+                            <span className="text-sm font-black text-slate-900 dark:text-white tracking-tighter">{durationDisplay}</span>
+                            <div className="flex gap-1 mt-1">
+                              {att.isLate && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Late Entry"></div>}
+                              {att.isEarlyOut && <div className="w-1.5 h-1.5 rounded-full bg-orange-500" title="Early Exit"></div>}
+                            </div>
+                          </div>
+                          <span className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${att.status?.toLowerCase() === 'present'
+                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                            : 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.05)]'
+                            }`}>
+                            {att.status || 'Verified'}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {attendance.length === 0 && (
                     <div className="text-center py-20 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800 bg-slate-50/30 flex flex-col items-center gap-4">
                       <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center mb-2">
@@ -513,50 +533,54 @@ export default function EmployeeDashboard() {
                   )}
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-            <div className="lg:col-span-5 flex">
-              <ReportingTree />
-            </div>
-            <div className="lg:col-span-7 bg-white dark:bg-slate-800/40 backdrop-blur-md p-10 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm flex flex-col justify-center items-center text-center group relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-violet-500/5 group-hover:opacity-100 transition-opacity duration-1000"></div>
-              <div className="relative z-10 flex flex-col items-center">
-                <div className="w-20 h-20 rounded-3xl bg-white dark:bg-slate-900 border-4 border-slate-50 dark:border-slate-800 shadow-2xl flex items-center justify-center mb-8 transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-700">
-                  <Users className="text-indigo-600" size={36} />
-                </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-0.5 w-6 bg-indigo-500"></div>
-                  <h4 className="text-xs font-black text-indigo-500 uppercase tracking-[0.3em]">Corporate Ecosystem</h4>
-                </div>
-                <h4 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none mb-4">Team Synergy Network</h4>
-                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">Stay connected with your company directory and team members.</p>
-                <div className="mt-10 flex items-baseline gap-4">
-                  <button className="px-8 py-3.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-indigo-700 hover:shadow-xl hover:shadow-indigo-500/20 transition-all active:scale-95">Open Directory</button>
-                  <button className="px-8 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Node Map</button>
+              {/* Combined Row (Overtime + System Metrics) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Overtime box */}
+                <WorkingHoursCard
+                  baseHours={todaySummary?.workingHours || 0}
+                  lastPunchIn={todayRecord?.checkIn ? (isCheckedIn && !isCheckedOut ? todayRecord.logs?.[todayRecord.logs.length - 1]?.time : null) : null}
+                  isActive={isCheckedIn && !isCheckedOut}
+                />
+
+                {/* System Metrics – Punch Performance */}
+                <div className="bg-white dark:bg-slate-800/40 backdrop-blur-md p-6 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm flex flex-col justify-between group hover:border-indigo-500/30 transition-all">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex flex-col">
+                      <span className="text-[15px] font-black text-slate-400 uppercase tracking-widest">System Metrics</span>
+                      <span className="text-xs font-bold text-slate-900 dark:text-white mt-1">Punch Performance</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
+                      <Briefcase size={16} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: 'Total', value: todaySummary?.totalPunches || 0, icon: RefreshCw, color: 'text-indigo-400' },
+                      { label: 'In', value: todaySummary?.totalIn || 0, icon: LogIn, color: 'text-emerald-500' },
+                      { label: 'Out', value: todaySummary?.totalOut || 0, icon: LogOut, color: 'text-rose-500' },
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex flex-col items-center p-2 rounded-2xl bg-slate-50 dark:bg-slate-900/50">
+                        <item.icon size={12} className={`${item.color} mb-1`} />
+                        <span className="text-lg font-black text-slate-800 dark:text-white leading-none">{item.value}</span>
+                        <span className="text-[7px] font-bold text-slate-400 uppercase mt-0.5">{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
+
+          </div>
+
+          <div className="w-full">
+            <ReportingTree />
           </div>
         </div>
       )}
 
-      {/* MY LEAVES TAB */}
       {activeTab === 'leaves' && (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-
-          {/* Header & Quick Stats */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-10 bg-emerald-500 rounded-full"></div>
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em]">Temporal Assets</span>
-              </div>
-              <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none mt-2 uppercase">Time Off Console</h2>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-2">Managing your leave ecosystem and balance quotas.</p>
-            </div>
-          </div>
 
           {!hasLeavePolicy ? (
             <div className="p-12 bg-amber-50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-[2.5rem] text-center shadow-sm">
@@ -683,7 +707,7 @@ export default function EmployeeDashboard() {
                           {leaves.length > 0 ? (
                             leaves.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((leave, i) => (
                               <tr key={leave._id} className="group/row bg-slate-50/50 dark:bg-slate-900/40 hover:bg-white dark:hover:bg-slate-800 border border-transparent hover:border-indigo-500/20 shadow-sm transition-all duration-300 animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
-                                <td className="py-4 pl-4 rounded-l-2xl">
+                                <td className="py-4 pl-4">
                                   <div className="flex flex-col">
                                     <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">{leave.leaveType}</span>
                                     <span className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">Application #{leave._id.slice(-4).toUpperCase()}</span>
@@ -709,7 +733,7 @@ export default function EmployeeDashboard() {
                                     {leave.status}
                                   </span>
                                 </td>
-                                <td className="py-4 pr-4 text-right rounded-r-2xl">
+                                <td className="py-4 pr-4 text-right">
                                   {leave.status === 'Pending' ? (
                                     <div className="flex justify-end gap-2">
                                       <button
@@ -799,76 +823,94 @@ export default function EmployeeDashboard() {
       )}
 
       {/* MY PROFILE TAB */}
-      {activeTab === 'profile' && (
-        <EmployeeProfileView profile={profile} balances={balances} />
-      )}
+      {
+        activeTab === 'profile' && (
+          <EmployeeProfileView profile={profile} balances={balances} />
+        )
+      }
 
       {/* REGULARIZATION TAB */}
-      {activeTab === 'regularization' && (
-        <RegularizationRequest />
-      )}
+      {
+        activeTab === 'regularization' && (
+          <RegularizationRequest />
+        )
+      }
 
       {/* FaceAttendance Tab */}
-      {activeTab === 'face-attendance' && (
-        <FaceAttendance />
-      )}
+      {
+        activeTab === 'face-attendance' && (
+          <FaceAttendance />
+        )
+      }
 
       {/* TEAM LEAVES TAB */}
-      {activeTab === 'team-leaves' && (
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
-          <LeaveApprovals isManagerView={true} endpoint="/employee/leaves/team-requests" actionEndpoint="/employee/leaves/requests" />
-        </div>
-      )}
+      {
+        activeTab === 'team-leaves' && (
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+            <LeaveApprovals isManagerView={true} endpoint="/employee/leaves/team-requests" actionEndpoint="/employee/leaves/requests" />
+          </div>
+        )
+      }
 
       {/* TEAM REGULARIZATION TAB */}
-      {activeTab === 'team-regularization' && (
-        <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-            <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-6">Team Attendance Correction</h3>
-            <RegularizationApprovals
-              isManagerView={true}
-              category="Attendance"
-              endpoint="/employee/regularization/team-requests"
-              actionEndpoint="/employee/regularization/requests"
-            />
-          </div>
+      {
+        activeTab === 'team-regularization' && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-6">Team Attendance Correction</h3>
+              <RegularizationApprovals
+                isManagerView={true}
+                category="Attendance"
+                endpoint="/employee/regularization/team-requests"
+                actionEndpoint="/employee/regularization/requests"
+              />
+            </div>
 
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-            <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-6">Team Leave Adjustment</h3>
-            <RegularizationApprovals
-              isManagerView={true}
-              category="Leave"
-              endpoint="/employee/regularization/team-requests"
-              actionEndpoint="/employee/regularization/requests"
-            />
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-6">Team Leave Adjustment</h3>
+              <RegularizationApprovals
+                isManagerView={true}
+                category="Leave"
+                endpoint="/employee/regularization/team-requests"
+                actionEndpoint="/employee/regularization/requests"
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* MY ATTENDANCE TAB */}
-      {activeTab === 'attendance' && (
-        <MyAttendanceView />
-      )}
+      {
+        activeTab === 'attendance' && (
+          <MyAttendanceView />
+        )
+      }
 
       {/* TEAM ATTENDANCE TAB */}
-      {activeTab === 'team-attendance' && (
-        <TeamAttendanceView />
-      )}
+      {
+        activeTab === 'team-attendance' && (
+          <TeamAttendanceView />
+        )
+      }
 
       {/* INTERNAL JOBS TAB */}
-      {activeTab === 'internal-jobs' && (
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
-          <InternalJobs />
-        </div>
-      )}
+      {
+        activeTab === 'internal-jobs' && (
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+            <InternalJobs />
+          </div>
+        )
+      }
 
       {/* MY APPLICATIONS TAB */}
-      {activeTab === 'my-applications' && (
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
-          <MyApplications />
-        </div>
-      )}
+      {
+        activeTab === 'my-applications' && (
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+            <MyApplications />
+          </div>
+        )
+      }
+    </div >
 
-    </div>
   );
 }

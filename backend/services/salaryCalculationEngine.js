@@ -62,9 +62,12 @@ class SalaryCalculationEngine {
         let totalCalculatedAnnual = basicAnnual;
         let totalBenefitsAnnual = 0;
 
+        console.log(`🚀 [ENGINE] Input Earnings:`, (earnings || []).map(e => e.name));
+
         // Process non-special earnings
         const filteredEarnings = (earnings || []).filter(e => !this._isBasic(e) && !this._isSpecial(e));
         filteredEarnings.forEach(e => {
+            console.log(`🔍 [ENGINE] Processing: ${e.name}`);
             const calc = this._processComponent(e, ctx);
             result.earnings.push(calc);
             totalCalculatedAnnual += calc.yearly;
@@ -100,6 +103,8 @@ class SalaryCalculationEngine {
             monthly: saMonthly,
             yearly: saAnnual
         });
+
+        console.log(`✅ [ENGINE] Result Earnings:`, result.earnings.map(e => e.name));
 
         // Update Totals
         const totalEarningsAnnual = totalCalculatedAnnual + saAnnual;

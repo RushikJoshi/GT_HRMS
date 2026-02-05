@@ -157,19 +157,13 @@ const SalaryController = {
             const mergedDeductions = mergeWithDB(selectedDeductions, dbDeductions);
             const mergedBenefits = mergeWithDB(selectedBenefits, dbBenefits);
 
-            console.log(`🔍 DEBUG: Merged earnings:`, mergedEarnings.map(e => ({
-                name: e.name,
-                calculationType: e.calculationType,
-                percentage: e.percentage,
-                amount: e.amount
-            })));
-
             const result = SalaryCalculationEngine.calculateSalary({
                 annualCTC,
                 earnings: mergedEarnings,
                 deductions: mergedDeductions,
                 benefits: mergedBenefits
             });
+            console.log(`✅ [SALARY_CONTROLLER] Engine Returned ${result.earnings.length} earnings.`);
             res.json({ success: true, data: result });
         } catch (error) {
             console.error('[SALARY_CONTROLLER] Preview Error:', error);

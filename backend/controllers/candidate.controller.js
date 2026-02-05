@@ -2,7 +2,7 @@
 exports.updateCandidateProfile = async (req, res) => {
     try {
         const { id, tenantId } = req.candidate;
-        const { name, email, phone, professionalTier, profileImageUrl } = req.body;
+        const { name, email, phone, professionalTier } = req.body;
         const tenantDB = await getTenantDB(tenantId);
         const Candidate = tenantDB.model("Candidate");
         const update = {
@@ -11,7 +11,6 @@ exports.updateCandidateProfile = async (req, res) => {
             mobile: phone,
             professionalTier, // Now supported in schema
         };
-        if (profileImageUrl) update.profilePic = profileImageUrl;
         const candidate = await Candidate.findByIdAndUpdate(id, update, { new: true });
         if (!candidate) return res.status(404).json({ error: "Candidate not found" });
         res.json({ success: true, candidate });
@@ -37,24 +36,11 @@ exports.getCandidateProfile = async (req, res) => {
             email: candidate.email,
             phone: candidate.mobile,
             professionalTier: candidate.professionalTier || 'Technical Leader', // fallback or real field
-            profileImageUrl: candidate.profilePic,
             // Include other fields as needed
             ...candidate.toObject()
         });
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch profile", details: err.message });
-    }
-};
-
-// Upload profile photo
-exports.uploadProfilePhoto = async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-        // Return relative path or URL for frontend
-        const url = `/uploads/profile-pics/${req.file.filename}`;
-        res.json({ success: true, url });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to upload photo', details: err.message });
     }
 };
 const bcrypt = require('bcryptjs');
@@ -155,7 +141,8 @@ exports.loginCandidate = async (req, res) => {
                 id: candidate._id,
                 name: candidate.name,
                 email: candidate.email,
-                mobile: candidate.mobile
+                mobile: candidate.mobile,
+                profilePic: candidate.profilePic
             }
         });
     } catch (err) {
@@ -181,7 +168,8 @@ exports.getCandidateMe = async (req, res) => {
                 id: candidate._id,
                 name: candidate.name,
                 email: candidate.email,
-                mobile: candidate.mobile
+                mobile: candidate.mobile,
+                profilePic: candidate.profilePic
             }
         });
     } catch (err) {

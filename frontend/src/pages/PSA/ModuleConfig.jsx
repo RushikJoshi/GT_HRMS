@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
 import { useNavigate } from 'react-router-dom';
 import api from "../../utils/api";
@@ -24,6 +24,27 @@ export default function ModuleConfig({ company, onClose }) {
   const [companies, setCompanies] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState(company || null);
   const navigate = useNavigate();
+  const activeCount = useMemo(() => {
+    return modules.filter(m => AVAILABLE_MODULES.some(avail => avail.code === m)).length;
+  }, [modules]);
+
+  const allSelected = activeCount === AVAILABLE_MODULES.length;
+  const isIndeterminate = activeCount > 0 && activeCount < AVAILABLE_MODULES.length;
+  const checkboxRef = useRef(null);
+
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = isIndeterminate;
+    }
+  }, [isIndeterminate]);
+
+  function handleSelectAll() {
+    if (allSelected) {
+      setModules([]);
+    } else {
+      setModules(AVAILABLE_MODULES.map(m => m.code));
+    }
+  }
 
   useEffect(() => {
     setModules(company?.modules ? [...company.modules] : []);
@@ -151,9 +172,28 @@ export default function ModuleConfig({ company, onClose }) {
         {/* Modules Grid */}
         {selectedCompany ? (
           <div className="animate-fade-in-up">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              Available Modules <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{modules.length} Active</span>
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                Available Modules <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{activeCount} Active</span>
+              </h3>
+
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <div className="relative flex items-center">
+                  <input
+                    type="checkbox"
+                    ref={checkboxRef}
+                    checked={allSelected}
+                    onChange={handleSelectAll}
+                    disabled={saving}
+                    className="w-5 h-5 border-2 border-gray-300 rounded focus:ring-blue-500 text-blue-600 cursor-pointer transition-all disabled:opacity-50"
+                  />
+                </div>
+                <span className="text-sm font-bold text-gray-600 group-hover:text-blue-600 transition-colors uppercase tracking-wider">
+                  {allSelected ? 'Deselect All' : 'Select All'}
+                </span>
+              </label>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {AVAILABLE_MODULES.map(renderModuleCard)}
             </div>

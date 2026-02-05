@@ -105,11 +105,11 @@ export default function CandidateLogin() {
             <div className="w-full max-w-[480px] z-10 animate-in fade-in duration-300">
                 {/* Header/Logo */}
                 <div className="text-center mb-10">
-                    <div className="mx-auto w-14 h-14 bg-gradient-to-br from-premium-blue to-premium-blue-dark rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 mb-6">
+                    <div className="mx-auto w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100 mb-6">
                         <Briefcase className="text-white w-7 h-7" />
                     </div>
-                    <h1 className="text-3xl font-bold text-deep-navy tracking-tight mb-2">Welcome Back</h1>
-                    <p className="text-slate-500 font-medium text-sm">Continue your journey with <span className="text-premium-blue font-bold">{company.name}</span></p>
+                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Welcome Back</h1>
+                    <p className="text-slate-500 font-medium text-sm">Continue your journey with <span className="text-indigo-600 font-bold">{company.name}</span></p>
                 </div>
 
                 {/* Login Card */}
@@ -165,7 +165,7 @@ export default function CandidateLogin() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-premium-blue hover:bg-premium-blue-dark text-white py-4 rounded-[1.2rem] font-bold shadow-lg shadow-blue-100/50 hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-xs uppercase tracking-widest"
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-[1.2rem] font-bold shadow-lg shadow-indigo-100 hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-xs uppercase tracking-widest"
                         >
                             {loading ? 'Authenticating...' : (
                                 <>

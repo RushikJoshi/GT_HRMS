@@ -51,7 +51,7 @@ export default function CandidateOpenPositions() {
     if (loading) return (
         <div className="h-[60vh] flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
-                <div className="h-12 w-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
                 <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Scanning Positions...</p>
             </div>
         </div>
@@ -65,11 +65,11 @@ export default function CandidateOpenPositions() {
                 <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-8">
                     <div className="max-w-xl">
                         <div className="inline-flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-lg mb-4">
-                            <Globe size={12} className="text-premium-blue" />
+                            <Globe size={12} className="text-indigo-600" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Active Opportunities</span>
                         </div>
-                        <h1 className="text-3xl font-bold text-deep-navy tracking-tight mb-3">
-                            Find your <span className="text-premium-blue">milestone</span>.
+                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-3">
+                            Find your <span className="text-indigo-600">milestone</span>.
                         </h1>
                         <p className="text-slate-500 text-sm font-medium leading-relaxed">
                             Join a team of visionaries and builders. Shape the future with us.
@@ -82,7 +82,7 @@ export default function CandidateOpenPositions() {
                             placeholder="Search by title, category..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-soft-bg border border-gray-100 focus:ring-2 focus:ring-premium-blue/20 focus:bg-white px-14 py-4 rounded-[1.5rem] text-sm font-bold text-deep-navy outline-none transition-all placeholder:text-slate-400"
+                            className="w-full bg-slate-50 border border-gray-100 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white px-14 py-4 rounded-[1.5rem] text-sm font-bold text-slate-800 outline-none transition-all placeholder:text-slate-400"
                         />
                     </div>
                 </div>
@@ -116,7 +116,7 @@ export default function CandidateOpenPositions() {
                                 </div>
                             </div>
 
-                            <h3 className="text-xl font-bold text-deep-navy tracking-tight mb-2 leading-tight group-hover:text-premium-blue transition-colors">
+                            <h3 className="text-xl font-bold text-slate-900 tracking-tight mb-2 leading-tight group-hover:text-indigo-600 transition-colors">
                                 {job?.jobTitle}
                             </h3>
                             <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mb-6">
@@ -137,7 +137,7 @@ export default function CandidateOpenPositions() {
                             <div className="mt-auto">
                                 <button
                                     onClick={() => navigate(`/apply-job/${job._id}?tenantId=${tenantId || getTenantId()}`)}
-                                    className="w-full bg-premium-blue hover:bg-premium-blue-dark text-white py-4 rounded-[1.2rem] font-bold text-xs uppercase tracking-[0.15em] transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md shadow-blue-200"
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-[1.2rem] font-bold text-xs uppercase tracking-[0.15em] transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md shadow-indigo-100"
                                 >
                                     <span>Apply Position</span>
                                     <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
