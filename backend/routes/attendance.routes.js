@@ -16,6 +16,9 @@ router.post('/face/register', auth.authenticate, attendCtrl.registerFace);
 router.post('/face/verify', auth.authenticate, attendCtrl.verifyFaceAttendance);
 router.get('/face/status', auth.authenticate, attendCtrl.getFaceStatus);
 router.delete('/face/delete', auth.authenticate, attendCtrl.deleteFace);
+router.post('/face/request-update', auth.authenticate, attendCtrl.requestFaceUpdate);
+router.get('/face/requests', auth.authenticate, auth.requireHr, attendCtrl.getFaceUpdateRequests);
+router.post('/face/action-request', auth.authenticate, auth.requireHr, attendCtrl.actionFaceUpdate);
 
 // --- Manager Routes ---
 router.get('/team', auth.authenticate, attendCtrl.getTeamAttendance);

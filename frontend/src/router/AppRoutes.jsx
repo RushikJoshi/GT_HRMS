@@ -52,6 +52,7 @@ import CandidateStatusTracker from '../pages/HR/CandidateStatusTracker';
 import CandidateTimeline from '../pages/HR/CandidateStatusTracker/CandidateTimeline';
 import PaySlipDesign from '../pages/HR/Payroll/PaySlipDesign';
 import AttendanceHistory from '../pages/HR/AttendanceHistory';
+import FaceUpdateRequests from '../pages/HR/FaceUpdateRequests';
 
 // Letter modules
 import LetterTemplates from '../pages/HR/LetterTemplates';
@@ -223,6 +224,7 @@ export default function AppRoutes() {
                 <Route path="access" element={<AccessControl />} />
                 <Route path="offer-templates" element={<OfferTemplates />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+                <Route path="face-update-requests" element={<FaceUpdateRequests />} />
 
                 {/* Letters */}
                 <Route path="letter-templates" element={<LetterTemplates />} />
@@ -293,6 +295,7 @@ export default function AppRoutes() {
                 <Route path="access" element={<AccessControl />} />
                 <Route path="offer-templates" element={<OfferTemplates />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+                <Route path="face-update-requests" element={<FaceUpdateRequests />} />
 
                 {/* Letters */}
                 <Route path="letter-templates" element={<LetterTemplates />} />
