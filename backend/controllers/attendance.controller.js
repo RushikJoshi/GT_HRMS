@@ -8,6 +8,7 @@ const HolidaySchema = require('../models/Holiday');
 const LeaveRequestSchema = require('../models/LeaveRequest');
 const AuditLogSchema = require('../models/AuditLog');
 const FaceDataSchema = require('../models/FaceData');
+const FaceUpdateRequestSchema = require('../models/FaceUpdateRequest');
 // const OfficeSchema = require('../models/OfficeSchema.model');
 // const CompanyProfile = require('../models/CompanyProfile');
 const Employee = require('../models/Employee');
@@ -29,6 +30,7 @@ const getModels = (req) => {
         LeaveRequest: db.model('LeaveRequest', LeaveRequestSchema),
         AuditLog: db.model('AuditLog', AuditLogSchema),
         FaceData: db.model('FaceData', FaceDataSchema),
+        FaceUpdateRequest: db.model('FaceUpdateRequest', FaceUpdateRequestSchema),
         // Office: db.model('Office', CompanyProfile)
     };
 };
@@ -240,12 +242,31 @@ function euclideanDistance(a, b) {
 
 // Helper: Validate Geo-fencing
 const validateGeoFencing = (latitude, longitude, settings) => {
-    if (!settings.geoFencingEnabled || !settings.officeLatitude || !settings.officeLongitude) {
+    if (!settings.geoFencingEnabled) {
         return { valid: true };
     }
 
     if (!latitude || !longitude) {
         return { valid: false, error: 'Location data required for geo-fencing' };
+    }
+
+    // 1. Polygon Geofence Validation (if at least 3 points provided)
+    if (settings.geofance && settings.geofance.length >= 3) {
+        const inside = isInsidePolygon({ lat: latitude, lng: longitude }, settings.geofance);
+        if (inside) {
+            return { valid: true, mode: 'polygon' };
+        }
+        // If polygon is defined, it usually takes precedence. 
+        // If we're outside the polygon, we fail (unless we want to also check radius as a fallback/OR condition)
+        return {
+            valid: false,
+            error: `Punch outside allowed boundary (Polygon). Location: ${latitude}, ${longitude}`
+        };
+    }
+
+    // 2. Fallback: Circular Radius Validation
+    if (!settings.officeLatitude || !settings.officeLongitude) {
+        return { valid: true }; // No office location set, skip circular check
     }
 
     // Haversine formula to calculate distance
@@ -270,7 +291,7 @@ const validateGeoFencing = (latitude, longitude, settings) => {
         };
     }
 
-    return { valid: true, distance: Math.round(distance) };
+    return { valid: true, distance: Math.round(distance), mode: 'radius' };
 };
 
 // Helper: Validate IP Address
@@ -1279,28 +1300,46 @@ exports.downloadBulkUploadTemp = async (req, res) => {
         // Sample data
         const sampleData = [
             {
-                'Employee ID': 'EMP001',
-                'Date': '2024-01-01',
-                'Status': 'present',
+                'Sr No': '1',
+                'Employee ID': 'CYB001-IT-001',
+                'Date': '2025-12-31',
                 'Check In': '09:00:00',
-                'Check Out': '18:00:00'
+                'Check Out': '07:07:00',
+                'Working Hours': '7.03',
+                'Overtime Hours': '',
+                'Is Late': 'false',
+                'Is Early': 'false',
+                'Status': 'present',
+                'Leave Type': ''
             },
             {
-                'Employee ID': 'EMP002',
-                'Date': '2024-01-01',
-                'Status': 'absent',
-                'Check In': '',
-                'Check Out': ''
+                'Sr No': '2',
+                'Employee ID': 'CYB001-IT-001',
+                'Date': '2026-01-01',
+                'Check In': '09:00:00',
+                'Check Out': '07:03:00',
+                'Working Hours': '7.03',
+                'Overtime Hours': '',
+                'Is Late': 'false',
+                'Is Early': 'false',
+                'Status': 'present',
+                'Leave Type': ''
             }
         ];
 
         // Headers (first row)
         const headers = [
+            'Sr No.',
             'Employee ID (Required)',
             'Date (YYYY-MM-DD, Required)',
-            'Status (present/absent/leave/half_day/holiday/weekly_off)',
             'Check In (HH:MM:SS, Optional)',
-            'Check Out (HH:MM:SS, Optional)'
+            'Check Out (HH:MM:SS, Optional)',
+            'Working Hours',
+            'Overtime Hours',
+            'Is Late',
+            'Is Early Out',
+            'Status (present/absent/leave/half_day/holiday/weekly_off)',
+            'Leave Type'
         ];
 
         // Convert data to sheet
@@ -1308,11 +1347,18 @@ exports.downloadBulkUploadTemp = async (req, res) => {
 
         // Auto-fit columns
         const colWidths = [
+            { wch: 25 }, // Sr No.
             { wch: 25 }, // Employee ID
             { wch: 15 }, // Date
-            { wch: 45 }, // Status
             { wch: 25 }, // Check In
-            { wch: 25 }  // Check Out
+            { wch: 25 },  // Check Out
+            { wch: 25 },
+            { wch: 25 },
+            { wch: 25 },
+            { wch: 15 },
+            { wch: 25 },
+            { wch: 25 },
+
         ];
         worksheet['!cols'] = colWidths;
 
@@ -1335,10 +1381,204 @@ exports.downloadBulkUploadTemp = async (req, res) => {
 };
 
 // Bulk Upload from JSON data (for frontend Excel import)
+// exports.bulkUpload = async (req, res) => {
+//     try {
+//         const { records } = req.body;
+//         console.log(records);
+
+//         if (!records || !Array.isArray(records)) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: "Records must be an array"
+//             });
+//         }
+
+//         if (records.length === 0) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: "No records provided"
+//             });
+//         }
+
+//         const { Attendance, Employee, AuditLog, AttendanceSettings } = getModels(req);
+//         const tenantId = req.tenantId;
+//         const userId = req.userId;
+
+//         const results = {
+//             uploadedCount: 0,
+//             failedCount: 0,
+//             errors: []
+//         };
+
+//         // Cache settings
+//         let settings = await AttendanceSettings.findOne({ tenant: tenantId });
+//         if (!settings) settings = new AttendanceSettings({ tenant: tenantId });
+
+//         // Normalize header names
+//         const normalize = (s) => s ? s.toString().toLowerCase().replace(/\s/g, '').replace(/[^a-z0-9]/g, '') : '';
+
+//         for (let i = 0; i < records.length; i++) {
+//             const row = records[i];
+//             const rowIdx = i + 2; // 1-indexed + header row
+
+//             try {
+//                 // Find column names
+//                 let empIdVal = "";
+//                 let dateVal = null;
+//                 let statusVal = "";
+//                 let checkInVal = null;
+//                 let checkOutVal = null;
+//                 let workingHoursVal = null;
+//                 let overtimeHoursVal = null;
+//                 let isLateVal = null;
+//                 let isEarlyOutVal = null;
+//                 let leaveTypeVal = '';
+
+
+//                 for (const key of Object.keys(row)) {
+//                     const normKey = normalize(key);
+//                     const val = row[key];
+
+//                     if (normKey.includes('employeeid') || normKey.includes('empid') || normKey === 'id' || normKey === 'code') {
+//                         empIdVal = val ? val.toString().trim() : "";
+//                     } else if (normKey === 'date' || normKey.includes('attendancedate') || normKey.includes('punchdate')) {
+//                         dateVal = val;
+//                     } else if (normKey === 'status') {
+//                         statusVal = val ? val.toString().trim().toLowerCase() : "";
+//                     } else if (normKey.includes('checkin') || normKey.includes('punchin') || normKey === 'in') {
+//                         checkInVal = val;
+//                     } else if (normKey.includes('checkout') || normKey.includes('punchout') || normKey === 'out') {
+//                         checkOutVal = val;
+//                     } else if (normKey.includes('workinghours')){
+//                         workingHoursVal = val;
+//                     } else if (normKey.includes('overtimehours')){
+//                         overtimeHoursVal = val;
+//                     } else if (normKey.includes('islate')){
+//                         isLateVal = val || false;
+//                     } else if (normKey.includes('isearly')){
+//                         isEarlyOutVal = val || false;
+//                     } else if (normKey.includes('leavetype')){
+//                         leaveTypeVal = val ? val.toString().trim().toLowerCase() : "";
+//                     }
+//                 }
+
+//                 if (!empIdVal) throw new Error("Employee ID is missing");
+//                 if (!dateVal) throw new Error("Date is missing");
+
+//                 // Find Employee
+//                 const employee = await Employee.findOne({
+//                     tenant: tenantId,
+//                     $or: [{ employeeId: empIdVal }, { customId: empIdVal }]
+//                 });
+//                 if (!employee) throw new Error(`Employee not found with ID: ${empIdVal}`);
+
+//                 // Process Date
+//                 let attendanceDate = new Date(dateVal);
+//                 if (isNaN(attendanceDate.getTime())) throw new Error(`Invalid date format: ${dateVal}`);
+//                 attendanceDate.setHours(0, 0, 0, 0);
+
+//                 // Default status if missing
+//                 if (!statusVal) statusVal = 'present';
+
+//                 // Validate status
+//                 const validStatuses = ['present', 'absent', 'leave', 'holiday', 'weekly_off', 'half_day', 'missed_punch'];
+//                 if (!validStatuses.includes(statusVal)) {
+//                     statusVal = 'present'; // Default to present if invalid
+//                 }
+
+//                 // Process check-in/out times
+//                 let checkInTime = null;
+//                 let checkOutTime = null;
+
+//                 if (checkInVal) {
+//                     checkInTime = new Date(checkInVal);
+//                     if (isNaN(checkInTime.getTime())) checkInTime = null;
+//                 }
+
+//                 if (checkOutVal) {
+//                     checkOutTime = new Date(checkOutVal);
+//                     if (isNaN(checkOutTime.getTime())) checkOutTime = null;
+//                 }
+
+//                 // Check if record already exists
+//                 let attendance = await Attendance.findOne({
+//                     tenant: tenantId,
+//                     employee: employee._id,
+//                     date: attendanceDate
+//                 });
+
+//                 const attendanceData = {
+//                     tenant: tenantId,
+//                     employee: employee._id,
+//                     date: attendanceDate,
+//                     status: statusVal,
+//                     checkIn: checkInTime,
+//                     checkOut: checkOutTime,
+//                     ipAddress: req.ip || '0.0.0.0',
+//                     userAgent: req.get('user-agent') || '',
+//                     workingHours: workingHoursVal,
+//                     overtimeHours: overtimeHoursVal,
+//                     isLate: isLateVal,
+//                     isEarlyOut: isEarlyOutVal,
+//                     leaveType: leaveTypeVal
+//                 };
+
+//                 if (attendance) {
+//                     // Update existing
+//                     Object.assign(attendance, attendanceData);
+//                     await attendance.save();
+//                 } else {
+//                     // Create new
+//                     attendance = new Attendance(attendanceData);
+//                     await attendance.save();
+//                 }
+
+//                 results.uploadedCount++;
+
+//             } catch (error) {
+//                 results.failedCount++;
+//                 results.errors.push(`Row ${rowIdx}: ${error.message}`);
+//             }
+//         }
+
+//         // // Log audit
+//         // try {
+//         //     const AuditLog = require('../models/auditLog.model');
+//         //     const auditLog = new AuditLog({
+//         //         tenant: tenantId,
+//         //         user: userId,
+//         //         action: 'BULK_UPLOAD_ATTENDANCE',
+//         //         module: 'Attendance',
+//         //         changes: {
+//         //             uploadedCount: results.uploadedCount,
+//         //             failedCount: results.failedCount
+//         //         }
+//         //     });
+//         //     await auditLog.save();
+//         // } catch (e) {
+//         //     console.error('Audit log error:', e);
+//         // }
+
+//         res.json({
+//             success: true,
+//             uploadedCount: results.uploadedCount,
+//             failedCount: results.failedCount,
+//             errors: results.errors,
+//             message: `Uploaded ${results.uploadedCount} records successfully${results.failedCount > 0 ? ` (${results.failedCount} failed)` : ''}`
+//         });
+
+//     } catch (error) {
+//         console.error("Bulk upload error:", error);
+//         res.status(500).json({
+//             success: false,
+//             message: error.message || 'Error uploading records'
+//         });
+//     }
+// };
+
 exports.bulkUpload = async (req, res) => {
     try {
         const { records } = req.body;
-        console.log(records);
 
         if (!records || !Array.isArray(records)) {
             return res.status(400).json({
@@ -1354,7 +1594,7 @@ exports.bulkUpload = async (req, res) => {
             });
         }
 
-        const { Attendance, Employee, AuditLog, AttendanceSettings } = getModels(req);
+        const { Attendance, Employee, AttendanceSettings } = getModels(req);
         const tenantId = req.tenantId;
         const userId = req.userId;
 
@@ -1364,150 +1604,283 @@ exports.bulkUpload = async (req, res) => {
             errors: []
         };
 
-        // Cache settings
+        // Cache settings for late/early out calculation
         let settings = await AttendanceSettings.findOne({ tenant: tenantId });
         if (!settings) settings = new AttendanceSettings({ tenant: tenantId });
 
-        // Normalize header names
-        const normalize = (s) => s ? s.toString().toLowerCase().replace(/\s/g, '').replace(/[^a-z0-9]/g, '') : '';
+        /* ---------------- Helpers ---------------- */
+
+        const normalize = (s) =>
+            s ? s.toString().toLowerCase().replace(/\s/g, '').replace(/[^a-z0-9]/g, '') : '';
+
+        const parseBoolean = (val) => {
+            if (val === true || val === 1) return true;
+            if (typeof val === 'string') {
+                return ['true', 'yes', '1'].includes(val.toLowerCase());
+            }
+            return false;
+        };
+
+        const parseNumber = (val) => {
+            if (val === null || val === undefined || val === '') return null;
+            const num = Number(val);
+            if (isNaN(num)) return null;
+            // If it's a small fraction (e.g., 0.375 for 9h), it might be Excel time
+            // Excel stores 1 day as 1.0. So 9h is 9/24 = 0.375.
+            // We only apply this if it looks like an Excel fraction and the column is likely working hours
+            return num;
+        };
+
+        const parseDate = (val) => {
+            if (!val) return null;
+
+            // Excel date number
+            if (typeof val === 'number') {
+                return new Date(Math.round((val - 25569) * 86400 * 1000));
+            }
+
+            const d = new Date(val);
+            return isNaN(d.getTime()) ? null : d;
+        };
+
+        const parseTime = (val, baseDate) => {
+            if (!val) return null;
+
+            // If it's already a full Date object
+            if (val instanceof Date && !isNaN(val.getTime())) {
+                return val;
+            }
+
+            // Excel time fraction (e.g. 0.375 for 09:00:00)
+            if (typeof val === 'number') {
+                const d = new Date(baseDate);
+                const totalSeconds = Math.round(val * 86400);
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+                d.setHours(hours, minutes, seconds, 0);
+                return d;
+            }
+
+            // String time like "09:00:00" or "09:00"
+            if (typeof val === 'string' && val.includes(':')) {
+                const parts = val.split(':').map(Number);
+                const d = new Date(baseDate);
+                d.setHours(parts[0], parts[1] || 0, parts[2] || 0, 0);
+                return d;
+            }
+
+            // Try generic date parse
+            const tried = new Date(val);
+            if (!isNaN(tried.getTime())) return tried;
+
+            return null;
+        };
+
+        const normalizeStatus = (status) => {
+            if (!status) return 'present';
+
+            const map = {
+                present: 'present',
+                absent: 'absent',
+                leave: 'leave',
+                holiday: 'holiday',
+                weeklyoff: 'weekly_off',
+                weekly_off: 'weekly_off',
+                halfday: 'half_day',
+                half_day: 'half_day',
+                missedpunch: 'missed_punch',
+                missed_punch: 'missed_punch'
+            };
+
+            const key = normalize(status);
+            return map[key] || 'present';
+        };
+
+        /* --------------- Main Loop --------------- */
 
         for (let i = 0; i < records.length; i++) {
             const row = records[i];
-            const rowIdx = i + 2; // 1-indexed + header row
+            const rowIdx = i + 2; // header + 1-indexed
 
             try {
-                // Find column names
-                let empIdVal = "";
+                let empIdVal = '';
                 let dateVal = null;
-                let statusVal = "";
+                let statusVal = '';
                 let checkInVal = null;
                 let checkOutVal = null;
+                let workingHoursVal = null;
+                let overtimeHoursVal = null;
+                let isLateVal = null; // Use null to detect if provided
+                let isEarlyOutVal = null;
+                let leaveTypeVal = '';
 
                 for (const key of Object.keys(row)) {
                     const normKey = normalize(key);
                     const val = row[key];
 
-                    if (normKey.includes('employeeid') || normKey.includes('empid') || normKey === 'id' || normKey === 'code') {
-                        empIdVal = val ? val.toString().trim() : "";
-                    } else if (normKey === 'date' || normKey.includes('attendancedate') || normKey.includes('punchdate')) {
+                    if (
+                        normKey.includes('employeeid') ||
+                        normKey.includes('empid') ||
+                        normKey.includes('employeecode') ||
+                        normKey === 'code'
+                    ) {
+                        empIdVal = val ? val.toString().trim() : '';
+                    } else if (
+                        normKey.includes('date') ||
+                        normKey.includes('attendancedate') ||
+                        normKey.includes('punchdate')
+                    ) {
                         dateVal = val;
                     } else if (normKey === 'status') {
-                        statusVal = val ? val.toString().trim().toLowerCase() : "";
+                        statusVal = val;
                     } else if (normKey.includes('checkin') || normKey.includes('punchin') || normKey === 'in') {
                         checkInVal = val;
                     } else if (normKey.includes('checkout') || normKey.includes('punchout') || normKey === 'out') {
                         checkOutVal = val;
+                    } else if (normKey.includes('workinghours')) {
+                        // Handle potential Excel fraction for working hours
+                        if (typeof val === 'number' && val > 0 && val < 1) {
+                            workingHoursVal = parseFloat((val * 24).toFixed(2));
+                        } else {
+                            workingHoursVal = parseNumber(val);
+                        }
+                    } else if (normKey.includes('overtimehours')) {
+                        if (typeof val === 'number' && val > 0 && val < 1) {
+                            overtimeHoursVal = parseFloat((val * 24).toFixed(2));
+                        } else {
+                            overtimeHoursVal = parseNumber(val);
+                        }
+                    } else if (normKey.includes('islate')) {
+                        isLateVal = parseBoolean(val);
+                    } else if (normKey.includes('isearly')) {
+                        isEarlyOutVal = parseBoolean(val);
+                    } else if (normKey.includes('leavetype')) {
+                        leaveTypeVal = val ? val.toString().trim().toLowerCase() : '';
                     }
                 }
 
                 if (!empIdVal) throw new Error("Employee ID is missing");
                 if (!dateVal) throw new Error("Date is missing");
 
-                // Find Employee
                 const employee = await Employee.findOne({
                     tenant: tenantId,
                     $or: [{ employeeId: empIdVal }, { customId: empIdVal }]
                 });
-                if (!employee) throw new Error(`Employee not found with ID: ${empIdVal}`);
 
-                // Process Date
-                let attendanceDate = new Date(dateVal);
-                if (isNaN(attendanceDate.getTime())) throw new Error(`Invalid date format: ${dateVal}`);
+                if (!employee) {
+                    throw new Error(`Employee not found: ${empIdVal}`);
+                }
+
+                const attendanceDate = parseDate(dateVal);
+                if (!attendanceDate) {
+                    throw new Error(`Invalid date format: ${dateVal}`);
+                }
                 attendanceDate.setHours(0, 0, 0, 0);
 
-                // Default status if missing
-                if (!statusVal) statusVal = 'present';
+                const checkInTime = parseTime(checkInVal, attendanceDate);
+                const checkOutTime = parseTime(checkOutVal, attendanceDate);
 
-                // Validate status
-                const validStatuses = ['present', 'absent', 'leave', 'holiday', 'weekly_off', 'half_day', 'missed_punch'];
-                if (!validStatuses.includes(statusVal)) {
-                    statusVal = 'present'; // Default to present if invalid
-                }
+                const finalStatus = normalizeStatus(statusVal);
 
-                // Process check-in/out times
-                let checkInTime = null;
-                let checkOutTime = null;
-
-                if (checkInVal) {
-                    checkInTime = new Date(checkInVal);
-                    if (isNaN(checkInTime.getTime())) checkInTime = null;
-                }
-
-                if (checkOutVal) {
-                    checkOutTime = new Date(checkOutVal);
-                    if (isNaN(checkOutTime.getTime())) checkOutTime = null;
-                }
-
-                // Check if record already exists
                 let attendance = await Attendance.findOne({
                     tenant: tenantId,
                     employee: employee._id,
                     date: attendanceDate
                 });
 
-                const attendanceData = {
-                    tenant: tenantId,
-                    employee: employee._id,
-                    date: attendanceDate,
-                    status: statusVal,
-                    checkIn: checkInTime,
-                    checkOut: checkOutTime,
-                    ipAddress: req.ip || '0.0.0.0',
-                    userAgent: req.get('user-agent') || ''
-                };
-
-                if (attendance) {
-                    // Update existing
-                    Object.assign(attendance, attendanceData);
-                    await attendance.save();
-                } else {
-                    // Create new
-                    attendance = new Attendance(attendanceData);
-                    await attendance.save();
+                if (!attendance) {
+                    attendance = new Attendance({
+                        tenant: tenantId,
+                        employee: employee._id,
+                        date: attendanceDate
+                    });
                 }
 
+                attendance.status = finalStatus;
+                attendance.checkIn = checkInTime;
+                attendance.checkOut = checkOutTime;
+                attendance.leaveType = leaveTypeVal;
+                attendance.ipAddress = req.ip || '0.0.0.0';
+                attendance.userAgent = req.get('user-agent') || '';
+                attendance.updatedBy = userId;
+                attendance.isManualOverride = true;
+                attendance.overrideReason = "Bulk Upload";
+
+                // Sync Logs for consistency
+                if (checkInTime || checkOutTime) {
+                    attendance.logs = [];
+                    if (checkInTime) attendance.logs.push({ time: checkInTime, type: 'IN', location: 'Bulk Upload', device: 'System' });
+                    if (checkOutTime) attendance.logs.push({ time: checkOutTime, type: 'OUT', location: 'Bulk Upload', device: 'System' });
+                }
+
+                // Calculate working hours if not provided
+                if (workingHoursVal !== null) {
+                    attendance.workingHours = workingHoursVal;
+                } else if (attendance.logs.length >= 2) {
+                    attendance.workingHours = calculateWorkingHours(attendance.logs);
+                }
+
+                if (overtimeHoursVal !== null) {
+                    attendance.overtimeHours = overtimeHoursVal;
+                }
+
+                // Handle Lateness
+                if (isLateVal !== null) {
+                    attendance.isLate = isLateVal;
+                } else if (checkInTime && settings.shiftStartTime) {
+                    const [h, m] = settings.shiftStartTime.split(':').map(Number);
+                    const shiftStart = new Date(attendanceDate);
+                    shiftStart.setHours(h, m, 0, 0);
+                    const grace = settings.graceTimeMinutes || 0;
+                    if (checkInTime > new Date(shiftStart.getTime() + grace * 60000)) {
+                        attendance.isLate = true;
+                    } else {
+                        attendance.isLate = false;
+                    }
+                }
+
+                // Handle Early Out
+                if (isEarlyOutVal !== null) {
+                    attendance.isEarlyOut = isEarlyOutVal;
+                } else if (checkOutTime && settings.shiftEndTime) {
+                    const [h, m] = settings.shiftEndTime.split(':').map(Number);
+                    const shiftEnd = new Date(attendanceDate);
+                    shiftEnd.setHours(h, m, 0, 0);
+                    if (checkOutTime < shiftEnd) {
+                        attendance.isEarlyOut = true;
+                    } else {
+                        attendance.isEarlyOut = false;
+                    }
+                }
+
+                await attendance.save();
                 results.uploadedCount++;
 
-            } catch (error) {
+            } catch (err) {
                 results.failedCount++;
-                results.errors.push(`Row ${rowIdx}: ${error.message}`);
+                results.errors.push(`Row ${rowIdx}: ${err.message}`);
             }
         }
 
-        // // Log audit
-        // try {
-        //     const AuditLog = require('../models/auditLog.model');
-        //     const auditLog = new AuditLog({
-        //         tenant: tenantId,
-        //         user: userId,
-        //         action: 'BULK_UPLOAD_ATTENDANCE',
-        //         module: 'Attendance',
-        //         changes: {
-        //             uploadedCount: results.uploadedCount,
-        //             failedCount: results.failedCount
-        //         }
-        //     });
-        //     await auditLog.save();
-        // } catch (e) {
-        //     console.error('Audit log error:', e);
-        // }
-
-        res.json({
+        return res.json({
             success: true,
             uploadedCount: results.uploadedCount,
             failedCount: results.failedCount,
             errors: results.errors,
-            message: `Uploaded ${results.uploadedCount} records successfully${results.failedCount > 0 ? ` (${results.failedCount} failed)` : ''}`
+            message: `Uploaded ${results.uploadedCount} records successfully` +
+                (results.failedCount ? ` (${results.failedCount} failed)` : '')
         });
 
     } catch (error) {
         console.error("Bulk upload error:", error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: error.message || 'Error uploading records'
+            message: error.message || "Error uploading records"
         });
     }
 };
+
 
 exports.registerFace = async (req, res) => {
     try {
@@ -1571,17 +1944,32 @@ exports.registerFace = async (req, res) => {
             });
         }
 
-        const { FaceData } = getModels(req);
+        const { FaceData, FaceUpdateRequest } = getModels(req);
 
-        // Check if employee already registered
+        // Check if employee already registered (any status to prevent bypass via deletion/inactivation)
         const existingFace = await FaceData.findOne({
             tenant: tenantId,
-            employee: userId,
-            status: 'ACTIVE'
+            employee: userId
         });
 
+        let approvedRequest = null;
         if (existingFace) {
             console.log('⚠️ Face already registered for employee:', userId);
+
+            // Check for approved update request
+            approvedRequest = await FaceUpdateRequest.findOne({
+                tenant: tenantId,
+                employee: userId,
+                status: 'approved'
+            });
+
+            if (!approvedRequest) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Face already registered. Please request an update from HR to change it.'
+                });
+            }
+
             // Allow update - delete old registration
             await FaceData.deleteOne({ _id: existingFace._id });
             console.log('✅ Old face registration deleted for update');
@@ -1643,6 +2031,12 @@ exports.registerFace = async (req, res) => {
         });
 
         await faceData.save();
+
+        // Mark request as used if it was an update
+        if (approvedRequest) {
+            approvedRequest.status = 'used';
+            await approvedRequest.save();
+        }
 
         res.status(201).json({
             success: true,
@@ -2001,18 +2395,27 @@ exports.getFaceStatus = async (req, res) => {
             });
         }
 
-        const { FaceData } = getModels(req);
+        const { FaceData, FaceUpdateRequest } = getModels(req);
 
         const faceData = await FaceData.findOne({
             tenant: tenantId,
-            employee: employeeId,
-            status: 'ACTIVE'
+            employee: employeeId
         }).select('-faceImageData -faceDescriptor -faceEmbedding');
+
+        // Check for approved update requests
+        const updateRequest = await FaceUpdateRequest.findOne({
+            tenant: tenantId,
+            employee: employeeId,
+            status: 'approved'
+        });
+
+        const canUpdate = !faceData || !!updateRequest;
 
         if (!faceData) {
             return res.json({
                 success: true,
                 isRegistered: false,
+                canUpdate: true,
                 message: 'Face not registered. Please register your face first.'
             });
         }
@@ -2020,12 +2423,18 @@ exports.getFaceStatus = async (req, res) => {
         res.json({
             success: true,
             isRegistered: true,
+            canUpdate: !!updateRequest,
             data: {
                 registeredAt: faceData.registration?.registeredAt,
                 isVerified: faceData.isVerified,
                 usageCount: faceData.usageCount || 0,
                 lastUsedAt: faceData.lastUsedAt,
-                quality: faceData.quality
+                quality: faceData.quality,
+                pendingRequest: await FaceUpdateRequest.findOne({
+                    tenant: tenantId,
+                    employee: employeeId,
+                    status: 'pending'
+                })
             }
         });
     } catch (err) {
@@ -2249,5 +2658,90 @@ exports.getEmployeeDateDetail = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+// 🔹 Request Face Update
+exports.requestFaceUpdate = async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const employeeId = req.user.id;
+        const tenantId = req.tenantId;
+
+        if (!reason) {
+            return res.status(400).json({ success: false, message: 'Reason for update is required' });
+        }
+
+        const { FaceUpdateRequest } = getModels(req);
+
+        const existingPending = await FaceUpdateRequest.findOne({
+            tenant: tenantId,
+            employee: employeeId,
+            status: 'pending'
+        });
+
+        if (existingPending) {
+            return res.status(400).json({ success: false, message: 'You already have a pending request' });
+        }
+
+        const request = new FaceUpdateRequest({
+            tenant: tenantId,
+            employee: employeeId,
+            reason
+        });
+
+        await request.save();
+        res.json({ success: true, message: 'Request submitted successfully' });
+    } catch (err) {
+        console.error('Face update request error:', err);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// 🔹 Get Face Update Requests (HR)
+exports.getFaceUpdateRequests = async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const { FaceUpdateRequest } = getModels(req);
+
+        const requests = await FaceUpdateRequest.find({ tenant: tenantId })
+            .populate('employee', 'firstName lastName employeeId')
+            .sort({ createdAt: -1 });
+
+        res.json({ success: true, data: requests });
+    } catch (err) {
+        console.error('Get face update requests error:', err);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// 🔹 Action Face Update Request (HR)
+exports.actionFaceUpdate = async (req, res) => {
+    try {
+        const { requestId, status, rejectionReason } = req.body;
+        const tenantId = req.tenantId;
+        const actionedBy = req.user.id;
+
+        if (!['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid status' });
+        }
+
+        const { FaceUpdateRequest } = getModels(req);
+
+        const request = await FaceUpdateRequest.findOne({ _id: requestId, tenant: tenantId });
+        if (!request) {
+            return res.status(404).json({ success: false, message: 'Request not found' });
+        }
+
+        request.status = status;
+        request.actionedBy = actionedBy;
+        request.actionedAt = new Date();
+        if (rejectionReason) request.rejectionReason = rejectionReason;
+
+        await request.save();
+        res.json({ success: true, message: `Request ${status} successfully` });
+    } catch (err) {
+        console.error('Action face update request error:', err);
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

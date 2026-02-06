@@ -438,6 +438,8 @@ export default function AttendanceExcelUploadModal({ isOpen, onClose, onSuccess 
                             <div className="text-xs text-blue-700 dark:text-blue-300 font-bold leading-relaxed">
                                 <span className="font-black block mb-1">📝 Required Columns:</span>
                                 <span>Employee ID, Date (YYYY-MM-DD), Status (present, absent, leave, etc.)</span>
+                                <span className="font-black block mt-2 mb-1">💡 Optional Columns:</span>
+                                <span>Check In, Check Out, Working Hours, Overtime Hours</span>
                             </div>
                         </div>
                     </div>

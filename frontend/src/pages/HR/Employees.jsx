@@ -27,7 +27,8 @@ export default function Employees() {
   const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [openUploadPopup, setOpenUploadPopup] = useState(false)
+  const [openUploadPopup, setOpenUploadPopup] = useState(false);
+  const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [applyingLeave, setApplyingLeave] = useState(null);
