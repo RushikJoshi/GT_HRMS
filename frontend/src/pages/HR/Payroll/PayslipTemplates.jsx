@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Spin, Switch, Tooltip, Upload, Button } from 'antd';
 import { showToast, showConfirmToast } from '../../../utils/uiNotifications';
 import api from '../../../utils/api';
-import { Edit2, Trash2, Plus, Eye, Download, FileText, CheckCircle, AlertTriangle, FileCode, Check, Upload as UploadIcon } from 'lucide-react';
+import { Edit2, Trash2, Plus, Eye, Download, FileText, CheckCircle, AlertTriangle, FileCode, Check, Upload as UploadIcon, Palette } from 'lucide-react';
+import PayslipBuilder from '../PayslipBuilder/PayslipBuilder';
 
 const PLACEHOLDERS = [
     '{{EMPLOYEE_NAME}}', '{{EMPLOYEE_ID}}', '{{DEPARTMENT}}', '{{DESIGNATION}}',
@@ -73,6 +74,7 @@ export default function PayslipTemplates() {
     const [showSelectionModal, setShowSelectionModal] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
+    const [showBuilderModal, setShowBuilderModal] = useState(false);
     const [previewHtml, setPreviewHtml] = useState('');
     const [selectedType, setSelectedType] = useState('HTML');
     const [fileList, setFileList] = useState([]);
@@ -116,6 +118,12 @@ export default function PayslipTemplates() {
     };
 
     const handleTypeSelect = (type) => {
+        if (type === 'CUSTOM') {
+            setShowSelectionModal(false);
+            setShowBuilderModal(true);
+            return;
+        }
+
         setSelectedType(type);
         setFormData({
             name: '',
@@ -198,14 +206,17 @@ export default function PayslipTemplates() {
         });
     };
 
-    const handlePreview = async () => {
-        if (selectedType === 'WORD') {
+    const handlePreview = async (templateToPreview = null) => {
+        // Use provided template or current formData
+        const previewData = templateToPreview || formData;
+        
+        if (previewData.templateType === 'WORD') {
             showToast('info', 'Not Available', 'Preview for Word templates is coming soon. please use test generation.');
             return;
         }
         try {
             const res = await api.post('/payslip-templates/preview', {
-                htmlContent: formData.htmlContent
+                htmlContent: previewData.htmlContent
             });
             setPreviewHtml(res.data.data.html);
             setShowPreview(true);
@@ -289,10 +300,7 @@ export default function PayslipTemplates() {
                                 </div>
                                 <div className="flex gap-2">
                                     {tpl.templateType !== 'WORD' && (
-                                        <button onClick={() => {
-                                            setFormData(tpl);
-                                            handlePreview();
-                                        }} className="text-slate-600 hover:text-blue-600 p-1.5 rounded-md hover:bg-slate-50 transition">
+                                        <button onClick={() => handlePreview(tpl)} className="text-slate-600 hover:text-blue-600 p-1.5 rounded-md hover:bg-slate-50 transition">
                                             <Eye size={16} />
                                         </button>
                                     )}
@@ -315,10 +323,10 @@ export default function PayslipTemplates() {
                 open={showSelectionModal}
                 onCancel={() => setShowSelectionModal(false)}
                 footer={null}
-                width={500}
+                width={700}
                 centered
             >
-                <div className="grid grid-cols-2 gap-4 py-4">
+                <div className="grid grid-cols-3 gap-4 py-4">
                     <button
                         onClick={() => handleTypeSelect('HTML')}
                         className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition group"
@@ -342,6 +350,19 @@ export default function PayslipTemplates() {
                         <div className="text-center">
                             <div className="font-bold text-slate-800">Word Template</div>
                             <div className="text-[10px] text-slate-500 mt-1">Upload a .docx file with &#123;&#123;tags&#125;&#125; placeholders.</div>
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => handleTypeSelect('CUSTOM')}
+                        className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition group"
+                    >
+                        <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 group-hover:bg-indigo-100 group-hover:text-indigo-700 transition">
+                            <Palette size={24} />
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold text-slate-800">Visual Builder</div>
+                            <div className="text-[10px] text-slate-500 mt-1">Drag & drop design with live preview. No coding needed.</div>
                         </div>
                     </button>
                 </div>
@@ -475,6 +496,18 @@ export default function PayslipTemplates() {
             >
                 <div className="bg-white p-8 border border-slate-200 shadow-inner max-h-[600px] overflow-y-auto rounded" dangerouslySetInnerHTML={{ __html: previewHtml }} />
             </Modal>
+
+            {/* Payslip Builder Modal */}
+            {showBuilderModal && (
+                <div className="fixed inset-0 z-50">
+                    <PayslipBuilder 
+                        onClose={() => {
+                            setShowBuilderModal(false);
+                            fetchTemplates();
+                        }}
+                    />
+                </div>
+            )}
         </div>
     );
 }
