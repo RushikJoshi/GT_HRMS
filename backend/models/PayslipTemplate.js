@@ -14,7 +14,7 @@ const payslipTemplateSchema = new mongoose.Schema({
     },
     templateType: {
         type: String,
-        enum: ['HTML', 'WORD'],
+        enum: ['HTML', 'WORD', 'CUSTOM'],
         default: 'HTML'
     },
     htmlContent: {

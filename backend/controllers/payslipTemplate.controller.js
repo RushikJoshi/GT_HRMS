@@ -130,7 +130,8 @@ exports.createTemplate = async (req, res) => {
         const { name, htmlContent, isDefault, templateType } = req.body;
         const PayslipTemplateModel = req.tenantDB.model('PayslipTemplate');
 
-        const placeholders = extractPlaceholders(htmlContent || '');
+        // Extract placeholders from htmlContent (for HTML and CUSTOM types)
+        const placeholders = (htmlContent) ? extractPlaceholders(htmlContent) : [];
 
         if (isDefault) {
             await PayslipTemplateModel.updateMany(
@@ -412,19 +413,78 @@ exports.renderPayslipPDF = async (req, res) => {
 exports.previewTemplate = async (req, res) => {
     try {
         const { htmlContent } = req.body;
+        const tenantId = req.user.tenantId;
+        const CompanyProfileModel = req.tenantDB.model('CompanyProfile');
+
+        // Fetch real company branding if available
+        const profile = await CompanyProfileModel.findOne({ tenantId });
+
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:5003';
+        let logoUrl = profile?.companyLogo || '';
+
+        // Resolve relative upload paths
+        if (logoUrl.startsWith('/uploads')) {
+            logoUrl = `${backendUrl}${logoUrl}`;
+        } else if (!logoUrl) {
+            logoUrl = 'https://via.placeholder.com/150x50?text=LOGO';
+        }
+
         const sampleData = {
+            // Company info
+            COMPANY_NAME: profile?.companyName || 'Gitakshmi HRMS',
+            COMPANY_ADDRESS: profile?.address ? `${profile.address.line1}, ${profile.address.city}` : 'Ahmedabad, Gujarat',
+            COMPANY_LOGO: logoUrl,
+            COMPANY_EMAIL: profile?.contactEmail || 'hr@gitakshmi.com',
+            COMPANY_PHONE: profile?.contactPhone || '+91 79 1234 5678',
+
+            // Employee info
             EMPLOYEE_NAME: 'John Doe',
+            EMPLOYEE_ID: 'EMP001',
+            DEPARTMENT: 'Engineering',
+            DESIGNATION: 'Full Stack Developer',
+
+            // Date info
             MONTH: 'January 2026',
-            NET_PAY: '45000.00',
-            COMPANY_NAME: 'Gitakshmi HRMS'
+            YEAR: '2026',
+            GENERATED_ON: new Date().toLocaleDateString('en-IN'),
+
+            // Earnings
+            BASIC: '30000.00',
+            HRA: '10000.00',
+            SPECIAL: '5000.00',
+            GROSS: '45000.00',
+            GROSS_EARNINGS: '45000.00',
+
+            // Deductions
+            EPF: '1800.00',
+            ESI: '0.00',
+            PT: '200.00',
+            INCOME_TAX: '0.00',
+            TOTAL_DEDUCTIONS: '2000.00',
+
+            // Totals
+            NET_PAY: '43000.00',
+            PRESENT: '22',
+            LEAVES: '0',
+            LOP: '0',
+            TOTAL_DAYS: '31'
         };
+
         let html = htmlContent || '';
         for (const [key, value] of Object.entries(sampleData)) {
             const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
             html = html.replace(regex, value);
         }
-        res.json({ success: true, data: { html, placeholders: extractPlaceholders(htmlContent || '') } });
+
+        res.json({
+            success: true,
+            data: {
+                html,
+                placeholders: extractPlaceholders(htmlContent || '')
+            }
+        });
     } catch (error) {
+        console.error('[PREVIEW_TEMPLATE] Error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
