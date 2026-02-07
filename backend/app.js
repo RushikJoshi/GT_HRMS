@@ -88,6 +88,13 @@ try {
     mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
     mongoose.model('CandidateStatusLog', require('./models/CandidateStatusLog'));
     mongoose.model('PayrollAdjustment', require('./models/PayrollAdjustment'));
+
+    // BGV Models
+    mongoose.model('BGVCase', require('./models/BGVCase'));
+    mongoose.model('BGVCheck', require('./models/BGVCheck'));
+    mongoose.model('BGVDocument', require('./models/BGVDocument'));
+    mongoose.model('BGVTimeline', require('./models/BGVTimeline'));
+    mongoose.model('BGVReport', require('./models/BGVReport'));
 } catch (e) {
     console.warn("Model registration warning:", e.message);
 }
@@ -179,6 +186,7 @@ app.use('/api/activities', activityRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
+app.use('/api/bgv', require('./routes/bgv.routes'));
 
 app.use('/api/career', careerOptimizedRoutes);
 

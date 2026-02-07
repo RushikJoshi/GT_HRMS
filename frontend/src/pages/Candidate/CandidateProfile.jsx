@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
-import api from '../../utils/api';
+import api, { API_ROOT } from '../../utils/api';
 import {
     User, Mail, Phone, MapPin, FileText,
     Edit3, CheckCircle2, CloudUpload, ShieldCheck,
@@ -22,6 +22,8 @@ export default function CandidateProfile() {
     const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+    const [profileImage, setProfileImage] = useState(null);
+    const [profileImageUrl, setProfileImageUrl] = useState('');
 
     const fetchProfile = useCallback(async () => {
         setLoading(true);
@@ -42,10 +44,18 @@ export default function CandidateProfile() {
     // When profileData loads, set editFields
     useEffect(() => {
         if (candidate || profileData) {
+            // Priority: profileData.profilePic > candidate.profilePic > placeholders
+            let picPath = profileData?.profilePic || candidate?.profilePic || '';
+
+            if (picPath && !picPath.startsWith('http') && !picPath.startsWith('blob:')) {
+                picPath = `${API_ROOT}/${picPath}`;
+            }
+
+            setProfileImageUrl(picPath);
             setEditFields({
                 name: profileData?.name || candidate?.name || '',
                 email: profileData?.email || candidate?.email || '',
-                phone: profileData?.phone || '',
+                phone: profileData?.mobile || profileData?.phone || '',
                 professionalTier: profileData?.professionalTier || 'Technical Leader',
             });
         }
@@ -83,12 +93,19 @@ export default function CandidateProfile() {
 
     const handleSaveEdit = async () => {
         try {
+            const formData = new FormData();
+            formData.append('name', editFields.name);
+            formData.append('email', editFields.email);
+            formData.append('phone', editFields.phone);
+            formData.append('professionalTier', editFields.professionalTier);
+
+            if (profileImage) {
+                formData.append('profileImage', profileImage);
+            }
+
             // Update profile info
-            await api.put('/candidate/profile', {
-                name: editFields.name,
-                email: editFields.email,
-                phone: editFields.phone,
-                professionalTier: editFields.professionalTier
+            await api.put('/candidate/profile', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
@@ -96,12 +113,76 @@ export default function CandidateProfile() {
             }
 
             setEditMode(false);
+            setProfileImage(null);
             await fetchProfile();
             await refreshCandidate();
         } catch (err) {
             console.error("Save error:", err);
             alert('Failed to update profile.');
         }
+    };
+
+    const onFileChange = async (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.addEventListener('load', () => {
+                setImageToCrop(reader.result);
+                setShowCropper(true);
+            });
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const onCropComplete = useCallback((_croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    }, []);
+
+    const createCropImage = async () => {
+        try {
+            const croppedImage = await getCroppedImg(imageToCrop, croppedAreaPixels);
+            const blobUrl = URL.createObjectURL(croppedImage);
+            setProfileImageUrl(blobUrl);
+            setProfileImage(croppedImage);
+            setShowCropper(false);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const getCroppedImg = (imageSrc, pixelCrop) => {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.src = imageSrc;
+            image.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                canvas.width = pixelCrop.width;
+                canvas.height = pixelCrop.height;
+
+                ctx.drawImage(
+                    image,
+                    pixelCrop.x,
+                    pixelCrop.y,
+                    pixelCrop.width,
+                    pixelCrop.height,
+                    0,
+                    0,
+                    pixelCrop.width,
+                    pixelCrop.height
+                );
+
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        reject(new Error('Canvas is empty'));
+                        return;
+                    }
+                    resolve(blob);
+                }, 'image/jpeg');
+            };
+            image.onerror = reject;
+        });
     };
 
 
@@ -118,11 +199,26 @@ export default function CandidateProfile() {
                 <div className="absolute inset-0 p-12 lg:p-20 flex items-end">
                     <div className="relative z-10 w-full flex flex-col md:flex-row md:items-end justify-between gap-10">
                         <div className="flex items-end gap-10">
-                    <div className="relative group">
+                            <div className="relative group">
                                 <div className="h-32 w-32 lg:h-40 lg:w-40 rounded-[2.5rem] bg-white p-1 shadow-xl relative z-10 overflow-hidden">
-                                    <div className="w-full h-full rounded-[2rem] bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 flex items-center justify-center text-white font-bold text-6xl lg:text-7xl shadow-inner">
-                                        {candidate?.name?.charAt(0)?.toUpperCase() || 'C'}
-                                    </div>
+                                    {profileImageUrl ? (
+                                        <img
+                                            src={profileImageUrl}
+                                            alt="Profile"
+                                            className="w-full h-full rounded-[2rem] object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full rounded-[2rem] bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 flex items-center justify-center text-white font-bold text-6xl lg:text-7xl shadow-inner">
+                                            {candidate?.name?.charAt(0)?.toUpperCase() || 'C'}
+                                        </div>
+                                    )}
+
+                                    {editMode && (
+                                        <label className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-[2rem]">
+                                            <CloudUpload className="text-white" size={32} />
+                                            <input type="file" className="hidden" accept="image/*" onChange={onFileChange} />
+                                        </label>
+                                    )}
                                 </div>
                             </div>
                             <div className="mb-4 text-white">
@@ -252,6 +348,38 @@ export default function CandidateProfile() {
                 </div>
             </div>
 
+            {/* Cropper Modal */}
+            <Modal
+                title="Adjust your profile picture"
+                open={showCropper}
+                onOk={createCropImage}
+                onCancel={() => setShowCropper(false)}
+                okText="Apply Crop"
+                width={600}
+                centered
+            >
+                <div className="relative h-80 w-full bg-slate-100 rounded-xl overflow-hidden mb-6">
+                    <Cropper
+                        image={imageToCrop}
+                        crop={crop}
+                        zoom={zoom}
+                        aspect={1}
+                        onCropChange={setCrop}
+                        onCropComplete={onCropComplete}
+                        onZoomChange={setZoom}
+                    />
+                </div>
+                <div className="px-4">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Zoom Intensity</p>
+                    <Slider
+                        value={zoom}
+                        min={1}
+                        max={3}
+                        step={0.1}
+                        onChange={(v) => setZoom(v)}
+                    />
+                </div>
+            </Modal>
         </div>
     );
 }
