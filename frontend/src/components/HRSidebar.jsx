@@ -28,6 +28,7 @@ import {
   Settings2,
   Brush,
   ExternalLink,
+  Shield,
   X
 } from 'lucide-react';
 
@@ -55,6 +56,7 @@ const ICONS = {
   applicants: <UserPlus size={ICON_SIZE} />,
   tracker: <Radar size={ICON_SIZE} />,
   templates: <FileJson size={ICON_SIZE} />,
+  bgv: <Shield size={ICON_SIZE} />,
   access: <Lock size={ICON_SIZE} />,
   settings: <Settings2 size={ICON_SIZE} />,
   customization: <Brush size={ICON_SIZE} className="text-indigo-400" />,
@@ -127,6 +129,7 @@ const NAV_GROUPS = [
           { to: '/hr/internal-applicants', label: 'Internal' }
         ]
       },
+      { to: '/hr/bgv', label: 'BGV Management', icon: ICONS.bgv },
       { to: '/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
     ]
   },

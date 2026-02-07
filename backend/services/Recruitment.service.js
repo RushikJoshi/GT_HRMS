@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const getTenantDB = require('../utils/tenantDB');
+const { getBGVModels } = require('../utils/bgvModels');
 
 class RecruitmentService {
 
@@ -209,11 +210,27 @@ class RecruitmentService {
         }
 
         // Need to populate correctly
-        return await Applicant.find({ tenant: tenantId })
+        const applicants = await Applicant.find({ tenant: tenantId })
             .populate('requirementId', 'jobTitle jobOpeningId')
             .populate('candidateId', 'name email mobile')
             .populate('salarySnapshotId')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // Attach BGV Status to each applicant
+        const { BGVCase } = await getBGVModels(tenantId);
+        const bgvCases = await BGVCase.find({ tenant: tenantId });
+
+        const applicantsWithBGV = applicants.map(app => {
+            const bgv = bgvCases.find(b => b.applicationId.toString() === app._id.toString());
+            return {
+                ...app,
+                bgvStatus: bgv ? bgv.overallStatus : 'NOT_INITIATED',
+                bgvId: bgv ? bgv._id : null
+            };
+        });
+
+        return applicantsWithBGV;
     }
 
     async applyForJob(jobId, candidateId, data) {
