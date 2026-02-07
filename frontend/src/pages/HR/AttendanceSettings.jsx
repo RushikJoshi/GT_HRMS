@@ -30,7 +30,8 @@ export default function AttendanceSettings() {
         ipRestrictionEnabled: false,
         allowedIPs: [],
         allowedIPRanges: [],
-        locationRestrictionMode: 'none'
+        locationRestrictionMode: 'none',
+        geofance: []
     });
     const [saving, setSaving] = useState(false);
 
@@ -230,29 +231,101 @@ export default function AttendanceSettings() {
                     </div>
 
                     {(settings.locationRestrictionMode === 'geo' || settings.locationRestrictionMode === 'both') && (
-                        <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 space-y-4">
-                            <div className="text-sm font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Geo-fencing Settings</div>
-                            <div className="grid grid-cols-3 gap-4">
-                                <InputGroup
-                                    label="Office Latitude"
-                                    type="number"
-                                    step="any"
-                                    value={settings.officeLatitude || ''}
-                                    onChange={(e) => setSettings({ ...settings, officeLatitude: parseFloat(e.target.value) })}
-                                />
-                                <InputGroup
-                                    label="Office Longitude"
-                                    type="number"
-                                    step="any"
-                                    value={settings.officeLongitude || ''}
-                                    onChange={(e) => setSettings({ ...settings, officeLongitude: parseFloat(e.target.value) })}
-                                />
-                                <InputGroup
-                                    label="Allowed Radius (meters)"
-                                    type="number"
-                                    value={settings.allowedRadiusMeters}
-                                    onChange={(e) => setSettings({ ...settings, allowedRadiusMeters: parseInt(e.target.value) })}
-                                />
+                        <div className="space-y-6">
+                            <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 space-y-4">
+                                <div className="text-sm font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Office Location (Circular Radius)</div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <InputGroup
+                                        label="Office Latitude"
+                                        type="number"
+                                        step="any"
+                                        value={settings.officeLatitude || ''}
+                                        onChange={(e) => setSettings({ ...settings, officeLatitude: parseFloat(e.target.value) })}
+                                    />
+                                    <InputGroup
+                                        label="Office Longitude"
+                                        type="number"
+                                        step="any"
+                                        value={settings.officeLongitude || ''}
+                                        onChange={(e) => setSettings({ ...settings, officeLongitude: parseFloat(e.target.value) })}
+                                    />
+                                    <InputGroup
+                                        label="Allowed Radius (meters)"
+                                        type="number"
+                                        value={settings.allowedRadiusMeters}
+                                        onChange={(e) => setSettings({ ...settings, allowedRadiusMeters: parseInt(e.target.value) })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-sm font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Geofence Polygon (Multi-point)</div>
+                                    <button
+                                        onClick={() => {
+                                            const newPoints = [...(settings.geofance || []), { lat: 0, lng: 0 }];
+                                            setSettings({ ...settings, geofance: newPoints });
+                                        }}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-black uppercase hover:bg-blue-100 dark:hover:bg-blue-950/30 transition"
+                                    >
+                                        <Plus size={14} />
+                                        Add Point
+                                    </button>
+                                </div>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Add at least 3 points to define a polygon boundary. If defined, this takes precedence over circular radius.</p>
+
+                                <div className="space-y-3">
+                                    {(settings.geofance || []).map((point, idx) => (
+                                        <div key={idx} className="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm relative">
+                                            <div className="absolute -left-2 -top-2 w-5 h-5 bg-slate-800 text-white text-[10px] flex items-center justify-center rounded-full font-black">{idx + 1}</div>
+                                            <div className="grid grid-cols-2 gap-4 flex-1">
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Latitude</label>
+                                                    <input
+                                                        type="number"
+                                                        step="any"
+                                                        value={point.lat}
+                                                        onChange={(e) => {
+                                                            const newPoints = [...settings.geofance];
+                                                            newPoints[idx] = { ...newPoints[idx], lat: parseFloat(e.target.value) || 0 };
+                                                            setSettings({ ...settings, geofance: newPoints });
+                                                        }}
+                                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 transition"
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Longitude</label>
+                                                    <input
+                                                        type="number"
+                                                        step="any"
+                                                        value={point.lng}
+                                                        onChange={(e) => {
+                                                            const newPoints = [...settings.geofance];
+                                                            newPoints[idx] = { ...newPoints[idx], lng: parseFloat(e.target.value) || 0 };
+                                                            setSettings({ ...settings, geofance: newPoints });
+                                                        }}
+                                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 transition"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    const newPoints = settings.geofance.filter((_, i) => i !== idx);
+                                                    setSettings({ ...settings, geofance: newPoints });
+                                                }}
+                                                className="mt-4 p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition self-center"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {(!settings.geofance || settings.geofance.length === 0) && (
+                                        <div className="text-center py-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No polygon points defined</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}

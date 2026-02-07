@@ -6,6 +6,7 @@ import { DatePicker, Pagination, notification } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications';
 import dayjs from 'dayjs';
 
+
 const BACKEND_URL = API_ROOT || 'https://hrms.gitakshmi.com';
 
 const DEPARTMENTS = ["HR", "Tech", "Accounts", "Admin"];
@@ -26,8 +27,8 @@ export default function Employees() {
   const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [openUploadPopup, setOpenUploadPopup] = useState(false);
   const [openForm, setOpenForm] = useState(false);
-  const [openUploadPopup, setOpenUploadPopup] = useState(false)
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [applyingLeave, setApplyingLeave] = useState(null);

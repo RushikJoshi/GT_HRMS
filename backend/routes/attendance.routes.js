@@ -16,6 +16,9 @@ router.post('/face/register', auth.authenticate, attendCtrl.registerFace);
 router.post('/face/verify', auth.authenticate, attendCtrl.verifyFaceAttendance);
 router.get('/face/status', auth.authenticate, attendCtrl.getFaceStatus);
 router.delete('/face/delete', auth.authenticate, attendCtrl.deleteFace);
+router.post('/face/request-update', auth.authenticate, attendCtrl.requestFaceUpdate);
+router.get('/face/requests', auth.authenticate, auth.requireHr, attendCtrl.getFaceUpdateRequests);
+router.post('/face/action-request', auth.authenticate, auth.requireHr, attendCtrl.actionFaceUpdate);
 
 // --- Manager Routes ---
 router.get('/team', auth.authenticate, attendCtrl.getTeamAttendance);
@@ -27,6 +30,7 @@ router.get('/settings', auth.authenticate, attendCtrl.getSettings);
 router.put('/settings', auth.authenticate, auth.requireHr, attendCtrl.updateSettings);
 router.post('/override', auth.authenticate, auth.requireHr, attendCtrl.override);
 router.post('/upload-excel', auth.authenticate, auth.requireHr, upload.single('file'), attendCtrl.uploadExcel);
+router.get('/bulk/template', auth.authenticate, auth.requireHr, attendCtrl.downloadBulkUploadTemp);
 router.post('/bulk-upload', auth.authenticate, auth.requireHr, attendCtrl.bulkUpload);
 router.get('/calendar', auth.authenticate, attendCtrl.getCalendar); // All authenticated users can view calendar
 // Attendance by date for admin/HR - shows employees list + summary for the date

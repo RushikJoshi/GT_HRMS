@@ -83,7 +83,8 @@ const NAV_GROUPS = [
     items: [
 
       { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.attendance },
-      { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
+      { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar },
+      { to: '/hr/face-update-requests', label: 'Face Update Requests', icon: ICONS.users }
 
     ]
   },
