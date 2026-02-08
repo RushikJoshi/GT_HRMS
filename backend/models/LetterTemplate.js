@@ -13,9 +13,20 @@ const letterTemplateSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['offer', 'joining', 'relieving', 'experience'],
-        default: 'offer',
+        enum: [
+            'offer', 'joining', 'appointment', 'internship_offer',
+            'probation_confirmation', 'probation_extension',
+            'promotion', 'salary_revision', 'experience',
+            'relieving', 'warning', 'disciplinary',
+            'noc', 'bonafide', 'address_proof', 'other'
+        ],
+        default: 'other',
         required: true
+    },
+    category: {
+        type: String,
+        enum: ['Employee', 'Intern', 'General'],
+        default: 'Employee'
     },
 
     // Template Type: Use Letter Pad, Blank Page, or Word Template
@@ -80,6 +91,10 @@ const letterTemplateSchema = new mongoose.Schema({
     status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
     placeholders: [{ type: String }], // Array of placeholder names found in the template
     placeholderMapping: { type: Map, of: String }, // Maps placeholder to employee field, e.g., {'EMPLOYEE_NAME': 'name'}
+
+    // Approval Workflow Settings
+    requiresApproval: { type: Boolean, default: false },
+    approvalRoles: [{ type: String }], // e.g. ['HR_MANAGER', 'DIRECTOR']
 
     // Template-specific overrides (optional)
     overrides: {

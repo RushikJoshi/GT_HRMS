@@ -47,6 +47,13 @@ router.post('/generate-joining', authenticate, requireHr, letterCtrl.generateJoi
 // Preview Joining Letter with Applicant Data
 router.post('/preview-joining', authenticate, requireHr, letterCtrl.previewJoiningLetter);
 
+// --- Generic Letter Generation & Workflow ---
+router.post('/generate-generic', authenticate, requireHr, letterCtrl.generateGenericLetter);
+router.get('/generated-letters', authenticate, requireHr, letterCtrl.getGeneratedLetters);
+router.get('/generated-letters/:id', authenticate, requireHr, letterCtrl.getLetterById);
+router.patch('/generated-letters/:id/status', authenticate, requireHr, letterCtrl.updateGeneratedLetterStatus);
+router.post('/generated-letters/:id/approval', authenticate, requireHr, letterCtrl.actionLetterApproval);
+
 // --- History / Audit ---
 router.get('/history', letterCtrl.getHistory);
 

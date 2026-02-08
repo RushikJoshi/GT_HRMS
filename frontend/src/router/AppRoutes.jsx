@@ -55,9 +55,12 @@ import AttendanceHistory from '../pages/HR/AttendanceHistory';
 import BGVManagement from '../pages/HR/BGVManagement';
 
 // Letter modules
+import LetterDashboard from '../pages/HR/Letters/LetterDashboard';
+import IssueLetterWizard from '../pages/HR/Letters/IssueLetterWizard';
 import LetterTemplates from '../pages/HR/LetterTemplates';
 import LetterSettings from '../pages/HR/LetterSettings';
 import TemplatePreview from '../pages/HR/TemplatePreview';
+import MyDocuments from '../pages/Employee/MyDocuments';
 import SalaryStructure from '../pages/HR/SalaryStructure';
 import CreateRequirement from '../pages/HR/CreateRequirement';
 import PositionMaster from '../pages/HR/PositionMaster';
@@ -227,6 +230,8 @@ export default function AppRoutes() {
                 <Route path="bgv" element={<BGVManagement />} />
 
                 {/* Letters */}
+                <Route path="letters" element={<LetterDashboard />} />
+                <Route path="letters/issue" element={<IssueLetterWizard />} />
                 <Route path="letter-templates" element={<LetterTemplates />} />
                 <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
                 <Route path="letter-settings" element={<LetterSettings />} />
@@ -298,6 +303,8 @@ export default function AppRoutes() {
                 <Route path="bgv" element={<BGVManagement />} />
 
                 {/* Letters */}
+                <Route path="letters" element={<LetterDashboard />} />
+                <Route path="letters/issue" element={<IssueLetterWizard />} />
                 <Route path="letter-templates" element={<LetterTemplates />} />
                 <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
                 <Route path="letter-settings" element={<LetterSettings />} />
@@ -359,6 +366,7 @@ export default function AppRoutes() {
                 <Route path="payslips" element={<ESSPayslips />} />
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
                 <Route path="my-requests" element={<MyRequests />} />
+                <Route path="my-documents" element={<MyDocuments />} />
                 <Route path="face-attendance" element={<FaceAttendance />} />
             </Route>
 
