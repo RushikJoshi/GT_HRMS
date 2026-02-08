@@ -59,6 +59,8 @@ function getModels(req) {
         }
         if (!db.models.LetterApproval) {
             try { db.model('LetterApproval', require('../models/LetterApproval')); } catch (e) { }
+        if (!db.models.BGVCase) {
+            try { db.model('BGVCase', require('../models/BGVCase')); } catch (e) { }
         }
 
         return {
@@ -69,6 +71,8 @@ function getModels(req) {
             Applicant: db.model("Applicant"),
             Employee: db.model("Employee"),
             EmployeeSalarySnapshot: db.model("EmployeeSalarySnapshot"),
+            BGVCase: db.model("BGVCase")
+            // SalaryStructure is GLOBAL, not tenant-specific
         };
     } catch (err) {
         console.error("[letter.controller] Error retrieving models:", err.message);
@@ -1692,6 +1696,38 @@ exports.generateOfferLetter = async (req, res) => {
         if (!applicant) {
             return res.status(404).json({ message: "Applicant not found" });
         }
+
+        // --- BGV INTEGRATION ---
+        const { BGVCase } = getModels(req);
+        const bgv = await BGVCase.findOne({ applicationId: applicant._id, tenant: req.user.tenantId });
+
+        if (bgv) {
+            if (bgv.overallStatus === 'FAILED') {
+                // Auto-reject if not already rejected
+                if (applicant.status !== 'Rejected') {
+                    applicant.status = 'Rejected';
+                    applicant.timeline.push({
+                        status: 'Rejected',
+                        message: 'Offer blocked: Background Verification (BGV) FAILED.',
+                        updatedBy: 'System (BGV)',
+                        timestamp: new Date()
+                    });
+                    await applicant.save();
+                }
+                return res.status(403).json({
+                    message: "Offer letter blocked. Background Verification (BGV) FAILED. Candidate has been auto-rejected.",
+                    bgvStatus: 'FAILED'
+                });
+            }
+
+            if (bgv.overallStatus === 'IN_PROGRESS') {
+                return res.status(403).json({
+                    message: "Offer letter blocked. Background Verification (BGV) is still IN_PROGRESS.",
+                    bgvStatus: 'IN_PROGRESS'
+                });
+            }
+        }
+        // -----------------------
 
         let relativePath;
         let downloadUrl;

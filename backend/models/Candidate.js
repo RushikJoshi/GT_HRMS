@@ -12,6 +12,7 @@ const CandidateSchema = new mongoose.Schema({
     fatherName: { type: String, trim: true },
     address: { type: String },
     dob: { type: Date },
+    profilePic: { type: String }, // Path to profile picture
     professionalTier: { type: String, default: 'Technical Leader' }, // New field for profile customization
 
     // Meta

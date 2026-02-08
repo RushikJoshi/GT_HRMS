@@ -5,16 +5,25 @@ exports.updateCandidateProfile = async (req, res) => {
         const { name, email, phone, professionalTier } = req.body;
         const tenantDB = await getTenantDB(tenantId);
         const Candidate = tenantDB.model("Candidate");
+
         const update = {
             name,
             email,
             mobile: phone,
-            professionalTier, // Now supported in schema
+            professionalTier,
         };
+
+        // If a new profile image was uploaded
+        if (req.file) {
+            update.profilePic = `uploads/profile-pics/${req.file.filename}`;
+        }
+
         const candidate = await Candidate.findByIdAndUpdate(id, update, { new: true });
         if (!candidate) return res.status(404).json({ error: "Candidate not found" });
+
         res.json({ success: true, candidate });
     } catch (err) {
+        console.error("Profile update error:", err);
         res.status(500).json({ error: "Failed to update profile", details: err.message });
     }
 };

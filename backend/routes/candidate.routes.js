@@ -11,7 +11,7 @@ router.post('/login', candidateCtrl.loginCandidate);
 // Profile update and photo upload
 const { profilePicUpload } = require('../utils/upload');
 router.get('/profile', authenticateCandidate, candidateCtrl.getCandidateProfile);
-router.put('/profile', authenticateCandidate, candidateCtrl.updateCandidateProfile);
+router.put('/profile', authenticateCandidate, profilePicUpload.single('profileImage'), candidateCtrl.updateCandidateProfile);
 
 // Protected routes
 router.get('/me', authenticateCandidate, candidateCtrl.getCandidateMe);
