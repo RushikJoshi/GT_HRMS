@@ -55,6 +55,7 @@ const ICONS = {
   applicants: <UserPlus size={ICON_SIZE} />,
   tracker: <Radar size={ICON_SIZE} />,
   templates: <FileJson size={ICON_SIZE} />,
+  // letters: <FileSignature size={ICON_SIZE} />,
   access: <Lock size={ICON_SIZE} />,
   settings: <Settings2 size={ICON_SIZE} />,
   customization: <Brush size={ICON_SIZE} className="text-indigo-400" />,
@@ -131,14 +132,21 @@ const NAV_GROUPS = [
     ]
   },
   {
+    title: 'Document Management',
+    items: [
+      { to: '/hr/letters', label: 'Dashboard', icon: ICONS.dashboard },
+      { to: '/hr/letters/issue', label: 'Issue New Letter', icon: ICONS.applicants },
+    ]
+  },
+  {
     title: 'Configuration',
     items: [
       {
         label: 'Templates',
         icon: ICONS.templates,
         children: [
-          { to: '/hr/letter-templates', label: 'Letter Editor' },
-          { to: '/hr/letter-settings', label: 'Letter Settings' },
+          { to: '/hr/letter-templates', label: 'Template Builder' },
+          { to: '/hr/letter-settings', label: 'System Settings' },
           { to: '/hr/payslip-templates', label: 'Payslip Templates' }
         ]
       },

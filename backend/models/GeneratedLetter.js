@@ -23,26 +23,24 @@ const generatedLetterSchema = new mongoose.Schema({
 
     // Type info
     letterType: {
-        type: String,
-        enum: ['offer', 'joining', 'relieving', 'experience'],
+        type: String, // generic type string
         required: true
     },
 
     // Snapshot of the data used to generate this specific letter
-    // Important in case candidate details change later in DB
+    // generic object to support any placeholder data
     snapshotData: {
-        candidateName: String,
-        designation: String,
-        department: String,
-        ctc: Number,
-        joiningDate: Date,
-        location: String
+        type: Map,
+        of: mongoose.Schema.Types.Mixed
     },
 
     // Snapshot of the template used (for versioning/audit)
     templateSnapshot: {
         bodyContent: String,
-        contentJson: Object
+        contentJson: Object,
+        templateType: String,
+        filePath: String,
+        version: String
     },
 
     // File Details
@@ -58,8 +56,15 @@ const generatedLetterSchema = new mongoose.Schema({
     // Status Flow
     status: {
         type: String,
-        enum: ['generated', 'sent', 'viewed', 'accepted', 'rejected', 'expired'],
-        default: 'generated'
+        enum: ['draft', 'pending', 'approved', 'rejected', 'sent', 'viewed', 'accepted', 'rejected_by_candidate', 'expired'],
+        default: 'draft'
+    },
+
+    // Tracking info
+    tracking: {
+        viewCount: { type: Number, default: 0 },
+        downloadCount: { type: Number, default: 0 },
+        lastViewedAt: Date,
     },
 
     // Metadata

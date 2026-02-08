@@ -531,15 +531,26 @@ export default function LetterTemplates() {
                             placeholder="Template Name..."
                         />
                     </div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                        <input
-                            type="checkbox"
-                            checked={currentTemplate.isDefault}
-                            onChange={e => setCurrentTemplate({ ...currentTemplate, isDefault: e.target.checked })}
-                            className="w-4 h-4 text-blue-600 rounded"
-                        />
-                        Set as Default
-                    </label>
+                    <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={currentTemplate.requiresApproval}
+                                onChange={e => setCurrentTemplate({ ...currentTemplate, requiresApproval: e.target.checked })}
+                                className="w-4 h-4 text-blue-600 rounded-lg"
+                            />
+                            Requires Approval
+                        </label>
+                        <label className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={currentTemplate.isDefault}
+                                onChange={e => setCurrentTemplate({ ...currentTemplate, isDefault: e.target.checked })}
+                                className="w-4 h-4 text-blue-600 rounded-lg"
+                            />
+                            Set as Default
+                        </label>
+                    </div>
                 </div>
 
                 <div className="flex-1 flex overflow-hidden bg-slate-100/50">
@@ -608,17 +619,27 @@ export default function LetterTemplates() {
                 </button>
             </div>
 
-            <div className="flex gap-1 border-b mb-6">
-                {['offer', 'joining'].map(tab => (
+            <div className="flex gap-1 border-b mb-6 overflow-x-auto custom-scrollbar whitespace-nowrap">
+                {[
+                    { id: 'offer', label: 'Off. Offers' },
+                    { id: 'joining', label: 'Joining' },
+                    { id: 'appointment', label: 'Appoint.' },
+                    { id: 'probation_confirmation', label: 'Probation' },
+                    { id: 'promotion', label: 'Promotion' },
+                    { id: 'salary_revision', label: 'Salary Rev.' },
+                    { id: 'exp_rel', label: 'Exp & Rel' },
+                    { id: 'warning', label: 'Disciplinary' },
+                    { id: 'other', label: 'Other/Gen' }
+                ].map(tab => (
                     <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`px-4 py-2 font-medium capitalize border-b-2 transition-colors ${activeTab === tab
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`px-4 py-2 font-bold text-xs uppercase tracking-widest border-b-2 transition-all ${activeTab === tab.id
                             ? 'border-blue-600 text-blue-600'
-                            : 'border-transparent text-slate-500 hover:text-slate-700'
+                            : 'border-transparent text-slate-400 hover:text-slate-600'
                             }`}
                     >
-                        {tab} Letter
+                        {tab.label}
                     </button>
                 ))}
             </div>
