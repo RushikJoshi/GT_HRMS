@@ -59,6 +59,7 @@ function getModels(req) {
         }
         if (!db.models.LetterApproval) {
             try { db.model('LetterApproval', require('../models/LetterApproval')); } catch (e) { }
+        }
         if (!db.models.BGVCase) {
             try { db.model('BGVCase', require('../models/BGVCase')); } catch (e) { }
         }
@@ -79,7 +80,6 @@ function getModels(req) {
         throw new Error(`Failed to retrieve models from tenant database: ${err.message}`);
     }
 }
-
 // Helper to get correct Applicant model (for backward compatibility)
 function getApplicantModel(req) {
     if (req.tenantDB) {
