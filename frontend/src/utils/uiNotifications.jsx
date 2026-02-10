@@ -14,6 +14,11 @@ export const showToast = (type, message, description) => {
     });
 };
 
+// Expose to window for global access (e.g. from api.js)
+if (typeof window !== 'undefined') {
+    window.showToast = showToast;
+}
+
 /*
  * Toast-based Confirmation Dialog
  * Replaces Modal.confirm with a non-blocking toast at top-right

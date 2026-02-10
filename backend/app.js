@@ -117,6 +117,7 @@ const commentRoutes = require('./routes/comment.routes');
 const entityRoutes = require('./routes/entity.routes');
 const holidayRoutes = require('./routes/holiday.routes');
 const attendanceRoutes = require('./routes/attendance.routes');
+const attendancePolicyRoutes = require('./routes/attendancePolicy.routes');
 const letterRoutes = require('./routes/letter.routes');
 const offerTemplateRoutes = require('./routes/offerTemplate.routes');
 const payslipTemplateRoutes = require('./routes/payslipTemplate.routes');
@@ -181,6 +182,7 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/entities', entityRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/attendance-policy', attendancePolicyRoutes);
 app.use('/api/salary-structure', salaryStructureRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/payroll', payrollRoutes);
@@ -204,6 +206,7 @@ app.use(hrmsPrefix + '/letters', letterRoutes);
 app.use(hrmsPrefix + '/offer-templates', offerTemplateRoutes);
 app.use(hrmsPrefix + '/payslip-templates', payslipTemplateRoutes);
 app.use(hrmsPrefix + '/attendance', attendanceRoutes);
+app.use(hrmsPrefix + '/attendance-policy', attendancePolicyRoutes);
 app.use(hrmsPrefix + '/payroll', payrollRoutes);
 app.use(hrmsPrefix + '/payroll/corrections', payrollAdjustmentRoutes);
 app.use(hrmsPrefix + '/compensation', compensationRoutes);
@@ -259,9 +262,10 @@ app.use('/api/hrms', deductionRoutes);
 ================================ */
 const uploadsDir = path.join(__dirname, 'uploads');
 const offersDir = path.join(uploadsDir, 'offers');
+const profilePicsDir = path.join(uploadsDir, 'profile-pics');
 
 try {
-    [uploadsDir, offersDir].forEach(dir => {
+    [uploadsDir, offersDir, profilePicsDir].forEach(dir => {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     });
 } catch (e) {

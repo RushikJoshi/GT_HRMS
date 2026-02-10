@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../utils/api';
 import { formatDateDDMMYYYY } from '../../../utils/dateUtils';
-import { FileText, Download, Filter, Search, Eye, X, Settings2 } from 'lucide-react';
+import { FileText, Download, Filter, Search, Eye, X, Settings2, AlertTriangle } from 'lucide-react';
 import PayrollCorrectionModal from '../../../components/Payroll/PayrollCorrectionModal';
-import { Tooltip } from 'antd';
+import { Tooltip, Modal, Spin, Radio, Button } from 'antd';
+import { showToast } from '../../../utils/uiNotifications';
 
 export default function Payslips() {
     const [payslips, setPayslips] = useState([]);
@@ -13,17 +14,36 @@ export default function Payslips() {
     const [searchTerm, setSearchTerm] = useState('');
     const [previewPayslip, setPreviewPayslip] = useState(null);
     const [correctionState, setCorrectionState] = useState({ visible: false, run: null });
+    const [templates, setTemplates] = useState([]);
+    const [showTemplateModal, setShowTemplateModal] = useState(false);
+    const [selectedPayslipForDownload, setSelectedPayslipForDownload] = useState(null);
+    const [selectedTemplateId, setSelectedTemplateId] = useState(null);
+    const [downloadingId, setDownloadingId] = useState(null);
+    const [activeMode, setActiveMode] = useState('download');
 
     useEffect(() => {
         loadPayslips();
+        loadTemplates();
     }, [selectedMonth, selectedYear]);
+
+    async function loadTemplates() {
+        try {
+            const res = await api.get('/payslip-templates');
+            const activeTemplates = (res.data?.data || []).filter(t => t.isActive);
+            setTemplates(activeTemplates);
+
+            // Set default template if exists
+            const defaultTpl = activeTemplates.find(t => t.isDefault);
+            if (defaultTpl) setSelectedTemplateId(defaultTpl._id);
+            else if (activeTemplates.length > 0) setSelectedTemplateId(activeTemplates[0]._id);
+        } catch (err) {
+            console.error("Failed to load templates", err);
+        }
+    }
 
     async function loadPayslips() {
         setLoading(true);
         try {
-            // NOTE: Use a query param for filtering by month/year on the backend if implemented,
-            // otherwise fetch all and filter client side.
-            // Based on controller, it fetches all.
             const res = await api.get(`/payroll/payslips`);
             setPayslips(res.data?.data || []);
         } catch (err) {
@@ -47,22 +67,104 @@ export default function Payslips() {
         return true;
     });
 
-    async function downloadPDF(payslip) {
+    const handleDownloadClick = (payslip, mode = 'download') => {
+        setSelectedPayslipForDownload(payslip);
+        setActiveMode(mode);
+        if (templates.length <= 1) {
+            // If only one template or none, process directly with default/none
+            downloadPDF(payslip, templates[0]?._id, mode);
+        } else {
+            setShowTemplateModal(true);
+        }
+    };
+
+    async function downloadPDF(payslip, templateId, mode = 'download') {
+        if (!payslip) return;
+        setDownloadingId(payslip._id);
         try {
-            // Generate PDF using backend endpoint
-            const res = await api.post(`/payroll/payslips/${payslip._id}/generate-pdf`, {}, { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-            const link = document.createElement('a');
-            link.href = url;
-            const fileName = `Payslip_${payslip.employeeInfo?.name}_${payslip.month}-${payslip.year}.pdf`;
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
+            showToast('info', 'Processing', mode === 'view' ? 'Opening payslip...' : 'Generating your payslip PDF...');
+
+            const endpoint = templateId
+                ? `/payslip-templates/render/${payslip._id}`
+                : `/payroll/payslips/${payslip._id}/generate-pdf`;
+
+            const payload = templateId ? { templateId } : {};
+
+            const res = await api.post(endpoint, payload, { responseType: 'blob' });
+
+            // Robust Blob handling
+            let blob = res.data;
+
+            // 1. Force PDF type if we are sure it's binary
+            if (blob.type === '' || blob.type === 'application/octet-stream') {
+                blob = new Blob([blob], { type: 'application/pdf' });
+            }
+
+            console.log(`[PDF_CLIENT] Response received. Type: ${blob.type}, Size: ${blob.size} bytes`);
+
+            // 2. Check if the server returned JSON/HTML instead of PDF (manually)
+            if (blob.type.includes('json') || blob.type.includes('html')) {
+                const text = await blob.text();
+                try {
+                    const errorData = JSON.parse(text);
+                    throw new Error(errorData.message || 'Server failed to generate PDF');
+                } catch (e) {
+                    throw new Error('Server returned an error page instead of PDF. Please check backend logs.');
+                }
+            }
+
+            // 3. Size check
+            if (blob.size < 1000) {
+                console.warn("Possible small PDF/Error:", blob.size);
+                const text = await blob.text();
+                if (text.includes('error') || text.includes('not found')) {
+                    throw new Error(`PDF Generation Warning: ${text.substring(0, 100)}`);
+                }
+            }
+
+            const url = window.URL.createObjectURL(blob);
+
+            if (mode === 'view') {
+                // For 'view', some browsers prefer a new window with a name
+                const win = window.open('', '_blank');
+                if (win) {
+                    win.location.href = url;
+                } else {
+                    window.location.href = url; // Fallback
+                }
+            } else {
+                const link = document.createElement('a');
+                link.href = url;
+                const safeName = (payslip.employeeInfo?.name || 'Payslip').replace(/[^a-z0-9]/gi, '_');
+                const fileName = `Payslip_${safeName}_${payslip.month}-${payslip.year}.pdf`;
+                link.setAttribute('download', fileName);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+            }
+
+            setTimeout(() => window.URL.revokeObjectURL(url), 5000);
+
+            showToast('success', mode === 'view' ? 'Preview Opened' : 'Downloaded', 'Payslip processed successfully');
+            setShowTemplateModal(false);
         } catch (err) {
-            console.error("Download failed", err);
-            alert("Failed to download PDF. Please try again.");
+            console.error("PDF operation failed", err);
+            let errorMessage = err.message || 'Could not process PDF.';
+
+            // Handle axial-parsed blob errors
+            if (err.hrms?.type === 'blob_error') {
+                try {
+                    const text = await err.hrms.blob.text();
+                    const json = JSON.parse(text);
+                    errorMessage = json.message || errorMessage;
+                } catch (e) {
+                    errorMessage = 'Server error (HTML). Check template settings.';
+                }
+            }
+
+            showToast('error', 'Operation Failed', errorMessage);
+        } finally {
+            setDownloadingId(null);
         }
     }
 
@@ -164,16 +266,20 @@ export default function Payslips() {
                                                     </button>
                                                 </Tooltip>
                                                 <button
-                                                    onClick={() => setPreviewPayslip(p)}
+                                                    onClick={() => handleDownloadClick(p, 'view')}
+                                                    disabled={downloadingId === p._id}
                                                     className="text-emerald-600 hover:text-emerald-800 font-medium inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-emerald-50 text-xs"
                                                 >
-                                                    <Eye className="h-3.5 w-3.5" /> Preview
+                                                    {downloadingId === p._id && activeMode === 'view' ? <Spin size="small" /> : <Eye className="h-3.5 w-3.5" />}
+                                                    View PDF
                                                 </button>
                                                 <button
-                                                    onClick={() => downloadPDF(p)}
-                                                    className="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 text-xs"
+                                                    onClick={() => handleDownloadClick(p, 'download')}
+                                                    disabled={downloadingId === p._id}
+                                                    className={`text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 text-xs ${downloadingId === p._id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                 >
-                                                    <Download className="h-3.5 w-3.5" /> Download
+                                                    {downloadingId === p._id && activeMode === 'download' ? <Spin size="small" /> : <Download className="h-3.5 w-3.5" />}
+                                                    Download
                                                 </button>
                                             </div>
                                         </td>
@@ -190,7 +296,7 @@ export default function Payslips() {
                 <PayslipPreviewModal
                     payslip={previewPayslip}
                     onClose={() => setPreviewPayslip(null)}
-                    onDownload={() => downloadPDF(previewPayslip)}
+                    onDownload={() => handleDownloadClick(previewPayslip)}
                 />
             )}
             {/* Correction Modal */}
@@ -199,12 +305,86 @@ export default function Payslips() {
                 onCancel={() => setCorrectionState({ visible: false, run: null })}
                 payrollRun={correctionState.run}
             />
+
+            {/* Template Selection Modal */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2">
+                        <FileText className="text-blue-600" />
+                        <span>Choose Payslip Template</span>
+                    </div>
+                }
+                open={showTemplateModal && !!selectedPayslipForDownload}
+                onCancel={() => setShowTemplateModal(false)}
+                footer={[
+                    <Button key="cancel" onClick={() => setShowTemplateModal(false)}>
+                        Cancel
+                    </Button>,
+                    <Button
+                        key="download"
+                        type="primary"
+                        icon={activeMode === 'view' ? <Eye size={16} /> : <Download size={16} />}
+                        loading={!!downloadingId}
+                        onClick={() => downloadPDF(selectedPayslipForDownload, selectedTemplateId, activeMode)}
+                        disabled={!selectedTemplateId}
+                        className="bg-blue-600"
+                    >
+                        {activeMode === 'view' ? 'Preview & View' : 'Generate & Download'}
+                    </Button>
+                ]}
+                width={500}
+                centered
+            >
+                <div className="py-4">
+                    <p className="text-sm text-slate-500 mb-4 italic">
+                        Select a design template for <span className="font-bold text-slate-800">{selectedPayslipForDownload?.employeeInfo?.name}</span>'s payslip.
+                    </p>
+
+                    <Radio.Group
+                        value={selectedTemplateId}
+                        onChange={e => setSelectedTemplateId(e.target.value)}
+                        className="w-full space-y-3"
+                    >
+                        {templates.map(tpl => (
+                            <Radio
+                                key={tpl._id}
+                                value={tpl._id}
+                                className="w-full p-3 rounded-lg border border-slate-200 hover:border-blue-400 hover:bg-blue-50 shadow-sm transition-all"
+                            >
+                                <div className="inline-flex flex-col ml-2">
+                                    <span className="font-bold text-slate-800 flex items-center gap-2">
+                                        {tpl.name}
+                                        {tpl.isDefault && (
+                                            <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-black uppercase">Default</span>
+                                        )}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 mt-0.5">
+                                        Type: {tpl.templateType} • Updated: {new Date(tpl.updatedAt).toLocaleDateString()}
+                                    </span>
+                                </div>
+                            </Radio>
+                        ))}
+                    </Radio.Group>
+
+                    {templates.length === 0 && (
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2">
+                            <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+                            <div>
+                                <p className="font-bold underline">No active templates found!</p>
+                                <p className="mt-1 text-xs opacity-80">Generating with system default layout. Go to Payslip Templates to create one.</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 }
 
 // Preview Modal Component
 function PayslipPreviewModal({ payslip, onClose, onDownload }) {
+    // Determine the default template if available to pass to download
+    // But since onDownload is passed from parent, we keep it simple or update parent
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
