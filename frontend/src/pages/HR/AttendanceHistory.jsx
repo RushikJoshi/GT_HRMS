@@ -32,6 +32,7 @@ export default function AttendanceHistory() {
   const [uploadPreview, setUploadPreview] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadErrors, setUploadErrors] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const pageSize = 10;
 
   const calculateStats = () => {
@@ -161,6 +162,24 @@ export default function AttendanceHistory() {
     } catch (error) {
       console.log('Error fetching attendance data:', error);
       throw error;
+    }
+  };
+
+  // Refresh attendance data manually
+  const handleRefreshData = async () => {
+    try {
+      setRefreshing(true);
+      console.log('🔄 Manually refreshing attendance data...');
+      const newData = await getEmployeeAttendance();
+      console.log('✅ Fresh data received:', newData.length, 'records');
+      setAttendance(newData);
+      processAttendanceData(newData);
+      alert('✅ Data refreshed successfully!');
+    } catch (error) {
+      console.error('❌ Error refreshing data:', error);
+      alert('Error refreshing data. Please try again.');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -328,9 +347,42 @@ export default function AttendanceHistory() {
           return;
         }
 
+        // Check what months are in the data
+        const dateColumn = Object.keys(jsonData[0]).find(col => col.toLowerCase().includes('date'));
+        const dataMonths = new Set();
+        let firstDate = null;
+        let lastDate = null;
+
+        jsonData.forEach(row => {
+          try {
+            if (row[dateColumn]) {
+              let date = new Date(row[dateColumn]);
+              // Handle Excel date numbers
+              if (typeof row[dateColumn] === 'number') {
+                date = new Date(Math.round((row[dateColumn] - 25569) * 86400 * 1000));
+              }
+              if (!isNaN(date.getTime())) {
+                dataMonths.add(`${date.getMonth() + 1}/${date.getFullYear()}`);
+                if (!firstDate || date < firstDate) firstDate = date;
+                if (!lastDate || date > lastDate) lastDate = date;
+              }
+            }
+          } catch (e) {
+            // Skip invalid dates
+          }
+        });
+
+        const currentMonth = `${selectedDate.getMonth() + 1}/${selectedDate.getFullYear()}`;
+        const warnings = [];
+        if (dataMonths.size > 0 && !dataMonths.has(currentMonth)) {
+          warnings.push(`⚠️ Month Mismatch: File has data for ${Array.from(dataMonths).join(', ')} but you're on month ${currentMonth}`);
+        }
+
         // Show preview (first 5 rows)
         setUploadPreview(jsonData.slice(0, 5));
-        setUploadErrors([]);
+        setUploadErrors(warnings);
+
+
       } catch (error) {
         console.error('File read error:', error);
         setUploadErrors([`Error reading file: ${error.message}`]);
@@ -368,7 +420,7 @@ export default function AttendanceHistory() {
           const workbook = XLSX.read(data, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          let jsonData = XLSX.utils.sheet_to_json(worksheet);
 
           // Validate data before sending
           if (jsonData.length === 0) {
@@ -377,9 +429,55 @@ export default function AttendanceHistory() {
             return;
           }
 
+          // Normalize dates to UTC ISO strings - CRITICAL FIX
+          jsonData = jsonData.map(row => {
+            const normalized = { ...row };
+            for (const key in normalized) {
+              const val = normalized[key];
+              // Check if this is a date field
+              if (key.toLowerCase().includes('date') || key.toLowerCase().includes('punch')) {
+                let date = null;
+                
+                if (val instanceof Date) {
+                  date = val;
+                } else if (typeof val === 'number') {
+                  // Excel date number format
+                  date = new Date(Math.round((val - 25569) * 86400 * 1000));
+                } else if (typeof val === 'string') {
+                  date = new Date(val);
+                } else {
+                  continue;
+                }
+
+                if (date && !isNaN(date.getTime())) {
+                  // Convert to UTC midnight for date fields
+                  if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('time')) {
+                    const utcDate = new Date(
+                      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0)
+                    );
+                    normalized[key] = utcDate.toISOString();
+                  } else {
+                    // For time fields, keep the full timestamp
+                    normalized[key] = date.toISOString();
+                  }
+                }
+              }
+            }
+            return normalized;
+          });
+
+          console.log('📋 Normalized data sample:', jsonData[0]);
+
           // Send to backend
           const response = await api.post('/attendance/bulk-upload', {
             records: jsonData
+          });
+
+          console.log('📤 Upload response:', {
+            success: response.data.success,
+            uploadedCount: response.data.uploadedCount,
+            failedCount: response.data.failedCount,
+            errors: response.data.errors
           });
 
           if (response.data.success) {
@@ -388,15 +486,53 @@ export default function AttendanceHistory() {
               alert(`⚠️ ${response.data.errors.length} records failed:\n${response.data.errors.slice(0, 5).join('\n')}`);
             }
 
+            // Wait longer for backend to process
+            console.log('⏳ Waiting for backend to process...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
             // Refresh attendance data
             const newData = await getEmployeeAttendance();
+            console.log('📥 Fresh data from API after upload:', {
+              totalRecords: newData.length,
+              uniqueEmployees: new Set(newData.map(d => d.employee?._id)).size,
+              dateRange: newData.length > 0 ? `${new Date(newData[newData.length - 1]?.date).toLocaleDateString()} to ${new Date(newData[0]?.date).toLocaleDateString()}` : 'N/A'
+            });
+            
+            // Extract what months are in the fresh data
+            const monthsInData = new Set();
+            const datesInData = new Set();
+            newData.forEach(record => {
+              const date = new Date(record.date);
+              monthsInData.add(`${date.getMonth() + 1}/${date.getFullYear()}`);
+              datesInData.add(record.date.split('T')[0]);
+            });
+            
+            console.log('📅 Months in uploaded data:', Array.from(monthsInData).join(', '));
+            console.log('📊 Total unique dates:', datesInData.size);
+            
+            // Store raw data AND process it
+            setAttendance(newData);
             processAttendanceData(newData);
+            
+            // Navigate to first available month in the uploaded data
+            if (monthsInData.size > 0) {
+              const firstMonth = Array.from(monthsInData)[0];
+              const [month, year] = firstMonth.split('/');
+              const targetDate = new Date(year, parseInt(month) - 1, 1);
+              if (targetDate.getTime() !== selectedDate.getTime()) {
+                console.log(`🔄 Auto-navigating to month: ${firstMonth}`);
+                setSelectedDate(targetDate);
+              }
+            }
 
             // Close modal and reset
-            setShowUploadModal(false);
-            setUploadedFile(null);
-            setUploadPreview([]);
-            setUploadErrors([]);
+            setTimeout(() => {
+              setShowUploadModal(false);
+              setUploadedFile(null);
+              setUploadPreview([]);
+              setUploadErrors([]);
+            }, 300);
+            
           } else {
             setUploadErrors([response.data.message || 'Upload failed']);
           }
@@ -430,124 +566,47 @@ export default function AttendanceHistory() {
 
   // Process attendance data
   const processAttendanceData = (data) => {
-    const selMonth = selectedDate.getMonth();
-    const selYear = selectedDate.getFullYear();
+    try {
+      const selMonth = selectedDate.getMonth();
+      const selYear = selectedDate.getFullYear();
 
-    const result = data.reduce((acc, item) => {
-      const itemDate = new Date(item.date);
-      // Filter by selected month/year
-      if (itemDate.getMonth() !== selMonth || itemDate.getFullYear() !== selYear) {
-        return acc;
+      console.log(`🔍 Processing attendance data for ${selMonth + 1}/${selYear}`);
+      console.log(`📊 Total records received: ${data.length}`);
+      
+      // Debug: Show date range info
+      if (data.length > 0) {
+        const dates = data.map(d => new Date(d.date).toLocaleDateString());
+        console.log(`📅 Date range in data: ${Math.min(...dates.map(d => new Date(d).getTime()))} to ${Math.max(...dates.map(d => new Date(d).getTime()))}`);
       }
 
-      const empId = item.employee._id;
-      const empName = `${item.employee.firstName} ${item.employee.lastName}`;
-      const empRole = item.employee.role;
-      const day = item.date.split('T')[0];
-      const status = item.status;
-      const employeeId = item.employee.employeeId;
+      const result = data.reduce((acc, item, idx) => {
+        try {
+          // Validate item has required fields
+          if (!item || !item.employee || !item.date) {
+            console.warn('⚠️ Skipping invalid attendance record:', item);
+            return acc;
+          }
 
-      if (!acc[empId]) {
-        acc[empId] = {
-          _id: empId,
-          empId: item.employee.empId || empId,
-          name: empName,
-          role: empRole,
-          employeeId: employeeId,
-          avatar: item.employee.firstName?.charAt(0).toUpperCase() || 'E',
-          days: new Set(),
-          presentDays: new Set(),
-          absentDays: new Set(),
-          leaveDays: new Set(),
-          holidayDays: new Set(),
-          weeklyOffDays: new Set(),
-          halfDayDays: new Set(),
-          missedPunchDays: new Set(),
-          lateArrivals: 0,
-          leaves: 0,
-          workingHours: 0,
-          attendanceRate: 0
-        };
-      }
+          const itemDate = new Date(item.date);
+          const itemMonth = itemDate.getMonth();
+          const itemYear = itemDate.getFullYear();
+          
+          // Debug: Log first few records to check date filtering
+          if (idx < 3) {
+            console.log(`  Record ${idx}: Date=${itemDate.toLocaleDateString()}, Month=${itemMonth + 1}, Year=${itemYear}, FilterMonth=${selMonth + 1}, FilterYear=${selYear}, Match=${itemMonth === selMonth && itemYear === selYear}`);
+          }
+          
+          // Filter by selected month/year
+          if (itemMonth !== selMonth || itemYear !== selYear) {
+            return acc;
+          }
 
-      acc[empId].days.add(day);
-
-      if (item.checkIn && item.checkOut) {
-        const checkInTime = new Date(item.checkIn);
-        const checkOutTime = new Date(item.checkOut);
-        const hoursWorked = (checkOutTime - checkInTime) / (1000 * 60 * 60);
-        if (hoursWorked > 0) {
-          acc[empId].workingHours += parseFloat(hoursWorked.toFixed(2));
-        }
-      } else if (item.workingHours) {
-        // Fallback to pre-calculated working hours if punch logs are incomplete
-        acc[empId].workingHours += item.workingHours;
-      }
-
-      if (status === 'present') {
-        acc[empId].presentDays.add(day);
-      } else if (status === 'absent') {
-        acc[empId].absentDays.add(day);
-      } else if (status === 'leave') {
-        acc[empId].leaveDays.add(day);
-      } else if (status === 'holiday') {
-        acc[empId].holidayDays.add(day);
-      } else if (status === 'weekly_off') {
-        acc[empId].weeklyOffDays.add(day);
-      } else if (status === 'half_day') {
-        acc[empId].halfDayDays.add(day);
-      } else if (status === 'missed_punch') {
-        acc[empId].missedPunchDays.add(day);
-      }
-
-      return acc;
-    }, {});
-
-    // Calculate attendance rates
-    Object.keys(result).forEach(empId => {
-      const employee = result[empId];
-      const totalDays = employee.days.size;
-      const presentDays = employee.presentDays.size + employee.halfDayDays.size * 0.5;
-      employee.attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
-    });
-
-    setNewAttendance(result);
-    setAttendance(data);
-    setLoading(false);
-  };
-
-  // Re-process when selected month changes
-  useEffect(() => {
-    if (attendance.length > 0) {
-      processAttendanceData(attendance);
-    }
-  }, [selectedDate]);
-
-  // Load face status for all employees when attendance data is loaded
-  useEffect(() => {
-    if (Object.keys(newAttendance).length > 0) {
-      Object.keys(newAttendance).forEach(empId => {
-        if (!faceStatusMap.hasOwnProperty(empId)) {
-          checkFaceRegistration(empId);
-        }
-      });
-    }
-  }, [newAttendance]);
-
-  useEffect(() => {
-    const fetchAttendance = async () => {
-      try {
-        setLoading(true);
-        const data = await getEmployeeAttendance();
-
-        // Process attendance data: Group by employee with status counts
-        const result = data.reduce((acc, item) => {
           const empId = item.employee._id;
-          const empName = `${item.employee.firstName} ${item.employee.lastName}`;
-          const empRole = item.employee.role;
+          const empName = `${item.employee.firstName || ''} ${item.employee.lastName || ''}`.trim();
+          const empRole = item.employee.role || 'N/A';
           const day = item.date.split('T')[0];
-          const status = item.status; // Includes 'weekly_off' from backend
-          const employeeId = item.employee.employeeId
+          const status = item.status || 'unknown';
+          const employeeId = item.employee.employeeId;
 
           if (!acc[empId]) {
             acc[empId] = {
@@ -574,14 +633,18 @@ export default function AttendanceHistory() {
 
           acc[empId].days.add(day);
 
-          // Calculate working hours from punch data
+          // Calculate working hours - prioritize punch logs, fallback to pre-calculated hours
           if (item.checkIn && item.checkOut) {
             const checkInTime = new Date(item.checkIn);
             const checkOutTime = new Date(item.checkOut);
-            const hoursWorked = (checkOutTime - checkInTime) / (1000 * 60 * 60); // Convert ms to hours
+            const hoursWorked = (checkOutTime - checkInTime) / (1000 * 60 * 60);
             if (hoursWorked > 0) {
               acc[empId].workingHours += parseFloat(hoursWorked.toFixed(2));
             }
+          } else if (item.workingHours && item.workingHours > 0) {
+            // Fallback to pre-calculated working hours if punch logs are incomplete
+            // This handles Excel-uploaded records with workingHours field
+            acc[empId].workingHours += parseFloat(item.workingHours);
           }
 
           // Track status by category
@@ -601,18 +664,76 @@ export default function AttendanceHistory() {
             acc[empId].missedPunchDays.add(day);
           }
 
-          // Calculate attendance rate (present / working days, excluding weekly off and holidays)
-          const workingDays = acc[empId].days.size - acc[empId].weeklyOffDays.size - acc[empId].holidayDays.size;
-          acc[empId].attendanceRate = workingDays > 0
-            ? Math.round((acc[empId].presentDays.size / workingDays) * 100)
-            : 0;
-
           return acc;
-        }, {});
+        } catch (itemError) {
+          console.error('❌ Error processing individual attendance record:', itemError, item);
+          return acc;
+        }
+      }, {});
 
-        console.log('Processed Attendance Data:', result);
-        setNewAttendance(result);
+      console.log(`✅ Processed ${Object.keys(result).length} employees for ${selMonth + 1}/${selYear}`);
+
+      // Calculate attendance rates
+      Object.keys(result).forEach(empId => {
+        const employee = result[empId];
+        const totalDays = employee.days.size;
+        const presentDays = employee.presentDays.size + employee.halfDayDays.size * 0.5;
+        const workingDays = totalDays - employee.weeklyOffDays.size - employee.holidayDays.size;
+        
+        // Use working days for attendance rate, fallback to total days if no working days calculated
+        employee.attendanceRate = workingDays > 0 
+          ? Math.round((employee.presentDays.size / workingDays) * 100) 
+          : (totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0);
+      });
+
+      setNewAttendance(result);
+    } catch (error) {
+      console.error('❌ Error processing attendance data:', error);
+      setNewAttendance({});
+    }
+  };
+
+  // Re-process when selected month changes
+  useEffect(() => {
+    if (attendance.length > 0) {
+      console.log('Month changed, re-processing attendance data');
+      processAttendanceData(attendance);
+    }
+  }, [selectedDate]);
+
+  // Load face status for all employees when attendance data is loaded
+  useEffect(() => {
+    if (Object.keys(newAttendance).length > 0) {
+      Object.keys(newAttendance).forEach(empId => {
+        if (!faceStatusMap.hasOwnProperty(empId)) {
+          checkFaceRegistration(empId);
+        }
+      });
+    }
+  }, [newAttendance]);
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      try {
+        setLoading(true);
+        const data = await getEmployeeAttendance();
+        
+        if (!data || !Array.isArray(data)) {
+          console.error('Invalid attendance data received:', data);
+          setAttendance([]);
+          setNewAttendance({});
+          setLoading(false);
+          return;
+        }
+
+        console.log(`Received ${data.length} attendance records from API`);
+        
+        // Store raw data for filtering by month later
         setAttendance(data);
+        
+        // Process with month filter on initial load
+        processAttendanceData(data);
+        
       } catch (err) {
         console.error('Error fetching attendance:', err);
         setAttendance([]);
@@ -799,22 +920,42 @@ export default function AttendanceHistory() {
                 <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-400" />
               </button>
             </div>
-            <button
-              onClick={handleExportReport}
-              disabled={exporting || Object.keys(newAttendance).length === 0}
-              className="flex items-center gap-2 px-5 py-3 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {exporting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Exporting...
-                </>
-              ) : (
-                <>
-                  <Download className="w-5 h-5" />
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefreshData}
+                disabled={refreshing || loading}
+                className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh attendance data"
+              >
+                {refreshing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-5 h-5" />
+                    Refresh
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleExportReport}
+                disabled={exporting || Object.keys(newAttendance).length === 0}
+                className="flex items-center gap-2 px-5 py-3 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {exporting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+            </div>
             {/* <button 
               onClick={() => setShowUploadModal(true)}
               className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition"
@@ -894,7 +1035,7 @@ export default function AttendanceHistory() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-lg font-black text-slate-800 dark:text-white tracking-tighter">
-                        {employee.workingHours}
+                        {parseFloat(employee.workingHours).toFixed(2)}
                         <span className="text-[10px] text-slate-400 ml-1">hrs</span>
                       </span>
                     </td>

@@ -219,18 +219,40 @@ exports.validateLocation = async (req, res) => {
 
 
 const calculateWorkingHours = (logs = []) => {
-    if (logs.length < 2) return 0;
+    if (!Array.isArray(logs) || logs.length < 2) return 0;
+
+    // Normalize and filter valid log times
+    const normalized = logs
+        .map(l => ({
+            type: (l.type || '').toString().toUpperCase(),
+            time: l.time ? new Date(l.time) : null
+        }))
+        .filter(l => l.time && !isNaN(l.time.getTime()));
+
+    if (normalized.length < 2) return 0;
+
+    // Ensure logs are ordered by time
+    normalized.sort((a, b) => a.time - b.time);
 
     let totalMinutes = 0;
     let inTime = null;
 
-    for (const log of logs) {
+    for (const log of normalized) {
         if (log.type === 'IN') {
-            inTime = new Date(log.time);
+            // Start a new inTime (if previous IN without OUT, replace it)
+            inTime = log.time;
         } else if (log.type === 'OUT' && inTime) {
-            const outTime = new Date(log.time);
-            const duration = (outTime - inTime) / (1000 * 60); // Duration in minutes
-            totalMinutes += duration;
+            let outTime = log.time;
+            let duration = (outTime - inTime) / (1000 * 60); // minutes
+
+            // Handle overnight shifts where OUT may be on the next day but represented earlier
+            if (duration < 0) {
+                // add 24 hours as fallback (assume OUT is next day)
+                duration += 24 * 60;
+            }
+
+            // protect against weird negative durations
+            if (duration > 0) totalMinutes += duration;
             inTime = null;
         }
     }
@@ -1601,7 +1623,16 @@ exports.bulkUpload = async (req, res) => {
     try {
         const { records } = req.body;
 
+        console.log('🚀 BULK UPLOAD STARTED');
+        console.log('📊 Request Details:', {
+            recordsCount: records?.length,
+            tenantId: req.tenantId,
+            userId: req.userId,
+            userEmail: req.user?.email
+        });
+
         if (!records || !Array.isArray(records)) {
+            console.error('❌ Invalid records format');
             return res.status(400).json({
                 success: false,
                 message: "Records must be an array"
@@ -1609,6 +1640,7 @@ exports.bulkUpload = async (req, res) => {
         }
 
         if (records.length === 0) {
+            console.error('❌ No records provided');
             return res.status(400).json({
                 success: false,
                 message: "No records provided"
@@ -1619,6 +1651,14 @@ exports.bulkUpload = async (req, res) => {
         const tenantId = req.tenantId;
         const userId = req.userId;
 
+        if (!tenantId) {
+            console.error('❌ No tenant ID in request');
+            return res.status(400).json({
+                success: false,
+                message: "Tenant ID is required"
+            });
+        }
+
         const results = {
             uploadedCount: 0,
             failedCount: 0,
@@ -1627,7 +1667,10 @@ exports.bulkUpload = async (req, res) => {
 
         // Cache settings for late/early out calculation
         let settings = await AttendanceSettings.findOne({ tenant: tenantId });
-        if (!settings) settings = new AttendanceSettings({ tenant: tenantId });
+        if (!settings) {
+            console.log('⚠️ No AttendanceSettings found, creating default');
+            settings = new AttendanceSettings({ tenant: tenantId });
+        }
 
         /* ---------------- Helpers ---------------- */
 
@@ -1655,21 +1698,50 @@ exports.bulkUpload = async (req, res) => {
         const parseDate = (val) => {
             if (!val) return null;
 
+            console.log(`🔍 parseDate input: ${val} (type: ${typeof val})`);
+
+            // If it's already an ISO string from frontend normalization
+            if (typeof val === 'string' && val.includes('T') && val.includes('Z')) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    console.log(`   → ISO string parsed: ${d.toISOString()}`);
+                    return d;
+                }
+            }
+
             // Excel date number
             if (typeof val === 'number') {
-                return new Date(Math.round((val - 25569) * 86400 * 1000));
+                console.log(`📊 Treating as Excel number: ${val}`);
+                const result = new Date(Math.round((val - 25569) * 86400 * 1000));
+                console.log(`   → Result: ${result.toISOString()}`);
+                return result;
+            }
+
+            // Try parsing as any string
+            if (typeof val === 'string') {
+                console.log(`📝 Treating as string: ${val}`);
             }
 
             const d = new Date(val);
-            return isNaN(d.getTime()) ? null : d;
+            const result = isNaN(d.getTime()) ? null : d;
+            console.log(`   → Parsed date: ${result ? result.toISOString() : 'Invalid'}`);
+            return result;
         };
 
         const parseTime = (val, baseDate) => {
             if (!val) return null;
 
-            // If it's already a full Date object
+            // If it's already a full Date object (from ISO string)
             if (val instanceof Date && !isNaN(val.getTime())) {
                 return val;
+            }
+
+            // If it's already an ISO string from frontend
+            if (typeof val === 'string' && val.includes('T')) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    return d;
+                }
             }
 
             // Excel time fraction (e.g. 0.375 for 09:00:00)
@@ -1679,19 +1751,19 @@ exports.bulkUpload = async (req, res) => {
                 const hours = Math.floor(totalSeconds / 3600);
                 const minutes = Math.floor((totalSeconds % 3600) / 60);
                 const seconds = totalSeconds % 60;
-                d.setHours(hours, minutes, seconds, 0);
+                d.setUTCHours(hours, minutes, seconds, 0);
                 return d;
             }
 
-            // String time like "09:00:00" or "09:00"
-            if (typeof val === 'string' && val.includes(':')) {
+            // String time like "09:00:00" or "09:00" (simple time format)
+            if (typeof val === 'string' && val.includes(':') && !val.includes('T')) {
                 const parts = val.split(':').map(Number);
                 const d = new Date(baseDate);
-                d.setHours(parts[0], parts[1] || 0, parts[2] || 0, 0);
+                d.setUTCHours(parts[0], parts[1] || 0, parts[2] || 0, 0);
                 return d;
             }
 
-            // Try generic date parse
+            // Try generic date parse as fallback
             const tried = new Date(val);
             if (!isNaN(tried.getTime())) return tried;
 
@@ -1784,25 +1856,35 @@ exports.bulkUpload = async (req, res) => {
                 if (!empIdVal) throw new Error("Employee ID is missing");
                 if (!dateVal) throw new Error("Date is missing");
 
+                console.log(`   📝 Processing Row ${rowIdx}: EmpID=${empIdVal}, Date=${dateVal}`);
+
                 const employee = await Employee.findOne({
                     tenant: tenantId,
                     $or: [{ employeeId: empIdVal }, { customId: empIdVal }]
                 });
 
                 if (!employee) {
-                    throw new Error(`Employee not found: ${empIdVal}`);
+                    throw new Error(`Employee not found: ${empIdVal}. Available employees: check database`);
                 }
+
+                console.log(`   ✅ Found employee: ${employee.firstName} ${employee.lastName} (ID: ${employee._id})`);
 
                 const attendanceDate = parseDate(dateVal);
                 if (!attendanceDate) {
                     throw new Error(`Invalid date format: ${dateVal}`);
                 }
-                attendanceDate.setHours(0, 0, 0, 0);
+                // Date is already properly parsed from frontend's UTC normalization
+                console.log(`   🎯 Final attendance date: ${attendanceDate.toISOString()}`);
 
                 const checkInTime = parseTime(checkInVal, attendanceDate);
                 const checkOutTime = parseTime(checkOutVal, attendanceDate);
+                
+                console.log(`   ✓ Check-in: ${checkInTime ? checkInTime.toISOString() : 'none'}`);
+                console.log(`   ✗ Check-out: ${checkOutTime ? checkOutTime.toISOString() : 'none'}`);
 
                 const finalStatus = normalizeStatus(statusVal);
+                
+                console.log(`   📅 Attendance Date: ${attendanceDate.toLocaleDateString()}, Status: ${finalStatus}, Hours: ${workingHoursVal}`);
 
                 let attendance = await Attendance.findOne({
                     tenant: tenantId,
@@ -1816,6 +1898,9 @@ exports.bulkUpload = async (req, res) => {
                         employee: employee._id,
                         date: attendanceDate
                     });
+                    console.log(`      🆕 Created new attendance record`);
+                } else {
+                    console.log(`      🔄 Updating existing attendance record`);
                 }
 
                 attendance.status = finalStatus;
@@ -1824,7 +1909,6 @@ exports.bulkUpload = async (req, res) => {
                 attendance.leaveType = leaveTypeVal;
                 attendance.ipAddress = req.ip || '0.0.0.0';
                 attendance.userAgent = req.get('user-agent') || '';
-                attendance.updatedBy = userId;
                 attendance.isManualOverride = true;
                 attendance.overrideReason = "Bulk Upload";
 
@@ -1875,14 +1959,44 @@ exports.bulkUpload = async (req, res) => {
                     }
                 }
 
-                await attendance.save();
+                console.log(`      💾 Saving attendance record...`);
+                console.log(`      📝 Record data:`, {
+                    tenant: attendance.tenant,
+                    employee: attendance.employee,
+                    date: attendance.date,
+                    status: attendance.status,
+                    workingHours: attendance.workingHours,
+                    checkIn: attendance.checkIn,
+                    checkOut: attendance.checkOut,
+                    isManualOverride: attendance.isManualOverride
+                });
+                const savedRecord = await attendance.save();
+                console.log(`      ✅ Successfully saved! Record ID: ${savedRecord._id}`);
                 results.uploadedCount++;
 
             } catch (err) {
                 results.failedCount++;
-                results.errors.push(`Row ${rowIdx}: ${err.message}`);
+                const errorMsg = `Row ${rowIdx}: ${err.message}`;
+                results.errors.push(errorMsg);
+                console.error(`      ❌ ${errorMsg}`);
+                console.error(`      🔍 Error Details:`, {
+                    name: err.name,
+                    message: err.message,
+                    code: err.code,
+                    keyPattern: err.keyPattern,
+                    keyValue: err.keyValue,
+                    validationErrors: err.errors ? Object.keys(err.errors).map(k => `${k}: ${err.errors[k]?.message || err.errors[k]}`) : 'none'
+                });
             }
         }
+
+        console.log('✅ BULK UPLOAD COMPLETED');
+        console.log('📊 Results:', {
+            uploadedCount: results.uploadedCount,
+            failedCount: results.failedCount,
+            errorsCount: results.errors.length,
+            tenantId: tenantId.toString()
+        });
 
         return res.json({
             success: true,
@@ -1894,10 +2008,12 @@ exports.bulkUpload = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Bulk upload error:", error);
+        console.error("❌ BULK UPLOAD CRITICAL ERROR:", error);
+        console.error('Stack:', error.stack);
         return res.status(500).json({
             success: false,
-            message: error.message || "Error uploading records"
+            message: error.message || "Error uploading records",
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 };

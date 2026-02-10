@@ -1,713 +1,540 @@
-# 🧪 BGV Module - Complete Testing Guide
+# 🧪 BGV Evidence-Driven System - Testing Guide
 
-## 📋 Testing Overview
+## 🎯 QUICK START TESTING
 
-This guide provides step-by-step instructions to test all features of the BGV module.
+This guide will help you test the new evidence-driven BGV system.
 
 ---
 
-## 🚀 Pre-Testing Setup
+## 📋 PRE-REQUISITES
 
-### 1. Verify Services are Running
+- ✅ Backend server running (`npm run dev` in backend folder)
+- ✅ Database connected
+- ✅ At least 2 test users (for maker-checker testing)
+- ✅ Test applicant with BGV case
 
+---
+
+## 🧪 TEST SCENARIO 1: Evidence Validation
+
+### **Goal**: Verify that system prevents verification without evidence
+
+### Steps:
+
+1. **Create a BGV Case**
+   ```bash
+   POST /api/bgv/initiate
+   {
+     "applicationId": "<applicant_id>",
+     "package": "STANDARD",
+     "slaDays": 7
+   }
+   ```
+
+2. **Get Case Details**
+   ```bash
+   GET /api/bgv/case/<case_id>
+   ```
+   
+   **Expected**: Checks created with status `NOT_STARTED`
+
+3. **Try to Start Verification WITHOUT Documents**
+   ```bash
+   POST /api/bgv/check/<check_id>/start-verification
+   {
+     "verificationRemarks": "Starting verification"
+   }
+   ```
+   
+   **Expected**: ❌ Error 400
+   ```json
+   {
+     "success": false,
+     "message": "Cannot start verification: Required evidence is missing",
+     "missingDocuments": ["AADHAAR", "PAN"],
+     "evidenceCompleteness": 0
+   }
+   ```
+
+4. **Upload Required Documents**
+   ```bash
+   POST /api/bgv/case/<case_id>/upload-document
+   Form Data:
+   - document: <file>
+   - documentType: "AADHAAR"
+   - checkType: "IDENTITY"
+   ```
+
+5. **Check Evidence Status**
+   ```bash
+   GET /api/bgv/case/<case_id>
+   ```
+   
+   **Expected**: Check now shows:
+   ```json
+   {
+     "evidenceStatus": {
+       "hasRequiredEvidence": true,
+       "evidenceCompleteness": 100,
+       "uploadedDocumentTypes": ["AADHAAR"],
+       "missingDocumentTypes": []
+     },
+     "status": "DOCUMENTS_UPLOADED"
+   }
+   ```
+
+6. **Try to Start Verification WITH Documents**
+   ```bash
+   POST /api/bgv/check/<check_id>/start-verification
+   {
+     "verificationRemarks": "Starting verification"
+   }
+   ```
+   
+   **Expected**: ✅ Success 200
+   ```json
+   {
+     "success": true,
+     "message": "Verification started successfully",
+     "data": { ... }
+   }
+   ```
+
+---
+
+## 🧪 TEST SCENARIO 2: Maker-Checker Workflow
+
+### **Goal**: Verify that system enforces dual control
+
+### Steps:
+
+1. **Login as User A (Verifier/Maker)**
+
+2. **Start Verification**
+   ```bash
+   POST /api/bgv/check/<check_id>/start-verification
+   {
+     "verificationRemarks": "Reviewing evidence"
+   }
+   ```
+
+3. **Review Documents**
+   ```bash
+   POST /api/bgv/document/<document_id>/review
+   {
+     "reviewStatus": "ACCEPTED",
+     "reviewRemarks": "Document is clear and valid",
+     "qualityScore": 95
+   }
+   ```
+
+4. **Submit for Approval**
+   ```bash
+   POST /api/bgv/check/<check_id>/submit-for-approval
+   {
+     "status": "VERIFIED",
+     "remarks": "All evidence verified successfully"
+   }
+   ```
+   
+   **Expected**: ✅ Success, status = `PENDING_APPROVAL`
+
+5. **Try to Approve as Same User (User A)**
+   ```bash
+   POST /api/bgv/check/<check_id>/approve-verification
+   {
+     "decision": "APPROVED",
+     "approvalRemarks": "Approved"
+   }
+   ```
+   
+   **Expected**: ❌ Error 403
+   ```json
+   {
+     "success": false,
+     "message": "Maker-Checker violation",
+     "errors": ["Approver must be different from verifier (Maker-Checker violation)"]
+   }
+   ```
+
+6. **Login as User B (Approver/Checker)**
+
+7. **Approve Verification**
+   ```bash
+   POST /api/bgv/check/<check_id>/approve-verification
+   {
+     "decision": "APPROVED",
+     "approvalRemarks": "Verification approved after review"
+   }
+   ```
+   
+   **Expected**: ✅ Success 200
+   ```json
+   {
+     "success": true,
+     "message": "Verification approved successfully",
+     "data": {
+       "status": "VERIFIED",
+       "verificationWorkflow": {
+         "verifiedBy": "<user_a_id>",
+         "approvedBy": "<user_b_id>",
+         "approvalDecision": "APPROVED"
+       }
+     }
+   }
+   ```
+
+---
+
+## 🧪 TEST SCENARIO 3: Document Integrity
+
+### **Goal**: Verify that system generates and stores document hashes
+
+### Steps:
+
+1. **Upload a Document**
+   ```bash
+   POST /api/bgv/case/<case_id>/upload-document
+   Form Data:
+   - document: <file>
+   - documentType: "EXPERIENCE_LETTER"
+   - checkType: "EMPLOYMENT"
+   ```
+
+2. **Check Database for Hash**
+   ```javascript
+   // In MongoDB or your database client
+   db.bgv_documents.findOne({ _id: "<document_id>" })
+   ```
+   
+   **Expected**: Document has:
+   ```json
+   {
+     "documentHash": "a1b2c3d4e5f6...",
+     "hashAlgorithm": "SHA256",
+     "hashGeneratedAt": "2026-02-10T12:00:00Z"
+   }
+   ```
+
+3. **Verify Hash in Timeline**
+   ```bash
+   GET /api/bgv/case/<case_id>
+   ```
+   
+   **Expected**: Timeline entry shows:
+   ```json
+   {
+     "eventType": "DOCUMENT_UPLOADED",
+     "description": "EXPERIENCE_LETTER document uploaded (filename.pdf) [Hash: a1b2c3d4...]",
+     "metadata": {
+       "documentHash": "a1b2c3d4e5f6..."
+     }
+   }
+   ```
+
+---
+
+## 🧪 TEST SCENARIO 4: Mandatory Remarks
+
+### **Goal**: Verify that system requires remarks for FAILED/DISCREPANCY
+
+### Steps:
+
+1. **Try to Submit FAILED Status Without Remarks**
+   ```bash
+   POST /api/bgv/check/<check_id>/submit-for-approval
+   {
+     "status": "FAILED"
+     // No remarks field
+   }
+   ```
+   
+   **Expected**: ❌ Error 400
+   ```json
+   {
+     "success": false,
+     "message": "Remarks are mandatory when marking check as FAILED or DISCREPANCY"
+   }
+   ```
+
+2. **Submit FAILED Status With Remarks**
+   ```bash
+   POST /api/bgv/check/<check_id>/submit-for-approval
+   {
+     "status": "FAILED",
+     "remarks": "Employment dates do not match with provided documents"
+   }
+   ```
+   
+   **Expected**: ✅ Success 200
+
+---
+
+## 🧪 TEST SCENARIO 5: Evidence Completeness
+
+### **Goal**: Verify that system calculates evidence completeness correctly
+
+### Steps:
+
+1. **Create Employment Check** (Requires: 1 Experience Letter + 2 Payslips)
+
+2. **Upload 1 Document**
+   ```bash
+   POST /api/bgv/case/<case_id>/upload-document
+   - documentType: "EXPERIENCE_LETTER"
+   - checkType: "EMPLOYMENT"
+   ```
+
+3. **Check Evidence Status**
+   ```bash
+   GET /api/bgv/case/<case_id>
+   ```
+   
+   **Expected**:
+   ```json
+   {
+     "evidenceStatus": {
+       "hasRequiredEvidence": false,
+       "evidenceCompleteness": 50,
+       "requiredDocumentTypes": ["EXPERIENCE_LETTER", "PAYSLIP"],
+       "uploadedDocumentTypes": ["EXPERIENCE_LETTER"],
+       "missingDocumentTypes": ["PAYSLIP"]
+     },
+     "status": "DOCUMENTS_PENDING"
+   }
+   ```
+
+4. **Upload 2 Payslips**
+   ```bash
+   POST /api/bgv/case/<case_id>/upload-document
+   - documentType: "PAYSLIP"
+   - checkType: "EMPLOYMENT"
+   
+   (Upload twice)
+   ```
+
+5. **Check Evidence Status Again**
+   ```bash
+   GET /api/bgv/case/<case_id>
+   ```
+   
+   **Expected**:
+   ```json
+   {
+     "evidenceStatus": {
+       "hasRequiredEvidence": true,
+       "evidenceCompleteness": 100,
+       "uploadedDocumentTypes": ["EXPERIENCE_LETTER", "PAYSLIP"],
+       "missingDocumentTypes": []
+     },
+     "status": "DOCUMENTS_UPLOADED"
+   }
+   ```
+
+---
+
+## 🧪 TEST SCENARIO 6: Overall Case Status
+
+### **Goal**: Verify that overall BGV status is calculated correctly
+
+### Steps:
+
+1. **Create BGV Case with 3 Checks**
+   - Identity
+   - Employment
+   - Education
+
+2. **Verify Identity Check**
+   - Upload documents
+   - Complete maker-checker workflow
+   - Status: `VERIFIED`
+
+3. **Check Overall Status**
+   ```bash
+   GET /api/bgv/case/<case_id>
+   ```
+   
+   **Expected**: `overallStatus: "IN_PROGRESS"` (not all checks complete)
+
+4. **Verify Employment Check**
+   - Status: `VERIFIED`
+
+5. **Fail Education Check**
+   - Status: `FAILED`
+
+6. **Check Overall Status**
+   ```bash
+   GET /api/bgv/case/<case_id>
+   ```
+   
+   **Expected**: `overallStatus: "FAILED"` (any check failed = overall failed)
+
+---
+
+## 🧪 TEST SCENARIO 7: Audit Trail
+
+### **Goal**: Verify that all actions are logged
+
+### Steps:
+
+1. **Perform a Complete Workflow**
+   - Upload documents
+   - Start verification
+   - Review documents
+   - Submit for approval
+   - Approve verification
+
+2. **Check Timeline**
+   ```bash
+   GET /api/bgv/case/<case_id>
+   ```
+
+3. **Verify Timeline Entries**
+   
+   **Expected**: Timeline should contain:
+   ```json
+   [
+     {
+       "eventType": "DOCUMENT_UPLOADED",
+       "performedBy": { "userId": "...", "userName": "..." },
+       "timestamp": "...",
+       "ipAddress": "...",
+       "userAgent": "..."
+     },
+     {
+       "eventType": "VERIFICATION_STARTED",
+       "performedBy": { ... },
+       "timestamp": "..."
+     },
+     {
+       "eventType": "DOCUMENT_REVIEWED",
+       "performedBy": { ... },
+       "timestamp": "..."
+     },
+     {
+       "eventType": "SUBMITTED_FOR_APPROVAL",
+       "performedBy": { ... },
+       "timestamp": "..."
+     },
+     {
+       "eventType": "VERIFICATION_APPROVED",
+       "performedBy": { ... },
+       "timestamp": "..."
+     }
+   ]
+   ```
+
+4. **Verify Each Entry Has**:
+   - ✅ Timestamp
+   - ✅ User ID and name
+   - ✅ IP address
+   - ✅ User agent
+   - ✅ Old and new status
+   - ✅ Remarks
+
+---
+
+## 📊 VALIDATION CHECKLIST
+
+After testing, verify:
+
+- [ ] ✅ Cannot verify without required documents
+- [ ] ✅ Evidence completeness calculated correctly
+- [ ] ✅ Missing documents identified
+- [ ] ✅ Document hash generated on upload
+- [ ] ✅ Maker-checker enforced (different users)
+- [ ] ✅ Same-user approval rejected
+- [ ] ✅ Remarks mandatory for FAILED/DISCREPANCY
+- [ ] ✅ Status flow enforced (no direct jump to VERIFIED)
+- [ ] ✅ Overall case status calculated correctly
+- [ ] ✅ Complete audit trail with all details
+- [ ] ✅ Timeline entries include hashes
+- [ ] ✅ Document review status tracked
+
+---
+
+## 🐛 COMMON ISSUES & SOLUTIONS
+
+### Issue 1: "Required evidence is missing" but documents uploaded
+**Solution**: Check that documents are linked to the correct check (`checkType` matches)
+
+### Issue 2: Evidence completeness stuck at 0%
+**Solution**: Trigger evidence update manually:
 ```bash
-# Backend should be running on port 5000
-# Frontend should be running on port 3000 (or configured port)
+POST /api/bgv/check/<check_id>/update-evidence-status
 ```
 
-### 2. Prepare Test Data
+### Issue 3: Maker-checker not enforcing
+**Solution**: Verify users have different IDs, check authentication
 
-You'll need:
-- At least 1 applicant in the system
-- HR user credentials
-- Candidate user credentials
-- Test documents (PDF, JPG, PNG)
+### Issue 4: Document hash not generated
+**Solution**: Check file path is accessible, verify file system permissions
 
 ---
 
-## 🎯 Test Scenarios
+## 📝 TESTING NOTES
 
-### Scenario 1: Complete BGV Workflow (Happy Path)
+### Test Users Needed:
+- **User A**: Verifier (Maker) - Role: `hr` or `user`
+- **User B**: Approver (Checker) - Role: `admin` or `company_admin`
 
-#### Step 1: Login as HR
-```
-1. Navigate to HR login
-2. Enter HR credentials
-3. Verify successful login
-```
+### Test Documents Needed:
+- Identity: Aadhaar or PAN card (PDF/Image)
+- Employment: Experience letter + 2 payslips (PDF)
+- Education: Degree + Marksheet (PDF)
+- Address: Utility bill or rent agreement (PDF)
 
-#### Step 2: Navigate to BGV Dashboard
-```
-1. Go to HR → BGV Management
-2. Verify dashboard loads
-3. Check statistics cards display correctly
-4. Verify case list is visible (may be empty initially)
-```
-
-**Expected Results**:
-- ✅ Dashboard loads without errors
-- ✅ Statistics show: Total, Pending, Verified, Failed, Overdue
-- ✅ Filters are visible (Search, Status, Package)
-- ✅ "Initiate BGV" button is visible
-
-#### Step 3: Initiate BGV
-```
-1. Click "Initiate BGV" button
-2. Modal should open
-3. Search for a candidate
-4. Select the candidate
-5. Choose package: STANDARD
-6. Set SLA: 7 days
-7. Review summary
-8. Click "Initiate BGV"
-```
-
-**Expected Results**:
-- ✅ Modal opens smoothly
-- ✅ Candidate list loads
-- ✅ Search works
-- ✅ Package selection works
-- ✅ SLA presets work
-- ✅ Summary shows correct data
-- ✅ Success toast appears
-- ✅ Modal closes
-- ✅ Dashboard refreshes
-- ✅ New case appears in list
-
-**API Call**:
-```
-POST /api/bgv/initiate
-{
-  "applicationId": "...",
-  "package": "STANDARD",
-  "slaDays": 7
-}
-```
-
-#### Step 4: View Case Details
-```
-1. Click "View" on the newly created case
-2. Detail modal should open
-3. Navigate through all tabs:
-   - Overview
-   - Checks
-   - Documents
-   - Timeline
-   - Actions
-```
-
-**Expected Results**:
-- ✅ Modal opens with case details
-- ✅ Overview tab shows candidate info, progress, SLA
-- ✅ Checks tab shows all generated checks (5 for STANDARD)
-- ✅ Documents tab is empty initially
-- ✅ Timeline tab shows "BGV Initiated" event
-- ✅ Actions tab shows "Generate Report" and "Close BGV" options
-
-#### Step 5: Logout and Login as Candidate
-```
-1. Logout from HR account
-2. Login as the candidate
-3. Navigate to BGV Documents page
-```
-
-**Expected Results**:
-- ✅ Candidate can access BGV Documents page
-- ✅ BGV case information is displayed
-- ✅ Upload section is visible
-- ✅ Required verifications checklist is shown
-
-#### Step 6: Upload Documents (as Candidate)
-```
-For each document type:
-1. Select document type (e.g., "Aadhaar Card")
-2. Drag and drop a test file OR click to browse
-3. Wait for upload to complete
-4. Verify document appears in list below
-
-Upload at least:
-- Aadhaar Card (Identity)
-- Degree Certificate (Education)
-- Experience Letter (Employment)
-```
-
-**Expected Results**:
-- ✅ Document type selector works
-- ✅ Drag and drop works
-- ✅ File upload succeeds
-- ✅ Success toast appears
-- ✅ Document appears in uploaded list
-- ✅ Status shows "PENDING" or "UNDER_REVIEW"
-- ✅ Version number is 1
-- ✅ File size is displayed
-
-**API Call**:
-```
-POST /api/bgv/case/:caseId/upload-document
-FormData: {
-  document: File,
-  documentType: "AADHAAR",
-  checkType: "IDENTITY"
-}
-```
-
-#### Step 7: Logout and Login as HR
-```
-1. Logout from candidate account
-2. Login as HR
-3. Navigate to BGV Dashboard
-4. Click "View" on the case
-```
-
-**Expected Results**:
-- ✅ Case now shows uploaded documents
-- ✅ Documents tab shows all uploaded files
-
-#### Step 8: Verify Checks (as HR)
-```
-For each check:
-1. Go to "Checks" tab
-2. Click "Update Status" on a check
-3. Add remarks (e.g., "Verified via UIDAI API")
-4. Click "Verify" button
-5. Wait for success confirmation
-6. Repeat for all checks
-```
-
-**Expected Results**:
-- ✅ Update Status button works
-- ✅ Remarks textarea appears
-- ✅ Verify/Fail/Discrepancy buttons are visible
-- ✅ Success toast appears after verification
-- ✅ Check status updates to "VERIFIED"
-- ✅ Overall case status updates
-- ✅ Progress bar updates
-
-**API Call**:
-```
-POST /api/bgv/check/:checkId/verify
-{
-  "status": "VERIFIED",
-  "internalRemarks": "Verified via UIDAI API",
-  "verificationMethod": "MANUAL"
-}
-```
-
-#### Step 9: Check Timeline
-```
-1. Go to "Timeline" tab
-2. Verify all events are logged
-```
-
-**Expected Results**:
-- ✅ Timeline shows all events in chronological order
-- ✅ Events include: BGV Initiated, Documents Uploaded, Checks Verified
-- ✅ Each event shows timestamp, user, and description
-
-#### Step 10: Generate Report
-```
-1. Go to "Actions" tab
-2. Click "Generate Report" button
-3. Wait for confirmation
-```
-
-**Expected Results**:
-- ✅ Success toast appears
-- ✅ Report is generated (check backend logs)
-
-**API Call**:
-```
-POST /api/bgv/case/:id/generate-report
-```
-
-#### Step 11: Close BGV
-```
-1. Still in "Actions" tab
-2. Select decision: "APPROVED"
-3. Add remarks: "All checks verified. Candidate approved."
-4. Click "Close BGV Case"
-5. Wait for confirmation
-```
-
-**Expected Results**:
-- ✅ Decision radio buttons work
-- ✅ Remarks textarea works
-- ✅ Success toast appears
-- ✅ Case status updates to "CLOSED"
-- ✅ Case is marked as immutable
-- ✅ Actions tab shows "Case Closed" message
-- ✅ No further edits allowed
-
-**API Call**:
-```
-POST /api/bgv/case/:id/close
-{
-  "decision": "APPROVED",
-  "remarks": "All checks verified. Candidate approved."
-}
-```
-
-#### Step 12: Verify Immutability
-```
-1. Try to verify a check again
-2. Try to upload a document as candidate
-3. Try to close the case again
-```
-
-**Expected Results**:
-- ✅ All actions are disabled
-- ✅ Appropriate messages are shown
-- ✅ API returns error if attempted
+### Database Access:
+- MongoDB connection for verifying hashes
+- Check collections: `bgv_cases`, `bgv_checks`, `bgv_documents`, `bgv_timeline`
 
 ---
 
-### Scenario 2: BGV with Failed Check
+## 🎯 SUCCESS CRITERIA
 
-#### Steps:
-```
-1. Initiate BGV (same as Scenario 1)
-2. Upload documents as candidate
-3. As HR, verify some checks as "VERIFIED"
-4. Verify one check as "FAILED"
-5. Observe overall status changes to "FAILED"
-6. Close BGV with decision "REJECTED"
-```
+The system is working correctly if:
 
-**Expected Results**:
-- ✅ Failed check updates overall status to "FAILED"
-- ✅ Progress bar reflects failed check
-- ✅ Statistics update
-- ✅ Case can be closed with "REJECTED" decision
+1. ✅ **Evidence Enforcement**: Cannot verify without required documents
+2. ✅ **Maker-Checker**: Different users required for verify and approve
+3. ✅ **Document Integrity**: SHA-256 hash generated and stored
+4. ✅ **Audit Trail**: Complete logging with timestamps, IPs, hashes
+5. ✅ **Status Flow**: Proper status transitions enforced
+6. ✅ **Validation**: Evidence completeness calculated correctly
+7. ✅ **Remarks**: Mandatory for FAILED/DISCREPANCY
+8. ✅ **Overall Status**: Calculated based on all checks
 
 ---
 
-### Scenario 3: BGV with Discrepancy
+## 🚀 NEXT STEPS AFTER TESTING
 
-#### Steps:
-```
-1. Initiate BGV
-2. Upload documents as candidate
-3. As HR, verify some checks as "VERIFIED"
-4. Verify one check as "DISCREPANCY" with remarks
-5. Observe overall status
-6. Close BGV with decision "RECHECK_REQUIRED"
-```
+Once backend testing is complete:
 
-**Expected Results**:
-- ✅ Discrepancy check is marked correctly
-- ✅ Overall status shows "VERIFIED_WITH_DISCREPANCIES"
-- ✅ Remarks are visible
-- ✅ Case can be closed with "RECHECK_REQUIRED"
+1. **Review Test Results**
+   - Document any issues found
+   - Verify all enforcement points work
 
----
+2. **Proceed to Frontend**
+   - Build evidence upload UI
+   - Build maker-checker workflow UI
+   - Build evidence review panel
 
-### Scenario 4: Search and Filters
+3. **Integration Testing**
+   - Test complete flow end-to-end
+   - Test with real documents
+   - Test with multiple users
 
-#### Steps:
-```
-1. Create multiple BGV cases with different statuses
-2. Test search by case ID
-3. Test search by candidate name
-4. Test status filter
-5. Test package filter
-6. Test pagination (if > 20 cases)
-```
+4. **User Acceptance Testing**
+   - Get HR team to test
+   - Gather feedback
+   - Make adjustments
 
-**Expected Results**:
-- ✅ Search filters cases correctly
-- ✅ Status filter works
-- ✅ Package filter works
-- ✅ Filters can be combined
-- ✅ Pagination works
-- ✅ Results update in real-time
+5. **Production Deployment**
+   - Deploy to staging first
+   - Run full test suite
+   - Deploy to production
 
 ---
 
-### Scenario 5: SLA Tracking
-
-#### Steps:
-```
-1. Create a BGV case with SLA of 1 day
-2. Wait for SLA to expire (or manually adjust date in DB)
-3. Refresh dashboard
-4. Check if case is marked as overdue
-```
-
-**Expected Results**:
-- ✅ Overdue cases are highlighted
-- ✅ Overdue count in statistics is correct
-- ✅ SLA status shows "Overdue" with warning icon
-
----
-
-### Scenario 6: Document Versioning
-
-#### Steps:
-```
-1. Upload a document as candidate
-2. Upload the same document type again
-3. Verify version number increments
-4. Check both versions are preserved
-```
-
-**Expected Results**:
-- ✅ Version number increments to 2
-- ✅ Both versions are visible
-- ✅ Latest version is used for verification
-
----
-
-### Scenario 7: Package Comparison
-
-#### Test all three packages:
-
-**BASIC Package**:
-```
-1. Initiate BGV with BASIC package
-2. Verify 3 checks are generated:
-   - Identity
-   - Address
-   - Employment
-```
-
-**STANDARD Package**:
-```
-1. Initiate BGV with STANDARD package
-2. Verify 5 checks are generated:
-   - Identity
-   - Address
-   - Employment
-   - Education
-   - Criminal
-```
-
-**PREMIUM Package**:
-```
-1. Initiate BGV with PREMIUM package
-2. Verify 7 checks are generated:
-   - Identity
-   - Address
-   - Employment
-   - Education
-   - Criminal
-   - Social Media
-   - Reference
-```
-
-**Expected Results**:
-- ✅ Correct number of checks for each package
-- ✅ Correct check types for each package
-
----
-
-### Scenario 8: Error Handling
-
-#### Test error scenarios:
-
-**1. Upload Invalid File**:
-```
-1. Try to upload a file > 10MB
-2. Try to upload unsupported format (.exe, .zip)
-```
-**Expected**: Error message, upload fails
-
-**2. Initiate BGV without Selecting Candidate**:
-```
-1. Open Initiate BGV modal
-2. Click submit without selecting candidate
-```
-**Expected**: Validation error
-
-**3. Close BGV without Decision**:
-```
-1. Open Actions tab
-2. Try to close without selecting decision
-```
-**Expected**: Validation error
-
-**4. Access Closed Case**:
-```
-1. Try to modify a closed case
-```
-**Expected**: Immutability error
-
----
-
-### Scenario 9: Responsive Design
-
-#### Test on different screen sizes:
-
-**Desktop (> 1024px)**:
-```
-1. Verify all elements are visible
-2. Check grid layouts
-3. Verify modals are centered
-```
-
-**Tablet (768px - 1024px)**:
-```
-1. Verify columns stack appropriately
-2. Check table responsiveness
-3. Verify modals fit screen
-```
-
-**Mobile (< 768px)**:
-```
-1. Verify single column layout
-2. Check touch targets are large enough
-3. Verify modals are scrollable
-```
-
-**Expected Results**:
-- ✅ All layouts are responsive
-- ✅ No horizontal scrolling
-- ✅ All elements are accessible
-
----
-
-### Scenario 10: Accessibility
-
-#### Test keyboard navigation:
-```
-1. Navigate using Tab key
-2. Activate buttons using Enter/Space
-3. Close modals using Escape
-```
-
-#### Test screen reader:
-```
-1. Enable screen reader
-2. Navigate through dashboard
-3. Verify all elements are announced
-```
-
-**Expected Results**:
-- ✅ All interactive elements are keyboard accessible
-- ✅ Focus indicators are visible
-- ✅ Screen reader announces all elements
-- ✅ ARIA labels are present
-
----
-
-## 📊 API Testing with Postman
-
-### 1. Get Statistics
-```
-GET http://localhost:5000/api/bgv/stats
-Headers:
-  Authorization: Bearer <HR_TOKEN>
-```
-
-### 2. Initiate BGV
-```
-POST http://localhost:5000/api/bgv/initiate
-Headers:
-  Authorization: Bearer <HR_TOKEN>
-  Content-Type: application/json
-Body:
-{
-  "applicationId": "64abc123...",
-  "package": "STANDARD",
-  "slaDays": 7
-}
-```
-
-### 3. Get All Cases
-```
-GET http://localhost:5000/api/bgv/cases?page=1&limit=20&status=PENDING
-Headers:
-  Authorization: Bearer <HR_TOKEN>
-```
-
-### 4. Get Case Details
-```
-GET http://localhost:5000/api/bgv/case/:id
-Headers:
-  Authorization: Bearer <HR_TOKEN>
-```
-
-### 5. Upload Document
-```
-POST http://localhost:5000/api/bgv/case/:caseId/upload-document
-Headers:
-  Authorization: Bearer <CANDIDATE_TOKEN>
-  Content-Type: multipart/form-data
-Body:
-  document: <FILE>
-  documentType: AADHAAR
-  checkType: IDENTITY
-```
-
-### 6. Verify Check
-```
-POST http://localhost:5000/api/bgv/check/:checkId/verify
-Headers:
-  Authorization: Bearer <HR_TOKEN>
-  Content-Type: application/json
-Body:
-{
-  "status": "VERIFIED",
-  "internalRemarks": "Verified successfully",
-  "verificationMethod": "MANUAL"
-}
-```
-
-### 7. Close BGV
-```
-POST http://localhost:5000/api/bgv/case/:id/close
-Headers:
-  Authorization: Bearer <HR_TOKEN>
-  Content-Type: application/json
-Body:
-{
-  "decision": "APPROVED",
-  "remarks": "All checks verified"
-}
-```
-
-### 8. Get Candidate BGV Status
-```
-GET http://localhost:5000/api/bgv/candidate/:candidateId
-Headers:
-  Authorization: Bearer <CANDIDATE_TOKEN>
-```
-
-### 9. Generate Report
-```
-POST http://localhost:5000/api/bgv/case/:id/generate-report
-Headers:
-  Authorization: Bearer <HR_TOKEN>
-```
-
----
-
-## ✅ Testing Checklist
-
-### Backend API Testing
-- [ ] GET /api/bgv/stats returns correct data
-- [ ] POST /api/bgv/initiate creates case
-- [ ] GET /api/bgv/cases returns paginated list
-- [ ] GET /api/bgv/case/:id returns case details
-- [ ] POST /api/bgv/check/:checkId/verify updates check
-- [ ] POST /api/bgv/case/:caseId/upload-document uploads file
-- [ ] POST /api/bgv/case/:id/close closes case
-- [ ] GET /api/bgv/candidate/:candidateId returns status
-- [ ] POST /api/bgv/case/:id/generate-report generates report
-- [ ] RBAC is enforced on all endpoints
-- [ ] Validation errors are returned correctly
-- [ ] Success responses are formatted correctly
-
-### Frontend Component Testing
-- [ ] BGV Dashboard loads without errors
-- [ ] Statistics cards display correctly
-- [ ] Search works
-- [ ] Filters work
-- [ ] Pagination works
-- [ ] Initiate BGV modal opens
-- [ ] Candidate selection works
-- [ ] Package selection works
-- [ ] SLA configuration works
-- [ ] BGV Detail modal opens
-- [ ] All tabs load correctly
-- [ ] Check verification works
-- [ ] Document upload works
-- [ ] Timeline displays events
-- [ ] Close BGV workflow works
-- [ ] Report generation works
-
-### UI/UX Testing
-- [ ] All buttons have hover effects
-- [ ] All inputs have focus states
-- [ ] Loading states are shown
-- [ ] Success toasts appear
-- [ ] Error toasts appear
-- [ ] Modals are centered
-- [ ] Modals can be closed
-- [ ] Forms validate correctly
-- [ ] Responsive design works
-- [ ] Accessibility features work
-
-### Integration Testing
-- [ ] End-to-end workflow completes successfully
-- [ ] Data persists correctly
-- [ ] Real-time updates work
-- [ ] File uploads work
-- [ ] Timeline updates correctly
-- [ ] Statistics update correctly
-- [ ] Immutability is enforced
-- [ ] SLA tracking works
-
----
-
-## 🐛 Bug Reporting Template
-
-If you find a bug, use this template:
-
-```
-**Bug Title**: [Brief description]
-
-**Severity**: Critical / High / Medium / Low
-
-**Steps to Reproduce**:
-1. Step 1
-2. Step 2
-3. Step 3
-
-**Expected Behavior**:
-[What should happen]
-
-**Actual Behavior**:
-[What actually happens]
-
-**Screenshots**:
-[If applicable]
-
-**Environment**:
-- Browser: [e.g., Chrome 90]
-- OS: [e.g., Windows 10]
-- Screen Size: [e.g., 1920x1080]
-
-**Console Errors**:
-[Copy any console errors]
-
-**Network Errors**:
-[Copy any network errors from Network tab]
-```
-
----
-
-## 📈 Performance Testing
-
-### Metrics to Track
-- [ ] Dashboard load time < 2s
-- [ ] Modal open time < 500ms
-- [ ] API response time < 1s
-- [ ] File upload time (depends on size)
-- [ ] Search response time < 500ms
-- [ ] Filter response time < 500ms
-
-### Tools
-- Chrome DevTools Performance tab
-- Network tab for API calls
-- Lighthouse for overall performance
-
----
-
-## ✅ Final Testing Sign-off
-
-### Tested By: _______________
-### Date: _______________
-### Status: _______________
-
-### Summary:
-- Total Tests: ___
-- Passed: ___
-- Failed: ___
-- Blocked: ___
-
-### Notes:
-[Any additional notes or observations]
-
----
-
-**Happy Testing! 🧪**
+*Testing Guide Version*: 1.0  
+*Created*: 2026-02-10  
+*Purpose*: Comprehensive testing guide for BGV evidence-driven system

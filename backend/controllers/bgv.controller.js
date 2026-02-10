@@ -352,6 +352,15 @@ exports.uploadDocument = async (req, res, next) => {
         });
         const version = existingDocs.length + 1;
 
+        // 🔐 Generate document hash for integrity verification
+        const BGVEvidenceValidator = require('../services/BGVEvidenceValidator');
+        let documentHash = null;
+        try {
+            documentHash = await BGVEvidenceValidator.generateDocumentHash(finalPath);
+        } catch (hashError) {
+            console.error('[BGV_HASH_GENERATION_ERROR]', hashError);
+        }
+
         // Create document record
         const document = await BGVDocument.create({
             tenant: req.tenantId,
@@ -365,12 +374,78 @@ exports.uploadDocument = async (req, res, next) => {
             fileSize: req.file.size,
             mimeType: req.file.mimetype,
             version,
+            documentHash, // 🔐 Store hash for tamper detection
+            hashAlgorithm: 'SHA256',
+            hashGeneratedAt: new Date(),
             uploadedBy: {
                 userId: req.user?._id || req.user?.id,
                 userName: req.user?.name || req.user?.email,
                 userRole: req.user?.role
             }
         });
+
+        // 🔐 Update check evidence status after document upload
+        if (checkId) {
+            try {
+                const { BGVEvidenceConfig } = await getBGVModels(req);
+                const check = await BGVCheck.findById(checkId);
+
+                if (check) {
+                    // Get all documents for this check
+                    const allCheckDocs = await BGVDocument.find({
+                        checkId: check._id,
+                        isDeleted: false
+                    });
+
+                    // Get evidence configuration
+                    let evidenceConfig = await BGVEvidenceConfig.findOne({
+                        tenant: req.tenantId,
+                        checkType: check.type,
+                        isActive: true
+                    });
+
+                    // Validate evidence
+                    const validationResult = await BGVEvidenceValidator.validateCheckEvidence(
+                        check,
+                        allCheckDocs,
+                        evidenceConfig
+                    );
+
+                    // Update check with evidence status
+                    check.evidenceStatus = {
+                        hasRequiredEvidence: validationResult.hasRequiredEvidence,
+                        evidenceCompleteness: validationResult.evidenceCompleteness,
+                        requiredDocumentTypes: validationResult.requiredDocumentTypes,
+                        uploadedDocumentTypes: validationResult.uploadedDocumentTypes,
+                        missingDocumentTypes: validationResult.missingDocuments,
+                        lastEvidenceCheck: new Date()
+                    };
+
+                    check.evidenceValidation = {
+                        isValid: validationResult.isValid,
+                        validationErrors: validationResult.validationErrors,
+                        validationWarnings: validationResult.validationWarnings,
+                        lastValidatedAt: new Date()
+                    };
+
+                    // Update check status based on evidence
+                    if (check.status === 'NOT_STARTED') {
+                        check.status = 'DOCUMENTS_PENDING';
+                    }
+
+                    if (validationResult.hasRequiredEvidence && check.status === 'DOCUMENTS_PENDING') {
+                        check.status = 'DOCUMENTS_UPLOADED';
+                        check.verificationWorkflow = check.verificationWorkflow || {};
+                        check.verificationWorkflow.workflowStatus = 'READY_FOR_VERIFICATION';
+                    }
+
+                    await check.save();
+                }
+            } catch (evidenceError) {
+                console.error('[BGV_EVIDENCE_UPDATE_ERROR]', evidenceError);
+                // Don't fail upload if evidence update fails
+            }
+        }
 
         // Create timeline entry
         await createTimelineEntry(BGVTimeline, {
@@ -379,7 +454,7 @@ exports.uploadDocument = async (req, res, next) => {
             checkId,
             eventType: 'DOCUMENT_UPLOADED',
             title: 'Document Uploaded',
-            description: `${documentType} document uploaded (${req.file.originalname})`,
+            description: `${documentType} document uploaded (${req.file.originalname})${documentHash ? ' [Hash: ' + documentHash.substring(0, 8) + '...]' : ''}`,
             performedBy: {
                 userId: req.user?._id || req.user?.id,
                 userName: req.user?.name || req.user?.email,
@@ -388,7 +463,7 @@ exports.uploadDocument = async (req, res, next) => {
             visibleTo: ['ALL'],
             ipAddress: req.ip,
             userAgent: req.get('user-agent'),
-            metadata: { documentId: document._id, documentType, version }
+            metadata: { documentId: document._id, documentType, version, documentHash }
         });
 
         res.json({
@@ -396,6 +471,7 @@ exports.uploadDocument = async (req, res, next) => {
             message: "Document uploaded successfully",
             data: document
         });
+
 
     } catch (err) {
         console.error('[BGV_UPLOAD_DOC_ERROR]', err);
@@ -520,14 +596,17 @@ exports.verifyCheck = async (req, res, next) => {
 };
 
 /**
+/**
  * STEP 7: Close & Approve BGV
  * POST /api/bgv/case/:id/close
+ * Auto-generates and downloads report
  */
 exports.closeBGV = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { decision, remarks } = req.body; // APPROVED, REJECTED, RECHECK_REQUIRED
-        const { BGVCase, BGVTimeline, Applicant } = await getBGVModels(req);
+        const { BGVCase, BGVCheck, BGVReport, BGVTimeline, Applicant } = await getBGVModels(req);
+        const BGVReportService = require('../services/BGVReportService');
 
         const bgvCase = await BGVCase.findById(id);
         if (!bgvCase) {
@@ -608,10 +687,103 @@ exports.closeBGV = async (req, res, next) => {
             }
         }
 
+        // Auto-generate report when case is closed
+        let reportData = null;
+        try {
+            console.log('[BGV_CLOSE] Auto-generating report for case:', bgvCase.caseId);
+
+            // Fetch case with populated fields
+            const populatedCase = await BGVCase.findById(id)
+                .populate('candidateId', 'name email mobile dob address')
+                .populate('applicationId', 'name email');
+
+            const checks = await BGVCheck.find({ caseId: bgvCase._id }).lean();
+
+            // Calculate summary
+            const summary = {
+                totalChecks: checks.length,
+                verifiedChecks: checks.filter(c => c.status === 'VERIFIED').length,
+                failedChecks: checks.filter(c => c.status === 'FAILED').length,
+                discrepancyChecks: checks.filter(c => c.status === 'DISCREPANCY').length,
+                overallDecision: decision,
+                riskLevel: decision === 'APPROVED' ? 'LOW' : decision === 'REJECTED' ? 'HIGH' : 'MEDIUM'
+            };
+
+            // Generate PDF report
+            const reportResult = await BGVReportService.generateBGVReport(
+                populatedCase,
+                checks,
+                summary,
+                req.tenantId
+            );
+
+            // Create report record in database
+            const report = await BGVReport.create({
+                tenant: req.tenantId,
+                caseId: bgvCase._id,
+                reportType: 'FINAL',
+                fileName: reportResult.fileName,
+                filePath: reportResult.filePath,
+                fileFormat: 'PDF',
+                summary,
+                generatedBy: {
+                    userId: req.user?._id || req.user?.id,
+                    userName: req.user?.name || req.user?.email
+                },
+                status: 'GENERATED'
+            });
+
+            // Update case with final report
+            await BGVCase.findByIdAndUpdate(id, {
+                finalReport: {
+                    id: report._id,
+                    path: reportResult.filePath,
+                    fileName: reportResult.fileName,
+                    generatedAt: new Date(),
+                    generatedBy: req.user?._id || req.user?.id
+                }
+            });
+
+            // Create timeline entry for report generation
+            await createTimelineEntry(BGVTimeline, {
+                tenant: req.tenantId,
+                caseId: bgvCase._id,
+                eventType: 'REPORT_GENERATED',
+                title: 'BGV Report Auto-Generated',
+                description: 'Final background verification report generated automatically upon case closure',
+                performedBy: {
+                    userId: req.user?._id || req.user?.id,
+                    userName: req.user?.name || req.user?.email,
+                    userRole: req.user?.role
+                },
+                visibleTo: ['HR', 'ADMIN'],
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+            });
+
+            reportData = {
+                reportId: report._id,
+                fileName: reportResult.fileName,
+                filePath: reportResult.filePath,
+                generatedAt: report.createdAt
+            };
+
+            console.log('[BGV_CLOSE] Report generated successfully:', reportResult.fileName);
+        } catch (reportErr) {
+            console.error('[BGV_CLOSE] Report generation failed (non-blocking):', reportErr.message);
+            // Don't fail the closure if report generation fails
+        }
+
         res.json({
             success: true,
-            message: `BGV case ${decision.toLowerCase()} successfully`,
-            data: bgvCase
+            message: `BGV case ${decision.toLowerCase()} successfully${reportData ? ' and report generated' : ''}`,
+            data: {
+                caseId: bgvCase._id,
+                caseStatus: bgvCase.caseId,
+                decision,
+                closedAt: bgvCase.closedAt,
+                report: reportData
+            }
         });
 
     } catch (err) {
@@ -674,11 +846,11 @@ exports.generateReport = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { BGVCase, BGVCheck, BGVReport, BGVTimeline } = await getBGVModels(req);
+        const BGVReportService = require('../services/BGVReportService');
 
         const bgvCase = await BGVCase.findById(id)
             .populate('candidateId', 'name email mobile dob address')
-            .populate('applicationId', 'name email')
-            .lean();
+            .populate('applicationId', 'name email');
 
         if (!bgvCase) {
             return res.status(404).json({ success: false, message: "BGV Case not found" });
@@ -686,62 +858,89 @@ exports.generateReport = async (req, res, next) => {
 
         const checks = await BGVCheck.find({ caseId: bgvCase._id }).lean();
 
-        // TODO: Implement PDF generation using puppeteer or pdfkit
-        // For now, create a placeholder report record
-
+        // Calculate summary
         const summary = {
             totalChecks: checks.length,
             verifiedChecks: checks.filter(c => c.status === 'VERIFIED').length,
             failedChecks: checks.filter(c => c.status === 'FAILED').length,
             discrepancyChecks: checks.filter(c => c.status === 'DISCREPANCY').length,
             overallDecision: bgvCase.decision,
-            riskLevel: bgvCase.overallStatus === 'VERIFIED' ? 'LOW' : bgvCase.overallStatus === 'FAILED' ? 'HIGH' : 'MEDIUM'
+            riskLevel: bgvCase.decision === 'APPROVED' ? 'LOW' : bgvCase.decision === 'REJECTED' ? 'HIGH' : 'MEDIUM'
         };
 
-        const report = await BGVReport.create({
-            tenant: req.tenantId,
-            caseId: bgvCase._id,
-            reportType: 'FINAL',
-            fileName: `BGV_Report_${bgvCase.caseId}.pdf`,
-            filePath: `/uploads/${req.tenantId}/bgv/reports/${bgvCase.caseId}.pdf`,
-            fileFormat: 'PDF',
-            summary,
-            generatedBy: {
-                userId: req.user?._id || req.user?.id,
-                userName: req.user?.name || req.user?.email
-            }
-        });
+        try {
+            // Generate PDF report using BGVReportService
+            const reportResult = await BGVReportService.generateBGVReport(
+                bgvCase,
+                checks,
+                summary,
+                req.tenantId
+            );
 
-        // Update case
-        bgvCase.finalReport = {
-            path: report.filePath,
-            generatedAt: new Date(),
-            generatedBy: req.user?._id || req.user?.id
-        };
-        await BGVCase.findByIdAndUpdate(id, { finalReport: bgvCase.finalReport });
+            // Create report record in database
+            const report = await BGVReport.create({
+                tenant: req.tenantId,
+                caseId: bgvCase._id,
+                reportType: 'FINAL',
+                fileName: reportResult.fileName,
+                filePath: reportResult.filePath,
+                fileFormat: 'PDF',
+                fileSize: 0, // Will be updated when file is generated
+                summary,
+                generatedBy: {
+                    userId: req.user?._id || req.user?.id,
+                    userName: req.user?.name || req.user?.email
+                },
+                status: 'GENERATED'
+            });
 
-        // Create timeline entry
-        await createTimelineEntry(BGVTimeline, {
-            tenant: req.tenantId,
-            caseId: bgvCase._id,
-            eventType: 'REPORT_GENERATED',
-            title: 'BGV Report Generated',
-            description: 'Final background verification report generated',
-            performedBy: {
-                userId: req.user?._id || req.user?.id,
-                userName: req.user?.name || req.user?.email,
-                userRole: req.user?.role
-            },
-            visibleTo: ['HR', 'ADMIN'],
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
+            // Update case with final report
+            await BGVCase.findByIdAndUpdate(id, {
+                finalReport: {
+                    id: report._id,
+                    path: reportResult.filePath,
+                    fileName: reportResult.fileName,
+                    generatedAt: new Date(),
+                    generatedBy: req.user?._id || req.user?.id
+                }
+            });
 
-        res.json({
-            success: true,
-            message: "Report generated successfully",
-            data: report
-        });
+            // Create timeline entry
+            await createTimelineEntry(BGVTimeline, {
+                tenant: req.tenantId,
+                caseId: bgvCase._id,
+                eventType: 'REPORT_GENERATED',
+                title: 'BGV Report Generated',
+                description: 'Final background verification report generated successfully',
+                performedBy: {
+                    userId: req.user?._id || req.user?.id,
+                    userName: req.user?.name || req.user?.email,
+                    userRole: req.user?.role
+                },
+                visibleTo: ['HR', 'ADMIN'],
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+            });
+
+            res.json({
+                success: true,
+                message: "Report generated successfully",
+                data: {
+                    reportId: report._id,
+                    fileName: reportResult.fileName,
+                    filePath: reportResult.filePath,
+                    generatedAt: report.createdAt
+                }
+            });
+
+        } catch (pdfErr) {
+            console.error('[BGV_PDF_GENERATION_ERROR]', pdfErr);
+            res.status(500).json({
+                success: false,
+                message: "Failed to generate PDF report",
+                error: pdfErr.message
+            });
+        }
 
     } catch (err) {
         console.error('[BGV_GENERATE_REPORT_ERROR]', err);
@@ -788,5 +987,83 @@ exports.getStats = async (req, res, next) => {
     } catch (err) {
         console.error('[BGV_STATS_ERROR]', err);
         next(err);
+    }
+};
+/**
+ * Download BGV Report
+ * GET /api/bgv/report/:reportId/download
+ */
+exports.downloadReport = async (req, res, next) => {
+    try {
+        const { reportId } = req.params;
+        const { BGVReport } = await getBGVModels(req);
+        const BGVReportService = require('../services/BGVReportService');
+
+        // Find report record
+        const report = await BGVReport.findOne({
+            _id: reportId,
+            tenant: req.tenantId
+        });
+
+        if (!report) {
+            return res.status(404).json({ success: false, message: "Report not found" });
+        }
+
+        // Get file path
+        const filePath = await BGVReportService.getReportFile(report.filePath);
+
+        // Send file
+        res.download(filePath, report.fileName, (err) => {
+            if (err) {
+                console.error('[BGV_DOWNLOAD_ERROR]', err);
+            }
+        });
+
+    } catch (err) {
+        console.error('[BGV_DOWNLOAD_ERROR]', err);
+        res.status(500).json({ success: false, message: "Failed to download report", error: err.message });
+    }
+};
+
+/**
+ * Download BGV Report by Case ID
+ * GET /api/bgv/case/:caseId/report/download
+ */
+exports.downloadReportByCase = async (req, res, next) => {
+    try {
+        const { caseId } = req.params;
+        const { BGVCase, BGVReport } = await getBGVModels(req);
+        const BGVReportService = require('../services/BGVReportService');
+
+        // Find case
+        const bgvCase = await BGVCase.findById(caseId);
+        if (!bgvCase) {
+            return res.status(404).json({ success: false, message: "BGV Case not found" });
+        }
+
+        // Check if report exists
+        if (!bgvCase.finalReport || !bgvCase.finalReport.id) {
+            return res.status(404).json({ success: false, message: "No report generated for this case" });
+        }
+
+        // Find report
+        const report = await BGVReport.findById(bgvCase.finalReport.id);
+        if (!report) {
+            return res.status(404).json({ success: false, message: "Report not found" });
+        }
+
+        // Get file path
+        const filePath = await BGVReportService.getReportFile(report.filePath);
+
+        // Send file
+        res.download(filePath, report.fileName, (err) => {
+            if (err) {
+                console.error('[BGV_DOWNLOAD_ERROR]', err);
+            }
+        });
+
+    } catch (err) {
+        console.error('[BGV_DOWNLOAD_ERROR]', err);
+        res.status(500).json({ success: false, message: "Failed to download report", error: err.message });
     }
 };

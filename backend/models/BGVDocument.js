@@ -85,8 +85,66 @@ const BGVDocumentSchema = new mongoose.Schema({
     // Status
     status: {
         type: String,
-        enum: ['UPLOADED', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED', 'REPLACED'],
+        enum: ['UPLOADED', 'UNDER_REVIEW', 'REVIEWED', 'VERIFIED', 'REJECTED', 'REPLACED'],
         default: 'UPLOADED'
+    },
+
+    // 🔐 DOCUMENT INTEGRITY (NEW - CRITICAL FOR COMPLIANCE)
+    documentHash: {
+        type: String, // SHA-256 hash of file content
+        index: true
+    },
+    hashAlgorithm: {
+        type: String,
+        default: 'SHA256'
+    },
+    hashGeneratedAt: Date,
+
+    // 🔐 REVIEW STATUS (NEW - CRITICAL FOR EVIDENCE VALIDATION)
+    reviewStatus: {
+        status: {
+            type: String,
+            enum: ['PENDING', 'IN_REVIEW', 'ACCEPTED', 'REJECTED', 'REQUIRES_REUPLOAD'],
+            default: 'PENDING'
+        },
+        reviewedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        reviewedAt: Date,
+        reviewRemarks: String,
+        rejectionReason: String,
+        qualityScore: Number, // 0-100, based on OCR confidence or manual assessment
+        isComplete: {
+            type: Boolean,
+            default: false
+        },
+        isLegible: {
+            type: Boolean,
+            default: true
+        },
+        meetsRequirements: {
+            type: Boolean,
+            default: false
+        }
+    },
+
+    // 🔐 EVIDENCE VALIDATION METADATA (NEW)
+    evidenceMetadata: {
+        documentDate: Date, // Extracted or manually entered document date
+        expiryDate: Date, // For documents with expiry
+        issuerName: String, // e.g., University name, Employer name
+        documentNumber: String, // e.g., Aadhaar number, PAN number (encrypted)
+        extractedText: String, // OCR extracted text
+        ocrConfidence: Number, // 0-1
+        validationFlags: [{
+            flag: String,
+            severity: {
+                type: String,
+                enum: ['INFO', 'WARNING', 'ERROR']
+            },
+            message: String
+        }]
     },
 
     // Upload Information
