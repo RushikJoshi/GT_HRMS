@@ -31,6 +31,14 @@ process.on('unhandledRejection', (reason, promise) => {
    DATABASE CONNECTION
 ================================ */
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hrms';
+// Print which Mongo URI is being used (mask credentials when present)
+const maskUri = (u) => {
+    if (!u) return u;
+    try {
+        return u.replace(/(mongodb(?:\+srv)?:\/\/)([^:@\/\n]+)(:[^@]+)?@/, (m, p1, user, pass) => `${p1}${user}:***@`);
+    } catch (e) { return u; }
+};
+console.log('🔌 Using MONGO_URI:', maskUri(MONGO_URI));
 const connectOptions = {
     maxPoolSize: 10,
     minPoolSize: 5,

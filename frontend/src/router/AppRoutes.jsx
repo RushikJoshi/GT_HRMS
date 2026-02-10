@@ -53,6 +53,7 @@ import CandidateTimeline from '../pages/HR/CandidateStatusTracker/CandidateTimel
 import PaySlipDesign from '../pages/HR/Payroll/PaySlipDesign';
 import AttendanceHistory from '../pages/HR/AttendanceHistory';
 import BGVManagement from '../pages/HR/BGVManagement';
+import FaceUpdateRequest from '../pages/HR/FaceUpdateRequests';
 import BGVEmailManagement from '../pages/HR/BGVEmailManagement';
 
 // Letter modules
@@ -303,6 +304,7 @@ export default function AppRoutes() {
                 <Route path="offer-templates" element={<OfferTemplates />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
                 <Route path="bgv" element={<BGVManagement />} />
+                <Route path="face-update-requests" element={<FaceUpdateRequest />} />
                 <Route path="bgv/emails" element={<BGVEmailManagement />} />
 
                 {/* Letters */}
