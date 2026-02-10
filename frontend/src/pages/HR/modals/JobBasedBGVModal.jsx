@@ -76,7 +76,7 @@ const JobBasedBGVModal = ({ applicant, jobTitle, onClose, onSuccess }) => {
                         </div>
                         <div>
                             <h2 className="text-2xl font-black text-white">Initiate Background Verification</h2>
-                            <p className="text-blue-100 text-sm mt-1">Package-driven verification for {applicant.name}</p>
+                            <p className="text-blue-100 text-sm mt-1">Mode-driven verification for {applicant.name}</p>
                         </div>
                     </div>
                     <button
@@ -112,7 +112,7 @@ const JobBasedBGVModal = ({ applicant, jobTitle, onClose, onSuccess }) => {
                     <div className="mb-8">
                         <label className="block text-sm font-black text-slate-700 uppercase tracking-wide mb-4">
                             <Package size={16} className="inline mr-2" />
-                            Select Verification Package
+                            Select Verification Mode
                         </label>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -120,8 +120,8 @@ const JobBasedBGVModal = ({ applicant, jobTitle, onClose, onSuccess }) => {
                                 <label
                                     key={key}
                                     className={`relative border-3 rounded-2xl p-6 cursor-pointer transition-all ${selectedPackage === key
-                                            ? 'border-blue-500 bg-blue-50 shadow-lg scale-105'
-                                            : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
+                                        ? 'border-blue-500 bg-blue-50 shadow-lg scale-105'
+                                        : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
                                         }`}
                                 >
                                     <input
@@ -202,8 +202,8 @@ const JobBasedBGVModal = ({ applicant, jobTitle, onClose, onSuccess }) => {
                                     type="button"
                                     onClick={() => setSlaDays(days)}
                                     className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${slaDays === days
-                                            ? 'bg-blue-600 text-white shadow-lg'
-                                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                        ? 'bg-blue-600 text-white shadow-lg'
+                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                                         }`}
                                 >
                                     {days} days
@@ -220,7 +220,7 @@ const JobBasedBGVModal = ({ applicant, jobTitle, onClose, onSuccess }) => {
                         </h3>
                         <div className="grid grid-cols-3 gap-4 text-sm">
                             <div>
-                                <div className="text-slate-500 font-bold mb-1">Package</div>
+                                <div className="text-slate-500 font-bold mb-1">Mode</div>
                                 <div className="text-slate-900 font-black">{BGV_PACKAGES[selectedPackage].name}</div>
                             </div>
                             <div>
@@ -234,7 +234,7 @@ const JobBasedBGVModal = ({ applicant, jobTitle, onClose, onSuccess }) => {
                         </div>
                         <div className="mt-4 pt-4 border-t border-blue-200">
                             <div className="text-xs text-blue-700 font-medium">
-                                ℹ️ Verification checks are system-generated based on the selected package. HR cannot manually select individual checks.
+                                ℹ️ Verification checks are system-generated based on the selected mode. HR cannot manually select individual checks.
                             </div>
                         </div>
                     </div>

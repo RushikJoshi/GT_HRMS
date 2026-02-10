@@ -44,6 +44,8 @@ const BGVTimelineSchema = new mongoose.Schema({
             'CASE_REOPENED',
             'REPORT_GENERATED',
             'NOTIFICATION_SENT',
+            'EMAIL_SENT',
+            'EMAIL_FAILED',
             'COMMENT_ADDED',
             'STATUS_CHANGED',
             'OTHER'
