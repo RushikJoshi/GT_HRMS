@@ -125,6 +125,32 @@ exports.getEmailHistory = async (req, res, next) => {
 };
 
 /**
+ * Get Global Email History for Tenant
+ * GET /api/bgv/email-history-global
+ */
+exports.getGlobalEmailHistory = async (req, res, next) => {
+    try {
+        const { BGVEmailLog } = await getBGVModels(req);
+
+        const emails = await BGVEmailLog.find({
+            tenant: req.tenantId
+        })
+            .sort({ createdAt: -1 })
+            .limit(100)
+            .lean();
+
+        res.json({
+            success: true,
+            data: emails
+        });
+
+    } catch (err) {
+        console.error('[BGV_GET_GLOBAL_EMAIL_HISTORY_ERROR]', err);
+        next(err);
+    }
+};
+
+/**
  * Get Available Email Templates
  * GET /api/bgv/email-templates
  */
@@ -292,11 +318,13 @@ exports.createOrUpdateEmailTemplate = async (req, res, next) => {
  */
 exports.initializeDefaultTemplates = async (req, res, next) => {
     try {
-        // Only admins can initialize templates
-        if (!['admin', 'company_admin'].includes(req.user?.role)) {
+        console.log('[DEBUG] Initializing templates for tenant:', req.tenantId);
+        // Only HR/Admins can initialize templates
+        if (!['hr', 'admin', 'company_admin'].includes(req.user?.role)) {
+            console.warn('[DEBUG] Permission denied for role:', req.user?.role);
             return res.status(403).json({
                 success: false,
-                message: 'Only admins can initialize email templates'
+                message: 'Only HR or Admins can initialize email templates'
             });
         }
 
@@ -309,6 +337,7 @@ exports.initializeDefaultTemplates = async (req, res, next) => {
         });
 
         if (existingCount > 0) {
+            console.log('[DEBUG] Templates already exist:', existingCount);
             return res.status(400).json({
                 success: false,
                 message: 'Email templates already initialized for this tenant'
@@ -316,7 +345,14 @@ exports.initializeDefaultTemplates = async (req, res, next) => {
         }
 
         // Get default templates
-        const defaultTemplates = BGVEmailTemplate.schema.statics.getDefaultTemplates();
+        console.log('[DEBUG] Fetching default templates from schema...');
+        const defaultTemplates = BGVEmailTemplate.getDefaultTemplates ?
+            BGVEmailTemplate.getDefaultTemplates() :
+            BGVEmailTemplate.schema.statics.getDefaultTemplates();
+
+        if (!defaultTemplates || !Array.isArray(defaultTemplates)) {
+            throw new Error('Default templates not found or invalid format');
+        }
 
         // Create all default templates
         const createdTemplates = [];
@@ -324,12 +360,13 @@ exports.initializeDefaultTemplates = async (req, res, next) => {
             const newTemplate = await BGVEmailTemplate.create({
                 tenant: req.tenantId,
                 ...template,
-                createdBy: req.user._id || req.user.id,
-                updatedBy: req.user._id || req.user.id
+                createdBy: req.user?._id || req.user?.id,
+                updatedBy: req.user?._id || req.user?.id
             });
             createdTemplates.push(newTemplate);
         }
 
+        console.log(`[DEBUG] Successfully initialized ${createdTemplates.length} templates`);
         res.json({
             success: true,
             message: `${createdTemplates.length} default email templates initialized successfully`,
@@ -338,13 +375,17 @@ exports.initializeDefaultTemplates = async (req, res, next) => {
 
     } catch (err) {
         console.error('[BGV_INITIALIZE_TEMPLATES_ERROR]', err);
-        next(err);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to initialize templates: ' + err.message
+        });
     }
 };
 
 module.exports = {
     sendEmail: exports.sendEmail,
     getEmailHistory: exports.getEmailHistory,
+    getGlobalEmailHistory: exports.getGlobalEmailHistory,
     getEmailTemplates: exports.getEmailTemplates,
     getEmailTemplateByType: exports.getEmailTemplateByType,
     createOrUpdateEmailTemplate: exports.createOrUpdateEmailTemplate,

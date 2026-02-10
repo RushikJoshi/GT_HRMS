@@ -161,6 +161,12 @@ router.get('/case/:caseId/email-history',
     bgvEmailController.getEmailHistory
 );
 
+// Get Global Email History for Tenant
+router.get('/email-history-global',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvEmailController.getGlobalEmailHistory
+);
+
 // Get All Email Templates
 router.get('/email-templates',
     authorize('hr', 'admin', 'user', 'company_admin'),
@@ -179,9 +185,9 @@ router.post('/email-template',
     bgvEmailController.createOrUpdateEmailTemplate
 );
 
-// Initialize Default Email Templates (Admin only - run once)
+// Initialize Default Email Templates (Admin/HR - run once)
 router.post('/email-templates/initialize',
-    authorize('admin', 'company_admin'),
+    authorize('hr', 'admin', 'company_admin'),
     bgvEmailController.initializeDefaultTemplates
 );
 
