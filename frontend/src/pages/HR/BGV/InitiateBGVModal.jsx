@@ -108,7 +108,7 @@ const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) =
                         </div>
                         <div>
                             <h2 className="text-2xl font-black text-white">Initiate Background Verification</h2>
-                            <p className="text-blue-100 text-sm mt-1">Select candidate and verification package</p>
+                            <p className="text-blue-100 text-sm mt-1">Select candidate and verification mode</p>
                         </div>
                     </div>
                     <button
@@ -179,7 +179,7 @@ const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) =
                     <div className="mb-8">
                         <label className="block text-sm font-black text-slate-700 uppercase tracking-wide mb-3">
                             <Package size={16} className="inline mr-2" />
-                            Step 2: Select Verification Package
+                            Step 2: Select Verification Mode
                         </label>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -187,8 +187,8 @@ const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) =
                                 <label
                                     key={key}
                                     className={`relative border-3 rounded-2xl p-6 cursor-pointer transition-all ${selectedPackage === key
-                                            ? `border-${pkg.color}-500 bg-${pkg.color}-50 shadow-lg scale-105`
-                                            : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
+                                        ? `border-${pkg.color}-500 bg-${pkg.color}-50 shadow-lg scale-105`
+                                        : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
                                         }`}
                                 >
                                     <input
@@ -265,8 +265,8 @@ const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) =
                                     type="button"
                                     onClick={() => setSlaDays(days)}
                                     className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${slaDays === days
-                                            ? 'bg-blue-600 text-white shadow-lg'
-                                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                        ? 'bg-blue-600 text-white shadow-lg'
+                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                                         }`}
                                 >
                                     {days} days
