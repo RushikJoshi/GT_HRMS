@@ -68,6 +68,18 @@ router.post('/case/:id/generate-report',
     bgvController.generateReport
 );
 
+// Report Download
+router.get('/report/:reportId/download',
+    authorize('hr', 'admin', 'company_admin'),
+    bgvController.downloadReport
+);
+
+// Report Download by Case ID
+router.get('/case/:caseId/report/download',
+    authorize('hr', 'admin', 'company_admin'),
+    bgvController.downloadReportByCase
+);
+
 // ============================================
 // CANDIDATE ROUTES (Limited Access)
 // ============================================
