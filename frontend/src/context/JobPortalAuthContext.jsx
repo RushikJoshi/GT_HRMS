@@ -50,10 +50,14 @@ export function JobPortalAuthProvider({ children }) {
           return;
         }
 
+        // Validate role - must be one of the valid roles
+        const validRoles = ['candidate', 'HR', 'Admin', 'Employee'];
+        const userRole = payload.role && validRoles.includes(payload.role) ? payload.role : 'candidate';
+
         let candidateInfo = {
           id: payload.id,
           tenantId: payload.tenantId,
-          role: payload.role || 'candidate',
+          role: userRole,
           email: payload.email
         };
 
@@ -77,7 +81,7 @@ export function JobPortalAuthProvider({ children }) {
               localStorage.setItem('candidate', JSON.stringify(updatedInfo));
             }
           } catch (apiErr) {
-            console.warn(`[JobPortalAuth] Sync failed: ${apiErr.message} (${apiErr.response?.status})`);
+            // console.warn(`[JobPortalAuth] Sync failed: ${apiErr.message} (${apiErr.response?.status})`);
             // If token is invalid/expired on server (401), clear session
             if (apiErr.response?.status === 401) {
               console.warn('Token expired or invalid for candidate');

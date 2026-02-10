@@ -181,6 +181,7 @@ app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
 
 app.use('/api/career', careerOptimizedRoutes);
+app.use('/api/social-media', require('./routes/socialMedia.routes'));
 
 
 app.use('/api/positions', positionRoutes);

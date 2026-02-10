@@ -14,6 +14,7 @@ import {
   ShieldCheck, UploadCloud, Building2, Briefcase, Zap,
   ChevronDown, Loader2
 } from 'lucide-react';
+import ReferenceSection from '../../components/ReferenceSection';
 
 export default function JobApplication() {
   const [searchParams] = useSearchParams();
@@ -43,6 +44,20 @@ export default function JobApplication() {
   const [fetching, setFetching] = useState(true); // New state to prevent flash
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+
+  // Reference state
+  const [references, setReferences] = useState([{
+    name: '',
+    designation: '',
+    company: '',
+    relationship: '',
+    email: '',
+    phone: '',
+    yearsKnown: '',
+    consentToContact: true
+  }]);
+  const [isFresher, setIsFresher] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     if (requirementId && tenantId) {
@@ -192,6 +207,37 @@ export default function JobApplication() {
       return;
     }
 
+    // 3. Reference Validation
+    if (!isFresher) {
+      if (references.length === 0 || (!references[0].name && references.length === 1)) {
+        setError('Please provide at least 1 professional reference or check the fresher option.');
+        return;
+      }
+
+      // Validate all required fields
+      for (let i = 0; i < references.length; i++) {
+        const ref = references[i];
+        if (!ref.name || !ref.designation || !ref.company || !ref.relationship || !ref.email || !ref.phone) {
+          setError(`Reference ${i + 1}: All required fields must be filled`);
+          return;
+        }
+
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(ref.email)) {
+          setError(`Reference ${i + 1}: Invalid email format`);
+          return;
+        }
+
+        // Phone validation
+        const phoneRegex = /^[0-9+\-\s()]{10,15}$/;
+        if (!phoneRegex.test(ref.phone)) {
+          setError(`Reference ${i + 1}: Phone number must be 10-15 digits`);
+          return;
+        }
+      }
+    }
+
     setLoading(true);
     setError('');
 
@@ -213,6 +259,13 @@ export default function JobApplication() {
           submitData.append(key, val);
         }
       });
+
+      // Add references
+      submitData.append('references', JSON.stringify(references));
+      submitData.append('isFresher', isFresher);
+      if (isFresher) {
+        submitData.append('noReferenceReason', 'Fresher - No Work Experience');
+      }
 
       await api.post('/public/apply-job', submitData, {
         headers: { 'Content-Type': 'multipart/form-data', 'X-Tenant-ID': tenantId || requirement?.tenant }
@@ -542,6 +595,15 @@ export default function JobApplication() {
                   {renderFallbackForm()}
                 </>
               )}
+
+              {/* Reference Section - Rendered for both form types */}
+              <ReferenceSection
+                references={references}
+                setReferences={setReferences}
+                isFresher={isFresher}
+                setIsFresher={setIsFresher}
+                errors={fieldErrors}
+              />
 
               <div className="pt-10">
                 <button

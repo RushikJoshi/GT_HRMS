@@ -28,7 +28,8 @@ import {
   Settings2,
   Brush,
   ExternalLink,
-  X
+  X,
+  Share2
 } from 'lucide-react';
 
 /* ================= ICONS ================= */
@@ -58,6 +59,7 @@ const ICONS = {
   access: <Lock size={ICON_SIZE} />,
   settings: <Settings2 size={ICON_SIZE} />,
   customization: <Brush size={ICON_SIZE} className="text-indigo-400" />,
+  social: <Share2 size={ICON_SIZE} className="text-green-400" />,
   viewCareers: <ExternalLink size={ICON_SIZE} className="text-blue-400" />
 };
 

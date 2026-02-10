@@ -410,9 +410,10 @@ export default function AttendanceHistory() {
   // Process attendance data
   const processAttendanceData = (data) => {
     const result = data.reduce((acc, item) => {
+      if (!item.employee) return acc;
       const empId = item.employee._id;
-      const empName = `${item.employee.firstName} ${item.employee.lastName}`;
-      const empRole = item.employee.role;
+      const empName = `${item.employee.firstName || ''} ${item.employee.lastName || ''}`;
+      const empRole = item.employee.role || 'N/A';
       const day = item.date.split('T')[0];
       const status = item.status;
       const employeeId = item.employee.employeeId;
@@ -502,9 +503,10 @@ export default function AttendanceHistory() {
 
         // Process attendance data: Group by employee with status counts
         const result = data.reduce((acc, item) => {
+          if (!item.employee) return acc;
           const empId = item.employee._id;
-          const empName = `${item.employee.firstName} ${item.employee.lastName}`;
-          const empRole = item.employee.role;
+          const empName = `${item.employee.firstName || ''} ${item.employee.lastName || ''}`;
+          const empRole = item.employee.role || 'N/A';
           const day = item.date.split('T')[0];
           const status = item.status; // Includes 'weekly_off' from backend
           const employeeId = item.employee.employeeId

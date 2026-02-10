@@ -95,6 +95,14 @@ let isShuttingDown = false;
 async function startServer() {
     await connectToDatabase();
 
+    // Initialize Social Media Scheduler
+    try {
+        const { initScheduler } = require('./modules/socialMedia/services/scheduler');
+        initScheduler();
+    } catch (schedErr) {
+        console.error('⚠️ Failed to initialize scheduler:', schedErr.message);
+    }
+
     server.on('error', (err) => {
         if (err.code === 'EADDRINUSE') {
             console.error(`❌ FATAL ERROR: Port ${PORT} is already in use.`);
