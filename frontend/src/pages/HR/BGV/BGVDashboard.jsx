@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../../utils/api';
 import { showToast } from '../../../utils/uiNotifications';
 import {
@@ -12,10 +11,10 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import InitiateBGVModal from './InitiateBGVModal';
 import BGVDetailModal from './BGVDetailModal';
 
+
 dayjs.extend(relativeTime);
 
 const BGVDashboard = () => {
-    const navigate = useNavigate();
     const [cases, setCases] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -323,13 +322,15 @@ const BGVDashboard = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <button
-                                                    onClick={() => handleViewDetails(caseItem)}
-                                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-all flex items-center gap-2 group-hover:scale-105"
-                                                >
-                                                    <Eye size={16} />
-                                                    View
-                                                </button>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleViewDetails(caseItem)}
+                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                        title="View Details"
+                                                    >
+                                                        <Eye size={18} />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -388,8 +389,9 @@ const BGVDashboard = () => {
                         fetchCases();
                         fetchStats();
                     }}
-                />
-            )}
+                    />
+                )}
+
         </div>
     );
 };
