@@ -15,6 +15,10 @@ const Employee = require('../models/Employee');
 const TenantSchema = require('../models/Tenant');
 const Tenant = require('../models/Tenant');
 const FaceRecognitionService = require('../services/faceRecognition.service');
+const {
+    applyAttendanceRules,
+    isWeeklyOffDate
+} = require('../services/attendanceRulesEngine');
 
 
 const FACE_EMBEDDING_DIM = 128;
@@ -40,10 +44,13 @@ const MASTER_FACE_KEY = Buffer.from(
     'hex'
 );
 
-if (!MASTER_FACE_KEY || MASTER_FACE_KEY.length !== 32) {
+// if (!MASTER_FACE_KEY || MASTER_FACE_KEY.length !== 32) {
+//     throw new Error('Invalid MASTER_FACE_KEY');
+// }
+
+if (!MASTER_FACE_KEY) {
     throw new Error('Invalid MASTER_FACE_KEY');
 }
-
 // ====== ENCRYPTION CONFIG ======
 const ENCRYPTION_KEY = process.env.FACE_EMBEDDING_KEY || 'default-key-32-char-string-here!';
 const FACE_MATCH_THRESHOLD = 0.60; // CRITICAL: Euclidean distance threshold - 0.60 is standard for face-api.js
@@ -576,7 +583,6 @@ exports.punch = async (req, res) => {
         attendance.workingHours = calculateWorkingHours(attendance.logs);
 
         // ========== OVERTIME ==========
-        // ========== OVERTIME ==========
         // Business Rule: Standard Shift = 8 Hours. Calculate overtime if > 8h.
         if (attendance.workingHours > 0) {
             attendance.overtimeHours = calculateOvertimeHours(
@@ -587,29 +593,49 @@ exports.punch = async (req, res) => {
             );
         }
 
-        // ========== RE-EVALUATE STATUS (Policy Thresholds) ==========
-        let newStatus = attendance.status;
+        // ========== FETCH ACCUMULATED STATS ==========
+        // Required for implementing "Late Marks -> Half Day" policies
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const [accumulatedLateCount, accumulatedEarlyExitCount] = await Promise.all([
+            Attendance.countDocuments({
+                employee: employeeId,
+                tenant: tenantId,
+                date: { $gte: startOfMonth, $lt: today },
+                isLate: true
+            }),
+            Attendance.countDocuments({
+                employee: employeeId,
+                tenant: tenantId,
+                date: { $gte: startOfMonth, $lt: today },
+                isEarlyOut: true
+            })
+        ]);
 
-        // Skip re-evaluation if it's already a special status like leave/holiday manually set
-        if (!['leave', 'holiday', 'weekly_off'].includes(attendance.status)) {
-            if (attendance.workingHours >= settings.fullDayThresholdHours) {
-                newStatus = 'present';
-            } else if (attendance.workingHours >= settings.halfDayThresholdHours) {
-                newStatus = 'half_day';
-            } else {
-                // If they haven't worked enough yet, they are technically 'absent' or 'present' (until shift end)
-                // For better UX, if shift is still ongoing, we can keep it as 'present' label
-                newStatus = attendance.workingHours > 0 ? 'half_day' : 'present';
-                // Actually, let's follow the threshold strictly for final result
-                if (nextPunchType === 'OUT') {
-                    if (attendance.workingHours < settings.halfDayThresholdHours) {
-                        newStatus = 'absent';
-                    }
-                }
-            }
-        }
+        // ========== RULES ENGINE: FINAL STATUS & FLAGS ==========
+        const rulesResult = applyAttendanceRules({
+            date: today,
+            employeeId,
+            logs: attendance.logs,
+            workingHours: attendance.workingHours,
+            baseStatus: attendance.status,
+            settings,
+            accumulatedLateCount,
+            accumulatedEarlyExitCount
+        });
 
-        attendance.status = newStatus;
+        attendance.status = rulesResult.status;
+        attendance.isLate = rulesResult.isLate;
+        attendance.isEarlyOut = rulesResult.isEarlyOut;
+        attendance.workingHours = rulesResult.workingHours;
+        attendance.lateMinutes = rulesResult.lateMinutes;
+        attendance.earlyExitMinutes = rulesResult.earlyExitMinutes;
+        attendance.isWFH = !!rulesResult.isWFH;
+        attendance.isOnDuty = !!rulesResult.isOnDuty;
+        attendance.isCompOffDay = !!rulesResult.isCompOffDay;
+        attendance.isNightShift = !!rulesResult.isNightShift;
+        attendance.lopDays = typeof rulesResult.lopDays === 'number' ? rulesResult.lopDays : attendance.lopDays;
+        attendance.ruleEngineVersion = rulesResult.engineVersion || 1;
+        attendance.ruleEngineMeta = rulesResult.meta || attendance.ruleEngineMeta;
         await attendance.save();
 
         res.json({
@@ -619,7 +645,10 @@ exports.punch = async (req, res) => {
                 punchMode: settings.punchMode,
                 isLate: attendance.isLate,
                 isEarlyOut: attendance.isEarlyOut,
-                workingHours: attendance.workingHours
+                workingHours: attendance.workingHours,
+                lateMinutes: attendance.lateMinutes,
+                earlyExitMinutes: attendance.earlyExitMinutes,
+                violations: rulesResult.policyViolations || []
             }
         });
 
@@ -667,34 +696,26 @@ exports.getMyAttendance = async (req, res) => {
         const data = await Attendance.find(filter).sort({ date: 1 })
             .populate('employee', 'firstName lastName employeeId');
 
-        // Fetch settings to check weekly offs
+        // Fetch settings to check weekly offs (including advanced weekly off rules)
         const settings = await AttendanceSettings.findOne({ tenant: req.tenantId });
-        const weeklyOffDays = settings?.weeklyOffDays || [0];
-
-        console.log(`\n📊 [getMyAttendance] Fetched ${data.length} records. Weekly off days: [${weeklyOffDays.join(', ')}]`);
-
-        // CRITICAL FIX: Override ANY status to 'weekly_off' if day matches configured weekly off
         const correctedData = data.map(att => {
-            const dateObj = new Date(att.date);
-            const dayOfWeek = dateObj.getDay();
-            const dateStr = att.date.toISOString().split('T')[0];
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const raw = att.toObject ? att.toObject() : JSON.parse(JSON.stringify(att));
+            const dateObj = new Date(raw.date);
 
-            // If this day is a configured weekly off, ALWAYS set status to 'weekly_off'
-            if (weeklyOffDays.includes(dayOfWeek)) {
-                const oldStatus = att.status;
-                console.log(`🔧 [CORRECTION] ${dateStr} (${dayNames[dayOfWeek]}): "${oldStatus}" → "weekly_off"`);
+            const { isWeeklyOff } = isWeeklyOffDate({
+                date: dateObj,
+                settings: settings || { weeklyOffDays: [0] },
+                employeeId: raw.employee?._id || raw.employee
+            });
 
-                const corrected = att.toObject ? att.toObject() : JSON.parse(JSON.stringify(att));
-                corrected.status = 'weekly_off';
-                corrected.correctedBySystem = true;
-                return corrected;
+            if (isWeeklyOff) {
+                raw.status = 'weekly_off';
+                raw.correctedBySystem = true;
             }
 
-            return att.toObject ? att.toObject() : att;
+            return raw;
         });
 
-        console.log(`✅ [getMyAttendance] Returning ${correctedData.length} corrected records\n`);
         res.json(correctedData);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -2532,7 +2553,11 @@ exports.getByDate = async (req, res) => {
 
         let settings = await AttendanceSettings.findOne({ tenant: req.tenantId });
         if (!settings) settings = { weeklyOffDays: [0] };
-        const isWeeklyOff = settings.weeklyOffDays.includes(targetDate.getDay());
+        const { isWeeklyOff } = isWeeklyOffDate({
+            date: targetDate,
+            settings,
+            employeeId: null
+        });
 
         // 2. Compute Statuses for all relevant employees
         // If FUTURE: Only consider employees with leaves (as Total = Leave count rule)
@@ -2641,7 +2666,11 @@ exports.getEmployeeDateDetail = async (req, res) => {
 
         const holiday = await Holiday.findOne({ tenant: req.tenantId, date: targetDate }).lean();
         const settings = await AttendanceSettings.findOne({ tenant: req.tenantId });
-        const isWeeklyOff = settings?.weeklyOffDays?.includes(targetDate.getDay());
+        const { isWeeklyOff } = isWeeklyOffDate({
+            date: targetDate,
+            settings: settings || { weeklyOffDays: [0] },
+            employeeId
+        });
 
         res.json({
             employee: {

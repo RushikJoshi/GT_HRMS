@@ -78,9 +78,9 @@ export function JobPortalAuthProvider({ children }) {
             }
           } catch (apiErr) {
             console.warn(`[JobPortalAuth] Sync failed: ${apiErr.message} (${apiErr.response?.status})`);
-            // If token is invalid/expired on server (401), clear session
-            if (apiErr.response?.status === 401) {
-              console.warn('Token expired or invalid for candidate');
+            // If token is invalid/expired on server (401) or user not found (404), clear session
+            if (apiErr.response?.status === 401 || apiErr.response?.status === 404) {
+              console.warn('Token expired, invalid, or user not found');
               localStorage.removeItem('token');
               localStorage.removeItem('candidate');
               setCandidate(null);

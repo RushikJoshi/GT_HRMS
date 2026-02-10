@@ -53,7 +53,7 @@ exports.list = async function (req, res) {
       employeeCount: countMap[d._id.toString()] || 0
     }));
 
-    res.json(result);
+    res.json({ success: true, count: result.length, data: result });
 
   } catch (err) {
     console.error(err);

@@ -263,21 +263,58 @@ exports.list = async (req, res) => {
     }
 
     // Step 5: Build query filter with tenant isolation
-    const { department, status } = req.query || {};
-    const filter = { tenant: tenantId }; // Employee schema uses 'tenant' field, not 'tenantId'
+    const { department, designation, type, workMode, search, status } = req.query || {};
+    const filter = { tenant: tenantId };
 
-    if (department) {
-      filter.department = department;
-      console.log(`[EMPLOYEE_LIST] Filtering by department: ${department}`);
+    // Department Filter (Dynamic)
+    if (department && department !== 'All Departments') {
+      // Check if it's an ObjectId or a string
+      if (mongoose.Types.ObjectId.isValid(department)) {
+        filter.departmentId = department;
+      } else {
+        filter.department = department;
+      }
+    }
+
+    // Designation Filter (Multi-select)
+    if (designation && designation !== 'All Roles') {
+      const designations = Array.isArray(designation) ? designation : designation.split(',').filter(Boolean);
+      if (designations.length > 0) {
+        filter.designation = { $in: designations };
+      }
+    }
+
+    // Employee Type Filter (Multi-select)
+    if (type) {
+      const types = Array.isArray(type) ? type : type.split(',').filter(Boolean);
+      if (types.length > 0) {
+        filter.employeeType = { $in: types };
+      }
+    }
+
+    // Work Mode Filter (Multi-select)
+    if (workMode) {
+      const modes = Array.isArray(workMode) ? workMode : workMode.split(',').filter(Boolean);
+      if (modes.length > 0) {
+        filter.workMode = { $in: modes };
+      }
+    }
+
+    // Search Support (Combines with filters)
+    if (search) {
+      filter.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { employeeId: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
     }
 
     // Default to hiding drafts unless specifically asked for
     if (!status) {
       filter.status = { $ne: 'Draft' };
-      console.log(`[EMPLOYEE_LIST] Default filter: excluding Draft status`);
-    } else {
+    } else if (status !== 'All') {
       filter.status = status;
-      console.log(`[EMPLOYEE_LIST] Filtering by status: ${status}`);
     }
 
     console.log(`[EMPLOYEE_LIST] Query filter:`, JSON.stringify(filter, null, 2));
@@ -286,7 +323,7 @@ exports.list = async (req, res) => {
     let items;
     try {
       const query = Employee.find(filter)
-        .select("_id firstName lastName middleName email department departmentId role manager employeeId contactNo joiningDate profilePic status lastStep gender dob maritalStatus bloodGroup nationality fatherName motherName emergencyContactName emergencyContactNumber tempAddress permAddress experience jobType bankDetails education documents salaryAssigned salaryLocked currentSnapshotId")
+        .select("_id firstName lastName middleName email department departmentId role manager employeeId contactNo joiningDate profilePic status lastStep gender dob maritalStatus bloodGroup nationality fatherName motherName emergencyContactName emergencyContactNumber tempAddress permAddress experience employeeType workMode designation bankDetails education documents salaryAssigned salaryLocked currentSnapshotId")
         .sort({ createdAt: -1 });
 
       // Safe populate - will not crash if references are missing

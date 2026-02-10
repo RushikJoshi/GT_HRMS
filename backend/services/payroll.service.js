@@ -64,11 +64,34 @@ async function runPayroll(db, tenantId, month, year, initiatedBy) {
         await payrollRun.save();
     }
 
-    // Get all active employees with salary templates
-    const employees = await Employee.find({
+    // Get employees to process
+    const filter = {
         tenant: tenantId,
         status: 'Active'
-    });
+    };
+
+    // Apply filters if provided
+    if (payrollRun.isFiltered && payrollRun.filters) {
+        const { department, designation, employeeTypes, workModes } = payrollRun.filters;
+
+        if (department && department !== 'All Departments') {
+            filter.department = department;
+        }
+
+        if (designation && designation !== 'All Designations') {
+            filter.designation = designation;
+        }
+
+        if (employeeTypes && employeeTypes.length > 0) {
+            filter.employeeType = { $in: employeeTypes };
+        }
+
+        if (workModes && workModes.length > 0) {
+            filter.workMode = { $in: workModes };
+        }
+    }
+
+    const employees = await Employee.find(filter);
 
     payrollRun.totalEmployees = employees.length;
     payrollRun.processedEmployees = 0;
@@ -416,12 +439,19 @@ async function calculateEmployeePayroll(
         employeeInfo: {
             employeeId: employee.employeeId || '',
             name: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
-            department: employee.department || '',
-            designation: employee.role || '',
+            department: employee.departmentId?.name || employee.department || 'General',
+            designation: employee.designation || employee.role || 'N/A',
             bankAccountNumber: employee.bankDetails?.accountNumber || '',
             bankIFSC: employee.bankDetails?.ifsc || '',
             bankName: employee.bankDetails?.bankName || '',
-            panNumber: employee.documents?.panCard || ''
+            branchName: employee.bankDetails?.branchName || '',
+            accountHolderName: employee.bankDetails?.accountHolderName || '',
+            panNumber: employee.documents?.panCard || employee.panCard || '',
+            pfNumber: employee.meta?.pfNo || employee.pfNo || '',
+            uanNumber: employee.meta?.uanNo || employee.uanNo || '',
+            gender: employee.gender || 'N/A',
+            dob: employee.dob || null,
+            joiningDate: employee.joiningDate || null
         },
         earningsSnapshot: grossCalculation.earningsSnapshot,
         preTaxDeductionsSnapshot: preTaxDeductions.snapshot,
@@ -525,6 +555,12 @@ function calculateAttendanceSummary(attendanceRecords, daysInMonth, holidayDates
 
     attendanceRecords.forEach(record => {
         const dateStr = record.date.toISOString().split('T')[0];
+
+        // Accumulate explicit LOP (from penalty rules) for reporting
+        if (record.lopDays && typeof record.lopDays === 'number') {
+            lopDays += record.lopDays;
+        }
+
         if (holidayDates.has(dateStr)) {
             holidayDays++;
         } else if (record.status === 'present' || record.status === 'half_day') {
@@ -532,12 +568,18 @@ function calculateAttendanceSummary(attendanceRecords, daysInMonth, holidayDates
         } else if (record.status === 'leave') {
             // Check if paid leave or unpaid (LOP)
             if (record.leaveType && record.leaveType.toLowerCase().includes('lop')) {
-                lopDays++;
+                // Check if we haven't already counted this via record.lopDays
+                if (!record.lopDays) {
+                    lopDays++;
+                }
             } else {
                 leaveDays++;
             }
         } else if (record.status === 'absent') {
-            lopDays++;
+            // Check if we haven't already counted this via record.lopDays
+            if (!record.lopDays) {
+                lopDays++;
+            }
         }
     });
 
@@ -754,6 +796,9 @@ async function calculatePostTaxDeductions(
     );
 
     // Calculate LOP (Loss of Pay)
+    // ⚠️ FIXED: Disabled LOP deduction here because Basic is already pro-rated based on presentDays in calculateGrossEarnings.
+    // Enabling this would cause double deduction (once in pro-ratio, and again here).
+    /*
     if (lopDays > 0) {
         const lopAmount = Math.round((monthlyBasic / daysInMonth) * lopDays * 100) / 100;
         snapshot.push({
@@ -763,12 +808,13 @@ async function calculatePostTaxDeductions(
         });
         total += lopAmount;
     }
+    */
 
     // Calculate other post-tax deductions
     for (const ed of postTaxDeductions) {
         const master = ed.deductionId;
 
-        // Skip LOP if already calculated above
+        // Skip LOP if already calculated above (or disabled)
         if (master.name.toLowerCase().includes('lop') || master.name.toLowerCase().includes('loss of pay')) {
             continue;
         }

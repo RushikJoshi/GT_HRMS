@@ -57,6 +57,7 @@ router.post('/ctc/upload-excel', auth.requireHr, templateController.uploadCtcExc
 router.post('/calculate-breakup', auth.requireHr, templateController.calculateBreakup);
 // Payroll Run Routes (HR Only)
 router.use('/runs', auth.requireHr);
+router.get('/filteredEmployees', auth.requireHr, payrollRunController.getFilteredEmployees);
 router.post('/runs', payrollRunController.initiatePayrollRun);
 router.get('/runs', payrollRunController.getPayrollRuns);
 router.get('/runs/:id', payrollRunController.getPayrollRunById);

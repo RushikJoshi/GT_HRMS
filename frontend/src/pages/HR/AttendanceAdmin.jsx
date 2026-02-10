@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Pagination } from 'antd';
 import api from '../../utils/api';
 import {
@@ -6,7 +7,7 @@ import {
     Settings, ShieldAlert,
     User, Clock, MapPin,
     MoreVertical, Edit2, Lock, X, Eye, ChevronLeft, ChevronRight, Upload,
-    CheckCircle, XCircle, AlertTriangle, AlertCircle, LayoutDashboard, History
+    CheckCircle, XCircle, AlertTriangle, AlertCircle, LayoutDashboard, History, List, LogIn, LogOut
 } from 'lucide-react';
 import { formatDateDDMMYYYY } from '../../utils/dateUtils';
 import AttendanceSettings from './AttendanceSettings';
@@ -42,6 +43,7 @@ export default function AttendanceAdmin() {
     });
     const [uploadingPopup, setUploadingPopup] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [breakModal, setBreakModal] = useState(null); // { logs: [], employee: {} }
     const fileInputRef = React.useRef(null);
 
     useEffect(() => {
@@ -276,12 +278,19 @@ export default function AttendanceAdmin() {
                                                             <Eye size={16} />
                                                         </button>
                                                         <button
+                                                            onClick={() => setBreakModal({ logs: item.logs, employee: item.employee })}
+                                                            className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded transition"
+                                                            title="View Activity Logs"
+                                                        >
+                                                            <List size={16} />
+                                                        </button>
+                                                        <button
                                                             onClick={() => {
                                                                 setEditingAttendance(item);
                                                                 setEditForm({
                                                                     status: item.status || 'present',
-                                                                    checkIn: item.checkIn ? new Date(item.checkIn).toISOString().slice(0, 16) : '',
-                                                                    checkOut: item.checkOut ? new Date(item.checkOut).toISOString().slice(0, 16) : '',
+                                                                    checkIn: item.checkIn ? dayjs(item.checkIn).format('YYYY-MM-DDTHH:mm') : '',
+                                                                    checkOut: item.checkOut ? dayjs(item.checkOut).format('YYYY-MM-DDTHH:mm') : '',
                                                                     reason: item.overrideReason || ''
                                                                 });
                                                             }}
@@ -315,153 +324,355 @@ export default function AttendanceAdmin() {
                     <AttendanceHistory />
                 )}
 
-                {/* Employee Register Modal (Reuse the same logic) */}
-                {viewingEmployee && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setViewingEmployee(null)}></div>
-                        <div className="relative w-full max-w-6xl max-h-[90vh] overflow-y-auto bg-slate-50 dark:bg-slate-950 rounded-[40px] shadow-2xl border border-white/20 p-8 animate-in zoom-in-95 duration-200">
-                            <div className="flex justify-between items-center mb-8">
+                {/* Employee Register Modal - Portalled */}
+                {viewingEmployee && createPortal(
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                        <div
+                            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300"
+                            onClick={() => setViewingEmployee(null)}
+                        ></div>
+                        <div className="relative w-full max-w-6xl bg-slate-50 dark:bg-slate-950 rounded-[32px] shadow-2xl border border-white/20 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
+
+                            {/* Fixed Header */}
+                            <div className="flex-none flex justify-between items-center p-6 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 z-10">
                                 <div className="flex items-center gap-4">
-                                    <div className="h-14 w-14 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-300 font-black text-xl shadow-lg">
+                                    <div className="h-12 w-12 rounded-2xl bg-indigo-50 dark:bg-slate-800 flex items-center justify-center text-indigo-500 dark:text-slate-300 font-black text-xl shadow-sm border border-indigo-100 dark:border-slate-700">
                                         {viewingEmployee.firstName[0]}
                                     </div>
                                     <div>
-                                        <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+                                        <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">
                                             {viewingEmployee.firstName} {viewingEmployee.lastName}'s Register
                                         </h3>
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{viewingEmployee.employeeId}</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                            {viewingEmployee.employeeId}
+                                        </p>
                                     </div>
                                 </div>
-                                <button onClick={() => setViewingEmployee(null)} className="p-3 bg-white dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-rose-500 shadow-lg transition">
-                                    <X size={24} />
-                                </button>
-                            </div>
-
-                            <div className="space-y-6">
-                                <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-3 rounded-2xl w-fit border border-slate-100 dark:border-slate-800 shadow-sm">
-                                    <button onClick={() => setCurrentMonth(m => m === 0 ? 11 : m - 1)} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition"><ChevronLeft size={20} /></button>
-                                    <span className="text-sm font-black uppercase tracking-widest min-w-[120px] text-center">
-                                        {new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
-                                    </span>
-                                    <button onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition"><ChevronRight size={20} /></button>
-                                </div>
-
-                                <AttendanceCalendar
-                                    data={employeeAttendance}
-                                    holidays={holidays}
-                                    settings={settings}
-                                    currentMonth={currentMonth}
-                                    currentYear={currentYear}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Edit Attendance Modal */}
-                {editingAttendance && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setEditingAttendance(null)}></div>
-                        <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-8 animate-in zoom-in-95 duration-200">
-                            <div className="flex justify-between items-center mb-6">
-                                <div>
-                                    <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">
-                                        Edit Attendance
-                                    </h3>
-                                    <p className="text-xs font-bold text-slate-400 mt-1">
-                                        {editingAttendance.employee?.firstName} {editingAttendance.employee?.lastName} - {formatDateDDMMYYYY(editingAttendance.date)}
-                                    </p>
-                                </div>
                                 <button
-                                    onClick={() => setEditingAttendance(null)}
-                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 hover:text-rose-500 transition"
+                                    onClick={() => setViewingEmployee(null)}
+                                    className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 border border-slate-100 dark:border-slate-700 transition"
                                 >
                                     <X size={20} />
                                 </button>
                             </div>
 
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                                        Status *
-                                    </label>
-                                    <select
-                                        value={editForm.status}
-                                        onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-blue-500 transition"
-                                    >
-                                        <option value="present">Present</option>
-                                        <option value="absent">Absent</option>
-                                        <option value="half_day">Half Day</option>
-                                        <option value="leave">Leave</option>
-                                        <option value="missed_punch">Missed Punch</option>
-                                    </select>
-                                </div>
+                            {/* Scrollable Content */}
+                            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50 dark:bg-slate-950">
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-2 rounded-2xl w-fit border border-slate-100 dark:border-slate-800 shadow-sm mx-auto sm:mx-0">
+                                        <button onClick={() => setCurrentMonth(m => m === 0 ? 11 : m - 1)} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition text-slate-500"><ChevronLeft size={20} /></button>
+                                        <span className="text-sm font-black uppercase tracking-widest min-w-[140px] text-center text-slate-700 dark:text-slate-200">
+                                            {new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                                        </span>
+                                        <button onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition text-slate-500"><ChevronRight size={20} /></button>
+                                    </div>
 
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                                        Check In Time
-                                    </label>
-                                    <input
-                                        type="datetime-local"
-                                        value={editForm.checkIn}
-                                        onChange={(e) => setEditForm({ ...editForm, checkIn: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-blue-500 transition"
-                                    />
+                                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+                                        <AttendanceCalendar
+                                            data={employeeAttendance}
+                                            holidays={holidays}
+                                            settings={settings}
+                                            currentMonth={currentMonth}
+                                            currentYear={currentYear}
+                                        />
+                                    </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
 
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                                        Check Out Time
-                                    </label>
-                                    <input
-                                        type="datetime-local"
-                                        value={editForm.checkOut}
-                                        onChange={(e) => setEditForm({ ...editForm, checkOut: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-blue-500 transition"
-                                    />
+                {/* Edit Attendance Modal - Portalled & Refined */}
+                {editingAttendance && createPortal(
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                        <div
+                            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300"
+                            onClick={() => setEditingAttendance(null)}
+                        ></div>
+                        <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[24px] shadow-2xl border border-white/20 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
+
+                            {/* Header */}
+                            <div className="flex-none flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-20">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm border border-indigo-100 dark:border-indigo-800/50">
+                                        <Edit2 size={16} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight leading-none">
+                                            Edit Attendance
+                                        </h3>
+                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                            {editingAttendance.employee?.firstName} {editingAttendance.employee?.lastName} — {formatDateDDMMYYYY(editingAttendance.date)}
+                                        </p>
+                                    </div>
                                 </div>
+                                <button
+                                    onClick={() => setEditingAttendance(null)}
+                                    className="p-2 bg-slate-50 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-400 hover:text-rose-600 rounded-xl transition-colors"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
 
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                                        Reason for Override *
-                                    </label>
-                                    <textarea
-                                        value={editForm.reason}
-                                        onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-blue-500 transition resize-none"
-                                        rows="3"
-                                        placeholder="Enter reason for manual override..."
-                                        required
-                                    />
+                            {/* Scrollable Form Body */}
+                            <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-900 custom-scrollbar">
+                                <div className="space-y-5">
+                                    <div>
+                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">
+                                            Status
+                                        </label>
+                                        <select
+                                            value={editForm.status}
+                                            onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl text-sm font-bold text-slate-700 dark:text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition appearance-none"
+                                        >
+                                            <option value="present">Present</option>
+                                            <option value="absent">Absent</option>
+                                            <option value="half_day">Half Day</option>
+                                            <option value="leave">Leave</option>
+                                            <option value="missed_punch">Missed Punch</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">
+                                                Check In Time
+                                            </label>
+                                            <input
+                                                type="datetime-local"
+                                                value={editForm.checkIn}
+                                                onChange={(e) => setEditForm({ ...editForm, checkIn: e.target.value })}
+                                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl text-xs font-bold text-slate-700 dark:text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">
+                                                Check Out Time
+                                            </label>
+                                            <input
+                                                type="datetime-local"
+                                                value={editForm.checkOut}
+                                                onChange={(e) => setEditForm({ ...editForm, checkOut: e.target.value })}
+                                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl text-xs font-bold text-slate-700 dark:text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">
+                                            Reason for Override <span className="text-rose-500">*</span>
+                                        </label>
+                                        <textarea
+                                            value={editForm.reason}
+                                            onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl text-sm font-medium text-slate-700 dark:text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition resize-none"
+                                            rows="3"
+                                            placeholder="Enter reason for manual override..."
+                                            required
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="flex gap-3 mt-8">
+                            {/* Footer Actions */}
+                            <div className="flex-none p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setEditingAttendance(null)}
+                                        disabled={saving}
+                                        className="flex-1 px-6 py-3 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700 transition disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSaveEdit}
+                                        disabled={saving || !editForm.reason.trim()}
+                                        className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {saving ? (
+                                            <>
+                                                <div className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            'Save Changes'
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
+                {/* Breakdown / Logs Modal - Portalled to body to fix stacking/overflow issues */}
+                {breakModal && createPortal(
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                        <div
+                            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300"
+                            onClick={() => setBreakModal(null)}
+                        ></div>
+                        <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[24px] shadow-2xl border border-white/20 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
+
+                            {/* 1. Main Header (Fixed) */}
+                            <div className="flex-none flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-20">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm border border-indigo-100 dark:border-indigo-800/50">
+                                        {breakModal.employee?.firstName?.[0]}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight leading-none">
+                                            {breakModal.employee?.firstName} {breakModal.employee?.lastName}
+                                        </h3>
+                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                            Activity Log
+                                        </p>
+                                    </div>
+                                </div>
                                 <button
-                                    onClick={() => setEditingAttendance(null)}
-                                    disabled={saving}
-                                    className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition disabled:opacity-50"
+                                    onClick={() => setBreakModal(null)}
+                                    className="p-2 bg-slate-50 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-400 hover:text-rose-600 rounded-xl transition-colors"
                                 >
-                                    Cancel
+                                    <X size={20} />
                                 </button>
+                            </div>
+
+                            {/* 2. Stats Sub-header (Fixed) */}
+                            <div className="flex-none p-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 z-10">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 flex flex-col shadow-sm">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Sessions</span>
+                                        <div className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+                                            <List size={16} className="text-indigo-500" />
+                                            {(() => {
+                                                const logs = breakModal.logs || [];
+                                                const ins = logs.filter(l => l.type === 'IN').length;
+                                                return `${ins}`;
+                                            })()}
+                                        </div>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 flex flex-col shadow-sm">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">First Punch</span>
+                                        <div className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+                                            <Clock size={16} className="text-emerald-500" />
+                                            {(() => {
+                                                const logs = breakModal.logs || [];
+                                                if (logs.length === 0) return '--:--';
+                                                const sorted = [...logs].sort((a, b) => new Date(a.time) - new Date(b.time));
+                                                return new Date(sorted[0].time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                            })()}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 3. Scrollable Body (Flexible) */}
+                            <div className="flex-1 overflow-y-auto p-5 min-h-0 bg-white dark:bg-slate-900 custom-scrollbar">
+                                {breakModal.logs && breakModal.logs.length > 0 ? (
+                                    <div className="relative pl-3 pb-2">
+                                        {/* Vertical Guide Line */}
+                                        <div className="absolute left-[19px] top-2 bottom-2 w-0.5 bg-slate-100 dark:bg-slate-800"></div>
+
+                                        {(() => {
+                                            const sortedLogs = [...breakModal.logs].sort((a, b) => new Date(a.time) - new Date(b.time));
+                                            const sessions = [];
+                                            let currentIn = null;
+
+                                            sortedLogs.forEach(log => {
+                                                if (log.type === 'IN') {
+                                                    currentIn = log;
+                                                } else if (log.type === 'OUT' && currentIn) {
+                                                    sessions.push({ in: currentIn, out: log });
+                                                    currentIn = null;
+                                                }
+                                            });
+                                            if (currentIn) {
+                                                sessions.push({ in: currentIn, out: null });
+                                            }
+
+                                            return sessions.map((session, idx) => {
+                                                const inTime = new Date(session.in.time);
+                                                const outTime = session.out ? new Date(session.out.time) : null;
+                                                let durationStr = 'Active';
+
+                                                if (outTime) {
+                                                    const diffMs = outTime - inTime;
+                                                    const hrs = Math.floor(diffMs / 3600000);
+                                                    const mins = Math.floor((diffMs % 3600000) / 60000);
+                                                    durationStr = `${hrs}h ${mins}m`;
+                                                }
+
+                                                return (
+                                                    <div key={idx} className="relative pl-10 mb-6 last:mb-0 group/card">
+                                                        {/* Status Dot */}
+                                                        <div className={`absolute left-[13px] top-6 w-3.5 h-3.5 rounded-full border-[3px] border-white dark:border-slate-900 z-10 shadow-sm transition-all ${outTime ? 'bg-indigo-500' : 'bg-emerald-500 animate-pulse'
+                                                            }`}></div>
+
+                                                        {/* Session Card */}
+                                                        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-900/30 transition-all duration-200">
+                                                            <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-50 dark:border-slate-800/50">
+                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                                    Session {idx + 1}
+                                                                </span>
+                                                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${outTime
+                                                                    ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                                                    : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800'
+                                                                    }`}>
+                                                                    {durationStr}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Started</span>
+                                                                    <div className="text-xl font-black text-slate-800 dark:text-slate-200 tracking-tight">
+                                                                        {inTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                                                                        {session.in.location || 'Office'}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex flex-col text-right">
+                                                                    <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wider mb-1">Ended</span>
+                                                                    <div className="text-xl font-black text-slate-800 dark:text-slate-200 tracking-tight">
+                                                                        {outTime ? outTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                                                                        {outTime ? (session.out?.location || 'Office') : 'Running...'}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-slate-400 gap-4">
+                                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-2">
+                                            <History size={24} className="opacity-40" />
+                                        </div>
+                                        <span className="text-xs font-bold uppercase tracking-widest opacity-60">No activity recorded</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 4. Footer with explicit Close button */}
+                            <div className="flex-none p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
                                 <button
-                                    onClick={handleSaveEdit}
-                                    disabled={saving || !editForm.reason.trim()}
-                                    className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    onClick={() => setBreakModal(null)}
+                                    className="w-full py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm"
                                 >
-                                    {saving ? (
-                                        <>
-                                            <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                            Saving...
-                                        </>
-                                    ) : (
-                                        'Save Changes'
-                                    )}
+                                    Close Activity Log
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )}
             </div>
 
@@ -532,3 +743,23 @@ function TabButton({ active, label, onClick, icon }) {
         </button>
     );
 }
+
+// Add state for break modal
+// Note: This function component is re-rendered with new closure when props change.
+// However, useState is per-instance.
+// It seems the user wants the content inserted into AttendanceAdmin.
+// We need to inject the state and the button. Since `multi_replace_file_content` is better for multiple chunks, I will use single replace carefully to include the modal at end of main div and state at top.
+
+// WAIT, I must add state first.
+// The replace_file_content tool works on contiguous blocks.
+// I will use `replace_file_content` to replace the whole `AttendanceAdmin` function body or stick to `multi_replace_file_content` if possible?
+// The tool definition says "Do NOT use this tool if you are only editing a single contiguous block".
+// Here I need to:
+// 1. Add state `breakModal` at the top.
+// 2. Add button in the table.
+// 3. Add Modal JSX at the end.
+// These are non-contiguous. I should use `multi_replace_file_content`.
+
+// But I will check if I can do it in one go if I replace the whole return block + state?
+// No, the table logic is in the middle.
+// I'll use `multi_replace_file_content`.

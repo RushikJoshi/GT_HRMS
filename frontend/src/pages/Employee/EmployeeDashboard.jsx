@@ -171,6 +171,7 @@ export default function EmployeeDashboard() {
       setTodayRecord(todayEntry);
       if (todayEntry) {
         setIsCheckedIn(!!todayEntry.checkIn);
+        setFinalCheckOut(!!todayEntry.checkOut);
 
         // Logical check for checked out
         // In multiple punch mode, "checked out" is true only if the LAST punch was an OUT
@@ -183,6 +184,7 @@ export default function EmployeeDashboard() {
       } else {
         setIsCheckedIn(false);
         setIsCheckedOut(false);
+        setFinalCheckOut(false);
       }
     } catch (err) {
       console.error("Fetch error", err);
@@ -190,6 +192,9 @@ export default function EmployeeDashboard() {
       setLoading(false);
     }
   };
+
+  // State for policy violations modal
+  const [violationModal, setViolationModal] = useState({ show: false, violations: [] });
 
   const handleClockInOut = async () => {
     try {
@@ -229,9 +234,14 @@ export default function EmployeeDashboard() {
         : { location: 'Remote', device: 'Web', dateStr };
 
       // Use unified punch endpoint
-      // Use unified punch endpoint
       const res = await api.post('/attendance/punch', payload);
       showToast('success', 'Success', res.data?.message || 'Attendance Updated');
+
+      // Check for policy violations
+      const violations = res.data?.policy?.violations || [];
+      if (violations.length > 0) {
+        setViolationModal({ show: true, violations });
+      }
 
       await fetchDashboardData();
     } catch (err) {
@@ -359,11 +369,18 @@ export default function EmployeeDashboard() {
                 isCheckedIn={isCheckedIn}
                 isCheckedOut={isCheckedOut}
                 checkInTime={todayRecord?.checkIn}
+                lastPunchIn={(() => {
+                  if (!todayRecord?.logs) return null;
+                  const lastIn = [...todayRecord.logs].reverse().find(l => l.type === 'IN');
+                  return lastIn?.time;
+                })()}
+                baseWorkedSeconds={(todaySummary?.workingHours || 0) * 3600}
                 onAction={handleClockInOut}
                 isLoading={clocking}
                 location={profile?.meta?.location || "Headquarters"}
                 settings={attendanceSettings}
                 error={clockError}
+                isFinalCheckOut={isFinalCheckOut}
               />
 
               {/* Policy Framework Console (Moved for balance) */}
@@ -441,88 +458,93 @@ export default function EmployeeDashboard() {
                 </div>
 
                 <div className="space-y-4 max-h-[400px] md:max-h-[480px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar relative z-10">
-                  {attendance.slice(0, 10).map((att, i) => {
-                    // Logic to calculate duration
-                    const calculateDuration = (attendanceRecord) => {
-                      const status = attendanceRecord.status ? attendanceRecord.status.toLowerCase() : '';
-                      if (!attendanceRecord.checkIn) return '--';
-                      if (status === 'absent') return '--';
+                  {/* Process logs to show individual punch events for specific transparency */}
+                  {(() => {
+                    const allPunches = [];
+                    attendance.forEach((att) => {
+                      if (att.logs && att.logs.length > 0) {
+                        att.logs.forEach(log => {
+                          allPunches.push({
+                            ...log,
+                            date: att.date,
+                            attId: att._id,
+                            isLate: att.isLate && log.time === att.checkIn,
+                            isEarly: att.isEarlyOut && log.time === att.checkOut
+                          });
+                        });
+                      } else {
+                        // Fallback logic for basic entries
+                        if (att.checkIn) allPunches.push({ type: 'IN', time: att.checkIn, date: att.date, attId: att._id, isLate: att.isLate });
+                        if (att.checkOut) allPunches.push({ type: 'OUT', time: att.checkOut, date: att.date, attId: att._id, isEarly: att.isEarlyOut });
+                      }
+                    });
 
-                      let diff = 0;
-                      const checkInTime = new Date(attendanceRecord.checkIn).getTime();
+                    // Sort newest first
+                    const displayPunches = allPunches.sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 15);
 
-                      if (attendanceRecord.checkOut) {
-                        const checkOutTime = new Date(attendanceRecord.checkOut).getTime();
-                        diff = checkOutTime - checkInTime;
-                      } else if (status === 'present') {
-                        // Live duration for today
-                        const now = new Date().getTime();
-                        // Only calculate live if it's today's record, otherwise it might be a missed punch out from past
-                        const recordDate = new Date(attendanceRecord.date).toDateString();
-                        const todayDate = new Date().toDateString();
+                    return displayPunches.map((punch, i) => {
+                      const isFirstIn = punch.type === 'IN' && !allPunches.some(e => e.attId === punch.attId && e.type === 'IN' && new Date(e.time) < new Date(punch.time));
+                      const isLastOut = punch.type === 'OUT' && !allPunches.some(e => e.attId === punch.attId && e.type === 'OUT' && new Date(e.time) > new Date(punch.time));
 
-                        if (recordDate === todayDate) {
-                          diff = now - checkInTime;
-                        } else {
-                          // Past record without checkout - show what we have or consider 0 if invalid
-                          // For now, let's treat as 0 or handling 'Missed Punch' logic if exists
-                          // But requirement says "If punch-out is missing: Show live duration or --"
-                          // Let's stick to live if it makes sense, or just --
-                          return '--';
-                        }
+                      let punchLabel = "Terminal Activity";
+                      if (punch.type === 'IN') {
+                        punchLabel = isFirstIn ? "Sequence Start" : "Shift Resumed";
+                      } else {
+                        punchLabel = isLastOut ? "Shift Ended" : "Break Taken";
                       }
 
-                      if (diff < 0) diff = 0;
-                      const hrs = Math.floor(diff / (1000 * 60 * 60));
-                      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-                      return `${hrs}h ${mins}m`;
-                    };
-
-                    const durationDisplay = calculateDuration(att);
-
-                    return (
-                      <div key={att._id} className="flex items-center justify-between p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/5 transition-all group/row animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
-                        <div className="flex items-center gap-5">
-                          <div className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm group-hover/row:border-indigo-200 dark:group-hover/row:border-indigo-800 transition-colors">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter leading-none">{new Date(att.date).toLocaleDateString([], { month: 'short' })}</span>
-                            <span className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{new Date(att.date).getDate()}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-tight">Terminal Interaction</span>
-                              <span className="text-[8px] font-black text-slate-400 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded uppercase tracking-widest">Log #{i + 1}</span>
+                      return (
+                        <div key={`${punch.attId}-${punch.time}`} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/50 hover:border-indigo-500/30 transition-all group/row animate-in fade-in slide-in-from-right-2 duration-300" style={{ animationDelay: `${i * 40}ms` }}>
+                          <div className="flex items-center gap-4">
+                            <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm transition-colors ${punch.type === 'IN' ? 'group-hover/row:border-emerald-200' : 'group-hover/row:border-rose-200'
+                              }`}>
+                              <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter leading-none">{new Date(punch.date).toLocaleDateString([], { month: 'short' })}</span>
+                              <span className="text-lg font-black text-slate-800 dark:text-white leading-none mt-1">{new Date(punch.date).getDate()}</span>
                             </div>
-                            <div className="flex items-center gap-3 mt-1.5 opacity-60">
-                              <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                                <LogIn size={12} /> {att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-tight">{punchLabel}</span>
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest ${punch.type === 'IN' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
+                                  }`}>
+                                  {punch.type}
+                                </span>
                               </div>
-                              <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                              <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                                <LogOut size={12} /> {att.checkOut ? new Date(att.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
+                              <div className="flex items-center gap-1.5 mt-1 opacity-70">
+                                <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                                  <Clock size={10} /> {new Date(punch.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                </span>
+                                <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate max-w-[120px]">
+                                  {punch.location || 'Terminal Log'}
+                                </span>
                               </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-4">
-                          <div className="flex flex-col items-end mr-2">
-                            <span className="text-sm font-black text-slate-900 dark:text-white tracking-tighter">{durationDisplay}</span>
-                            <div className="flex gap-1 mt-1">
-                              {att.isLate && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Late Entry"></div>}
-                              {att.isEarlyOut && <div className="w-1.5 h-1.5 rounded-full bg-orange-500" title="Early Exit"></div>}
+                          <div className="flex items-center gap-4">
+                            <div className="flex flex-col gap-1 items-end">
+                              {punch.isLate && (
+                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-900/30 border border-rose-200">
+                                  <AlertCircle size={8} className="text-rose-600 dark:text-rose-400" />
+                                  <span className="text-[7px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider">LATE</span>
+                                </div>
+                              )}
+                              {punch.isEarly && (
+                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-50 dark:bg-orange-900/30 border border-orange-200">
+                                  <Clock size={8} className="text-orange-600 dark:text-orange-400" />
+                                  <span className="text-[7px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-wider">EARLY</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border shadow-sm ${punch.type === 'IN' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
+                              }`}>
+                              {punch.type === 'IN' ? <LogIn size={16} /> : <LogOut size={16} />}
                             </div>
                           </div>
-                          <span className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${att.status?.toLowerCase() === 'present'
-                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
-                            : 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.05)]'
-                            }`}>
-                            {att.status || 'Verified'}
-                          </span>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                   {attendance.length === 0 && (
                     <div className="text-center py-20 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800 bg-slate-50/30 flex flex-col items-center gap-4">
                       <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center mb-2">
@@ -910,6 +932,36 @@ export default function EmployeeDashboard() {
           </div>
         )
       }
+      {/* Policy Violation Modal */}
+      {violationModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"></div>
+          <div className="relative bg-white dark:bg-slate-800 border border-orange-500/50 w-full max-w-md rounded-3xl p-6 shadow-2xl transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="w-8 h-8 text-orange-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white text-center">Attendance Notice</h2>
+            </div>
+
+            <div className="space-y-3 mb-8">
+              {violationModal.violations.map((violation, idx) => (
+                <div key={idx} className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-2 shrink-0"></div>
+                  <p className="text-slate-600 dark:text-slate-200 text-sm leading-relaxed">{violation}</p>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setViolationModal({ show: false, violations: [] })}
+              className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all transform hover:scale-[1.02]"
+            >
+              Acknowledge & Close
+            </button>
+          </div>
+        </div>
+      )}
     </div >
 
   );

@@ -82,6 +82,7 @@ import ProcessPayroll from '../pages/HR/Payroll/ProcessPayroll';
 import Compensation from '../pages/HR/Compensation';
 import PayrollDashboard from '../pages/HR/Payroll/PayrollDashboard';
 import PayslipTemplates from '../pages/HR/Payroll/PayslipTemplates';
+import PayslipBuilder from '../pages/HR/Payroll/PayslipBuilder/PayslipBuilder';
 
 
 // Employee
@@ -253,6 +254,7 @@ export default function AppRoutes() {
                 <Route path="payroll/payslips" element={<Payslips />} />
                 <Route path="payroll/payslip-design" element={<PaySlipDesign />} />
                 <Route path="payslip-templates" element={<PayslipTemplates />} />
+                <Route path="payroll/payslip-builder/:id" element={<PayslipBuilder />} />
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
@@ -325,6 +327,7 @@ export default function AppRoutes() {
                 <Route path="payroll/payslips" element={<Payslips />} />
                 <Route path="payroll/payslip-design" element={<PaySlipDesign />} />
                 <Route path="payslip-templates" element={<PayslipTemplates />} />
+                <Route path="payroll/payslip-builder/:id" element={<PayslipBuilder />} />
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
