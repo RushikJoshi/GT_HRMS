@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import SendEmailModal from './SendEmailModal';
+
 import api from '../../../utils/api';
 import { showToast } from '../../../utils/uiNotifications';
 import {
@@ -6,12 +8,67 @@ import {
     Calendar, User, Package, Download, Eye, Upload, MessageSquare,
     TrendingUp, AlertTriangle, CheckSquare, Edit, Save
 } from 'lucide-react';
+import { Mail, ChevronDown } from 'lucide-react';
 import dayjs from 'dayjs';
+
+const EMAIL_TYPES = [
+    {
+        value: 'DOCUMENT_PENDING',
+        label: 'Document Pending Reminder',
+        description: 'Remind candidate to upload pending documents',
+        recipientType: 'CANDIDATE',
+        allowedWhen: ['PENDING', 'IN_PROGRESS']
+    },
+    {
+        value: 'BGV_IN_PROGRESS',
+        label: 'BGV In Progress',
+        description: 'Notify candidate that verification has started',
+        recipientType: 'CANDIDATE',
+        allowedWhen: ['IN_PROGRESS']
+    },
+    {
+        value: 'DISCREPANCY_RAISED',
+        label: 'Discrepancy Notification',
+        description: 'Inform candidate about discrepancy found',
+        recipientType: 'CANDIDATE',
+        allowedWhen: ['IN_PROGRESS', 'VERIFIED_WITH_DISCREPANCIES']
+    },
+    {
+        value: 'BGV_COMPLETED_VERIFIED',
+        label: 'BGV Completed - Verified',
+        description: 'Congratulate candidate on successful verification',
+        recipientType: 'CANDIDATE',
+        allowedWhen: ['VERIFIED', 'CLOSED']
+    },
+    {
+        value: 'BGV_COMPLETED_FAILED',
+        label: 'BGV Completed - Failed',
+        description: 'Notify candidate about failed verification',
+        recipientType: 'CANDIDATE',
+        allowedWhen: ['FAILED', 'CLOSED']
+    }
+];
 
 const BGVDetailModal = ({ caseData, onClose, onUpdate }) => {
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedCase, setSelectedCase] = useState(caseData);
     const [loading, setLoading] = useState(false);
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [emailInitialType, setEmailInitialType] = useState('');
+    const [emailMenuOpen, setEmailMenuOpen] = useState(false);
+    const emailMenuRef = useRef(null);
+
+    useEffect(() => {
+        const onDocMouseDown = (e) => {
+            if (!emailMenuRef.current) return;
+            if (emailMenuRef.current.contains(e.target)) return;
+            setEmailMenuOpen(false);
+        };
+
+        document.addEventListener('mousedown', onDocMouseDown);
+        return () => document.removeEventListener('mousedown', onDocMouseDown);
+    }, []);
+
 
     const refreshCase = async () => {
         try {
@@ -116,6 +173,60 @@ const BGVDetailModal = ({ caseData, onClose, onUpdate }) => {
                             {getStatusIcon(selectedCase.overallStatus)}
                             {selectedCase.overallStatus?.replace(/_/g, ' ')}
                         </span>
+                        <div className="relative" ref={emailMenuRef}>
+                            <button
+                                onClick={() => setEmailMenuOpen(v => !v)}
+                                className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all font-bold text-sm"
+                                title="Send Communication"
+                            >
+                                <Mail size={16} />
+                                Send Email
+                                <ChevronDown size={16} className={`transition-transform ${emailMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {emailMenuOpen && (
+                                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-20">
+                                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                                        <div className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                                            Choose Email Type
+                                        </div>
+                                        <div className="text-[11px] text-slate-600 mt-1">
+                                            Status: {selectedCase.overallStatus?.replace(/_/g, ' ')}
+                                        </div>
+                                    </div>
+                                    <div className="max-h-80 overflow-y-auto">
+                                        {EMAIL_TYPES.filter(t => t.allowedWhen.includes(selectedCase.overallStatus)).length === 0 ? (
+                                            <div className="px-4 py-6 text-sm text-slate-600">
+                                                No email templates available for this status.
+                                            </div>
+                                        ) : (
+                                            EMAIL_TYPES
+                                                .filter(t => t.allowedWhen.includes(selectedCase.overallStatus))
+                                                .map((t) => (
+                                                    <button
+                                                        key={t.value}
+                                                        onClick={() => {
+                                                            setEmailInitialType(t.value);
+                                                            setShowEmailModal(true);
+                                                            setEmailMenuOpen(false);
+                                                        }}
+                                                        className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors"
+                                                    >
+                                                        <div className="text-sm font-bold text-slate-900">{t.label}</div>
+                                                        <div className="text-xs text-slate-600 mt-0.5">{t.description}</div>
+                                                        <div className="mt-2">
+                                                            <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                                                                To: {t.recipientType}
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <button
                             onClick={onClose}
                             className="p-2 hover:bg-white/20 rounded-lg transition-all"
@@ -138,8 +249,8 @@ const BGVDetailModal = ({ caseData, onClose, onUpdate }) => {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`px-6 py-3 font-bold text-sm flex items-center gap-2 border-b-4 transition-all ${activeTab === tab.id
-                                    ? 'border-blue-600 text-blue-600 bg-white'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/50'
+                                ? 'border-blue-600 text-blue-600 bg-white'
+                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/50'
                                 }`}
                         >
                             {tab.icon}
@@ -156,10 +267,20 @@ const BGVDetailModal = ({ caseData, onClose, onUpdate }) => {
                     {activeTab === 'timeline' && <TimelineTab caseData={selectedCase} />}
                     {activeTab === 'actions' && <ActionsTab caseData={selectedCase} onClose={handleCloseBGV} onGenerateReport={handleGenerateReport} loading={loading} />}
                 </div>
+                {/* Send Email Modal */}
+                {showEmailModal && (
+                    <SendEmailModal
+                        caseData={selectedCase}
+                        onClose={() => setShowEmailModal(false)}
+                        onEmailSent={refreshCase}
+                        initialEmailType={emailInitialType}
+                    />
+                )}
             </div>
         </div>
     );
 };
+
 
 // Overview Tab
 const OverviewTab = ({ caseData }) => {
@@ -283,10 +404,10 @@ const ChecksTab = ({ caseData, onVerify, loading }) => {
                                 <div className="flex items-center gap-3 mb-2">
                                     <h4 className="text-xl font-black text-slate-900">{check.type?.replace(/_/g, ' ')}</h4>
                                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase ${check.status === 'VERIFIED' ? 'bg-emerald-500 text-white' :
-                                            check.status === 'FAILED' ? 'bg-rose-500 text-white' :
-                                                check.status === 'IN_PROGRESS' ? 'bg-amber-500 text-white' :
-                                                    check.status === 'DISCREPANCY' ? 'bg-orange-500 text-white' :
-                                                        'bg-slate-300 text-slate-700'
+                                        check.status === 'FAILED' ? 'bg-rose-500 text-white' :
+                                            check.status === 'IN_PROGRESS' ? 'bg-amber-500 text-white' :
+                                                check.status === 'DISCREPANCY' ? 'bg-orange-500 text-white' :
+                                                    'bg-slate-300 text-slate-700'
                                         }`}>
                                         {check.status === 'VERIFIED' && <CheckCircle size={12} />}
                                         {check.status === 'FAILED' && <XCircle size={12} />}
@@ -400,8 +521,8 @@ const DocumentsTab = ({ caseData, onRefresh }) => {
                         </div>
                         <div className="flex items-center gap-2">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${doc.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
-                                    doc.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
-                                        'bg-slate-100 text-slate-700'
+                                doc.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
+                                    'bg-slate-100 text-slate-700'
                                 }`}>
                                 {doc.status}
                             </span>
@@ -564,6 +685,12 @@ const ActionsTab = ({ caseData, onClose, onGenerateReport, loading }) => {
         </div>
     );
 };
+
+
+
+
+
+
 
 // Helper Component
 const InfoItem = ({ label, value }) => (

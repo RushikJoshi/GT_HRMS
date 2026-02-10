@@ -21,9 +21,122 @@ const BGVCheckSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['NOT_STARTED', 'PENDING', 'IN_PROGRESS', 'VERIFIED', 'FAILED', 'DISCREPANCY'],
+        enum: [
+            'NOT_STARTED',
+            'DOCUMENTS_PENDING',
+            'DOCUMENTS_UPLOADED',
+            'UNDER_VERIFICATION',
+            'PENDING_APPROVAL',
+            'VERIFIED',
+            'FAILED',
+            'DISCREPANCY'
+        ],
         default: 'NOT_STARTED',
         index: true
+    },
+
+    // 🔐 EVIDENCE TRACKING (NEW - CRITICAL FOR COMPLIANCE)
+    evidenceStatus: {
+        hasRequiredEvidence: {
+            type: Boolean,
+            default: false
+        },
+        evidenceCompleteness: {
+            type: Number, // Percentage 0-100
+            default: 0
+        },
+        requiredDocumentTypes: [{
+            type: String // List of required document types for this check
+        }],
+        uploadedDocumentTypes: [{
+            type: String // List of actually uploaded document types
+        }],
+        missingDocumentTypes: [{
+            type: String // List of missing required documents
+        }],
+        lastEvidenceCheck: Date
+    },
+
+    // 🔐 MAKER-CHECKER WORKFLOW (NEW - CRITICAL FOR COMPLIANCE)
+    verificationWorkflow: {
+        // Maker (Verifier) Details
+        verifiedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        verifiedAt: Date,
+        verificationRemarks: String,
+        verificationEvidence: [{
+            documentId: { type: mongoose.Schema.Types.ObjectId, ref: 'BGVDocument' },
+            documentType: String,
+            reviewStatus: {
+                type: String,
+                enum: ['PENDING', 'REVIEWED', 'ACCEPTED', 'REJECTED'],
+                default: 'PENDING'
+            },
+            reviewRemarks: String,
+            reviewedAt: Date
+        }],
+
+        // Checker (Approver) Details
+        approvedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        approvedAt: Date,
+        approvalRemarks: String,
+        approvalDecision: {
+            type: String,
+            enum: ['PENDING', 'APPROVED', 'REJECTED', 'SENT_BACK'],
+            default: 'PENDING'
+        },
+
+        // Workflow Status
+        workflowStatus: {
+            type: String,
+            enum: [
+                'NOT_STARTED',
+                'EVIDENCE_PENDING',
+                'READY_FOR_VERIFICATION',
+                'UNDER_VERIFICATION',
+                'SUBMITTED_FOR_APPROVAL',
+                'APPROVED',
+                'REJECTED',
+                'COMPLETED'
+            ],
+            default: 'NOT_STARTED'
+        },
+
+        // Timestamps
+        submittedForApprovalAt: Date,
+        completedAt: Date
+    },
+
+    // 🔐 EVIDENCE VALIDATION RESULTS (NEW)
+    evidenceValidation: {
+        isValid: {
+            type: Boolean,
+            default: false
+        },
+        validationErrors: [{
+            field: String,
+            message: String,
+            severity: {
+                type: String,
+                enum: ['ERROR', 'WARNING', 'INFO']
+            }
+        }],
+        validationWarnings: [String],
+        ocrResults: {
+            extractedData: Object,
+            confidence: Number,
+            validatedFields: Object
+        },
+        lastValidatedAt: Date,
+        validatedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        }
     },
 
     // Verification Mode

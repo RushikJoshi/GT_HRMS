@@ -352,6 +352,15 @@ exports.uploadDocument = async (req, res, next) => {
         });
         const version = existingDocs.length + 1;
 
+        // 🔐 Generate document hash for integrity verification
+        const BGVEvidenceValidator = require('../services/BGVEvidenceValidator');
+        let documentHash = null;
+        try {
+            documentHash = await BGVEvidenceValidator.generateDocumentHash(finalPath);
+        } catch (hashError) {
+            console.error('[BGV_HASH_GENERATION_ERROR]', hashError);
+        }
+
         // Create document record
         const document = await BGVDocument.create({
             tenant: req.tenantId,
@@ -365,12 +374,78 @@ exports.uploadDocument = async (req, res, next) => {
             fileSize: req.file.size,
             mimeType: req.file.mimetype,
             version,
+            documentHash, // 🔐 Store hash for tamper detection
+            hashAlgorithm: 'SHA256',
+            hashGeneratedAt: new Date(),
             uploadedBy: {
                 userId: req.user?._id || req.user?.id,
                 userName: req.user?.name || req.user?.email,
                 userRole: req.user?.role
             }
         });
+
+        // 🔐 Update check evidence status after document upload
+        if (checkId) {
+            try {
+                const { BGVEvidenceConfig } = await getBGVModels(req);
+                const check = await BGVCheck.findById(checkId);
+
+                if (check) {
+                    // Get all documents for this check
+                    const allCheckDocs = await BGVDocument.find({
+                        checkId: check._id,
+                        isDeleted: false
+                    });
+
+                    // Get evidence configuration
+                    let evidenceConfig = await BGVEvidenceConfig.findOne({
+                        tenant: req.tenantId,
+                        checkType: check.type,
+                        isActive: true
+                    });
+
+                    // Validate evidence
+                    const validationResult = await BGVEvidenceValidator.validateCheckEvidence(
+                        check,
+                        allCheckDocs,
+                        evidenceConfig
+                    );
+
+                    // Update check with evidence status
+                    check.evidenceStatus = {
+                        hasRequiredEvidence: validationResult.hasRequiredEvidence,
+                        evidenceCompleteness: validationResult.evidenceCompleteness,
+                        requiredDocumentTypes: validationResult.requiredDocumentTypes,
+                        uploadedDocumentTypes: validationResult.uploadedDocumentTypes,
+                        missingDocumentTypes: validationResult.missingDocuments,
+                        lastEvidenceCheck: new Date()
+                    };
+
+                    check.evidenceValidation = {
+                        isValid: validationResult.isValid,
+                        validationErrors: validationResult.validationErrors,
+                        validationWarnings: validationResult.validationWarnings,
+                        lastValidatedAt: new Date()
+                    };
+
+                    // Update check status based on evidence
+                    if (check.status === 'NOT_STARTED') {
+                        check.status = 'DOCUMENTS_PENDING';
+                    }
+
+                    if (validationResult.hasRequiredEvidence && check.status === 'DOCUMENTS_PENDING') {
+                        check.status = 'DOCUMENTS_UPLOADED';
+                        check.verificationWorkflow = check.verificationWorkflow || {};
+                        check.verificationWorkflow.workflowStatus = 'READY_FOR_VERIFICATION';
+                    }
+
+                    await check.save();
+                }
+            } catch (evidenceError) {
+                console.error('[BGV_EVIDENCE_UPDATE_ERROR]', evidenceError);
+                // Don't fail upload if evidence update fails
+            }
+        }
 
         // Create timeline entry
         await createTimelineEntry(BGVTimeline, {
@@ -379,7 +454,7 @@ exports.uploadDocument = async (req, res, next) => {
             checkId,
             eventType: 'DOCUMENT_UPLOADED',
             title: 'Document Uploaded',
-            description: `${documentType} document uploaded (${req.file.originalname})`,
+            description: `${documentType} document uploaded (${req.file.originalname})${documentHash ? ' [Hash: ' + documentHash.substring(0, 8) + '...]' : ''}`,
             performedBy: {
                 userId: req.user?._id || req.user?.id,
                 userName: req.user?.name || req.user?.email,
@@ -388,7 +463,7 @@ exports.uploadDocument = async (req, res, next) => {
             visibleTo: ['ALL'],
             ipAddress: req.ip,
             userAgent: req.get('user-agent'),
-            metadata: { documentId: document._id, documentType, version }
+            metadata: { documentId: document._id, documentType, version, documentHash }
         });
 
         res.json({
@@ -396,6 +471,7 @@ exports.uploadDocument = async (req, res, next) => {
             message: "Document uploaded successfully",
             data: document
         });
+
 
     } catch (err) {
         console.error('[BGV_UPLOAD_DOC_ERROR]', err);

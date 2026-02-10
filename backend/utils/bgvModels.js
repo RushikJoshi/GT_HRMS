@@ -1,11 +1,19 @@
 
+
+
+
 const BGVCaseSchema = require('../models/BGVCase');
 const BGVCheckSchema = require('../models/BGVCheck');
 const BGVDocumentSchema = require('../models/BGVDocument');
 const BGVTimelineSchema = require('../models/BGVTimeline');
 const BGVReportSchema = require('../models/BGVReport');
+const BGVEvidenceConfigSchema = require('../models/BGVEvidenceConfig');
+const BGVEmailTemplateSchema = require('../models/BGVEmailTemplate');
+const BGVEmailLogSchema = require('../models/BGVEmailLog');
 const ApplicantSchema = require('../models/Applicant');
 const getTenantDB = require('./tenantDB');
+
+
 
 /**
  * HELPER: Load BGV models for a specific tenant.
@@ -31,8 +39,13 @@ async function getBGVModels(context) {
         BGVDocument: db.model("BGVDocument", BGVDocumentSchema),
         BGVTimeline: db.model("BGVTimeline", BGVTimelineSchema),
         BGVReport: db.model("BGVReport", BGVReportSchema),
+        BGVEvidenceConfig: db.model("BGVEvidenceConfig", BGVEvidenceConfigSchema),
+        BGVEmailTemplate: db.model("BGVEmailTemplate", BGVEmailTemplateSchema),
+        BGVEmailLog: db.model("BGVEmailLog", BGVEmailLogSchema),
         Applicant: db.model("Applicant", ApplicantSchema)
     };
+
+
 }
 
 module.exports = { getBGVModels };

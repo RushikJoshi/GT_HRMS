@@ -130,7 +130,14 @@ const NAV_GROUPS = [
           { to: '/hr/internal-applicants', label: 'Internal' }
         ]
       },
-      { to: '/hr/bgv', label: 'BGV Management', icon: ICONS.bgv },
+      {
+        label: 'BGV Management',
+        icon: ICONS.bgv,
+        children: [
+          { to: '/hr/bgv', label: 'Case Master' },
+          { to: '/hr/bgv/emails', label: 'Email Management' }
+        ]
+      },
       { to: '/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
     ]
   },
