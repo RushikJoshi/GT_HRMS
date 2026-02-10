@@ -9,10 +9,10 @@ const CandidateSchema = new mongoose.Schema({
 
     // Profile Information
     resume: { type: String }, // Path to default resume
-    profilePic: { type: String },
     fatherName: { type: String, trim: true },
     address: { type: String },
     dob: { type: Date },
+    profilePic: { type: String }, // Path to profile picture
     professionalTier: { type: String, default: 'Technical Leader' }, // New field for profile customization
 
     // Meta

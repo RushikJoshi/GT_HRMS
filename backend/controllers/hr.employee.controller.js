@@ -28,13 +28,16 @@ function getModels(req) {
   const db = req.tenantDB;
   try {
     // Models are already registered by dbManager, just retrieve them
-    // Do NOT pass schema - use connection.model(name) only
+    if (!db.models.BGVCase) {
+      try { db.model('BGVCase', require('../models/BGVCase')); } catch (e) { }
+    }
+
     return {
       Employee: db.model("Employee"),
       LeavePolicy: db.model("LeavePolicy"),
       LeaveBalance: db.model("LeaveBalance"),
-      Department: db.model("Department")
-      // Counter is now global, not per-tenant
+      Department: db.model("Department"),
+      BGVCase: db.model("BGVCase")
     };
   } catch (err) {
     console.error("[getModels] Error retrieving models:", err.message);
@@ -260,21 +263,58 @@ exports.list = async (req, res) => {
     }
 
     // Step 5: Build query filter with tenant isolation
-    const { department, status } = req.query || {};
-    const filter = { tenant: tenantId }; // Employee schema uses 'tenant' field, not 'tenantId'
+    const { department, designation, type, workMode, search, status } = req.query || {};
+    const filter = { tenant: tenantId };
 
-    if (department) {
-      filter.department = department;
-      console.log(`[EMPLOYEE_LIST] Filtering by department: ${department}`);
+    // Department Filter (Dynamic)
+    if (department && department !== 'All Departments') {
+      // Check if it's an ObjectId or a string
+      if (mongoose.Types.ObjectId.isValid(department)) {
+        filter.departmentId = department;
+      } else {
+        filter.department = department;
+      }
+    }
+
+    // Designation Filter (Multi-select)
+    if (designation && designation !== 'All Roles') {
+      const designations = Array.isArray(designation) ? designation : designation.split(',').filter(Boolean);
+      if (designations.length > 0) {
+        filter.designation = { $in: designations };
+      }
+    }
+
+    // Employee Type Filter (Multi-select)
+    if (type) {
+      const types = Array.isArray(type) ? type : type.split(',').filter(Boolean);
+      if (types.length > 0) {
+        filter.employeeType = { $in: types };
+      }
+    }
+
+    // Work Mode Filter (Multi-select)
+    if (workMode) {
+      const modes = Array.isArray(workMode) ? workMode : workMode.split(',').filter(Boolean);
+      if (modes.length > 0) {
+        filter.workMode = { $in: modes };
+      }
+    }
+
+    // Search Support (Combines with filters)
+    if (search) {
+      filter.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { employeeId: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
     }
 
     // Default to hiding drafts unless specifically asked for
     if (!status) {
       filter.status = { $ne: 'Draft' };
-      console.log(`[EMPLOYEE_LIST] Default filter: excluding Draft status`);
-    } else {
+    } else if (status !== 'All') {
       filter.status = status;
-      console.log(`[EMPLOYEE_LIST] Filtering by status: ${status}`);
     }
 
     console.log(`[EMPLOYEE_LIST] Query filter:`, JSON.stringify(filter, null, 2));
@@ -283,7 +323,7 @@ exports.list = async (req, res) => {
     let items;
     try {
       const query = Employee.find(filter)
-        .select("_id firstName lastName middleName email department departmentId role manager employeeId contactNo joiningDate profilePic status lastStep gender dob maritalStatus bloodGroup nationality fatherName motherName emergencyContactName emergencyContactNumber tempAddress permAddress experience jobType bankDetails education documents salaryAssigned salaryLocked currentSnapshotId")
+        .select("_id firstName lastName middleName email department departmentId role manager employeeId contactNo joiningDate profilePic status lastStep gender dob maritalStatus bloodGroup nationality fatherName motherName emergencyContactName emergencyContactNumber tempAddress permAddress experience employeeType workMode designation bankDetails education documents salaryAssigned salaryLocked currentSnapshotId")
         .sort({ createdAt: -1 });
 
       // Safe populate - will not crash if references are missing
@@ -397,23 +437,37 @@ exports.create = async (req, res) => {
       createData.joiningDate = new Date(); // Default to now
     }
 
-    // --- NEW: Copy Salary Info from Applicant (Onboarding) ---
+    // --- NEW: Copy Salary & BGV Info from Applicant (Onboarding) ---
     let applicantSnapshotId = null;
+    let bgvCaseId = null;
     if (applicantId) {
       try {
-        const Applicant = req.tenantDB.model('Applicant');
+        const { Employee, BGVCase } = getModels(req);
+        const Applicant = req.tenantDB.model('Applicant'); // Applicant is usually registered
         const applicant = await Applicant.findById(applicantId);
 
         if (applicant) {
+          // 0. BGV ENFORCEMENT
+          const bgv = await BGVCase.findOne({ applicationId: applicant._id });
+          if (bgv) {
+            if (bgv.overallStatus === 'FAILED') {
+              return res.status(403).json({ success: false, error: "bgv_failed", message: "Cannot onboard candidate: Background Verification (BGV) FAILED." });
+            }
+            if (bgv.overallStatus === 'IN_PROGRESS') {
+              return res.status(403).json({ success: false, error: "bgv_pending", message: "Cannot onboard candidate: Background Verification (BGV) is still IN_PROGRESS." });
+            }
+            bgvCaseId = bgv._id;
+          }
+
           // 1. Copy Template ID
           if (applicant.salaryTemplateId) {
             createData.salaryTemplateId = applicant.salaryTemplateId;
           }
-          // 2. Copy Snapshot Link (The immutable snapshot created during assignment)
+          // 2. Copy Snapshot Link
           if (applicant.salarySnapshot && applicant.salarySnapshot._id) {
             applicantSnapshotId = applicant.salarySnapshot._id;
             createData.currentSalarySnapshotId = applicantSnapshotId;
-            createData.currentSnapshotId = applicantSnapshotId; // Redundant field in schema, keeping sync
+            createData.currentSnapshotId = applicantSnapshotId;
             createData.salarySnapshots = [applicantSnapshotId];
             createData.salaryAssigned = true;
             createData.salaryLocked = true;
@@ -426,16 +480,29 @@ exports.create = async (req, res) => {
 
     let emp = await Employee.create(createData);
 
-    // --- NEW: Update Snapshot Ownership ---
-    if (applicantSnapshotId && emp) {
-      try {
-        const EmployeeSalarySnapshot = req.tenantDB.model('EmployeeSalarySnapshot');
-        await EmployeeSalarySnapshot.findByIdAndUpdate(applicantSnapshotId, {
-          employee: emp._id
-        });
-        console.log(`[ONBOARDING] Linked Snapshot ${applicantSnapshotId} to Employee ${emp._id}`);
-      } catch (snapErr) {
-        console.error("Failed to update snapshot ownership:", snapErr);
+    // --- NEW: Update Snapshot & BGV Ownership ---
+    if (emp) {
+      const db = req.tenantDB;
+
+      // Update Salary Snapshot
+      if (applicantSnapshotId) {
+        try {
+          const EmployeeSalarySnapshot = db.model('EmployeeSalarySnapshot');
+          await EmployeeSalarySnapshot.findByIdAndUpdate(applicantSnapshotId, { employee: emp._id });
+        } catch (snapErr) { console.error("Snapshot link fail:", snapErr); }
+      }
+
+      // Update BGV Case: Link Employee & Mark Immutable
+      if (bgvCaseId) {
+        try {
+          const BGVCase = db.model('BGVCase');
+          await BGVCase.findByIdAndUpdate(bgvCaseId, {
+            employeeId: emp._id,
+            isImmutable: true,
+            $push: { logs: { action: 'LOCKED_ON_HIRE', performedBy: 'System', remarks: `BGV Locked upon employee creation (${emp.employeeId})` } }
+          });
+          console.log(`[ONBOARDING] BGV Case ${bgvCaseId} linked to Employee ${emp._id} and LOCKED.`);
+        } catch (bgvErr) { console.error("BGV link fail:", bgvErr); }
       }
     }
 

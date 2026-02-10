@@ -2,20 +2,28 @@
 exports.updateCandidateProfile = async (req, res) => {
     try {
         const { id, tenantId } = req.candidate;
-        const { name, email, phone, professionalTier, profileImageUrl } = req.body;
+        const { name, email, phone, professionalTier } = req.body;
         const tenantDB = await getTenantDB(tenantId);
         const Candidate = tenantDB.model("Candidate");
+
         const update = {
             name,
             email,
             mobile: phone,
-            professionalTier, // Now supported in schema
+            professionalTier,
         };
-        if (profileImageUrl) update.profilePic = profileImageUrl;
+
+        // If a new profile image was uploaded
+        if (req.file) {
+            update.profilePic = `uploads/profile-pics/${req.file.filename}`;
+        }
+
         const candidate = await Candidate.findByIdAndUpdate(id, update, { new: true });
         if (!candidate) return res.status(404).json({ error: "Candidate not found" });
+
         res.json({ success: true, candidate });
     } catch (err) {
+        console.error("Profile update error:", err);
         res.status(500).json({ error: "Failed to update profile", details: err.message });
     }
 };
@@ -37,24 +45,11 @@ exports.getCandidateProfile = async (req, res) => {
             email: candidate.email,
             phone: candidate.mobile,
             professionalTier: candidate.professionalTier || 'Technical Leader', // fallback or real field
-            profileImageUrl: candidate.profilePic,
             // Include other fields as needed
             ...candidate.toObject()
         });
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch profile", details: err.message });
-    }
-};
-
-// Upload profile photo
-exports.uploadProfilePhoto = async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-        // Return relative path or URL for frontend
-        const url = `/uploads/profile-pics/${req.file.filename}`;
-        res.json({ success: true, url });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to upload photo', details: err.message });
     }
 };
 const bcrypt = require('bcryptjs');

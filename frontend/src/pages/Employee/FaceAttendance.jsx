@@ -22,6 +22,11 @@ const FaceAttendance = () => {
   const [consentGiven, setConsentGiven] = useState(false);
   const [loading, setLoading] = useState(true);
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [canUpdate, setCanUpdate] = useState(true);
+  const [pendingRequest, setPendingRequest] = useState(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestReason, setRequestReason] = useState('');
+  const [submittingRequest, setSubmittingRequest] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -115,11 +120,37 @@ const FaceAttendance = () => {
 
     return data.display_name;
   }
+
+  const handleSubmitRequest = async () => {
+    if (!requestReason.trim()) {
+      alert('Please enter a reason for the update request.');
+      return;
+    }
+
+    try {
+      setSubmittingRequest(true);
+      const res = await api.post('/attendance/face/request-update', { reason: requestReason });
+      if (res.data.success) {
+        alert('Request submitted successfully!');
+        setShowRequestModal(false);
+        setRequestReason('');
+        checkFaceStatus(); // Refresh status
+      }
+    } catch (err) {
+      console.error('Error submitting request:', err);
+      alert(err.response?.data?.message || 'Failed to submit request.');
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
   const checkFaceStatus = async () => {
     try {
       setLoading(true);
       const res = await api.get('/attendance/face/status');
       setFaceRegistered(res.data.isRegistered);
+      setCanUpdate(res.data.canUpdate);
+      setPendingRequest(res.data.data?.pendingRequest);
+
       if (!res.data.isRegistered) {
         setMode('register');
       }
@@ -580,9 +611,19 @@ const FaceAttendance = () => {
         setStatus('success');
         setMessage(res.data.message);
 
+        // Check for policy violations to show popup
+        const violations = res.data.data?.status?.policyViolations || [];
+        if (violations.length > 0) {
+          setViolationModal({ show: true, violations });
+        }
+
         setTimeout(() => {
           stopCamera();
           setCapturing(false);
+          // Only switch back if we aren't showing a modal to acknowledge
+          if (violations.length === 0) {
+            setMode('attendance');
+          }
         }, 3000);
       }
     } catch (err) {
@@ -736,6 +777,9 @@ const FaceAttendance = () => {
     );
   }
 
+  // State for policy violations modal
+  const [violationModal, setViolationModal] = useState({ show: false, violations: [] });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
@@ -766,17 +810,38 @@ const FaceAttendance = () => {
               </button>
             )}
             <button
-              onClick={() => { setMode('register'); setStatus(null); setMessage(''); }}
+              onClick={() => {
+                if (faceRegistered && !canUpdate) {
+                  setShowRequestModal(true);
+                } else {
+                  setMode('register');
+                  setStatus(null);
+                  setMessage('');
+                }
+              }}
               className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${mode === 'register'
                 ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg scale-105'
                 : 'text-slate-300 hover:text-white'
                 }`}
             >
               <UserPlus className="w-5 h-5" />
-              {faceRegistered ? 'Update Face' : 'Register Face'}
+              {faceRegistered ? (canUpdate ? 'Update Face' : 'Request Face Update') : 'Register Face'}
             </button>
           </div>
         </div>
+
+        {/* Pending Request Alert */}
+        {pendingRequest && (
+          <div className="max-w-2xl mx-auto mb-8 bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 flex items-center gap-4">
+            <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-blue-100 font-semibold">Face Update Request Pending</p>
+              <p className="text-blue-200/70 text-sm">Your request to update face data is currently under review by HR.</p>
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="grid lg:grid-cols-2 gap-8">
@@ -1051,8 +1116,79 @@ const FaceAttendance = () => {
           </div>
         </div>
       </div>
+
+      {/* Face Update Request Modal */}
+      {showRequestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setShowRequestModal(false)}></div>
+          <div className="relative bg-slate-800 border border-slate-700 w-full max-w-md rounded-3xl p-6 shadow-2xl">
+            <h2 className="text-2xl font-bold text-white mb-4">Request Face Update</h2>
+            <p className="text-slate-400 text-sm mb-6">
+              To update your registered face, please provide a reason. HR will review your request and grant permission if approved.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-1.5 ml-1">Reason for update</label>
+                <textarea
+                  value={requestReason}
+                  onChange={(e) => setRequestReason(e.target.value)}
+                  placeholder="e.g., Change in appearance, initial photo was unclear..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white placeholder-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition h-32 resize-none"
+                ></textarea>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowRequestModal(false)}
+                  className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitRequest}
+                  disabled={submittingRequest}
+                  className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl font-bold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {submittingRequest ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Submit'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Policy Violation Modal */}
+      {violationModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"></div>
+          <div className="relative bg-slate-800 border border-orange-500/50 w-full max-w-md rounded-3xl p-6 shadow-2xl transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="w-8 h-8 text-orange-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-white text-center">Attendance Notice</h2>
+            </div>
+
+            <div className="space-y-3 mb-8">
+              {violationModal.violations.map((violation, idx) => (
+                <div key={idx} className="bg-slate-900/50 border border-slate-700 p-4 rounded-xl flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-2 shrink-0"></div>
+                  <p className="text-slate-200 text-sm leading-relaxed">{violation}</p>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setViolationModal({ show: false, violations: [] })}
+              className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all transform hover:scale-[1.02]"
+            >
+              Acknowledge & Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
 export default FaceAttendance;

@@ -178,6 +178,8 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
 
         const payload = {
             ...formData,
+            // Convert empty positionId to undefined to avoid BSON error
+            positionId: formData.positionId || undefined,
             minExperienceMonths: totalMonths,
             maxExperienceMonths: totalMonths,
             customFields: validCustomFields,

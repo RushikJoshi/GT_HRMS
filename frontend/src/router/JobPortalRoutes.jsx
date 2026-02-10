@@ -46,18 +46,22 @@ function JobPortalProtectedRoute({ children }) {
 
 /**
  * Main Job Portal Routes
- * Prefix: /jobs/*
+ * Handles both /candidate/* and /jobs/* (mounted from RootRouter)
  */
 function JobPortalRoutesContent() {
   return (
     <Routes>
       {/* Public Candidate Routes */}
-      <Route path="login" element={<CandidateLogin />} />
-      <Route path="signup" element={<CandidateSignup />} />
+      <Route path="/candidate/login" element={<CandidateLogin />} />
+      <Route path="/candidate/signup" element={<CandidateSignup />} />
 
-      {/* Protected Candidate Routes */}
+      {/* Public Jobs Listing (SEO friendly) */}
+      <Route path="/jobs/:companyId" element={<Jobs />} />
+      <Route path="/apply-job/:requirementId" element={<JobApplication />} />
+
+      {/* Protected Candidate Routes (Dashboard Shell) */}
       <Route
-        path="/"
+        path="/candidate"
         element={
           <JobPortalProtectedRoute>
             <JobPortalLayout />
@@ -71,7 +75,7 @@ function JobPortalRoutesContent() {
       </Route>
 
       <Route
-        path="application/:applicationId"
+        path="/candidate/application/:applicationId"
         element={
           <JobPortalProtectedRoute>
             <ApplicationTrack />
@@ -80,15 +84,19 @@ function JobPortalRoutesContent() {
       />
 
       {/* 404 for Candidate Portal */}
-      <Route path="*" element={<Navigate to="login" replace />} />
+      <Route path="*" element={<Navigate to="/candidate/login" replace />} />
     </Routes>
   );
 }
 
 /**
- * Export without Provider
- * Wrapped by JobPortalAuthProvider in AppRoutes
+ * Export wrapped with JobPortalAuthProvider
+ * Ensures useJobPortalAuth works for all candidate routes
  */
 export default function JobPortalRoutes() {
-  return <JobPortalRoutesContent />;
+  return (
+    <JobPortalAuthProvider>
+      <JobPortalRoutesContent />
+    </JobPortalAuthProvider>
+  );
 }

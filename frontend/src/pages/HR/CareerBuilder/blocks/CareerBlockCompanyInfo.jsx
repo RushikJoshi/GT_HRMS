@@ -1,3 +1,4 @@
+import React from 'react';
 import { API_ROOT } from '../../../../utils/api';
 
 export default function CareerBlockCompanyInfo({ content }) {
@@ -10,7 +11,7 @@ export default function CareerBlockCompanyInfo({ content }) {
             { label: "Offices", value: "10" },
             { label: "Countries", value: "5" }
         ],
-        bgColor = "#f9fafb"
+        bgColor = "bg-gray-50"
     } = content || {};
 
     const getImageUrl = (url) => {
@@ -21,7 +22,7 @@ export default function CareerBlockCompanyInfo({ content }) {
     };
 
     return (
-        <section className="py-24" style={{ backgroundColor: bgColor }}>
+        <section className={`py-24 ${bgColor}`}>
             <div className="max-w-[90rem] mx-auto px-8 sm:px-12 lg:px-16">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                     <div>

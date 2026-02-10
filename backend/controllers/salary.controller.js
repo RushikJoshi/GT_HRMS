@@ -104,7 +104,13 @@ const SalaryController = {
                 return res.status(400).json({ success: false, message: "Tenant ID missing" });
             }
 
-            const { SalaryComponent, DeductionMaster, BenefitComponent } = require('../config/tenantDB').getModels(req);
+            if (!req.tenantDB) {
+                return res.status(400).json({ success: false, message: "Tenant database not resolved" });
+            }
+
+            const SalaryComponent = req.tenantDB.model('SalaryComponent');
+            const DeductionMaster = req.tenantDB.model('DeductionMaster');
+            const BenefitComponent = req.tenantDB.model('BenefitComponent');
 
             // Fetch all active components from database
             const [dbEarnings, dbDeductions, dbBenefits] = await Promise.all([
@@ -113,37 +119,35 @@ const SalaryController = {
                 BenefitComponent.find({ tenantId, isActive: true }).lean()
             ]);
 
+
             console.log(`🔍 DEBUG: Fetched ${dbEarnings.length} earnings, ${dbDeductions.length} deductions, ${dbBenefits.length} benefits from DB`);
 
             // Helper to merge selected components with DB configurations
             const mergeWithDB = (selectedList, dbList) => {
+                const normalize = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, '');
+
                 return (selectedList || []).map(selected => {
-                    // Find matching DB component by name or code
+                    // Find matching DB component
                     const dbComp = dbList.find(db =>
-                        db.name === selected.name ||
-                        db.code === selected.code ||
-                        db._id?.toString() === selected._id?.toString()
+                        (db._id && selected._id && db._id.toString() === selected._id.toString()) ||
+                        (db.name && selected.name && normalize(db.name) === normalize(selected.name)) ||
+                        (db.code && selected.code && db.code.toUpperCase() === selected.code.toUpperCase())
                     );
 
                     if (dbComp) {
-                        console.log(`🔍 DEBUG: Merging ${selected.name} with DB config:`, {
-                            calculationType: dbComp.calculationType,
-                            percentage: dbComp.percentage,
-                            amount: dbComp.amount
-                        });
-                        // Use DB configuration, but keep selected component's structure
                         return {
                             ...selected,
                             ...dbComp,
                             _id: dbComp._id,
-                            calculationType: dbComp.calculationType,
-                            percentage: dbComp.percentage,
-                            amount: dbComp.amount,
-                            value: dbComp.percentage || dbComp.amount || selected.value
+                            calculationType: dbComp.calculationType || selected.calculationType,
+                            percentage: dbComp.percentage || selected.percentage,
+                            amount: dbComp.amount || selected.amount,
+                            // Ensure 'value' is set for the engine
+                            value: dbComp.percentage || dbComp.amount || selected.value || 0
                         };
                     }
 
-                    console.log(`⚠️ WARNING: No DB config found for ${selected.name}, using selected data`);
+                    console.warn(`[SALARY_CONTROLLER] No DB config found for ${selected.name}, using selected data`);
                     return selected;
                 });
             };
@@ -153,19 +157,13 @@ const SalaryController = {
             const mergedDeductions = mergeWithDB(selectedDeductions, dbDeductions);
             const mergedBenefits = mergeWithDB(selectedBenefits, dbBenefits);
 
-            console.log(`🔍 DEBUG: Merged earnings:`, mergedEarnings.map(e => ({
-                name: e.name,
-                calculationType: e.calculationType,
-                percentage: e.percentage,
-                amount: e.amount
-            })));
-
             const result = SalaryCalculationEngine.calculateSalary({
                 annualCTC,
                 earnings: mergedEarnings,
                 deductions: mergedDeductions,
                 benefits: mergedBenefits
             });
+            console.log(`✅ [SALARY_CONTROLLER] Engine Returned ${result.earnings.length} earnings.`);
             res.json({ success: true, data: result });
         } catch (error) {
             console.error('[SALARY_CONTROLLER] Preview Error:', error);

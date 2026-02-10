@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
 import api, { API_ROOT } from '../../utils/api';
-import ImageCropModal from '../../components/candidate/ImageCropModal';
 import {
     User, Mail, Phone, MapPin, FileText,
     Edit3, CheckCircle2, CloudUpload, ShieldCheck,
-    Calendar, Shield, AlertCircle, Camera, X
+    Calendar, Shield, AlertCircle
 } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import { Modal, Slider } from 'antd';
@@ -16,11 +15,6 @@ export default function CandidateProfile() {
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [editFields, setEditFields] = useState({ name: '', email: '', phone: '', professionalTier: '' });
-    const [profileImage, setProfileImage] = useState(null);
-    const [profileImageUrl, setProfileImageUrl] = useState('');
-    const [showCropModal, setShowCropModal] = useState(false);
-    const [selectedImageForCrop, setSelectedImageForCrop] = useState(null);
-    const fileInputRef = useRef(null);
 
     // Cropper State
     const [showCropper, setShowCropper] = useState(false);
@@ -28,6 +22,8 @@ export default function CandidateProfile() {
     const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+    const [profileImage, setProfileImage] = useState(null);
+    const [profileImageUrl, setProfileImageUrl] = useState('');
 
     const fetchProfile = useCallback(async () => {
         setLoading(true);
@@ -48,31 +44,24 @@ export default function CandidateProfile() {
     // When profileData loads, set editFields
     useEffect(() => {
         if (candidate || profileData) {
+            // Priority: profileData.profilePic > candidate.profilePic > placeholders
+            let picPath = profileData?.profilePic || candidate?.profilePic || '';
+
+            if (picPath && !picPath.startsWith('http') && !picPath.startsWith('blob:')) {
+                picPath = `${API_ROOT}/${picPath}`;
+            }
+
+            setProfileImageUrl(picPath);
             setEditFields({
                 name: profileData?.name || candidate?.name || '',
                 email: profileData?.email || candidate?.email || '',
-                phone: profileData?.phone || '',
+                phone: profileData?.mobile || profileData?.phone || '',
                 professionalTier: profileData?.professionalTier || 'Technical Leader',
             });
-
-            // Get profile picture URL and ensure it's a full URL
-            const picUrl = profileData?.profileImageUrl || candidate?.profileImageUrl || candidate?.profilePic || '';
-            if (picUrl && !picUrl.startsWith('http') && !picUrl.startsWith('blob:')) {
-                setProfileImageUrl(`${API_ROOT}${picUrl}`);
-            } else {
-                setProfileImageUrl(picUrl);
-            }
         }
     }, [candidate, profileData]);
 
-    if (loading) return (
-        <div className="h-[60vh] flex items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-                <div className="h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Profile...</p>
-            </div>
-        </div>
-    );
+
 
     const handleEditClick = () => setEditMode(true);
     const handleCancelEdit = () => {
@@ -97,25 +86,19 @@ export default function CandidateProfile() {
 
     const handleSaveEdit = async () => {
         try {
-            let finalImageUrl = profileData?.profileImageUrl || '';
+            const formData = new FormData();
+            formData.append('name', editFields.name);
+            formData.append('email', editFields.email);
+            formData.append('phone', editFields.phone);
+            formData.append('professionalTier', editFields.professionalTier);
 
             if (profileImage) {
-                const formData = new FormData();
                 formData.append('profileImage', profileImage);
-                const uploadRes = await api.post('/candidate/profile/upload-photo', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                if (uploadRes.data?.url) {
-                    finalImageUrl = uploadRes.data.url;
-                }
             }
 
-            await api.put('/candidate/profile', {
-                name: editFields.name,
-                email: editFields.email,
-                phone: editFields.phone,
-                professionalTier: editFields.professionalTier,
-                profileImageUrl: finalImageUrl
+            // Update profile info
+            await api.put('/candidate/profile', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
@@ -132,15 +115,9 @@ export default function CandidateProfile() {
         }
     };
 
-    const handleCameraClick = () => {
-        if (fileInputRef.current) {
-            fileInputRef.current.click();
-        }
-    };
-
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
+    const onFileChange = async (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
             const reader = new FileReader();
             reader.addEventListener('load', () => {
                 setImageToCrop(reader.result);
@@ -148,68 +125,70 @@ export default function CandidateProfile() {
             });
             reader.readAsDataURL(file);
         }
-        e.target.value = '';
     };
 
-    const onCropComplete = (croppedArea, croppedAreaPixels) => {
+    const onCropComplete = useCallback((_croppedArea, croppedAreaPixels) => {
         setCroppedAreaPixels(croppedAreaPixels);
-    };
+    }, []);
 
-    const createImage = (url) =>
-        new Promise((resolve, reject) => {
-            const image = new Image();
-            image.addEventListener('load', () => resolve(image));
-            image.addEventListener('error', (error) => reject(error));
-            image.setAttribute('crossOrigin', 'anonymous');
-            image.src = url;
-        });
-
-    const getCroppedImg = async (imageSrc, pixelCrop) => {
-        const image = await createImage(imageSrc);
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        canvas.width = pixelCrop.width;
-        canvas.height = pixelCrop.height;
-
-        ctx.drawImage(
-            image,
-            pixelCrop.x,
-            pixelCrop.y,
-            pixelCrop.width,
-            pixelCrop.height,
-            0,
-            0,
-            pixelCrop.width,
-            pixelCrop.height
-        );
-
-        return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/jpeg', 0.95);
-        });
-    };
-
-    const handleCropSave = async () => {
+    const createCropImage = async () => {
         try {
-            const croppedImageBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
-            const file = new File([croppedImageBlob], 'profile.jpg', { type: 'image/jpeg' });
-
-            setProfileImage(file);
-            setProfileImageUrl(URL.createObjectURL(croppedImageBlob));
-            setEditMode(true);
+            const croppedImage = await getCroppedImg(imageToCrop, croppedAreaPixels);
+            const blobUrl = URL.createObjectURL(croppedImage);
+            setProfileImageUrl(blobUrl);
+            setProfileImage(croppedImage);
             setShowCropper(false);
         } catch (e) {
             console.error(e);
         }
     };
 
-    const getFullImageUrl = (path) => {
-        if (!path) return '';
-        if (path.startsWith('blob:') || path.startsWith('http')) return path;
-        return `${API_ROOT}${path}`;
+    const getCroppedImg = (imageSrc, pixelCrop) => {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.src = imageSrc;
+            image.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                canvas.width = pixelCrop.width;
+                canvas.height = pixelCrop.height;
+
+                ctx.drawImage(
+                    image,
+                    pixelCrop.x,
+                    pixelCrop.y,
+                    pixelCrop.width,
+                    pixelCrop.height,
+                    0,
+                    0,
+                    pixelCrop.width,
+                    pixelCrop.height
+                );
+
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        reject(new Error('Canvas is empty'));
+                        return;
+                    }
+                    resolve(blob);
+                }, 'image/jpeg');
+            };
+            image.onerror = reject;
+        });
     };
+
+
+
+
+    if (loading) return (
+        <div className="h-[60vh] flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+                <div className="h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Profile...</p>
+            </div>
+        </div>
+    );
 
     return (
         <div className="space-y-10 animate-in fade-in duration-200 pb-20">
@@ -223,27 +202,25 @@ export default function CandidateProfile() {
                     <div className="relative z-10 w-full flex flex-col md:flex-row md:items-end justify-between gap-10">
                         <div className="flex items-end gap-10">
                             <div className="relative group">
-                                <div className="h-32 w-32 lg:h-40 lg:w-40 rounded-[2.5rem] bg-white p-1 shadow-xl relative z-10 overflow-hidden cursor-pointer" onClick={handleCameraClick}>
+                                <div className="h-32 w-32 lg:h-40 lg:w-40 rounded-[2.5rem] bg-white p-1 shadow-xl relative z-10 overflow-hidden">
                                     {profileImageUrl ? (
-                                        <img src={getFullImageUrl(profileImageUrl)} alt="Profile" className="w-full h-full object-cover rounded-[2rem] shadow-sm high-quality-img" style={{ imageRendering: 'auto' }} />
+                                        <img
+                                            src={profileImageUrl}
+                                            alt="Profile"
+                                            className="w-full h-full rounded-[2rem] object-cover"
+                                        />
                                     ) : (
-                                        <div className="w-full h-full rounded-[2rem] bg-slate-50 flex items-center justify-center text-indigo-600 font-bold text-5xl uppercase shadow-inner">
-                                            {candidate?.name?.charAt(0) || 'C'}
+                                        <div className="w-full h-full rounded-[2rem] bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 flex items-center justify-center text-white font-bold text-6xl lg:text-7xl shadow-inner">
+                                            {candidate?.name?.charAt(0)?.toUpperCase() || 'C'}
                                         </div>
                                     )}
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        ref={fileInputRef}
-                                        style={{ display: 'none' }}
-                                        onChange={handleFileChange}
-                                    />
-                                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center cursor-pointer backdrop-blur-md rounded-[2rem]">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <Camera className="text-white w-8 h-8" />
-                                            <span className="text-[10px] font-bold uppercase text-white tracking-widest">Update Photo</span>
-                                        </div>
-                                    </div>
+
+                                    {editMode && (
+                                        <label className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-[2rem]">
+                                            <CloudUpload className="text-white" size={32} />
+                                            <input type="file" className="hidden" accept="image/*" onChange={onFileChange} />
+                                        </label>
+                                    )}
                                 </div>
                             </div>
                             <div className="mb-4 text-white">
@@ -306,7 +283,7 @@ export default function CandidateProfile() {
                                 { label: 'Full Legal Name', value: candidate?.name, icon: User },
                                 { label: 'Primary Email', value: candidate?.email, icon: Mail },
                                 { label: 'Contact Number', value: profileData?.phone || 'Not provided', icon: Phone },
-                                { label: 'Professional Tier', value: 'Technical Leader', icon: ShieldCheck }
+                                { label: 'Professional Tier', value: editFields.professionalTier || 'Not provided', icon: ShieldCheck }
                             ].map((info, idx) => (
                                 <div key={idx} className="group relative text-slate-800">
                                     <div className="absolute -left-6 top-0 bottom-0 w-1 bg-slate-100 group-hover:bg-indigo-600 transition-colors text-indigo-600"></div>
@@ -373,19 +350,17 @@ export default function CandidateProfile() {
                 </div>
             </div>
 
-            {/* Image Cropper Modal */}
+            {/* Cropper Modal */}
             <Modal
-                title="Adjust Profile Photo"
+                title="Adjust your profile picture"
                 open={showCropper}
-                onOk={handleCropSave}
+                onOk={createCropImage}
                 onCancel={() => setShowCropper(false)}
                 okText="Apply Crop"
                 width={600}
                 centered
-                styles={{ body: { padding: 0 } }}
-                className="luxury-modal"
             >
-                <div className="relative h-[400px] w-full bg-slate-900 overflow-hidden">
+                <div className="relative h-80 w-full bg-slate-100 rounded-xl overflow-hidden mb-6">
                     <Cropper
                         image={imageToCrop}
                         crop={crop}
@@ -394,22 +369,17 @@ export default function CandidateProfile() {
                         onCropChange={setCrop}
                         onCropComplete={onCropComplete}
                         onZoomChange={setZoom}
-                        cropShape="round"
-                        showGrid={false}
                     />
                 </div>
-                <div className="p-6 bg-white">
-                    <div className="flex items-center gap-4">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Zoom</span>
-                        <Slider
-                            min={1}
-                            max={3}
-                            step={0.1}
-                            value={zoom}
-                            onChange={(value) => setZoom(value)}
-                            className="flex-1"
-                        />
-                    </div>
+                <div className="px-4">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Zoom Intensity</p>
+                    <Slider
+                        value={zoom}
+                        min={1}
+                        max={3}
+                        step={0.1}
+                        onChange={(v) => setZoom(v)}
+                    />
                 </div>
             </Modal>
         </div>

@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
 import { getCompany } from '../../utils/auth';
-import { API_ROOT } from '../../utils/api';
 import { ArrowLeft, LogOut, User as UserIcon, Bell, LayoutDashboard, Briefcase, FileText, User } from 'lucide-react';
 
 export default function Header() {
@@ -85,27 +84,12 @@ export default function Header() {
                         <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Global Account</p>
                     </div>
                     <div
-                        className="h-10 w-10 rounded-xl bg-white border border-slate-100 p-1 shadow-sm group cursor-pointer hover:border-premium-blue transition-colors flex items-center justify-center overflow-hidden"
+                        className="h-10 w-10 rounded-xl bg-gradient-to-br from-green-400 to-green-600 border border-slate-100 p-1 shadow-sm group cursor-pointer hover:border-premium-blue transition-colors flex items-center justify-center overflow-hidden"
                         onClick={() => navigate('/candidate/profile')}
                     >
-                        {candidate?.profilePic ? (
-                            <img
-                                src={candidate.profilePic.startsWith('http') || candidate.profilePic.startsWith('blob:') ? candidate.profilePic : `${API_ROOT}${candidate.profilePic}`}
-                                alt="Profile"
-                                className="w-full h-full object-cover rounded-lg"
-                                onError={(e) => {
-                                    e.target.style.display = 'none';
-                                    e.target.nextSibling.style.display = 'flex';
-                                }}
-                            />
-                        ) : null}
-                        <div className={`h-full w-full bg-slate-50 rounded-lg flex items-center justify-center group-hover:bg-blue-50 transition-colors ${candidate?.profilePic ? 'hidden' : 'flex'}`}>
-                            {candidate?.name ? (
-                                <span className="text-slate-600 font-black text-sm group-hover:text-premium-blue">{candidate.name.charAt(0)}</span>
-                            ) : (
-                                <UserIcon className="w-4 h-4 text-slate-400" />
-                            )}
-                        </div>
+                        <span className="text-white font-black text-sm group-hover:scale-110 transition-transform">
+                            {candidate?.name ? candidate.name.charAt(0).toUpperCase() : 'C'}
+                        </span>
                     </div>
                 </div>
 

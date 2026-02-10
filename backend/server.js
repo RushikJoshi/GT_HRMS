@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Restart trigger 4 - Env fix applied
+// Restart trigger V10 - Engine logic update 2026-02-04
 const http = require('http');
 // RESTART TRIGGER V7 - Force restart for schema update
 const mongoose = require('mongoose');
@@ -31,6 +31,14 @@ process.on('unhandledRejection', (reason, promise) => {
    DATABASE CONNECTION
 ================================ */
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hrms';
+// Print which Mongo URI is being used (mask credentials when present)
+const maskUri = (u) => {
+    if (!u) return u;
+    try {
+        return u.replace(/(mongodb(?:\+srv)?:\/\/)([^:@\/\n]+)(:[^@]+)?@/, (m, p1, user, pass) => `${p1}${user}:***@`);
+    } catch (e) { return u; }
+};
+console.log('🔌 Using MONGO_URI:', maskUri(MONGO_URI));
 const connectOptions = {
     maxPoolSize: 10,
     minPoolSize: 5,
@@ -45,17 +53,8 @@ async function connectToDatabase() {
         await mongoose.connect(MONGO_URI, connectOptions);
         console.log('✅ MongoDB connected');
 
-        // Register models for main DB (for super admin fallback)
-        mongoose.model('Notification', require('./models/Notification'));
-        mongoose.model('LeaveRequest', require('./models/LeaveRequest'));
-        mongoose.model('Regularization', require('./models/Regularization'));
-        mongoose.model('Applicant', require('./models/Applicant'));
-        mongoose.model('Requirement', require('./models/Requirement'));
-        mongoose.model('Position', require('./models/Position'));
-        mongoose.model('Candidate', require('./models/Candidate'));
-        mongoose.model('Interview', require('./models/Interview'));
-        mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
-        mongoose.model('CandidateStatusLog', require('./models/CandidateStatusLog'));
+        // Models are already registered in app.js via require('./app')
+        console.log('✅ MongoDB connected');
     } catch (err) {
         console.error('❌ MongoDB initial connection failed:', err.message);
         // Fallback logic for SRV/DNS issues
@@ -66,18 +65,6 @@ async function connectToDatabase() {
                 console.log(`🔄 Attempting fallback: ${fallback}`);
                 await mongoose.connect(fallback, connectOptions);
                 console.log('✅ MongoDB connected (Fallback)');
-
-                // Register models for main DB (for super admin fallback)
-                mongoose.model('Notification', require('./models/Notification'));
-                mongoose.model('LeaveRequest', require('./models/LeaveRequest'));
-                mongoose.model('Regularization', require('./models/Regularization'));
-                mongoose.model('Applicant', require('./models/Applicant'));
-                mongoose.model('Requirement', require('./models/Requirement'));
-                mongoose.model('Position', require('./models/Position'));
-                mongoose.model('Candidate', require('./models/Candidate'));
-                mongoose.model('Interview', require('./models/Interview'));
-                mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
-                mongoose.model('CandidateStatusLog', require('./models/CandidateStatusLog'));
                 return;
             }
         }
@@ -91,6 +78,7 @@ async function connectToDatabase() {
 ================================ */
 const server = http.createServer(app);
 let isShuttingDown = false;
+let modelsLoading = false;
 
 async function startServer() {
     await connectToDatabase();
@@ -106,9 +94,6 @@ async function startServer() {
     server.on('error', (err) => {
         if (err.code === 'EADDRINUSE') {
             console.error(`❌ FATAL ERROR: Port ${PORT} is already in use.`);
-            console.error(`Attempting one last kill-port if possible...`);
-            // We can't actually kill it easily from here without child_process, 
-            // but the package.json script should have handled it.
             process.exit(1);
         } else {
             console.error('Server error:', err);
@@ -123,14 +108,18 @@ async function startServer() {
     server.listen(PORT, async () => {
         console.log(`🚀 Server running on port ${PORT}`);
 
-        // Load face detection models
-        try {
-            console.log('📦 Loading face detection models (this may take 30-60 seconds)...');
-            await faceServiceInit.loadModels();
-            console.log('✅ Face detection models loaded successfully');
-        } catch (err) {
-            console.error('⚠️ Warning: Failed to load face models:', err.message);
-            console.log('⚠️ Face detection will not work. Check internet connection.');
+        // Load face detection models (prevent multiple loads)
+        if (!modelsLoading) {
+            modelsLoading = true;
+            try {
+                console.log('📦 Loading face detection models (this may take 30-60 seconds)...');
+                await faceServiceInit.loadModels();
+                console.log('✅ Face detection models loaded successfully');
+            } catch (err) {
+                console.error('⚠️ Warning: Failed to load face models:', err.message);
+            } finally {
+                modelsLoading = false;
+            }
         }
 
         // Ngrok (Dev only)
@@ -156,14 +145,12 @@ function gracefulShutdown(signal) {
 
     console.log(`\n🛑 ${signal} received. Starting graceful shutdown...`);
 
-    // Force forceful shutdown after timeout
     const forceExitTimeout = setTimeout(() => {
         console.error('⚠️ Could not close connections in time, forcefully shutting down.');
         process.exit(1);
-    }, 5000); // 5 seconds max
+    }, 5000);
     forceExitTimeout.unref();
 
-    // 1. Close HTTP Server
     if (server.listening) {
         server.close((err) => {
             if (err) {
@@ -171,11 +158,8 @@ function gracefulShutdown(signal) {
                 process.exit(1);
             }
             console.log('✅ HTTP server closed.');
-
-            // 2. Close Database Connection
             mongoose.disconnect().then(() => {
                 console.log('✅ MongoDB connection closed.');
-                console.log('👋 Goodbye!');
                 process.exit(0);
             }).catch(e => {
                 console.error('❌ Error closing MongoDB:', e);
@@ -183,29 +167,17 @@ function gracefulShutdown(signal) {
             });
         });
     } else {
-        console.log('ℹ️ Server was not listening. Exiting.');
         mongoose.disconnect().then(() => process.exit(0));
     }
 }
 
 // Signal Listeners
-// SIGINT: Ctrl+C
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-// SIGTERM: Docker/Kubernetes stop
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-// SIGUSR2: Nodemon restart
-process.once('SIGUSR2', function () {
-    gracefulShutdown('SIGUSR2');
-});
-
-// Windows specific workaround for Nodemon signals?
-// Not needed if we use SIGUSR2 correctly with nodemon, but handled above.
-
-// Start (v7.2 HARD RESTART: 2026-01-19T18:58:00)
+// Start
 if (require.main === module) {
     startServer();
 }
 
-module.exports = server; // Export for testing
+module.exports = server;

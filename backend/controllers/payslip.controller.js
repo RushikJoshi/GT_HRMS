@@ -118,8 +118,13 @@ exports.getMyPayslips = async (req, res) => {
  * Generate and download payslip PDF (On-the-fly)
  * POST /api/payroll/payslips/:id/generate-pdf
  */
+/**
+ * Generate and download payslip PDF (System Default Layout)
+ * POST /api/payroll/payslips/:id/generate-pdf
+ */
 exports.generatePayslipPDF = async (req, res) => {
     try {
+        console.log(`[GENERATE_PDF] Starting system default render for: ${req.params.id}`);
         const { id } = req.params;
         const tenantDB = req.tenantDB;
         const Payslip = tenantDB.model('Payslip');
@@ -130,20 +135,28 @@ exports.generatePayslipPDF = async (req, res) => {
         }
 
         // Use PDFKit to generate PDF
-        const PDFDocument = require('pdfkit'); // Lazy load
-        const doc = new PDFDocument({ margin: 50 });
+        const PDFDocument = require('pdfkit');
+        const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
-        // Set response headers
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=Payslip_${payslip.employeeInfo?.name || 'Emp'}_${payslip.month}-${payslip.year}.pdf`);
+        // Buffer the PDF to avoid sending corrupted files if an error happens mid-stream
+        let buffers = [];
+        doc.on('data', buffers.push.bind(buffers));
 
-        // Pipe PDF to response
-        doc.pipe(res);
+        const pdfGenerated = new Promise((resolve, reject) => {
+            doc.on('end', () => {
+                const pdfData = Buffer.concat(buffers);
+                resolve(pdfData);
+            });
+            doc.on('error', reject);
+        });
 
+        // --- DRAWING LOGIC ---
         // Header
         doc.fontSize(20).text('PAYSLIP', { align: 'center' });
         doc.moveDown();
-        doc.fontSize(12).text(`${new Date(0, payslip.month - 1).toLocaleString('default', { month: 'long' })} ${payslip.year}`, { align: 'center' });
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const monthStr = monthNames[payslip.month - 1] || 'N/A';
+        doc.fontSize(12).text(`${monthStr} ${payslip.year}`, { align: 'center' });
         doc.moveDown(2);
 
         // Employee Info
@@ -163,14 +176,16 @@ exports.generatePayslipPDF = async (req, res) => {
 
         if (payslip.earningsSnapshot && payslip.earningsSnapshot.length > 0) {
             payslip.earningsSnapshot.forEach(e => {
-                doc.text(`${e.name}`, 50, doc.y, { continued: true });
-                doc.text(`₹${e.amount?.toLocaleString()}`, { align: 'right' });
+                const startY = doc.y;
+                doc.text(`${e.name || 'Earning'}`, 50, startY);
+                doc.text(`₹${(e.amount || 0).toLocaleString()}`, 50, startY, { align: 'right' });
             });
         }
         doc.moveDown(0.5);
         doc.font('Helvetica-Bold');
-        doc.text('Gross Earnings', 50, doc.y, { continued: true });
-        doc.text(`₹${payslip.grossEarnings?.toLocaleString()}`, { align: 'right' });
+        const grossY = doc.y;
+        doc.text('Gross Earnings', 50, grossY);
+        doc.text(`₹${(payslip.grossEarnings || 0).toLocaleString()}`, 50, grossY, { align: 'right' });
         doc.font('Helvetica');
         doc.moveDown(2);
 
@@ -181,36 +196,41 @@ exports.generatePayslipPDF = async (req, res) => {
 
         if (payslip.preTaxDeductionsSnapshot && payslip.preTaxDeductionsSnapshot.length > 0) {
             payslip.preTaxDeductionsSnapshot.forEach(d => {
-                doc.text(`${d.name}`, 50, doc.y, { continued: true });
-                doc.text(`₹${d.amount?.toLocaleString()}`, { align: 'right' });
+                const startY = doc.y;
+                doc.text(`${d.name || 'Deduction'}`, 50, startY);
+                doc.text(`₹${(d.amount || 0).toLocaleString()}`, 50, startY, { align: 'right' });
             });
         }
 
         if (payslip.incomeTax > 0) {
-            doc.text('Income Tax (TDS)', 50, doc.y, { continued: true });
-            doc.text(`₹${payslip.incomeTax?.toLocaleString()}`, { align: 'right' });
+            const taxY = doc.y;
+            doc.text('Income Tax (TDS)', 50, taxY);
+            doc.text(`₹${(payslip.incomeTax || 0).toLocaleString()}`, 50, taxY, { align: 'right' });
         }
 
         if (payslip.postTaxDeductionsSnapshot && payslip.postTaxDeductionsSnapshot.length > 0) {
             payslip.postTaxDeductionsSnapshot.forEach(d => {
-                doc.text(`${d.name}`, 50, doc.y, { continued: true });
-                doc.text(`₹${d.amount?.toLocaleString()}`, { align: 'right' });
+                const startY = doc.y;
+                doc.text(`${d.name || 'Deduction'}`, 50, startY);
+                doc.text(`₹${(d.amount || 0).toLocaleString()}`, 50, startY, { align: 'right' });
             });
         }
 
         const totalDeductions = (payslip.preTaxDeductionsTotal || 0) + (payslip.incomeTax || 0) + (payslip.postTaxDeductionsTotal || 0);
         doc.moveDown(0.5);
         doc.font('Helvetica-Bold');
-        doc.text('Total Deductions', 50, doc.y, { continued: true });
-        doc.text(`₹${totalDeductions.toLocaleString()}`, { align: 'right' });
+        const dedY = doc.y;
+        doc.text('Total Deductions', 50, dedY);
+        doc.text(`₹${totalDeductions.toLocaleString()}`, 50, dedY, { align: 'right' });
         doc.font('Helvetica');
         doc.moveDown(2);
 
         // Net Pay
         doc.fontSize(16).fillColor('#059669');
         doc.font('Helvetica-Bold');
-        doc.text('Net Pay', 50, doc.y, { continued: true });
-        doc.text(`₹${payslip.netPay?.toLocaleString()}`, { align: 'right' });
+        const netY = doc.y;
+        doc.text('Net Pay', 50, netY);
+        doc.text(`₹${(payslip.netPay || 0).toLocaleString()}`, 50, netY, { align: 'right' });
         doc.fillColor('#000000');
         doc.font('Helvetica');
         doc.moveDown(2);
@@ -231,8 +251,25 @@ exports.generatePayslipPDF = async (req, res) => {
         doc.fontSize(8).text(`Generated on: ${new Date().toLocaleDateString()}`, { align: 'center' });
         doc.text('This is a system-generated document', { align: 'center' });
 
-        // Finalize PDF
+        // Finalize
         doc.end();
+
+        // Wait for buffer completion
+        const finalPdfBuffer = await pdfGenerated;
+
+        // Verify PDF signature
+        const signature = finalPdfBuffer.slice(0, 5).toString();
+        console.log(`[GENERATE_PDF] PDF signature: ${signature}, size: ${finalPdfBuffer.length} bytes`);
+
+        // Set response headers
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Length', finalPdfBuffer.length);
+
+        // QUOTE THE FILENAME to handle spaces
+        const safeFileName = `Payslip_${payslip.employeeInfo?.name || 'Emp'}_${payslip.month}-${payslip.year}.pdf`.replace(/"/g, '');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+
+        return res.end(finalPdfBuffer, 'binary');
 
     } catch (error) {
         console.error('[GENERATE_PDF] Error:', error);

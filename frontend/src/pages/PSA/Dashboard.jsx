@@ -16,6 +16,7 @@ export default function Dashboard() {
     async function load() {
       try {
         const res = await api.get("/tenants/psa/stats");
+        console.log(res);
         const d = res.data || {};
         const total = Number(d.total ?? d.companies ?? 0) || 0;
         const active = Number(d.active ?? d.activeTenants ?? 0) || 0;

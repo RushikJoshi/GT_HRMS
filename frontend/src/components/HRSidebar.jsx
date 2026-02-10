@@ -28,8 +28,8 @@ import {
   Settings2,
   Brush,
   ExternalLink,
-  X,
-  Share2
+  Shield,
+  X
 } from 'lucide-react';
 
 /* ================= ICONS ================= */
@@ -56,6 +56,8 @@ const ICONS = {
   applicants: <UserPlus size={ICON_SIZE} />,
   tracker: <Radar size={ICON_SIZE} />,
   templates: <FileJson size={ICON_SIZE} />,
+  // letters: <FileSignature size={ICON_SIZE} />,
+  bgv: <Shield size={ICON_SIZE} />,
   access: <Lock size={ICON_SIZE} />,
   settings: <Settings2 size={ICON_SIZE} />,
   customization: <Brush size={ICON_SIZE} className="text-indigo-400" />,
@@ -83,7 +85,8 @@ const NAV_GROUPS = [
     items: [
 
       { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.attendance },
-      { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar }
+      { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar },
+      { to: '/hr/face-update-requests', label: 'Face Update Requests', icon: ICONS.users }
 
     ]
   },
@@ -103,7 +106,7 @@ const NAV_GROUPS = [
       { to: '/hr/payroll/process', label: 'Process Payroll', icon: ICONS.process },
       { to: '/hr/payroll/run', label: 'Run History', icon: ICONS.runHistory },
       { to: '/hr/payroll/payslips', label: 'Payslips', icon: ICONS.payslips },
-      { to: '/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.payslipDesign }
+      // { to: '/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.payslipDesign }
     ]
   },
   {
@@ -128,7 +131,22 @@ const NAV_GROUPS = [
           { to: '/hr/internal-applicants', label: 'Internal' }
         ]
       },
+      {
+        label: 'BGV Management',
+        icon: ICONS.bgv,
+        children: [
+          { to: '/hr/bgv', label: 'Case Master' },
+          { to: '/hr/bgv/emails', label: 'Email Management' }
+        ]
+      },
       { to: '/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
+    ]
+  },
+  {
+    title: 'Document Management',
+    items: [
+      { to: '/hr/letters', label: 'Dashboard', icon: ICONS.dashboard },
+      { to: '/hr/letters/issue', label: 'Issue New Letter', icon: ICONS.applicants },
     ]
   },
   {
@@ -138,8 +156,8 @@ const NAV_GROUPS = [
         label: 'Templates',
         icon: ICONS.templates,
         children: [
-          { to: '/hr/letter-templates', label: 'Letter Editor' },
-          { to: '/hr/letter-settings', label: 'Letter Settings' },
+          { to: '/hr/letter-templates', label: 'Template Builder' },
+          { to: '/hr/letter-settings', label: 'System Settings' },
           { to: '/hr/payslip-templates', label: 'Payslip Templates' }
         ]
       },

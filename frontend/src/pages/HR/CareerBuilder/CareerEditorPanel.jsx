@@ -475,257 +475,198 @@ export default function CareerEditorPanel({
 
                         {/* COMPANY INFO */}
                         {selectedBlock.type === 'company-info' && (
-                            <div className="space-y-6">
-                                <div className="space-y-3">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">About Us Content</label>
-                                    <textarea
-                                        value={selectedBlock.content?.description || ''}
-                                        onChange={(e) => updateContent({ description: e.target.value })}
-                                        className="w-full px-3 py-2.5 bg-gray-50 rounded-lg border border-transparent focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none hover:bg-gray-100 transition-all font-medium text-sm h-32 resize-none"
-                                        placeholder="Company description..."
-                                    />
+                            <div className="space-y-4">
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">About Us Content</label>
+                                <textarea
+                                    value={selectedBlock.content?.description || ''}
+                                    onChange={(e) => updateContent({ description: e.target.value })}
+                                    className="w-full px-3 py-2 bg-gray-50 rounded-lg border-none text-sm h-32"
+                                    placeholder="Company description..."
+                                />
+                                
+                                <div className="border-t border-gray-100 pt-4 space-y-3">
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Background Color</label>
+                                    <div className="flex gap-2 items-center">
+                                        <input
+                                            type="color"
+                                            value={selectedBlock.content?.bgColor === 'bg-gray-50' ? '#f9fafb' : selectedBlock.content?.bgColor || '#f9fafb'}
+                                            onChange={(e) => {
+                                                const bgColor = e.target.value === '#f9fafb' ? 'bg-gray-50' : e.target.value;
+                                                updateContent({ bgColor });
+                                            }}
+                                            className="h-10 w-12 rounded cursor-pointer border-none"
+                                        />
+                                        <span className="text-xs text-gray-500 font-mono">{selectedBlock.content?.bgColor || 'bg-gray-50'}</span>
+                                    </div>
                                 </div>
 
-                                <div className="space-y-4 pt-4 border-t border-gray-100">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Company Image</label>
-                                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer relative overflow-hidden group">
+                                <div className="border-t border-gray-100 pt-4 space-y-3">
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Section Image</label>
+                                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer relative">
                                         {uploading ? (
                                             <div className="flex flex-col items-center">
-                                                <Loader2 className="animate-spin text-blue-500 mb-2" size={20} />
-                                                <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">Uploading...</span>
+                                                <Loader2 className="animate-spin text-blue-500 mb-2" />
+                                                <span className="text-xs text-gray-500">Uploading...</span>
                                             </div>
                                         ) : (
                                             <>
-                                                {selectedBlock.content?.imageUrl ? (
-                                                    <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-100 mb-3">
-                                                        <img src={getImageUrl(selectedBlock.content.imageUrl)} className="w-full h-full object-cover" />
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                                            <Plus className="text-white" />
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="py-4">
-                                                        <ImageIcon className="mx-auto text-gray-300 mb-2" size={32} />
-                                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Upload Photo</span>
-                                                    </div>
-                                                )}
                                                 <input
                                                     type="file"
                                                     accept="image/*"
                                                     className="absolute inset-0 opacity-0 cursor-pointer"
                                                     onChange={(e) => handleImageUpload(e, 'imageUrl')}
                                                 />
+                                                <span className="text-xs font-bold text-gray-500">
+                                                    {selectedBlock.content?.imageUrl ? 'Change Image' : 'Upload Image'}
+                                                </span>
                                             </>
                                         )}
                                     </div>
                                 </div>
+                            </div>
+                        )}
+                        {/* TESTIMONIALS SETTINGS */}
+                        {selectedBlock.type === 'testimonials' && (
+                            <div className="space-y-4">
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Section Title</label>
+                                <input
+                                    type="text"
+                                    value={selectedBlock.content?.title || ''}
+                                    onChange={(e) => updateContent({ title: e.target.value })}
+                                    className="w-full px-3 py-2.5 bg-gray-50 rounded-lg border border-transparent focus:bg-white focus:border-blue-500 outline-none text-sm font-medium"
+                                    placeholder="Section title..."
+                                />
 
-                                <div className="space-y-4 pt-4 border-t border-gray-100">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between">
-                                        Stats
-                                        <button
-                                            onClick={() => {
-                                                const stats = [...(selectedBlock.content.stats || [])];
-                                                stats.push({ label: "Label", value: "0" });
-                                                updateContent({ stats });
-                                            }}
-                                            className="text-blue-600 hover:text-blue-700"
-                                        >
-                                            <PlusCircle size={14} />
-                                        </button>
-                                    </label>
-                                    <div className="space-y-3">
-                                        {selectedBlock.content?.stats?.map((stat, idx) => (
-                                            <div key={idx} className="bg-gray-50 p-3 rounded-xl border border-gray-100 relative group/stat">
-                                                <button
-                                                    onClick={() => {
-                                                        const stats = [...(selectedBlock.content.stats || [])];
-                                                        stats.splice(idx, 1);
-                                                        updateContent({ stats });
-                                                    }}
-                                                    className="absolute top-2 right-2 text-gray-300 hover:text-red-500 opacity-0 group-hover/stat:opacity-100 transition-opacity"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Value</label>
-                                                        <input
-                                                            type="text"
-                                                            value={stat.value}
-                                                            onChange={e => {
-                                                                const stats = [...(selectedBlock.content.stats || [])];
-                                                                stats[idx] = { ...stat, value: e.target.value };
-                                                                updateContent({ stats });
-                                                            }}
-                                                            className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded-md text-sm font-bold"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Label</label>
-                                                        <input
-                                                            type="text"
-                                                            value={stat.label}
-                                                            onChange={e => {
-                                                                const stats = [...(selectedBlock.content.stats || [])];
-                                                                stats[idx] = { ...stat, label: e.target.value };
-                                                                updateContent({ stats });
-                                                            }}
-                                                            className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded-md text-sm font-medium"
-                                                        />
-                                                    </div>
+                                <div className="border-t border-gray-100 pt-4 space-y-3">
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Testimonials</label>
+                                    {selectedBlock.content?.testimonials?.map((testimonial, idx) => (
+                                        <div key={testimonial.id || idx} className="bg-gray-50 p-3 rounded-lg border border-gray-100 relative space-y-2">
+                                            <button
+                                                onClick={() => {
+                                                    const newTestimonials = [...(selectedBlock.content.testimonials || [])];
+                                                    newTestimonials.splice(idx, 1);
+                                                    updateContent({ testimonials: newTestimonials });
+                                                    message.success('Testimonial removed');
+                                                }}
+                                                className="absolute top-2 right-2 text-gray-300 hover:text-red-500 p-1"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                            
+                                            <textarea
+                                                value={testimonial.quote || ''}
+                                                onChange={(e) => {
+                                                    const newTestimonials = [...(selectedBlock.content.testimonials || [])];
+                                                    newTestimonials[idx] = { ...testimonial, quote: e.target.value };
+                                                    updateContent({ testimonials: newTestimonials });
+                                                }}
+                                                className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-xs h-16 resize-none"
+                                                placeholder="Testimonial quote..."
+                                            />
+                                            
+                                            <input
+                                                type="text"
+                                                value={testimonial.name || ''}
+                                                onChange={(e) => {
+                                                    const newTestimonials = [...(selectedBlock.content.testimonials || [])];
+                                                    newTestimonials[idx] = { ...testimonial, name: e.target.value };
+                                                    updateContent({ testimonials: newTestimonials });
+                                                }}
+                                                className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-sm font-bold"
+                                                placeholder="Author name"
+                                            />
+                                            
+                                            <input
+                                                type="text"
+                                                value={testimonial.role || ''}
+                                                onChange={(e) => {
+                                                    const newTestimonials = [...(selectedBlock.content.testimonials || [])];
+                                                    newTestimonials[idx] = { ...testimonial, role: e.target.value };
+                                                    updateContent({ testimonials: newTestimonials });
+                                                }}
+                                                className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-xs"
+                                                placeholder="Author role/title"
+                                            />
+
+                                            <div className="border-t border-gray-200 pt-2">
+                                                <label className="text-[10px] font-bold text-gray-400 uppercase mb-2 block">Profile Photo</label>
+                                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-2 text-center hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer relative group">
+                                                    {testimonial.image ? (
+                                                        <img src={getImageUrl(testimonial.image)} alt={testimonial.name} className="w-10 h-10 rounded-full mx-auto mb-1 object-cover" />
+                                                    ) : null}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files[0];
+                                                            if (!file) return;
+                                                            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                                                                message.error('Only JPG, PNG, WebP allowed');
+                                                                return;
+                                                            }
+                                                            if (file.size > 2 * 1024 * 1024) {
+                                                                message.error('Image must be under 2MB');
+                                                                return;
+                                                            }
+                                                            const formData = new FormData();
+                                                            formData.append('file', file);
+                                                            setUploading(true);
+                                                            api.post('/uploads/doc', formData, {
+                                                                headers: { 'Content-Type': 'multipart/form-data' }
+                                                            }).then(res => {
+                                                                if (res.data?.url) {
+                                                                    const newTestimonials = [...(selectedBlock.content.testimonials || [])];
+                                                                    newTestimonials[idx] = { ...testimonial, image: res.data.url };
+                                                                    updateContent({ testimonials: newTestimonials });
+                                                                    message.success('Photo uploaded');
+                                                                }
+                                                            }).catch(() => message.error('Upload failed')).finally(() => setUploading(false));
+                                                        }}
+                                                    />
+                                                    <span className="text-[10px] font-bold text-gray-400">
+                                                        {testimonial.image ? 'Change Photo' : 'Upload Photo'}
+                                                    </span>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
+                                        </div>
+                                    ))}
+                                    <button
+                                        onClick={() => {
+                                            const newTestimonials = [...(selectedBlock.content.testimonials || [])];
+                                            newTestimonials.push({
+                                                id: Date.now(),
+                                                quote: 'Great experience working here!',
+                                                name: 'John Doe',
+                                                role: 'Team Member',
+                                                image: ''
+                                            });
+                                            updateContent({ testimonials: newTestimonials });
+                                            message.success('New testimonial added');
+                                        }}
+                                        className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 font-bold text-xs hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                                    >
+                                        + Add Testimonial
+                                    </button>
                                 </div>
 
-                                <div className="space-y-3 pt-4 border-t border-gray-100">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Background Color</label>
-                                    <div className="flex gap-2">
+                                <div className="border-t border-gray-100 pt-4 space-y-3">
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Section Background Color</label>
+                                    <div className="flex gap-2 items-center">
                                         <input
                                             type="color"
-                                            value={selectedBlock.content?.bgColor || '#f9fafb'}
-                                            onChange={(e) => updateContent({ bgColor: e.target.value })}
-                                            className="h-10 w-12 rounded cursor-pointer border-none bg-transparent p-0"
-                                        />
-                                        <input
-                                            type="text"
-                                            value={selectedBlock.content?.bgColor || ''}
-                                            onChange={(e) => updateContent({ bgColor: e.target.value })}
-                                            className="flex-1 px-3 py-2 bg-gray-50 rounded-lg border-none text-sm font-mono text-gray-600"
-                                            placeholder="#f9fafb"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* TESTIMONIALS */}
-                        {selectedBlock.type === 'testimonials' && (
-                            <div className="space-y-6">
-                                <div className="space-y-4">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between">
-                                        Testimonials
-                                        <button
-                                            onClick={() => {
-                                                const list = [...(selectedBlock.content.testimonials || [])];
-                                                list.push({ id: Date.now(), name: "Full Name", role: "Role", quote: "New testimonial quote...", image: "https://i.pravatar.cc/150" });
-                                                updateContent({ testimonials: list });
+                                            value={selectedBlock.content?.bgColor === 'bg-blue-600' ? '#2563eb' : selectedBlock.content?.bgColor || '#2563eb'}
+                                            onChange={(e) => {
+                                                const bgColor = e.target.value === '#2563eb' ? 'bg-blue-600' : e.target.value;
+                                                updateContent({ bgColor });
                                             }}
-                                            className="text-blue-600 hover:text-blue-700"
-                                        >
-                                            <PlusCircle size={14} />
-                                        </button>
-                                    </label>
-
-                                    <div className="space-y-4">
-                                        {selectedBlock.content?.testimonials?.map((t, idx) => (
-                                            <div key={t.id || idx} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 relative group/item">
-                                                <button
-                                                    onClick={() => {
-                                                        const list = [...(selectedBlock.content.testimonials || [])];
-                                                        list.splice(idx, 1);
-                                                        updateContent({ testimonials: list });
-                                                    }}
-                                                    className="absolute top-2 right-2 text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm flex-shrink-0 relative group/avatar">
-                                                        <img src={getImageUrl(t.image)} className="w-full h-full object-cover" />
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity cursor-pointer">
-                                                            <Plus size={12} className="text-white" />
-                                                            <input
-                                                                type="file"
-                                                                className="absolute inset-0 opacity-0 cursor-pointer"
-                                                                onChange={async (e) => {
-                                                                    const file = e.target.files[0];
-                                                                    if (!file) return;
-                                                                    try {
-                                                                        setUploading(true);
-                                                                        const formData = new FormData();
-                                                                        formData.append('file', file);
-                                                                        const res = await api.post('/uploads/doc', formData);
-                                                                        if (res.data?.url) {
-                                                                            const list = [...(selectedBlock.content.testimonials || [])];
-                                                                            list[idx] = { ...t, image: res.data.url };
-                                                                            updateContent({ testimonials: list });
-                                                                        }
-                                                                    } catch (err) { message.error("Upload failed"); }
-                                                                    finally { setUploading(false); }
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex-1 space-y-2">
-                                                        <input
-                                                            type="text"
-                                                            value={t.name}
-                                                            onChange={e => {
-                                                                const list = [...(selectedBlock.content.testimonials || [])];
-                                                                list[idx] = { ...t, name: e.target.value };
-                                                                updateContent({ testimonials: list });
-                                                            }}
-                                                            className="w-full px-2 py-1 bg-white border border-gray-200 rounded text-sm font-bold"
-                                                            placeholder="Name"
-                                                        />
-                                                        <input
-                                                            type="text"
-                                                            value={t.role}
-                                                            onChange={e => {
-                                                                const list = [...(selectedBlock.content.testimonials || [])];
-                                                                list[idx] = { ...t, role: e.target.value };
-                                                                updateContent({ testimonials: list });
-                                                            }}
-                                                            className="w-full px-2 py-1 bg-white border border-gray-200 rounded text-[10px] font-medium"
-                                                            placeholder="Role"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <textarea
-                                                    value={t.quote}
-                                                    onChange={e => {
-                                                        const list = [...(selectedBlock.content.testimonials || [])];
-                                                        list[idx] = { ...t, quote: e.target.value };
-                                                        updateContent({ testimonials: list });
-                                                    }}
-                                                    className="w-full p-2 bg-white border border-gray-200 rounded text-xs h-20 resize-none"
-                                                    placeholder="Quote..."
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4 pt-4 border-t border-gray-100">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Colors</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black text-gray-400 tracking-widest uppercase">Background</label>
-                                            <input
-                                                type="color"
-                                                value={selectedBlock.content?.bgColor || '#2563EB'}
-                                                onChange={e => updateContent({ bgColor: e.target.value })}
-                                                className="w-full h-8 rounded border-none bg-transparent cursor-pointer"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black text-gray-400 tracking-widest uppercase">Text Theme</label>
-                                            <input
-                                                type="color"
-                                                value={selectedBlock.content?.textColor || '#ffffff'}
-                                                onChange={e => updateContent({ textColor: e.target.value })}
-                                                className="w-full h-8 rounded border-none bg-transparent cursor-pointer"
-                                            />
-                                        </div>
+                                            className="h-10 w-12 rounded cursor-pointer border-none"
+                                        />
+                                        <span className="text-xs text-gray-500 font-mono">{selectedBlock.content?.bgColor || 'bg-blue-600'}</span>
                                     </div>
                                 </div>
                             </div>
                         )}
-
                         {/* FAQ SETTINGS */}
                         {selectedBlock.type === 'faq' && (
                             <div className="space-y-4">

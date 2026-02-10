@@ -49,6 +49,21 @@ const AttendanceSettingsSchema = new mongoose.Schema({
     officeLongitude: { type: Number }, // Office location longitude
     allowedRadiusMeters: { type: Number, default: 100 }, // Allowed radius in meters
 
+
+    geofance: [
+        {
+            lat: Number,
+            lng: Number
+        }
+    ],
+    allowedAccuracy: {
+        type: Number,
+        default: 80
+    },
+    isActive: {
+        type: Boolean,
+        default: true
+    },
     // IP Restriction Configuration
     ipRestrictionEnabled: { type: Boolean, default: false },
     allowedIPRanges: [{ type: String }], // Array of IP addresses or CIDR ranges (e.g., "192.168.1.0/24")
@@ -56,6 +71,150 @@ const AttendanceSettingsSchema = new mongoose.Schema({
 
     // Location Restriction Mode: 'none', 'geo', 'ip', 'both'
     locationRestrictionMode: { type: String, enum: ['none', 'geo', 'ip', 'both'], default: 'none' },
+
+    // ========== ADVANCED ATTENDANCE POLICY (NON-BREAKING EXTENSIONS) ==========
+    advancedPolicy: {
+        // WEEKLY OFF SETTINGS & EMPLOYEE OVERRIDES
+        weeklyOff: {
+            mode: {
+                type: String,
+                enum: ['basic', 'sunday', 'saturday_sunday', 'alternate_saturday', 'custom'],
+                default: 'basic'
+            },
+            // If true, treat Saturdays as half-day working by default
+            saturdayHalfDayEnabled: { type: Boolean, default: false },
+            // Alternate Saturday logic – e.g. workingWeeks: [1,3], offWeeks: [2,4]
+            alternateSaturday: {
+                workingWeeks: [{ type: Number }], // 1-5
+                offWeeks: [{ type: Number }]
+            },
+            // Per-employee weekly off override without touching Employee schema
+            employeeOverrides: [{
+                employee: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
+                weeklyOffDays: [{ type: Number }], // 0-6
+                saturdayHalfDayEnabled: { type: Boolean, default: false }
+            }]
+        },
+
+        // LATE MARK RULES
+        lateMarkRules: {
+            enabled: { type: Boolean, default: false },
+            allowedLateMinutesPerDay: { type: Number, default: 0 },
+            // Aggregation thresholds – evaluated at snapshot/payroll time
+            lateMarksToHalfDay: { type: Number, default: 0 },
+            lateMarksToFullDay: { type: Number, default: 0 },
+            autoLeaveDeductionEnabled: { type: Boolean, default: false }
+        },
+
+        // EARLY EXIT RULES
+        earlyExitRules: {
+            enabled: { type: Boolean, default: false },
+            allowedEarlyMinutesPerDay: { type: Number, default: 0 },
+            earlyExitsToHalfDay: { type: Number, default: 0 },
+            earlyExitsToFullDay: { type: Number, default: 0 }
+        },
+
+        // HALF-DAY RULES
+        halfDayRules: {
+            enabled: { type: Boolean, default: false },
+            // If working hours < threshold -> Half day (if >0)
+            workingHoursThreshold: { type: Number, default: 0 },
+            // If late minutes > threshold -> Half day (if >0)
+            lateMinutesThreshold: { type: Number, default: 0 },
+            saturdayHalfDayEnabled: { type: Boolean, default: false }
+        },
+
+        // ABSENT / NO-PUNCH RULES
+        absentRules: {
+            // If true, days with no punches are auto-marked absent
+            noPunchConsideredAbsent: { type: Boolean, default: true },
+            // Behaviour when only IN or only OUT exists
+            singlePunchBehaviour: {
+                type: String,
+                enum: ['half_day', 'absent'],
+                default: 'half_day'
+            },
+            autoLeaveDeductionEnabled: { type: Boolean, default: false },
+            convertToLopWhenNoLeave: { type: Boolean, default: false }
+        },
+
+        // LEAVE & ATTENDANCE INTEGRATION
+        leaveIntegration: {
+            // Priority order for auto leave deduction
+            autoLeaveDeductionOrder: {
+                type: [String],
+                default: ['CL', 'SL', 'EL', 'Optional', 'LOP']
+            },
+            // Holiday + weekend sandwich rule extension
+            sandwichRuleEnabled: { type: Boolean, default: false },
+            // WFH counted as full present or half-day
+            wfhPresentMode: {
+                type: String,
+                enum: ['present', 'half_day'],
+                default: 'present'
+            }
+        },
+
+        // WORK FROM HOME (WFH) SETTINGS
+        wfhSettings: {
+            enabled: { type: Boolean, default: false },
+            gpsRestrictionEnabled: { type: Boolean, default: false },
+            ipRestrictionEnabled: { type: Boolean, default: false },
+            // 'auto_present' -> mark WFH as present automatically
+            // 'requires_approval' -> rely on existing approval/regularization flow
+            autoPresentMode: {
+                type: String,
+                enum: ['auto_present', 'requires_approval'],
+                default: 'requires_approval'
+            }
+        },
+
+        // ON-DUTY (OD) RULES
+        odSettings: {
+            enabled: { type: Boolean, default: false },
+            approvalRequired: { type: Boolean, default: true },
+            odCountMode: {
+                type: String,
+                enum: ['present', 'half_day', 'custom'],
+                default: 'present'
+            }
+        },
+
+        // COMP-OFF SETTINGS
+        compOffSettings: {
+            enabled: { type: Boolean, default: false },
+            autoCreditOnHolidayWork: { type: Boolean, default: false },
+            expiryDays: { type: Number, default: 30 },
+            approvalRequired: { type: Boolean, default: true }
+        },
+
+        // DEVICE & PUNCH-SOURCE SETTINGS
+        deviceSettings: {
+            // Allowed punch sources; if empty treat as "all"
+            allowedSources: [{
+                type: String,
+                enum: ['biometric', 'mobile', 'web']
+            }],
+            faceRecognitionMandatory: { type: Boolean, default: false },
+            webCheckinAllowed: { type: Boolean, default: true }
+        },
+
+        // MANUAL ATTENDANCE CORRECTION WORKFLOW (leverages Regularization module)
+        manualCorrectionWorkflow: {
+            enabled: { type: Boolean, default: true },
+            requireManagerApproval: { type: Boolean, default: true },
+            requireHrApproval: { type: Boolean, default: true }
+        },
+
+        // NIGHT SHIFT LOGIC
+        nightShiftRules: {
+            enabled: { type: Boolean, default: false },
+            shiftSpansMidnight: { type: Boolean, default: false },
+            nightShiftAllowanceEnabled: { type: Boolean, default: false },
+            nightShiftAllowanceCode: { type: String },
+            overtimeSeparateForNightShift: { type: Boolean, default: false }
+        }
+    },
 
     // Audit Details
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' }

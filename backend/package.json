@@ -6,8 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "npx kill-port 5003 && timeout /t 2 >nul && nodemon server.js",
-    "start:dev": "NODE_ENV=development npx kill-port 5003 && timeout /t 2 >nul && nodemon server.js",
+    "dev": "npx kill-port 5003 && nodemon server.js",
+    "start:dev": "NODE_ENV=development npx kill-port 5003 && nodemon server.js",
     "docs": "node -e \"console.log('Open http://localhost:' + (process.env.PORT||5000) + '/api/docs')\"",
     "tunnel": "ngrok http 5000",
     "ngrok": "taskkill /f /im ngrok.exe && ngrok http 5000"
