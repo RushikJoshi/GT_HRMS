@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true, // Bind to 0.0.0.0 to allow network access
       port: DEV_PORT,
-      strictPort: false,
+      strictPort: true,
       hmr: {
         protocol: HMR_PROTOCOL,
         // Only set host if explicitly configured, otherwise let Vite auto-detect

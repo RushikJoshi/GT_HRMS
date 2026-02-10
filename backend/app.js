@@ -191,6 +191,7 @@ app.use('/api/compensation', compensationRoutes);
 app.use('/api/bgv', require('./routes/bgv.routes'));
 
 app.use('/api/career', careerOptimizedRoutes);
+app.use('/api/social-media', require('./routes/socialMedia.routes'));
 
 
 app.use('/api/positions', positionRoutes);

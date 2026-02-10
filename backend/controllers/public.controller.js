@@ -237,7 +237,12 @@ exports.applyJob = [
       console.log(`📝 [APPLY_JOB] File:`, req.file);
 
       // 1. Resolve Parameters
-      let { tenantId, requirementId, name, fatherName, email, mobile, experience, address, location, currentCompany, currentDesignation, expectedCTC, linkedin, dob } = req.body;
+      let {
+        tenantId, requirementId, name, fatherName, email, mobile, experience,
+        address, location, currentCompany, currentDesignation, expectedCTC, linkedin, dob,
+        // Reference fields
+        references, isFresher, noReferenceReason
+      } = req.body;
 
       // Robustly resolve tenantId
       if (!tenantId || tenantId === 'null' || tenantId === 'undefined') {
@@ -330,6 +335,128 @@ exports.applyJob = [
         }
       }
 
+      // ═══════════════════════════════════════════════════════════════════
+      // REFERENCE VALIDATION
+      // ═══════════════════════════════════════════════════════════════════
+      let validatedReferences = [];
+      const familyRelationships = ['father', 'mother', 'brother', 'sister', 'spouse', 'wife', 'husband', 'son', 'daughter', 'uncle', 'aunt', 'cousin', 'relative'];
+
+      // Parse references if sent as string (Multipart FormData often sends JSON as string)
+      if (references && typeof references === 'string') {
+        try {
+          references = JSON.parse(references);
+        } catch (e) {
+          console.warn("⚠️ [APPLY_JOB] Failed to parse references JSON:", e.message);
+        }
+      }
+
+      // Ensure references is an array
+      if (!Array.isArray(references)) {
+        references = references ? [references] : [];
+      }
+
+      // Convert isFresher to boolean
+      const isFresherBool = isFresher === true || isFresher === 'true';
+
+      // Validate references (required unless fresher)
+      if (!isFresherBool) {
+        if (!references || references.length === 0) {
+          return res.status(400).json({
+            error: 'Professional reference required',
+            details: 'Please provide at least 1 professional reference or check the fresher option'
+          });
+        }
+
+        if (references.length > 2) {
+          return res.status(400).json({
+            error: 'Too many references',
+            details: 'Maximum 2 references allowed'
+          });
+        }
+
+        // Validate each reference
+        const seenEmails = new Set();
+        const seenPhones = new Set();
+
+        for (let i = 0; i < references.length; i++) {
+          const ref = references[i];
+
+          // Required fields check
+          if (!ref.name || !ref.designation || !ref.company || !ref.relationship || !ref.email || !ref.phone) {
+            return res.status(400).json({
+              error: `Reference ${i + 1}: All fields are required`,
+              details: 'Name, Designation, Company, Relationship, Email, and Phone are mandatory'
+            });
+          }
+
+          // Block family relationships
+          const relationshipLower = ref.relationship.toLowerCase();
+          const nameAndRelationship = `${ref.name.toLowerCase()} ${relationshipLower}`;
+
+          if (familyRelationships.some(family => relationshipLower.includes(family) || nameAndRelationship.includes(family))) {
+            return res.status(400).json({
+              error: `Reference ${i + 1}: Family references not allowed`,
+              details: 'Please provide professional references only. Family members cannot be used as references.'
+            });
+          }
+
+          // Email validation
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(ref.email)) {
+            return res.status(400).json({
+              error: `Reference ${i + 1}: Invalid email format`,
+              details: `Email "${ref.email}" is not valid`
+            });
+          }
+
+          // Phone validation
+          const phoneRegex = /^[0-9+\-\s()]{10,15}$/;
+          if (!phoneRegex.test(ref.phone)) {
+            return res.status(400).json({
+              error: `Reference ${i + 1}: Invalid phone format`,
+              details: 'Phone number must be 10-15 digits'
+            });
+          }
+
+          // Check for duplicate email/phone in same application
+          const emailLower = ref.email.toLowerCase();
+          const phoneTrimmed = ref.phone.trim();
+
+          if (seenEmails.has(emailLower)) {
+            return res.status(400).json({
+              error: `Reference ${i + 1}: Duplicate email`,
+              details: 'Each reference must have a unique email address'
+            });
+          }
+          if (seenPhones.has(phoneTrimmed)) {
+            return res.status(400).json({
+              error: `Reference ${i + 1}: Duplicate phone`,
+              details: 'Each reference must have a unique phone number'
+            });
+          }
+
+          seenEmails.add(emailLower);
+          seenPhones.add(phoneTrimmed);
+
+          // Build validated reference object
+          validatedReferences.push({
+            name: ref.name.trim(),
+            designation: ref.designation.trim(),
+            company: ref.company.trim(),
+            relationship: ref.relationship,
+            email: emailLower,
+            phone: phoneTrimmed,
+            yearsKnown: ref.yearsKnown || null,
+            consentToContact: ref.consentToContact !== false,
+            verificationStatus: 'Pending'
+          });
+        }
+
+        console.log(`✅ [APPLY_JOB] ${validatedReferences.length} reference(s) validated successfully`);
+      } else {
+        console.log(`ℹ️ [APPLY_JOB] Fresher application - no references required`);
+      }
+
       // --- LOG FOR DEBUGGING ---
       try {
         const fs = require('fs');
@@ -369,7 +496,12 @@ exports.applyJob = [
         aiParsedData: structuredData,
         parsedSkills: structuredData.skills || [],
         matchPercentage: structuredData.matchPercentage || 0,
-        parsingStatus: rawText ? 'Completed' : 'Pending'
+        parsingStatus: rawText ? 'Completed' : 'Pending',
+
+        // Reference Fields
+        references: validatedReferences,
+        isFresher: isFresherBool,
+        noReferenceReason: isFresherBool ? (noReferenceReason || 'Fresher - No Work Experience') : null
       });
 
       await applicant.save();
