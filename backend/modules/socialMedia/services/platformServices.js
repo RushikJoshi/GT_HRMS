@@ -129,7 +129,7 @@ class LinkedInService extends PlatformService {
                         title: { text: 'Image' }
                     });
                 } catch (err) {
-                    console.error('   ⚠️ Failed to upload image:', imageUrl);
+                    console.error('⚠️ Failed to upload image:', imageUrl);
                 }
             }
 

@@ -42,7 +42,7 @@ router.post('/upload-images', upload.array('images', 10), controller.uploadImage
 // Other protected routes
 router.get('/accounts', controller.getAccounts);
 router.delete('/disconnect/:platform', controller.disconnect);
-router.post('/post', controller.createPost);
+router.post('/post', require('../modules/socialMedia/middleware/preventDuplicate'), controller.createPost);
 router.get('/posts', controller.getPosts);
 router.put('/post/:id', controller.updatePost);
 router.delete('/post/:id', controller.deletePost);

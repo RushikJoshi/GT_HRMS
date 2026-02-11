@@ -17,6 +17,9 @@ const SocialMediaDashboard = () => {
         scheduledAt: ''
     });
 
+    // Publish loading state
+    const [isPublishing, setIsPublishing] = useState(false);
+
     // Multiple image upload state
     const [imageFiles, setImageFiles] = useState([]);
     const [imagePreviews, setImagePreviews] = useState([]);
@@ -397,6 +400,9 @@ const SocialMediaDashboard = () => {
 
     const handleCreatePost = async (e) => {
         e.preventDefault();
+
+        if (isPublishing) return; // Prevent double click
+
         if (!newPost.content || newPost.platforms.length === 0) {
             notification.warning({
                 message: 'Validation Error',
@@ -407,6 +413,7 @@ const SocialMediaDashboard = () => {
         }
 
         try {
+            setIsPublishing(true); // Start loading
             let savedPost;
             if (editingPost) {
                 // Update existing post
@@ -461,6 +468,8 @@ const SocialMediaDashboard = () => {
                 description: error.response?.data?.message || 'Failed to create post',
                 duration: 4
             });
+        } finally {
+            setIsPublishing(false); // Stop loading
         }
     };
 
@@ -745,8 +754,11 @@ const SocialMediaDashboard = () => {
 
                             <button
                                 type="submit"
-                                className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
+                                disabled={isPublishing}
+                                className={`w-full px-6 py-3 text-white rounded-lg font-medium transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-2 
+                                    ${isPublishing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                             >
+                                {isPublishing && <FaSpinner className="animate-spin" />}
                                 {editingPost ? '💾 Update Post' : (newPost.scheduledAt ? 'Schedule Post' : 'Publish Now')}
                             </button>
                         </form>
