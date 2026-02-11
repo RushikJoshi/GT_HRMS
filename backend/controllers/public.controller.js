@@ -81,7 +81,7 @@ exports.getPublicJobs = async (req, res) => {
         { visibility: null }
       ]
     })
-      .select('jobTitle department vacancy createdAt tenant visibility employmentType location minExperienceMonths maxExperienceMonths description')
+      .select('jobTitle department vacancy createdAt publishedAt tenant visibility employmentType location minExperienceMonths maxExperienceMonths description bannerImage')
       .sort({ createdAt: -1 });
 
     console.log(`✅ [GET_PUBLIC_JOBS] Found ${jobs.length} jobs for ${tenant.name}`);
@@ -120,7 +120,7 @@ exports.getPublicJobsByCompanyCode = async (req, res) => {
         { visibility: null }
       ]
     })
-      .select('jobTitle department vacancy createdAt tenant visibility employmentType location minExperienceMonths maxExperienceMonths description')
+      .select('jobTitle department vacancy createdAt publishedAt tenant visibility employmentType location minExperienceMonths maxExperienceMonths description bannerImage')
       .sort({ createdAt: -1 });
 
     console.log(`✅ [GET_JOBS_BY_CODE] Found ${jobs.length} jobs for ${tenant.name}`);

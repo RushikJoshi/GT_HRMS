@@ -37,8 +37,8 @@ function getModels(req) {
       LeavePolicy: db.model("LeavePolicy"),
       LeaveBalance: db.model("LeaveBalance"),
       Offer: db.models.Offer ? db.model("Offer") : null,
-      Applicant: db.models.Applicant ? db.model("Applicant") : null
-      // Counter is now global, not per-tenant
+      Applicant: db.models.Applicant ? db.model("Applicant") : null,
+      Department: db.model("Department")
     };
   } catch (err) {
     console.error("[getModels] Error retrieving models:", err.message);
@@ -351,7 +351,7 @@ exports.create = async (req, res) => {
     const format = tenant?.meta?.empCodeFormat || "COMP_DEPT_NUM";
     const allowOverride = tenant?.meta?.empCodeAllowOverride || false;
 
-    const { firstName, lastName, department, customEmployeeId, departmentId, joiningDate, status, lastStep, applicantId, ...restBody } = req.body;
+    const { firstName, lastName, department, customEmployeeId, departmentId, joiningDate, status, lastStep, applicantId, overrideVacancy, ...restBody } = req.body;
 
     // --- LIFECYCLE RULE 8 VALIDATION ---
     if (applicantId) {
@@ -442,9 +442,43 @@ exports.create = async (req, res) => {
     if (applicantId) {
       try {
         const Applicant = req.tenantDB.model('Applicant');
+        const Requirement = req.tenantDB.model('Requirement');
         const applicant = await Applicant.findById(applicantId);
 
         if (applicant) {
+          console.log(`[ONBOARDING_CHECK] Checking vacancies for Applicant: ${applicant._id}, Job: ${applicant.requirementId}`);
+
+          // --- VACANCY CHECK ---
+          if (applicant.requirementId) {
+            const requirement = await Requirement.findById(applicant.requirementId);
+            if (requirement) {
+              const hiredCount = await Applicant.countDocuments({
+                requirementId: applicant.requirementId,
+                isOnboarded: true
+              });
+
+              console.log(`[ONBOARDING_CHECK] Job: ${requirement.jobTitle}, Vacancy: ${requirement.vacancy || 1}, Already Hired: ${hiredCount}`);
+
+              // Fallback to 1 if vacancy is missing/zero to prevent accidental over-hiring
+              const totalLimit = requirement.vacancy || 1;
+
+              if (hiredCount >= totalLimit && !overrideVacancy) {
+                console.warn(`[ONBOARDING_CHECK] BLOCKING: ${hiredCount} already hired for ${totalLimit} vacancies.`);
+                return res.status(400).json({
+                  success: false,
+                  error: "vacancies_filled",
+                  message: `Cannot onboard. All ${totalLimit} vacancies for '${requirement.jobTitle}' are already filled.`,
+                  isFull: true
+                });
+              }
+
+              if (hiredCount >= totalLimit && overrideVacancy) {
+                console.log(`[ONBOARDING_CHECK] OVERRIDE: Proceeding even though ${hiredCount}/${totalLimit} vacancies filled.`);
+              }
+            } else {
+              console.warn(`[ONBOARDING_CHECK] Requirement ${applicant.requirementId} not found`);
+            }
+          }
           // 1. Copy Template ID
           if (applicant.salaryTemplateId) {
             createData.salaryTemplateId = applicant.salaryTemplateId;
@@ -464,6 +498,7 @@ exports.create = async (req, res) => {
       }
     }
 
+    // CREATE EMPLOYEE
     let emp = await Employee.create(createData);
 
     // --- NEW: Update Snapshot Ownership ---
@@ -484,8 +519,6 @@ exports.create = async (req, res) => {
       const { ensureLeavePolicy } = require('../config/dbManager');
       emp = await ensureLeavePolicy(emp, req.tenantDB, req.tenantId);
 
-      // If a policy was auto-assigned and no explicit policy was provided in create body,
-      // ensure leave balances are initialized for the current year if none exist.
       if (emp && emp.leavePolicy && !restBody.leavePolicy) {
         const LeaveBalance = req.tenantDB.model('LeaveBalance');
         const existing = await LeaveBalance.findOne({ employee: emp._id });
@@ -501,13 +534,33 @@ exports.create = async (req, res) => {
     if (applicantId && emp) {
       try {
         const Applicant = req.tenantDB.model('Applicant');
-        await Applicant.findByIdAndUpdate(applicantId, {
+        const Requirement = req.tenantDB.model('Requirement');
+
+        const updatedApplicant = await Applicant.findByIdAndUpdate(applicantId, {
           isOnboarded: true,
           employeeId: emp._id
-        });
+        }, { new: true });
+
         console.log(`[ONBOARDING] Linked Applicant ${applicantId} to Employee ${emp._id} (Marked Onboarded)`);
+
+        // Check if all vacancies filled - Auto Close Job
+        if (updatedApplicant && updatedApplicant.requirementId) {
+          const requirement = await Requirement.findById(updatedApplicant.requirementId);
+          if (requirement) {
+            const totalOnboarded = await Applicant.countDocuments({
+              requirementId: updatedApplicant.requirementId,
+              isOnboarded: true
+            });
+
+            const totalLimit = requirement.vacancy || 1;
+            if (totalOnboarded >= totalLimit) {
+              await Requirement.findByIdAndUpdate(updatedApplicant.requirementId, { status: 'Closed' });
+              console.log(`[ONBOARDING] Job '${requirement.jobTitle}' CLOSED automatically (Vacancies filled).`);
+            }
+          }
+        }
       } catch (linkErr) {
-        console.error("Failed to link applicant:", linkErr);
+        console.error("Failed to link applicant or auto-close job:", linkErr);
       }
     }
 

@@ -12,7 +12,8 @@ const RequirementSchema = new mongoose.Schema({
   positionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Position', index: true },
   position: { type: String, trim: true },
   publicFields: { type: [String], default: [] },
-  workflow: { type: [String], default: ['Applied', 'Shortlisted', 'Interview', 'Finalized'] }
-}, { strict: false, collection: 'requirements' });
+  workflow: { type: [String], default: ['Applied', 'Shortlisted', 'Interview', 'Finalized'] },
+  bannerImage: { type: String } // Path to uploaded image
+}, { strict: false, collection: 'requirements', timestamps: true });
 
 module.exports = RequirementSchema;

@@ -73,6 +73,7 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const PositionSchema = require("../models/Position");
     const CompanyIdConfigSchema = require("../models/CompanyIdConfig");
 
+
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
       if (!schema) {
@@ -137,6 +138,7 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("PayslipTemplate", PayslipTemplateSchema);
     register("Position", PositionSchema);
     register("CompanyIdConfig", CompanyIdConfigSchema);
+
 
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {

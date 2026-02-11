@@ -1,6 +1,7 @@
 import React from 'react';
 import { Briefcase, MapPin, Calendar, ArrowRight } from 'lucide-react';
 import { formatDateDDMMYYYY } from '../../../../utils/dateUtils';
+import { API_ROOT } from '../../../../utils/api';
 
 export default function JobCard({ job, config = {}, onApply, isApplied }) {
     const {
@@ -41,8 +42,22 @@ export default function JobCard({ job, config = {}, onApply, isApplied }) {
         color: applyButtonStyle === 'filled' ? '#ffffff' : applyButtonColor,
     };
 
+    const bannerUrl = job.bannerImage
+        ? (job.bannerImage.startsWith('http') ? job.bannerImage : `${API_ROOT}${job.bannerImage}`)
+        : null;
+
     return (
         <div style={{ backgroundColor: cardBackground }} className={containerClasses}>
+            {bannerUrl && (
+                <div className="w-full h-32 overflow-hidden relative">
+                    <img
+                        src={bannerUrl}
+                        alt={job.jobTitle}
+                        className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                </div>
+            )}
             <div className="p-7 flex-1 flex flex-col items-start text-left">
 
                 {/* Header: Title + Opening Badge */}

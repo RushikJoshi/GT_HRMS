@@ -212,7 +212,7 @@ class RecruitmentService {
 
         // Need to populate correctly
         const applicants = await Applicant.find({ tenant: tenantId })
-            .populate('requirementId', 'jobTitle jobOpeningId')
+            .populate('requirementId', 'jobTitle jobOpeningId vacancy')
             .populate('candidateId', 'name email mobile')
             .populate('salarySnapshotId')
             .sort({ createdAt: -1 })
@@ -230,11 +230,15 @@ class RecruitmentService {
         const offerMap = {};
         offers.forEach(o => { offerMap[o.candidateId.toString()] = o; });
 
-        applicants.forEach(app => {
-            app.latestOffer = offerMap[app._id.toString()] || null;
+        return applicants.map(app => {
+            return {
+                ...app,
+                totalVacancies: app.requirementId?.vacancy || 1,
+                latestOffer: offerMap[app._id.toString()] || null,
+                bgvStatus: 'NOT_INITIATED',
+                bgvId: null
+            };
         });
-
-        return applicants;
     }
 
     async applyForJob(jobId, candidateId, data) {

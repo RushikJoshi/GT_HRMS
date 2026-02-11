@@ -30,6 +30,11 @@ exports.createRequirement = async (req, res) => {
         // Enforce Open Status
         const payload = { ...req.body, status: 'Open' };
 
+        // Handle Banner Image
+        if (req.file) {
+            payload.bannerImage = `/uploads/requirements/${req.file.filename}`;
+        }
+
         const result = await RecruitmentService.createRequirement(tenantId, payload, req.user.id);
         res.status(201).json(result);
     } catch (error) {
@@ -135,7 +140,12 @@ exports.updateRequirement = async (req, res) => {
             }
         }
 
-        const result = await RecruitmentService.updateRequirement(tenantId, req.params.id, req.body, req.user.id);
+        const updates = { ...req.body };
+        if (req.file) {
+            updates.bannerImage = `/uploads/requirements/${req.file.filename}`;
+        }
+
+        const result = await RecruitmentService.updateRequirement(tenantId, req.params.id, updates, req.user.id);
         res.json(result);
     } catch (error) {
         res.status(400).json({ message: error.message });

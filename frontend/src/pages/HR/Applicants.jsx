@@ -2,14 +2,43 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api'; // Centralized axios instance with auth & tenant headers
-import { getNextStage, normalizeStatus } from './PipelineStatusManager';
+import { normalizeStatus } from './PipelineStatusManager';
 import { useAuth } from '../../context/AuthContext';
 import OfferLetterPreview from '../../components/OfferLetterPreview';
 import AssignSalaryModal from '../../components/AssignSalaryModal';
 import { DatePicker, Pagination, Select, Modal, TimePicker, notification, Dropdown, Menu } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications'; // Imports fixed
 import dayjs from 'dayjs';
-import { Eye, Download, Edit2, RefreshCw, IndianRupee, Upload, FileText, CheckCircle, Settings, Plus, Trash2, X, GripVertical, Star, XCircle, Clock, ShieldCheck, Lock, ChevronRight, ChevronDown, RotateCcw, UserCheck, UserX, PlusCircle, UserPlus, Info, Search, Calendar } from 'lucide-react';
+import {
+    LayoutDashboard,
+    Users,
+    Building2,
+    Workflow,
+    UserCog,
+    Fingerprint,
+    CalendarDays,
+    Plane,
+    Gavel,
+    LineChart,
+    Layers,
+    Coins,
+    Zap,
+    Clock9,
+    Banknote,
+    Paintbrush,
+    Briefcase,
+    UserPlus,
+    Radar,
+    FileJson,
+    Lock,
+    Settings2,
+    Brush,
+    ExternalLink,
+    Shield,
+    Share2,
+    X,
+    Eye, Download, Edit2, RefreshCw, IndianRupee, Upload, FileText, CheckCircle, Settings, Plus, Trash2, GripVertical, Star, XCircle, Clock, ShieldCheck, ChevronRight, ChevronDown, RotateCcw, UserCheck, UserX, PlusCircle, Info, Search, Calendar
+} from 'lucide-react';
 import DynamicPipelineEngine from './DynamicPipelineEngine';
 import InterviewScheduleModal from './modals/InterviewScheduleModal';
 
@@ -72,7 +101,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [selectedReqId, setSelectedReqId] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [timeFilter, setTimeFilter] = useState('all'); // Added Time Filter State
-    const [jobTypeFilter, setJobTypeFilter] = useState('all'); // Added Job Type Filter
+
 
     // Tab State: Dynamic based on Requirement Workflow
     // Start with default tabs for 'all' view
@@ -80,12 +109,12 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [workflowTabs, setWorkflowTabs] = useState(['Applied', 'Shortlisted', 'Interview', 'HR Round', 'Finalized', 'Rejected']);
 
     // Custom Rounds State - Load from localStorage or use defaults
-    const [customRounds, setCustomRounds] = useState(() => {
+    const [customRounds] = useState(() => {
         const saved = localStorage.getItem('hrms_custom_rounds');
         if (saved) {
             try {
                 return JSON.parse(saved);
-            } catch (e) {
+            } catch {
                 return ['HR Round', 'Tech Round', 'Final Round'];
             }
         }
@@ -135,7 +164,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     // New Interview Round State
     const [addRoundModalVisible, setAddRoundModalVisible] = useState(false);
     const [newRoundName, setNewRoundName] = useState('');
-    const [candidateForNewRound, setCandidateForNewRound] = useState(null);
+    const [candidateForNewRound] = useState(null);
 
     // Custom Other Round State
     const [addCustomRoundModalVisible, setAddCustomRoundModalVisible] = useState(false);
@@ -150,15 +179,6 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     });
 
 
-    const openWorkflowEditor = () => {
-        if (!selectedRequirement) return;
-        // Ensure we have at least the basic structure if empty
-        const current = selectedRequirement.workflow && selectedRequirement.workflow.length > 0
-            ? [...selectedRequirement.workflow]
-            : ['Applied', 'Shortlisted', 'Interview', 'Finalized'];
-        setEditingWorkflow(current);
-        setShowWorkflowEditModal(true);
-    };
 
     const handleStageAdd = () => {
         if (newStageName.trim()) {
@@ -243,7 +263,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             // Clear the state to prevent re-triggering
             navigate('/hr/applicants', { replace: true });
         }
-    }, [applicants, location.state]);
+    }, [applicants, location.state, navigate]);
 
     // Auto-select job when in jobSpecific mode
     useEffect(() => {
@@ -271,25 +291,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     }, [showAllCandidates]);
 
 
-    // Handle Requirement Selection
-    const handleRequirementChange = (reqId) => {
-        setSelectedReqId(reqId);
-        if (reqId === 'all') {
-            setSelectedRequirement(null);
-            // setWorkflowTabs handle by useEffect
-            setActiveTab('all');
-        } else {
-            const req = requirements.find(r => r._id === reqId);
-            setSelectedRequirement(req);
 
-            // Set default active tab
-            if (req && req.workflow && req.workflow.length > 0) {
-                setActiveTab(req.workflow[0]);
-            } else {
-                setActiveTab('Applied');
-            }
-        }
-    };
 
     // Dynamic Tab Calculation (Includes Custom/Ad-hoc Stages)
     useEffect(() => {
@@ -345,30 +347,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 setActiveTab(baseParams[0]);
             }
         }
-    }, [selectedReqId, selectedRequirement, applicants]);
+    }, [selectedReqId, selectedRequirement, applicants, activeTab]);
 
     // Custom Stage State
     const [isCustomStageModalVisible, setIsCustomStageModalVisible] = useState(false);
     const [customStageName, setCustomStageName] = useState('');
     const [candidateForCustomStage, setCandidateForCustomStage] = useState(null);
 
-    const handleNextStage = (applicant) => {
-        const currentIndex = workflowTabs.indexOf(activeTab);
-        if (currentIndex !== -1 && currentIndex < workflowTabs.length - 1) {
-            const nextStage = workflowTabs[currentIndex + 1];
-            // If next is 'Finalized', we mark as 'Selected' (or specific logic)
-            // But usually 'Finalized' is just a bucket. usage of 'Selected' status puts them there?
-            // Let's assume 'Selected' if next is Finalized, otherwise the stage name.
-            if (nextStage === 'Finalized') {
-                handleStatusChangeRequest(applicant, 'Selected');
-            } else {
-                handleStatusChangeRequest(applicant, nextStage);
-            }
-        } else {
-            // Fallback if no next stage (shouldn't happen if logic is correct)
-            handleStatusChangeRequest(applicant, 'Selected');
-        }
-    };
+
 
     const handleAddCustomStage = async () => {
         if (!customStageName.trim() || !candidateForCustomStage) return;
@@ -392,137 +378,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     // --- NEW PIPELINE LOGIC FUNCTIONS ---
 
     // Add Virtual Interview Round (Frontend only simulation as requested)
-    const handleAddInterviewRound = (app) => {
-        setCandidateForNewRound(app);
-        setAddRoundModalVisible(true);
-    };
 
-    // Add Custom Other Round with Game/Assessment
-    const handleAddCustomRound = (app) => {
-        setCandidateForNewRound(app);
-        setAddCustomRoundModalVisible(true);
-    };
 
-    const renderHiringDropdown = (app) => {
-        if (app.status === 'Finalized') return (
-            <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-100 rounded-full w-full justify-center">
-                <CheckCircle size={14} className="text-blue-600" />
-                <span className="text-[10px] font-black text-blue-700 tracking-widest uppercase">Selected</span>
-            </div>
-        );
 
-        // Rule: Finalize button ONLY in HR Round tab for Selected candidates
-        if (activeTab === 'HR Round' && app.status === 'Selected') {
-            return (
-                <div className="w-full flex gap-2">
-                    <button
-                        onClick={() => { setCandidateToFinalize(app); setFinalizeModalVisible(true); }}
-                        className="flex-1 h-10 rounded-full bg-blue-600 text-white text-[11px] font-black shadow-lg shadow-blue-100 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 px-6"
-                    >
-                        <ShieldCheck size={16} strokeWidth={2.5} />
-                        FINALIZE
-                    </button>
-                    <button
-                        onClick={() => updateStatus(app, 'Rejected')}
-                        className="flex-1 h-10 rounded-full bg-rose-600 text-white text-[11px] font-black shadow-lg shadow-rose-100 hover:bg-rose-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 px-6"
-                    >
-                        <UserX size={16} strokeWidth={2.5} />
-                        REJECT
-                    </button>
-                    <button
-                        onClick={() => handleAddCustomRound(app)}
-                        className="flex-1 h-10 rounded-full bg-amber-600 text-white text-[11px] font-black shadow-lg shadow-amber-100 hover:bg-amber-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 px-6"
-                    >
-                        <PlusCircle size={16} strokeWidth={2.5} />
-                        OTHER ROUND
-                    </button>
-                </div>
-            );
-        }
-
-        // Get candidate's current position in workflow
-        const candidateStatusIndex = workflowTabs.indexOf(app.status);
-        const activeTabIndex = workflowTabs.indexOf(activeTab);
-
-        const menuItems = [
-            {
-                key: 'label',
-                label: (
-                    <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">
-                        Next Pipeline Step
-                    </div>
-                ),
-                disabled: true,
-            },
-            // Show "Move to Shortlisted" only if candidate is still in Applied status
-            ...(app.status === 'Applied' ? [{
-                key: 'shortlist',
-                icon: <UserCheck size={16} className="text-blue-500" />,
-                label: <span className="font-bold text-slate-700">Move to Shortlisted</span>,
-                onClick: () => updateStatus(app, 'Shortlisted'),
-            }] : []),
-            // Show "Move to Interview" only if candidate is in Shortlisted (not beyond)
-            ...(app.status === 'Shortlisted' ? [{
-                key: 'interview',
-                icon: <Clock size={16} className="text-indigo-500" />,
-                label: <span className="font-bold text-slate-700">Move to Interview</span>,
-                onClick: () => updateStatus(app, 'Interview'),
-            }] : []),
-            // Show interview options if in Interview stage or custom rounds
-            ...((app.status === 'Interview' || app.status.includes('Interview') || app.status.includes('Round')) ? [
-                {
-                    key: 'hr_round',
-                    icon: <UserPlus size={16} className="text-purple-500" />,
-                    label: <span className="font-bold text-slate-700">Move to HR Round</span>,
-                    onClick: () => updateStatus(app, 'HR Round'),
-                },
-                {
-                    key: 'add_round',
-                    icon: <PlusCircle size={16} className="text-emerald-500" />,
-                    label: <span className="font-bold text-emerald-600">Add Interview Round</span>,
-                    onClick: () => handleAddInterviewRound(app),
-                }
-            ] : []),
-            // Show "Mark as Selected" only if in HR Round and not already selected
-            ...(app.status === 'HR Round' ? [{
-                key: 'select',
-                icon: <UserCheck size={16} className="text-emerald-500" />,
-                label: <span className="font-bold text-emerald-600">Mark as Selected</span>,
-                onClick: () => updateStatus(app, 'Selected'),
-            }] : []),
-            { type: 'divider', className: 'my-1 border-slate-50' },
-            {
-                key: 'reject',
-                icon: <UserX size={16} className="text-rose-500" />,
-                label: <span className="font-bold text-rose-600">Mark as Rejected</span>,
-                onClick: () => updateStatus(app, 'Rejected'),
-            },
-            // Show "Move Back" only if candidate can actually move back
-            ...(candidateStatusIndex > 0 ? [{
-                key: 'back',
-                icon: <RotateCcw size={16} className="text-slate-400" />,
-                label: <span className="font-bold text-slate-500">Move Back</span>,
-                onClick: () => {
-                    const prevIdx = candidateStatusIndex - 1;
-                    if (prevIdx >= 0) updateStatus(app, workflowTabs[prevIdx]);
-                }
-            }] : [])
-        ];
-
-        return (
-            <Dropdown
-                menu={{ items: menuItems }}
-                trigger={['click']}
-                placement="bottomRight"
-                overlayClassName="p-2 rounded-2xl shadow-2xl border-none min-w-[220px]"
-            >
-                <button className="w-full h-10 rounded-xl border border-slate-200 bg-white text-slate-600 text-[11px] font-black hover:border-indigo-400 hover:text-indigo-600 hover:shadow-md transition-all flex items-center justify-between px-4 group">
-                    <span>NEXT STEP</span>
-                    <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
-                </button>
-            </Dropdown>
-        );
-    };
     // Drag and Drop Refs
     const dragItem = React.useRef(null);
     const dragOverItem = React.useRef(null);
@@ -648,39 +506,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [showPreview, setShowPreview] = useState(false);
     const [showCandidateModal, setShowCandidateModal] = useState(false);
 
-    // File Upload State
-    const fileInputRef = React.useRef(null);
-    const [uploading, setUploading] = useState(false);
 
-    const triggerFileUpload = (applicant) => {
-        setSelectedApplicant(applicant);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = ''; // Reset
-            fileInputRef.current.click();
-        }
-    };
-
-    const handleFileSelect = async (e) => {
-        const file = e.target.files[0];
-        if (!file || !selectedApplicant) return;
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        setUploading(true);
-        try {
-            await api.post(`/requirements/applicants/${selectedApplicant._id}/upload-salary-excel`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            showToast('success', 'Success', "Excel uploaded successfully! Variables are now available for Letter Templates.");
-            loadApplicants(); // Refresh incase we show status
-        } catch (error) {
-            console.error(error);
-            showToast('error', 'Error', "Upload failed: " + (error.response?.data?.error || error.message));
-        } finally {
-            setUploading(false);
-        }
-    };
     // State moved to top
     const [offerData, setOfferData] = useState({
         joiningDate: '',
@@ -716,16 +542,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
 
     // Review Modal State
-    const [showReviewModal, setShowReviewModal] = useState(false);
-    const [reviewForm, setReviewForm] = useState({ rating: 0, feedback: '', scorecard: {} });
     const [showEvaluationDrawer, setShowEvaluationDrawer] = useState(false);
 
-    // Document Upload States
-    const [showDocumentModal, setShowDocumentModal] = useState(false);
-    const [documentApplicant, setDocumentApplicant] = useState(null);
-    const [uploadedDocuments, setUploadedDocuments] = useState([]);
-    const [documentName, setDocumentName] = useState('');
-    const [documentFile, setDocumentFile] = useState(null);
+
     const [evalActiveRound, setEvalActiveRound] = useState(0);
     const [evaluationData, setEvaluationData] = useState({
         rounds: [
@@ -777,7 +596,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 10;
     const [templates, setTemplates] = useState([]);
-    const [companyInfo, setCompanyInfo] = useState({
+    const [companyInfo] = useState({
         name: 'Gitakshmi Technologies',
         tagline: 'TECHNOLOGIES',
         address: 'Ahmedabad, Gujarat - 380051',
@@ -951,63 +770,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         });
     };
 
-    // NEW HANDLERS FOR INTERVIEW TAB ACTIONS (PART 3 & 4)
-    const handleSelected = (applicant) => {
-        showConfirmToast({
-            title: 'Mark as Selected',
-            description: `Move ${applicant.name} to HR Round?`,
-            okText: 'Yes, Select',
-            cancelText: 'Cancel',
-            onConfirm: async () => {
-                // Update status to "Selected" and move to HR Round
-                const success = await updateStatus(applicant, 'Selected');
-                if (success) {
-                    // Show success message with green badge info
-                    showToast('success', 'Selected', `${applicant.name} has been marked as Selected and moved to HR Round with green badge.`);
-                }
-            }
-        });
-    };
 
-    const handleRejected = (applicant) => {
-        showConfirmToast({
-            title: 'Mark as Rejected',
-            description: `Reject ${applicant.name}? This action cannot be undone.`,
-            okText: 'Yes, Reject',
-            cancelText: 'Cancel',
-            onConfirm: async () => {
-                // Update status to "Rejected"
-                const success = await updateStatus(applicant, 'Rejected');
-                if (success) {
-                    showToast('error', 'Rejected', `${applicant.name} has been rejected and moved to Rejected tab.`);
-                }
-            }
-        });
-    };
-
-    const handleMoveToRound = (applicant, roundName) => {
-        showConfirmToast({
-            title: 'Move to Another Round',
-            description: `Move ${applicant.name} to "${roundName}"?`,
-            okText: 'Yes, Move',
-            cancelText: 'Cancel',
-            onConfirm: async () => {
-                // Update status to the selected round name
-                const success = await updateStatus(applicant, roundName);
-                if (success) {
-                    showToast('success', 'Round Changed', `${applicant.name} has been moved to ${roundName}.`);
-                }
-            }
-        });
-    };
-
-    const openReviewPrompt = (applicant, status) => {
-        setSelectedApplicant(applicant);
-        setSelectedStatusForReview(status);
-        setReviewRating(0);
-        setReviewFeedback('');
-        setShowEvaluationDrawer(true);
-    };
 
     const submitReviewAndStatus = async () => {
         if (!selectedApplicant || !selectedStatusForReview) return;
@@ -1031,7 +794,6 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 const applicant = selectedApplicant;
 
                 setShowEvaluationDrawer(false);
-                setShowReviewModal(false);
                 setIsFinishingInterview(false);
                 setReviewRating(0);
                 setReviewFeedback('');
@@ -1085,14 +847,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
 
     // Unified data refresh function
-    const refreshData = async () => {
+    const refreshData = React.useCallback(async () => {
         setLoading(true);
         await Promise.all([
             loadApplicants(),
             fetchTemplates()
         ]);
         setLoading(false);
-    };
+    }, []);
 
     useEffect(() => {
         // Load data on mount if user is authenticated
@@ -1101,163 +863,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         if (user || token) {
             refreshData();
         }
-    }, [user]); // Keep user as dependency to re-run if auth state changes
+    }, [user, refreshData]); // Keep user as dependency to re-run if auth state changes
 
-    // ==================== DOCUMENT HELPER FUNCTIONS ====================
 
-    // Helper function to check if all documents are verified
-    const areAllDocumentsVerified = (applicant) => {
-        if (!applicant.customDocuments || applicant.customDocuments.length === 0) {
-            return false; // No documents uploaded, so CTC button should be disabled
-        }
-        return applicant.customDocuments.every(doc => doc.verified === true);
-    };
-
-    // Open document upload modal
-    const openDocumentModal = (applicant) => {
-        setDocumentApplicant(applicant);
-        setUploadedDocuments(applicant.customDocuments || []);
-        setDocumentName('');
-        setDocumentFile(null);
-        setShowDocumentModal(true);
-    };
-
-    // Handle document file selection
-    const handleDocumentFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-            if (!allowedTypes.includes(file.type)) {
-                notification.error({ message: 'Error', description: 'Only PDF, JPG, and PNG files are allowed', placement: 'topRight' });
-                return;
-            }
-
-            if (file.size > 5 * 1024 * 1024) {
-                notification.error({ message: 'Error', description: 'File size must be less than 5MB', placement: 'topRight' });
-                return;
-            }
-
-            setDocumentFile(file);
-        }
-    };
-
-    // Add document to list
-    const addDocumentToList = () => {
-        if (!documentName.trim()) {
-            notification.error({ message: 'Error', description: 'Please enter document name', placement: 'topRight' });
-            return;
-        }
-
-        if (!documentFile) {
-            notification.error({ message: 'Error', description: 'Please select a file', placement: 'topRight' });
-            return;
-        }
-
-        const newDoc = {
-            name: documentName.trim(),
-            fileName: documentFile.name,
-            fileSize: documentFile.size,
-            fileType: documentFile.type,
-            file: documentFile,
-            verified: false,
-            uploadedAt: new Date()
-        };
-
-        setUploadedDocuments(prev => [...prev, newDoc]);
-        setDocumentName('');
-        setDocumentFile(null);
-
-        if (fileInput) fileInput.value = '';
-
-        notification.success({ message: 'Success', description: 'Document added to list', placement: 'topRight' });
-    };
-
-    // View Resume
-    const handleViewResume = async (resumeFilename) => {
-        if (!resumeFilename) {
-            notification.warning({ message: 'No Resume', description: 'This applicant does not have a resume file.', placement: 'topRight' });
-            return;
-        }
-        try {
-            const response = await api.get(`/hr/resume/${resumeFilename}`, { responseType: 'blob' });
-            const file = new Blob([response.data], { type: 'application/pdf' });
-            const fileURL = URL.createObjectURL(file);
-            setResumeUrl(fileURL);
-            setIsResumeModalOpen(true);
-        } catch (error) {
-            console.error("View Resume Error:", error);
-            let description = 'Failed to access resume file.';
-
-            if (error.response?.data instanceof Blob) {
-                try {
-                    const text = await error.response.data.text();
-                    const json = JSON.parse(text);
-                    if (json.message) description = json.message;
-                    if (json.debug) console.warn("Resume Debug Info:", json.debug);
-                } catch (e) { /* ignore json parse error */ }
-            } else if (error.response?.data?.message) {
-                description = error.response.data.message;
-            }
-
-            notification.error({ message: 'Error', description, placement: 'topRight' });
-        }
-    };
-
-    // Remove document from list
-    const removeDocumentFromList = (index) => {
-        setUploadedDocuments(prev => prev.filter((_, idx) => idx !== index));
-    };
-
-    // Save all documents to backend
-    const saveDocuments = async () => {
-        if (uploadedDocuments.length === 0) {
-            notification.error({ message: 'Error', description: 'Please add at least one document', placement: 'topRight' });
-            return;
-        }
-
-        try {
-            const formData = new FormData();
-
-            uploadedDocuments.forEach((doc, index) => {
-                if (doc.file) {
-                    formData.append('documents', doc.file);
-                    formData.append(`documentNames[${index}]`, doc.name);
-                }
-            });
-
-            await api.post(
-                `/requirements/applicants/${documentApplicant._id}/documents`,
-                formData,
-                {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                }
-            );
-
-            notification.success({ message: 'Success', description: 'Documents uploaded successfully', placement: 'topRight' });
-            setShowDocumentModal(false);
-            loadApplicants();
-        } catch (err) {
-            console.error('Document upload error:', err);
-            notification.error({ message: 'Error', description: err.response?.data?.message || 'Failed to upload documents', placement: 'topRight' });
-        }
-    };
-
-    // Verify a specific document
-    const verifyDocument = async (applicantId, documentIndex) => {
-        try {
-            await api.patch(
-                `/requirements/applicants/${applicantId}/documents/${documentIndex}/verify`
-            );
-
-            notification.success({ message: 'Success', description: 'Document verified', placement: 'topRight' });
-            loadApplicants();
-        } catch (err) {
-            console.error('Document verification error:', err);
-            notification.error({ message: 'Error', description: 'Failed to verify document', placement: 'topRight' });
-        }
-    };
-
-    // ==================== END DOCUMENT FUNCTIONS ====================
 
     // Ensure templates are fresh when opening the modal
     useEffect(() => {
@@ -1276,49 +884,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
-    const getStatusStyles = (status) => {
-        switch (status) {
-            case 'Applied': return 'bg-blue-50/50 text-blue-600 border-blue-100';
-            case 'Shortlisted': return 'bg-indigo-50/50 text-indigo-600 border-indigo-100';
-            case 'Interview Scheduled':
-            case 'Interview Rescheduled':
-            case 'New Round':
-                return 'bg-amber-50/50 text-amber-600 border-amber-100';
-            case 'Interview Completed': return 'bg-emerald-50/50 text-emerald-600 border-emerald-100';
-            case 'Selected': return 'bg-emerald-500 text-white border-emerald-600';
-            case 'Rejected': return 'bg-red-50/50 text-red-600 border-red-100';
-            default: return 'bg-slate-50/50 text-slate-600 border-slate-100';
-        }
-    };
 
-    const openOfferModal = (applicant) => {
-        setSelectedApplicant(applicant);
 
-        // Auto-generate a default reference number
-        const currentYear = new Date().getFullYear();
-        const randomNum = Math.floor(1000 + Math.random() * 9000);
-        const refNo = `${companyInfo.refPrefix || 'OFFER'}/${currentYear}/${randomNum}`;
 
-        setOfferData({
-            joiningDate: '',
-            location: applicant.workLocation || 'Ahmedabad',
-            templateId: '',
-            position: applicant.requirementId?.jobTitle || '',
-            probationPeriod: '3 months',
-            templateContent: '',
-            isWordTemplate: false,
-            refNo: refNo,
-            salutation: applicant.salutation || '',
-            address: applicant.address || '',
-            issueDate: dayjs().format('YYYY-MM-DD'),
-            name: applicant.name,
-            dearName: applicant.name, // Default to full name
-            dateFormat: 'Do MMM. YYYY'
-        });
-        setPreviewPdfUrl(null);
-        setShowModal(true);
-        setShowPreview(false);
-    };
 
     const handleOfferChange = (e) => {
         const { name, value } = e.target;
@@ -1446,16 +1014,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
-    const downloadOffer = (filePath) => {
-        // Handle both cases: just filename or full path
-        let cleanPath = filePath;
-        if (filePath && filePath.includes('/')) {
-            // If path contains slashes, extract just the filename
-            cleanPath = filePath.split('/').pop();
-        }
-        const url = `${API_ROOT}/uploads/offers/${cleanPath}`;
-        window.open(url, '_blank');
-    };
+
 
     const viewOfferLetter = (filePath) => {
         // Handle both cases: just filename or full path
@@ -1512,26 +1071,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     //     }
     // };
 
-    const downloadJoiningLetter = async (applicantId) => {
-        try {
-            const res = await api.get(`/requirements/joining-letter/${applicantId}/download`, {
-                responseType: 'blob'
-            });
 
-            const blob = new Blob([res.data], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `Joining_Letter_${applicantId}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error('Failed to download joining letter:', err);
-            notification.error({ message: 'Error', description: 'Failed to download joining letter', placement: 'topRight' });
-        }
-    };
 
     const viewResume = async (input) => {
         if (!input) {
@@ -1626,13 +1166,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
-    const closeCandidateModalHelper = () => {
-        setShowCandidateModal(false);
-        if (resumePreviewUrl) {
-            window.URL.revokeObjectURL(resumePreviewUrl);
-            setResumePreviewUrl(null);
-        }
-    };
+
 
 
     const openJoiningModal = async (applicant) => {
@@ -1669,37 +1203,13 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         setShowJoiningPreview(false);
     };
 
-    const openSalaryModal = (applicant) => {
-        setSelectedApplicant(applicant);
-        setShowSalaryModal(true);
-    };
 
-    const openSalaryPreview = (applicant) => {
-        setSelectedApplicant(applicant);
-        setShowSalaryPreview(true);
-    };
 
     const handleSalaryAssigned = () => {
         loadApplicants(); // Refresh list to show updated salary status
     };
 
-    const confirmSalary = async (applicant) => {
-        if (!confirm("Confirm and Lock this salary structure? This will create an immutable snapshot and enable letter generation.")) return;
-        try {
-            setLoading(true);
-            await api.post('/payroll-engine/salary/confirm', {
-                applicantId: applicant._id,
-                reason: 'JOINING'
-            });
-            alert("✅ Salary confirmed and locked!");
-            loadApplicants();
-        } catch (err) {
-            console.error(err);
-            alert("❌ Lock failed: " + (err.response?.data?.message || err.message));
-        } finally {
-            setLoading(false);
-        }
-    };
+
 
     const handleJoiningPreview = async () => {
         if (!joiningTemplateId) {
@@ -1754,13 +1264,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             if (res.data.downloadUrl) {
                 const url = `${API_ROOT}${res.data.downloadUrl}`;
 
-                // Download the PDF
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `Joining_Letter_${selectedApplicant._id}.pdf`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                // Open in new tab
+                window.open(url, '_blank');
+
+                notification.success({
+                    message: "Success",
+                    description: "Joining letter generated successfully.",
+                    placement: 'topRight'
+                });
 
                 setShowJoiningModal(false);
                 setShowJoiningPreview(false);
@@ -1796,46 +1307,78 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     };
 
     const handleOnboard = (applicant) => {
-        showConfirmToast({
-            title: 'Confirm Onboarding',
-            description: `Convert ${applicant.name} into an Employee? This will create a new employee profile.`,
-            okText: 'Yes, Convert',
-            cancelText: 'Cancel',
-            onConfirm: async () => {
-                setLoading(true);
-                try {
-                    // Split Name
-                    const nameParts = (applicant.name || '').trim().split(' ');
-                    const firstName = nameParts[0];
-                    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.';
+        // --- FRONTEND VACANCY CHECK ---
+        const requirementId = applicant.requirementId?._id || applicant.requirementId;
+        const totalVacancies = applicant.totalVacancies || applicant.requirementId?.vacancy || 1;
 
-                    // Prepare Payload
-                    const payload = {
-                        firstName,
-                        lastName,
-                        email: applicant.email,
-                        contactNo: applicant.mobile,
-                        joiningDate: applicant.joiningDate || new Date(),
-                        department: applicant.requirementId?.department?.name || 'General',
-                        departmentId: applicant.requirementId?.department?._id,
-                        designation: applicant.requirementId?.jobTitle,
-                        role: 'employee',
-                        applicantId: applicant._id,
-                        status: 'Active',
-                        leavePolicy: null,
-                    };
+        // Count how many are already onboarded for this SPECIFIC job
+        const alreadyHiredCount = (applicants || []).filter(a =>
+            (a.requirementId?._id === requirementId || a.requirementId === requirementId) &&
+            a.isOnboarded
+        ).length;
 
-                    await api.post('/hrms/hr/employees', payload);
-                    showToast('success', 'Onboarding Started', `${applicant.name} is now an Active Employee.`);
-                    loadApplicants();
-                } catch (err) {
-                    console.error(err);
-                    showToast('error', 'Onboarding Failed', err.response?.data?.message || err.message);
-                } finally {
-                    setLoading(false);
-                }
+        const isFull = alreadyHiredCount >= totalVacancies;
+        console.log(`[ONBOARDING_FRONTEND_CHECK] ${applicant.name}, Job: ${requirementId}, Total: ${totalVacancies}, Hired: ${alreadyHiredCount}, isFull: ${isFull}`);
+
+        const performConversion = async (override = false) => {
+            setLoading(true);
+            try {
+                // Split Name
+                const nameParts = (applicant.name || '').trim().split(' ');
+                const firstName = nameParts[0];
+                const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.';
+
+                // Prepare Payload
+                const payload = {
+                    firstName,
+                    lastName,
+                    email: applicant.email,
+                    contactNo: applicant.mobile,
+                    joiningDate: applicant.joiningDate || new Date(),
+                    department: applicant.requirementId?.department?.name || 'General',
+                    departmentId: applicant.requirementId?.department?._id,
+                    designation: applicant.requirementId?.jobTitle,
+                    role: 'employee',
+                    applicantId: applicant._id,
+                    status: 'Active',
+                    leavePolicy: null,
+                    overrideVacancy: override
+                };
+
+                await api.post('/hrms/hr/employees', payload);
+                showToast('success', 'Onboarding Started', `${applicant.name} is now an Active Employee.`);
+                loadApplicants();
+            } catch (err) {
+                console.error(err);
+                showToast('error', 'Onboarding Failed', err.response?.data?.message || err.message);
+            } finally {
+                setLoading(false);
             }
-        });
+        };
+
+        const showOnboardConfirmation = (override = false) => {
+            showConfirmToast({
+                title: 'Confirm Onboarding',
+                description: `Convert ${applicant.name} into an Employee? This will create a new employee profile.`,
+                okText: 'Yes, Convert',
+                cancelText: 'Cancel',
+                onConfirm: () => performConversion(override)
+            });
+        };
+
+        if (isFull) {
+            showConfirmToast({
+                title: 'Vacancy Limit Reached',
+                description: `All ${totalVacancies} vacancies for '${applicant.requirementId?.jobTitle || "this job"}' are already filled. Do you want to cover this requirement?`,
+                okText: 'Yes, Cover it',
+                cancelText: 'Cancel',
+                onConfirm: () => {
+                    showOnboardConfirmation(true);
+                }
+            });
+        } else {
+            showOnboardConfirmation(false);
+        }
     };
 
 
@@ -1886,30 +1429,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     </div>
 
                     {/* Job Dropdown - Hidden, replaced with cards below */}
-                    {false && (
-                        <div className="lg:w-48 xl:w-64">
-                            <select
-                                className="w-full border border-slate-100 shadow-sm rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/10 outline-none bg-white cursor-pointer"
-                                value={selectedReqId}
-                                onChange={(e) => handleRequirementChange(e.target.value)}
-                            >
-                                <option value="all">Global Pipeline</option>
-                                <optgroup label="Active Recruitments">
-                                    {requirements.filter(r => {
-                                        if (r.status !== 'Open') return false;
-                                        // Strict visibility filtering
-                                        if (internalMode) {
-                                            return r.visibility === 'Internal' || r.visibility === 'Both';
-                                        } else {
-                                            return r.visibility === 'External' || r.visibility === 'Both' || !r.visibility; // Default to External
-                                        }
-                                    }).map(req => (
-                                        <option key={req._id} value={req._id}>{req.jobTitle}</option>
-                                    ))}
-                                </optgroup>
-                            </select>
-                        </div>
-                    )}
+
 
                     <div className="lg:w-40 xl:w-48">
                         <select
@@ -1988,7 +1508,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
                     {/* Individual Job Cards */}
                     {requirements.filter(r => {
-                        if (r.status !== 'Open') return false;
+                        if (!['Open', 'Closed'].includes(r.status)) return false;
                         if (internalMode) {
                             return r.visibility === 'Internal' || r.visibility === 'Both';
                         } else {
@@ -2013,9 +1533,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                             </span>
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors truncate">
-                                                {req.jobTitle}
-                                            </h3>
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors truncate">
+                                                    {req.jobTitle}
+                                                </h3>
+                                                {req.status === 'Closed' && (
+                                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-tighter rounded">Closed</span>
+                                                )}
+                                            </div>
                                             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
                                                 {req.department?.name || req.department || 'General'}
                                             </p>
@@ -2024,12 +1549,15 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
                                     <div className="grid grid-cols-2 gap-2 mt-4">
                                         <div className="bg-slate-50 rounded-lg p-2 border border-slate-100">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Openings</p>
-                                            <p className="text-sm font-black text-slate-900">{req.openings || 0}</p>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Vacancies</p>
+                                            <p className="text-sm font-black text-slate-900">
+                                                {applicants.filter(a => (a.requirementId?._id === req._id || a.requirementId === req._id) && ['Selected', 'Hired', 'Finalized'].includes(a.status)).length}
+                                                <span className="text-slate-400 text-xs"> / {req.vacancy || 0}</span>
+                                            </p>
                                         </div>
                                         <div className="bg-slate-50 rounded-lg p-2 border border-slate-100">
                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Experience</p>
-                                            <p className="text-sm font-black text-slate-900 truncate">{req.experience || 'Any'}</p>
+                                            <p className="text-sm font-black text-slate-900 truncate">{req.minExperienceMonths || 0} - {req.maxExperienceMonths || 0} Y</p>
                                         </div>
                                     </div>
 
@@ -2040,7 +1568,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     </div>
                                 </div>
 
-                                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-3">
+                                <div className={`bg-gradient-to-r ${req.status === 'Closed' ? 'from-slate-400 to-slate-500' : 'from-blue-500 to-indigo-600'} px-6 py-3`}>
                                     <div className="flex items-center justify-between text-white">
                                         <span className="text-xs font-black uppercase tracking-wider">
                                             Applicants
@@ -2178,7 +1706,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             )}
                                                         </div>
                                                         <div>
-                                                            <h3 className="text-lg font-black text-slate-800 leading-tight group-hover:text-blue-600 transition-colors">
+                                                            <h3
+                                                                onClick={() => openCandidateModal(app)}
+                                                                className="text-lg font-black text-slate-800 leading-tight group-hover:text-blue-600 transition-colors cursor-pointer hover:underline"
+                                                            >
                                                                 {app.name || 'Anonymous'}
                                                             </h3>
                                                             <div className="flex items-center gap-1.5 mt-1">
@@ -2272,7 +1803,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     <div className="grid grid-cols-2 gap-3">
                                                         {/* Resume Button */}
                                                         <button
-                                                            onClick={() => handleViewResume(app.resume)}
+                                                            onClick={() => viewResume(app.resume)}
                                                             className="col-span-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-2"
                                                             title="View Resume"
                                                         >
@@ -2464,7 +1995,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     <td className="px-6 py-4">
                                                         {app.joiningLetterPath ? (
                                                             <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                                                <button onClick={() => viewJoiningLetter(app.joiningLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
+                                                                <button onClick={() => viewJoiningLetter(app._id)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
                                                                 <div className="flex flex-col">
                                                                     <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">JOINING</span>
                                                                     <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
@@ -2493,15 +2024,24 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                 <CheckCircle size={14} />
                                                                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Converted</span>
                                                             </div>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => handleOnboard(app)}
-                                                                disabled={!app.joiningLetterPath}
-                                                                className={`w-full py-2 sm:py-3 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl transition shadow-lg uppercase tracking-widest ${!app.joiningLetterPath ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'}`}
-                                                            >
-                                                                Convert
-                                                            </button>
-                                                        )}
+                                                        ) : (() => {
+                                                            const reqId = app.requirementId?._id || app.requirementId;
+                                                            const vacancies = app.totalVacancies || app.requirementId?.vacancy || 1;
+                                                            const hired = (applicants || []).filter(a => (a.requirementId?._id === reqId || a.requirementId === reqId) && a.isOnboarded).length;
+                                                            const isFull = hired >= vacancies;
+                                                            const isDisabled = !app.joiningLetterPath;
+
+                                                            return (
+                                                                <button
+                                                                    onClick={() => handleOnboard(app)}
+                                                                    disabled={isDisabled}
+                                                                    className={`w-full py-2 sm:py-3 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl transition shadow-lg uppercase tracking-widest ${isDisabled ? 'bg-slate-300 cursor-not-allowed' : isFull ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-100' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'}`}
+                                                                    title={isFull ? `Vacancy limit (${vacancies}) reached. Click to override and convert.` : ''}
+                                                                >
+                                                                    Convert
+                                                                </button>
+                                                            );
+                                                        })()}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -3056,7 +2596,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                             dragItem.current = index;
                                             e.target.classList.add('opacity-50');
                                         }}
-                                        onDragEnter={(e) => {
+                                        onDragEnter={() => {
                                             dragOverItem.current = index;
                                         }}
                                         onDragEnd={(e) => {
@@ -3494,122 +3034,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 )
             }
 
-            {/* Document Upload Modal */}
-            {
-                showDocumentModal && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-                            {/* Header */}
-                            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-800">Upload Documents</h3>
-                                    <p className="text-xs text-slate-500 mt-1">
-                                        {documentApplicant?.name} - {documentApplicant?.requirementId?.title}
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => setShowDocumentModal(false)}
-                                    className="p-2 hover:bg-white rounded-lg transition-colors"
-                                >
-                                    <XCircle size={20} className="text-slate-400" />
-                                </button>
-                            </div>
 
-                            {/* Body */}
-                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                {/* Add New Document */}
-                                <div className="bg-slate-50 rounded-xl p-4 space-y-4">
-                                    <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Add New Document</h4>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-600 mb-2">Document Name *</label>
-                                        <input
-                                            type="text"
-                                            value={documentName}
-                                            onChange={(e) => setDocumentName(e.target.value)}
-                                            placeholder="e.g., Aadhar Card, PAN Card, Degree Certificate"
-                                            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-600 mb-2">Select File * (PDF, JPG, PNG - Max 5MB)</label>
-                                        <input
-                                            id="documentFileInput"
-                                            type="file"
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                            onChange={handleDocumentFileChange}
-                                            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                        />
-                                        {documentFile && (
-                                            <p className="mt-2 text-xs text-slate-500">
-                                                Selected: {documentFile.name} ({(documentFile.size / 1024).toFixed(1)} KB)
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <button
-                                        onClick={addDocumentToList}
-                                        className="w-full py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors"
-                                    >
-                                        + Add to List
-                                    </button>
-                                </div>
-
-                                {/* Uploaded Documents List */}
-                                {uploadedDocuments.length > 0 && (
-                                    <div>
-                                        <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
-                                            Documents to Upload ({uploadedDocuments.length})
-                                        </h4>
-                                        <div className="space-y-2">
-                                            {uploadedDocuments.map((doc, idx) => (
-                                                <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg">
-                                                    <div className="flex-1">
-                                                        <div className="text-sm font-bold text-slate-800">{doc.name}</div>
-                                                        <div className="text-xs text-slate-500 mt-1">
-                                                            {doc.fileName} • {(doc.fileSize / 1024).toFixed(1)} KB
-                                                            {doc.verified && <span className="ml-2 text-emerald-600">✓ Verified</span>}
-                                                        </div>
-                                                    </div>
-                                                    {!doc.verified && (
-                                                        <button
-                                                            onClick={() => removeDocumentFromList(idx)}
-                                                            className="ml-3 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Footer */}
-                            <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
-                                <button
-                                    onClick={() => setShowDocumentModal(false)}
-                                    className="flex-1 py-2 border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-slate-50 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={saveDocuments}
-                                    disabled={uploadedDocuments.length === 0}
-                                    className={`flex-1 py-2 font-bold rounded-lg transition-colors ${uploadedDocuments.length > 0
-                                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                                        : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                        }`}
-                                >
-                                    Save Documents ({uploadedDocuments.length})
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
 
             {/* FINALIZE CANDIDATE CONFIRMATION MODAL */}
             {

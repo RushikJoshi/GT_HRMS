@@ -177,6 +177,7 @@ app.use('/api/activities', activityRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
+
 app.use('/api/positions', positionRoutes);
 app.use('/api/offers', offerRoutes);
 /* ===============================

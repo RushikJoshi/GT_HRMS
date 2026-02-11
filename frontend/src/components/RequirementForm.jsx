@@ -1,5 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import api from '../utils/api';
+import api, { API_ROOT } from '../utils/api';
+import {
+    Briefcase,
+    Users,
+    Clock,
+    MapPin,
+    Shield,
+    Eye,
+    EyeOff,
+    Plus,
+    Trash2,
+    Check,
+    ArrowRight,
+    ArrowLeft,
+    Building2,
+    Calendar,
+    ChevronRight,
+    Search,
+    Type,
+    List,
+    Layers,
+    Save,
+
+    X,
+    Image as ImageIcon,
+    Upload
+} from 'lucide-react';
 
 export default function RequirementForm({ onClose, onSuccess, initialData, isEdit, isModal = true }) {
     const [formData, setFormData] = useState({
@@ -14,8 +40,12 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
         expYears: '',
         expMonths: '',
         salaryMin: '',
-        salaryMax: ''
+        salaryMax: '',
+        visibility: 'External'
     });
+
+    const [bannerFile, setBannerFile] = useState(null);
+    const [bannerPreview, setBannerPreview] = useState(null);
 
     const [customFields, setCustomFields] = useState([]);
     const [step, setStep] = useState(1); // 1 = Details, 2 = Hiring Stages
@@ -54,6 +84,10 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
 
     useEffect(() => {
         if (initialData) {
+            if (initialData.bannerImage) {
+                // Ensure API_ROOT is available or use relative path
+                setBannerPreview(initialData.bannerImage.startsWith('http') ? initialData.bannerImage : `${API_ROOT}${initialData.bannerImage}`);
+            }
             setFormData({
                 jobTitle: initialData.jobTitle || '',
                 department: initialData.department || '',
@@ -137,6 +171,14 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
         setWorkflow(newWorkflow);
     };
 
+    const handleBannerChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setBannerFile(file);
+            setBannerPreview(URL.createObjectURL(file));
+        }
+    };
+
     async function submit(e) {
         e.preventDefault();
 
@@ -175,11 +217,28 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
             detailedWorkflow: detailedWorkflow // Store enhanced workflow data
         };
 
+        const formDataObj = new FormData();
+        Object.keys(payload).forEach(key => {
+            if (key === 'customFields' || key === 'publicFields' || key === 'workflow' || key === 'detailedWorkflow') {
+                formDataObj.append(key, JSON.stringify(payload[key]));
+            } else if (payload[key] !== undefined && payload[key] !== null) {
+                formDataObj.append(key, payload[key]);
+            }
+        });
+
+        if (bannerFile) {
+            formDataObj.append('bannerImage', bannerFile);
+        }
+
         try {
             if (isEdit) {
-                await api.put(`/requirements/${initialData._id}`, payload);
+                await api.put(`/requirements/${initialData._id}`, formDataObj, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
             } else {
-                const res = await api.post('/requirements/create', payload);
+                const res = await api.post('/requirements/create', formDataObj, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
                 if (res.data && res.data.jobOpeningId) {
                     alert(`Job created successfully\nJob ID: ${res.data.jobOpeningId}`);
                 } else {
@@ -419,6 +478,60 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                             placeholder="Job details, key responsibilities, etc..."
                         />
+                    </div>
+
+                    {/* Banner Image Upload */}
+                    <div className="md:col-span-2 space-y-1 mt-4">
+                        <label className="text-[12px] font-bold text-slate-700 mb-2 px-1 flex items-center gap-2 tracking-tight">
+                            <ImageIcon size={14} className="text-slate-400" />
+                            Job Banner Image (Optional)
+                        </label>
+
+                        <div className="flex items-center gap-6">
+                            <div className="relative group w-32 h-20 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center">
+                                {bannerPreview ? (
+                                    <img src={bannerPreview} alt="Preview" className="w-full h-full object-cover" />
+                                ) : (
+                                    <ImageIcon size={24} className="text-slate-300" />
+                                )}
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <label htmlFor="banner-upload" className="cursor-pointer text-white text-[10px] font-bold uppercase tracking-widest">Change</label>
+                                </div>
+                            </div>
+
+                            <div className="flex-1">
+                                <label
+                                    htmlFor="banner-upload"
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-100 transition-all cursor-pointer shadow-sm"
+                                >
+                                    <Upload size={14} />
+                                    Upload Image
+                                </label>
+                                <input
+                                    id="banner-upload"
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleBannerChange}
+                                    className="hidden"
+                                />
+                                <p className="mt-2 text-[10px] text-slate-400 font-medium">
+                                    Recommended size: 1200x400px. Max 5MB. Formats: JPG, PNG, WEBP.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Ad-hoc Details Section Header */}
+                    <div className="md:col-span-2 mt-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
+                                <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">Additional Specifications</h3>
+                            </div>
+                            <button type="button" onClick={addCustomField} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors flex items-center gap-1.5">
+                                <Plus size={14} /> Add Parameter
+                            </button>
+                        </div>
                     </div>
 
                     <div className="col-span-2 mt-4 pt-4 border-t border-slate-100">

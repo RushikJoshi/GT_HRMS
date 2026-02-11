@@ -31,13 +31,22 @@ const getModels = (req) => {
     };
 };
 
-const MASTER_FACE_KEY = Buffer.from(
-    process.env.MASTER_FACE_KEY,
-    'hex'
-);
-
-if (!MASTER_FACE_KEY || MASTER_FACE_KEY.length !== 32) {
-    throw new Error('Invalid MASTER_FACE_KEY');
+let MASTER_FACE_KEY;
+try {
+    MASTER_FACE_KEY = Buffer.from(process.env.MASTER_FACE_KEY || '', 'hex');
+    if (!MASTER_FACE_KEY || MASTER_FACE_KEY.length !== 32) {
+        console.warn('⚠️ [ATTENDANCE] Invalid MASTER_FACE_KEY. Length must be 32 bytes (64 hex chars). current length:', MASTER_FACE_KEY.length);
+        // Fallback or handle later - for development, we won't throw
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error('Invalid MASTER_FACE_KEY in production');
+        }
+        // Use a dummy 32-byte key for non-production to allow server to start
+        MASTER_FACE_KEY = Buffer.alloc(32, 'a');
+    }
+} catch (e) {
+    console.error('❌ [ATTENDANCE] MASTER_FACE_KEY Error:', e.message);
+    if (process.env.NODE_ENV === 'production') throw e;
+    MASTER_FACE_KEY = Buffer.alloc(32, 'a');
 }
 
 // ====== ENCRYPTION CONFIG ======

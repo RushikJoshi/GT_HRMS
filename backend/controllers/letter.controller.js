@@ -71,11 +71,12 @@ function getModels(req) {
         if (!db.models.CompanyProfile) {
             try { db.model('CompanyProfile', require('../models/CompanyProfile')); } catch (e) { }
         }
-
         if (!db.models.Offer) {
             try { db.model('Offer', require('../models/Offer')); } catch (e) { }
         }
-
+        if (!db.models.LetterApproval) {
+            try { db.model('LetterApproval', require('../models/LetterApproval')); } catch (e) { }
+        }
         return {
             CompanyProfile: db.model("CompanyProfile"),
             LetterTemplate: db.model("LetterTemplate"),
@@ -83,8 +84,7 @@ function getModels(req) {
             Applicant: db.model("Applicant"),
             Employee: db.model("Employee"),
             EmployeeSalarySnapshot: db.model("EmployeeSalarySnapshot"),
-            Offer: db.model("Offer"),
-            // SalaryStructure is GLOBAL, not tenant-specific
+            Offer: db.model("Offer")
         };
     } catch (err) {
         console.error("[letter.controller] Error retrieving models:", err.message);
@@ -1155,11 +1155,12 @@ exports.generateJoiningLetter = async (req, res) => {
         const Applicant = getApplicantModel(req);
         const { Employee, LetterTemplate, GeneratedLetter } = getModels(req);
 
-        console.log('🔥 [JOINING LETTER] Request received:', { applicantId, employeeId, templateId, refNo, issueDate });
+        console.log('🔥 [JOINING LETTER] Inputs:', { applicantId, employeeId, templateId, refNo, issueDate });
 
-        // Validate input
-        if (!templateId || (!applicantId && !employeeId)) {
-            return res.status(400).json({ message: "templateId and (applicantId or employeeId) are required" });
+        const tenantId = req.user?.tenantId || req.tenantId;
+        if (!tenantId) {
+            console.error('❌ [JOINING LETTER] Missing tenantId');
+            return res.status(400).json({ success: false, message: "Tenant ID required" });
         }
 
         // Fetch target
@@ -1613,19 +1614,26 @@ exports.generateJoiningLetter = async (req, res) => {
             });
         }
 
+        console.log('📝 [JOINING LETTER] Saving record...');
         const generated = new GeneratedLetter({
-            tenantId: req.user?.tenantId || req.tenantId,
-            applicantId: applicantId, // Use correct schema key
+            tenantId: tenantId,
+            applicantId: applicantId || null,
             employeeId: employeeId || null,
             templateId,
             letterType: 'joining',
             pdfPath: finalRelativePath,
             pdfUrl: finalPdfUrl,
-            status: 'generated',
-            generatedBy: req.user?.id
+            status: 'draft',
+            generatedBy: req.user?.id || req.user?.userId || req.user?._id
         });
 
-        await generated.save();
+        try {
+            await generated.save();
+            console.log('✅ [JOINING LETTER] GeneratedLetter document saved');
+        } catch (saveErr) {
+            console.error('❌ [JOINING LETTER] GeneratedLetter save FAILED:', saveErr.message);
+            throw saveErr;
+        }
 
         // Increment Appointment ID Sequence (Consume the ID)
         try {
@@ -1671,13 +1679,13 @@ exports.generateJoiningLetter = async (req, res) => {
         });
 
     } catch (error) {
-        // Test comment
-        console.error('🔥 [JOINING LETTER] FATAL ERROR:', error);
+        console.error('🔥 [JOINING LETTER] FATAL ERROR:', error.message);
+        console.error('❌ [JOINING LETTER] Stack:', error.stack);
         res.status(500).json({
             success: false,
             message: "Generate Failed: " + error.message,
             error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 };
@@ -1707,6 +1715,10 @@ exports.generateOfferLetter = async (req, res) => {
             return res.status(404).json({ message: "Applicant not found" });
         }
 
+        // --- BGV INTEGRATION REMOVED (Deprecated) ---
+        // The background verification check has been removed as per the feature deprecation request.
+        // This prevents model loading errors for BGVCase.
+        // -----------------------
         let relativePath;
         let downloadUrl;
         let templateType = template.templateType;
@@ -1957,20 +1969,39 @@ exports.generateOfferLetter = async (req, res) => {
         }
 
         if (!preview) {
+            console.log('📝 [OFFER LETTER] Non-preview mode: Saving GeneratedLetter document...');
+            console.log('🛠️ [OFFER LETTER] Document data:', {
+                tenantId: req.user?.tenantId || req.tenantId,
+                applicantId: applicantId,
+                templateId,
+                letterType: 'offer',
+                pdfPath: relativePath,
+                pdfUrl: downloadUrl,
+                status: 'generated',
+                generatedBy: req.user?.id || req.user?.userId || req.user?._id
+            });
+
             // Save generated letter record
             const generated = new GeneratedLetter({
                 tenantId: req.user?.tenantId || req.tenantId,
                 applicantId: applicantId,
                 templateId,
-                templateType, // 'WORD' or 'BLANK'/'LETTER_PAD'
                 letterType: 'offer',
                 pdfPath: relativePath,
                 pdfUrl: downloadUrl,
-                status: 'generated',
-                generatedBy: req.user?.id || req.user?.userId
+                status: 'draft', // Default state
+                generatedBy: req.user?.id || req.user?.userId || req.user?._id
             });
-            await generated.save();
 
+            try {
+                await generated.save();
+                console.log('✅ [OFFER LETTER] GeneratedLetter document saved successfully');
+            } catch (saveErr) {
+                console.error('❌ [OFFER LETTER] GeneratedLetter save FAILED:', saveErr.message);
+                throw saveErr; // Rethrow to catch below
+            }
+
+            console.log('📝 [OFFER LETTER] Updating Applicant document...');
             // Prepare update data for applicant (Save the inputs)
             // Store just the filename, not the full path to avoid duplicate /offers/ in URL
             const storedFileName = pdfFileName || (relativePath ? path.basename(relativePath) : '');
@@ -1990,6 +2021,11 @@ exports.generateOfferLetter = async (req, res) => {
             const { Applicant: ApplicantModel } = getModels(req);
             const updatedApplicant = await ApplicantModel.findById(applicantId);
 
+            if (!updatedApplicant) {
+                console.error('❌ [OFFER LETTER] Applicant NOT FOUND during final update:', applicantId);
+                throw new Error("Applicant not found during status update phase");
+            }
+
             // Apply updates
             Object.keys(updateData).forEach(key => {
                 updatedApplicant[key] = updateData[key];
@@ -2003,10 +2039,17 @@ exports.generateOfferLetter = async (req, res) => {
                 timestamp: new Date()
             });
 
-            await updatedApplicant.save();
+            try {
+                await updatedApplicant.save();
+                console.log('✅ [OFFER LETTER] Applicant document updated successfully');
+            } catch (appSaveErr) {
+                console.error('❌ [OFFER LETTER] Applicant save FAILED:', appSaveErr.message);
+                throw appSaveErr;
+            }
 
             // --- INCREMENT OFFER COUNTER ---
             try {
+                console.log('📊 [OFFER LETTER] Incrementing OFFER counter...');
                 const companyIdConfig = require('./companyIdConfig.controller');
                 const deptName = updatedApplicant.requirementId?.department?.name || 'GEN';
                 const deptCode = deptName.substring(0, 3).toUpperCase();
@@ -2019,7 +2062,7 @@ exports.generateOfferLetter = async (req, res) => {
                         '{{DEPT}}': deptCode
                     }
                 });
-                console.log('✅ [OFFER LETTER] Incrementing sequence for OFFER');
+                console.log('✅ [OFFER LETTER] Incrementing sequence for OFFER complete');
             } catch (idErr) {
                 console.warn("⚠️ [OFFER LETTER] Could not increment sequence:", idErr.message);
             }
@@ -2112,6 +2155,7 @@ exports.generateOfferLetter = async (req, res) => {
             console.error("⚠️ [OFFER LETTER] Failed to create Offer Lifecycle record:", offerErr);
         }
 
+        console.log('🏁 [OFFER LETTER] Process finished successfully. Sending response...');
         res.json({
             success: true,
             downloadUrl: downloadUrl,
@@ -2121,8 +2165,18 @@ exports.generateOfferLetter = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Generate Offer Letter Error:", error);
-        res.status(500).json({ error: error.message });
+        console.error("❌ [OFFER LETTER] Generate Offer Letter Error:", error.message);
+        console.error("❌ [OFFER LETTER] Error stack:", error.stack);
+        console.error("❌ [OFFER LETTER] Error details:", {
+            name: error.name,
+            message: error.message,
+            code: error.code
+        });
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 
@@ -2163,8 +2217,12 @@ exports.previewJoiningLetter = async (req, res) => {
         const Applicant = getApplicantModel(req);
         const { Employee, LetterTemplate } = getModels(req);
 
-        console.log('🔥 [PREVIEW JOINING LETTER] Request received:', { applicantId, employeeId, templateId });
-        console.log('🔥 [PREVIEW JOINING LETTER] User context:', req.user ? { userId: req.user.userId, tenantId: req.user.tenantId } : 'null');
+        console.log('🔥 [PREVIEW JOINING LETTER] Inputs:', { applicantId, employeeId, templateId });
+        const tenantId = req.user?.tenantId || req.tenantId;
+        if (!tenantId) {
+            console.error('❌ [PREVIEW JOINING LETTER] Missing tenantId');
+            return res.status(400).json({ success: false, message: "Tenant ID required" });
+        }
 
         // Validate input
         if (!templateId || (!applicantId && !employeeId)) {
@@ -2840,6 +2898,313 @@ function processCandidateSalary(structure) {
     };
 }
 
+// =========================================================================
+// C) GENERIC LETTER GENERATION & WORKFLOW
+// =========================================================================
+
+/**
+ * Generate a generic letter based on any template
+ * Supports both Word and HTML (Blank/Letter Pad) templates
+ */
+exports.generateGenericLetter = async (req, res) => {
+    try {
+        const { templateId, employeeId, applicantId, customData = {} } = req.body;
+        const tenantId = req.tenantId;
+
+        // Add validation logging
+        console.log('🔍 [generateGenericLetter] Received:', { templateId, employeeId, applicantId });
+
+        const { LetterTemplate, GeneratedLetter, Employee, Applicant, EmployeeSalarySnapshot } = getModels(req);
+
+        // 1. Fetch Template
+        const template = await LetterTemplate.findOne({ _id: templateId, tenantId });
+        if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+
+        // 2. Fetch Entity Data (Employee or Applicant)
+        // NOTE: Employee uses 'tenant' field, not 'tenantId'
+        let entity = null;
+        let entityType = '';
+        if (employeeId) {
+            console.log('🔍 [generateGenericLetter] Searching for employee:', { employeeId, tenant: tenantId });
+            entity = await Employee.findOne({ _id: employeeId, tenant: tenantId });
+            if (!entity) {
+                console.warn('⚠️ [generateGenericLetter] Employee not found:', { employeeId, tenant: tenantId });
+            } else {
+                console.log('✅ [generateGenericLetter] Employee found:', { id: entity._id, name: entity.firstName });
+            }
+            entityType = 'employee';
+        } else if (applicantId) {
+            console.log('🔍 [generateGenericLetter] Searching for applicant:', { applicantId, tenantId });
+            entity = await Applicant.findOne({ _id: applicantId, tenantId });
+            if (!entity) {
+                console.warn('⚠️ [generateGenericLetter] Applicant not found:', { applicantId, tenantId });
+            }
+            entityType = 'applicant';
+        }
+
+        if (!entity && !customData.candidateName) {
+            console.error('❌ [generateGenericLetter] No entity found and no candidateName provided');
+            return res.status(400).json({ success: false, message: 'Employee or Applicant ID is required' });
+        }
+
+        // 3. Prepare Placeholder Values
+        const placeholderData = {
+            ...customData,
+            employee_name: entity ? (entity.firstName + ' ' + (entity.lastName || '')) : (customData.candidateName || ''),
+            designation: entity?.designation || customData.designation || '',
+            department: entity?.department || customData.department || '',
+            joining_date: entity?.joiningDate ? safeDate(entity.joiningDate) : (customData.joining_date || ''),
+            employee_id: entity?.employeeId || '',
+            current_date: formatCustomDate(new Date()),
+            company_name: req.user.companyName || 'The Company'
+        };
+
+        // If salary is needed, fetch latest snapshot
+        if (employeeId) {
+            const snapshot = await EmployeeSalarySnapshot.findOne({ employeeId, tenantId }).sort('-createdAt');
+            if (snapshot) {
+                const totals = snapshot.totals || {};
+                const dataWithSalary = applyUniversalSalaryPatches(placeholderData, snapshot, totals);
+                Object.assign(placeholderData, dataWithSalary);
+            }
+        }
+
+        let pdfResult;
+        const timestamp = Date.now();
+        const fileName = `${template.type}_${entityType}_${timestamp}.pdf`;
+        const outputDir = path.join(__dirname, '../uploads/generated_letters', tenantId.toString());
+
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+        }
+
+        const outputPath = path.join(outputDir, fileName);
+        const publicUrl = `/uploads/generated_letters/${tenantId}/${fileName}`;
+
+        // 4. Generate Based on Template Type
+        if (template.templateType === 'WORD') {
+            if (!template.filePath) throw new Error('Template file path missing');
+
+            const buffer = fs.readFileSync(template.filePath);
+            const zip = new PizZip(buffer);
+            const doc = new Docxtemplater(zip, {
+                paragraphLoop: true,
+                linebreaks: true,
+            });
+
+            doc.render(placeholderData);
+            const generatedBuffer = doc.getZip().generate({ type: 'nodebuffer' });
+
+            // Save temporary docx file for conversion with proper naming
+            // Use a consistent filename that includes template info
+            const docxFileName = `${template.type}_${entityType}_${timestamp}.docx`;
+            const tempDocxPath = path.join(outputDir, docxFileName);
+            fs.writeFileSync(tempDocxPath, generatedBuffer);
+
+            try {
+                // Use LibreOfficeService for PDF conversion (reliable, cross-platform)
+                console.log(`📄 [generateGenericLetter] Converting DOCX to PDF using LibreOffice...`);
+                console.log(`📄 [generateGenericLetter] DOCX Path: ${tempDocxPath}`);
+                console.log(`📄 [generateGenericLetter] Output Dir: ${outputDir}`);
+
+                const libreOfficeService = require('../services/LibreOfficeService');
+                libreOfficeService.convertToPdfSync(tempDocxPath, outputDir);
+
+                // Verify PDF was created with the expected name
+                if (!fs.existsSync(outputPath)) {
+                    console.error(`❌ [generateGenericLetter] Expected PDF not found at: ${outputPath}`);
+                    console.log(`📋 [generateGenericLetter] Checking for any PDF files in directory...`);
+                    const files = fs.readdirSync(outputDir);
+                    console.log(`📋 [generateGenericLetter] Files in ${outputDir}:`, files);
+                    throw new Error(`PDF file was not created at expected path: ${outputPath}`);
+                }
+
+                console.log(`✅ [generateGenericLetter] PDF conversion successful: ${outputPath}`);
+
+                // Cleanup temporary docx
+                try {
+                    fs.unlinkSync(tempDocxPath);
+                    console.log(`🧹 [generateGenericLetter] Cleaned up temp DOCX: ${tempDocxPath}`);
+                } catch (cleanupErr) {
+                    console.warn(`⚠️ [generateGenericLetter] Could not cleanup temp file: ${cleanupErr.message}`);
+                }
+            } catch (err) {
+                console.error('❌ [generateGenericLetter] PDF Conversion error:', err.message);
+                // Cleanup temporary file on error
+                try {
+                    if (fs.existsSync(tempDocxPath)) {
+                        fs.unlinkSync(tempDocxPath);
+                        console.log(`🧹 [generateGenericLetter] Cleaned up temp DOCX after error`);
+                    }
+                } catch (cleanupErr) {
+                    console.warn('⚠️ Could not cleanup temp file:', cleanupErr.message);
+                }
+                throw new Error(`Failed to convert document to PDF: ${err.message}`);
+            }
+        } else {
+            // HTML Template (Blank or Letter Pad)
+            const htmlContent = template.bodyContent; // In a real app, use a template engine like Handlebars
+            let processedHtml = htmlContent;
+
+            // Simple placeholder replacement
+            Object.entries(placeholderData).forEach(([key, val]) => {
+                const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+                processedHtml = processedHtml.replace(regex, val);
+            });
+
+            // Use existing PDF generator service
+            await letterPDFGenerator.generatePDF({
+                html: processedHtml,
+                outputPath,
+                headerHtml: template.hasHeader ? template.headerContent : '',
+                footerHtml: template.hasFooter ? template.footerContent : '',
+                margins: template.pageLayout?.margins
+            });
+        }
+
+        // 5. Save generated letter record
+        const generatedLetter = new GeneratedLetter({
+            tenantId,
+            employeeId: employeeId || null,
+            applicantId: applicantId || null,
+            templateId: template._id,
+            letterType: template.type,
+            snapshotData: placeholderData,
+            templateSnapshot: {
+                bodyContent: template.bodyContent,
+                contentJson: template.contentJson,
+                templateType: template.templateType,
+                filePath: template.filePath,
+                version: template.version
+            },
+            pdfPath: outputPath,
+            pdfUrl: publicUrl,
+            status: template.requiresApproval ? 'pending' : 'generated',
+            generatedBy: req.user.id
+        });
+
+        await generatedLetter.save();
+
+        // 6. If approval required, create approval record or notify
+        if (template.requiresApproval) {
+            const { LetterApproval } = getModels(req);
+            // Optional: Auto-assign approvers based on template.approvalRoles
+            // For now, just mark as pending
+        }
+
+        res.status(201).json({
+            success: true,
+            message: template.requiresApproval ? 'Letter generated and sent for approval' : 'Letter generated successfully',
+            data: generatedLetter
+        });
+
+    } catch (error) {
+        console.error('Generate Generic Letter Error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Get all generated letters for a tenant
+ */
+exports.getGeneratedLetters = async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const { GeneratedLetter } = getModels(req);
+
+        const filter = { tenantId };
+        if (req.query.employeeId) filter.employeeId = req.query.employeeId;
+        if (req.query.status) filter.status = req.query.status;
+
+        const letters = await GeneratedLetter.find(filter)
+            .populate('employeeId', 'firstName lastName employeeId')
+            .populate('templateId', 'name type')
+            .sort('-createdAt');
+
+        res.json({ success: true, data: letters });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Get specific letter details
+ */
+exports.getLetterById = async (req, res) => {
+    try {
+        const { GeneratedLetter, LetterApproval } = getModels(req);
+        const letter = await GeneratedLetter.findOne({ _id: req.params.id, tenantId: req.tenantId })
+            .populate('employeeId', 'firstName lastName employeeId')
+            .populate('templateId', 'name type');
+
+        if (!letter) return res.status(404).json({ success: false, message: 'Letter not found' });
+
+        const approvals = await LetterApproval.find({ letterId: letter._id })
+            .populate('approverId', 'firstName lastName')
+            .sort('createdAt');
+
+        res.json({ success: true, data: { ...letter.toObject(), approvals } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Update letter status (Sent, Rejected by candidate, etc.)
+ */
+exports.updateGeneratedLetterStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const { GeneratedLetter } = getModels(req);
+
+        const letter = await GeneratedLetter.findOneAndUpdate(
+            { _id: req.params.id, tenantId: req.tenantId },
+            { $set: { status } },
+            { new: true }
+        );
+
+        if (!letter) return res.status(404).json({ success: false, message: 'Letter not found' });
+
+        res.json({ success: true, data: letter });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Action a letter approval (Approve/Reject)
+ */
+exports.actionLetterApproval = async (req, res) => {
+    try {
+        const { status, comments } = req.body;
+        const { GeneratedLetter, LetterApproval } = getModels(req);
+
+        const letter = await GeneratedLetter.findOne({ _id: req.params.id, tenantId: req.tenantId });
+        if (!letter) return res.status(404).json({ success: false, message: 'Letter not found' });
+
+        const approval = new LetterApproval({
+            tenantId: req.tenantId,
+            letterId: letter._id,
+            approverId: req.user.id,
+            status,
+            comments,
+            actionedAt: new Date()
+        });
+
+        await approval.save();
+
+        if (status === 'approved') {
+            letter.status = 'approved';
+        } else {
+            letter.status = 'rejected';
+        }
+        await letter.save();
+
+        res.json({ success: true, message: `Letter ${status} successfully` });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
 // Helper to round to 2 decimals
 const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
 

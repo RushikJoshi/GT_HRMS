@@ -3,6 +3,35 @@ import { NavLink, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
+import {
+  LayoutDashboard,
+  Users,
+  Building2,
+  Workflow,
+  UserCog,
+  Fingerprint,
+  CalendarDays,
+  Plane,
+  Gavel,
+  LineChart,
+  Layers,
+  Coins,
+  Zap,
+  Clock9,
+  Banknote,
+  Paintbrush,
+  Briefcase,
+  UserPlus,
+  Radar,
+  FileJson,
+  Lock,
+  Settings2,
+  Brush,
+  ExternalLink,
+  Shield,
+  Share2,
+  X
+} from 'lucide-react';
 /* ================= ICONS ================= */
 const ICONS = {
   dashboard: (
@@ -217,7 +246,12 @@ const NAV_GROUPS = [
 export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigate }) {
   const { user, isInitialized } = useAuth();
   const location = useLocation();
-  const [expanded, setExpanded] = useState({});
+  // Initialize all groups to be expanded by default
+  const [expanded, setExpanded] = useState(() => {
+    const defaults = {};
+    NAV_GROUPS.forEach(g => { defaults[g.title] = true; });
+    return defaults;
+  });
   const [tenant, setTenant] = useState(null);
 
   useEffect(() => {
@@ -238,10 +272,15 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
     }
   };
 
+  const getInitials = (name) => {
+    if (!name) return 'HR';
+    return name.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
+  };
+
   return (
     <aside className={`h-full bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col w-full`}>
       {/* Header */}
-      <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+      <div className="p-4 border-b border-slate-800 flex justify-between items-center h-16">
         {!collapsed && (
           <div>
             <div className="font-bold text-lg text-blue-400">Company Admin</div>
@@ -249,140 +288,123 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
           </div>
         )}
         {toggleCollapse && (
-          <button onClick={toggleCollapse} className="text-slate-400 hover:text-white">
-            ☰
+          <button onClick={toggleCollapse} className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition">
+            {collapsed ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>}
           </button>
         )}
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar">
         {NAV_GROUPS.map(group => (
           <div key={group.title}>
             {!collapsed && (
               <button
                 onClick={() => toggleGroup(group.title)}
-                className="w-full text-left text-xs uppercase text-slate-500 font-bold mb-2"
+                className="w-full text-left flex justify-between items-center text-xs uppercase text-slate-500 font-bold mb-2 hover:text-slate-300 transition-colors"
               >
-                {group.title}
+                <span>{group.title}</span>
+                <span className={`transform transition-transform duration-200 ${expanded[group.title] ? 'rotate-180' : ''}`}>▼</span>
               </button>
             )}
-            {group.items.map(item => {
-              if (item.isExternal) {
+
+            <div className={`space-y-1 transition-all duration-300 ${(!collapsed && !expanded[group.title]) ? 'hidden' : 'block'}`}>
+              {group.items.map(item => {
+                if (item.isExternal) {
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={() => handleExternalNav(item)}
+                      className="w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition hover:bg-slate-800/50 text-blue-400 font-bold"
+                    >
+                      {item.icon}
+                      {!collapsed && <span>{item.label}</span>}
+                    </button>
+                  );
+                }
+                if (item.children) {
+                  const isExpanded = expanded[item.label];
+                  const hasActiveChild = item.children.some(child => location.pathname === child.to);
+                  return (
+                    <div key={item.label}>
+                      <button
+                        onClick={() => toggleGroup(item.label)}
+                        className={`w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
+                          ${hasActiveChild ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`}
+                      >
+                        {item.icon}
+                        {!collapsed && (
+                          <>
+                            <span className="flex-1 text-left">{item.label}</span>
+                            <span className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                              ▼
+                            </span>
+                          </>
+                        )}
+                      </button>
+                      {!collapsed && isExpanded && (
+                        <div className="ml-8 mt-1 space-y-1 border-l border-slate-700 pl-2">
+                          {item.children.map(child => (
+                            <NavLink
+                              key={child.label}
+                              to={child.to}
+                              onClick={() => onNavigate && onNavigate()}
+                              className={({ isActive }) =>
+                                `block py-1.5 px-3 rounded-md text-sm transition
+                                 ${isActive ? 'text-blue-400 font-bold' : 'text-slate-400 hover:text-white'}`
+                              }
+                            >
+                              {child.label}
+                            </NavLink>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
                 return (
-                  <button
+                  <NavLink
                     key={item.label}
-                    onClick={() => handleExternalNav(item)}
-                    className="w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition hover:bg-slate-800/50 text-blue-400 font-bold"
+                    to={item.to}
+                    end={item.end}
+                    onClick={() => onNavigate && onNavigate()}
+                    className={({ isActive }) => {
+                      // Custom active check for links with query parameters
+                      let active = isActive;
+                      if (item.to.includes('?')) {
+                        const [path, query] = item.to.split('?');
+                        const currentPath = location.pathname;
+                        const currentQuery = location.search.substring(1);
+                        active = currentPath === path && currentQuery === query;
+                      }
+                      return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
+                       ${active ? 'bg-slate-800 text-white shadow-sm' : 'hover:bg-slate-800/50 text-slate-400 hover:text-slate-200'}`;
+                    }}
                   >
                     {item.icon}
                     {!collapsed && <span>{item.label}</span>}
-                  </button>
+                  </NavLink>
                 );
-              }
-              if (item.children) {
-                const isExpanded = expanded[item.label];
-                const hasActiveChild = item.children.some(child => location.pathname === child.to);
-                return (
-                  <div key={item.label}>
-                    <button
-                      onClick={() => toggleGroup(item.label)}
-                      className={`w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                        ${hasActiveChild ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`}
-                    >
-                      {item.icon}
-                      {!collapsed && (
-                        <>
-                          <span className="flex-1 text-left">{item.label}</span>
-                          <span className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                            ▼
-                          </span>
-                        </>
-                      )}
-                    </button>
-                    {!collapsed && isExpanded && (
-                      <div className="ml-8 mt-1 space-y-1">
-                        {item.children.map(child => (
-                          <NavLink
-                            key={child.label}
-                            to={child.to}
-                            onClick={() => onNavigate && onNavigate()}
-                            className={({ isActive }) =>
-                              `block py-1.5 px-3 rounded-md text-sm transition
-                               ${isActive ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`
-                            }
-                          >
-                            {child.label}
-                          </NavLink>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-              return (
-                <NavLink
-                  key={item.label}
-                  to={item.to}
-                  end={item.end}
-                  onClick={() => onNavigate && onNavigate()}
-                  className={({ isActive }) => {
-                    // Custom active check for links with query parameters
-                    let active = isActive;
-                    if (item.to.includes('?')) {
-                      const [path, query] = item.to.split('?');
-                      const currentPath = location.pathname;
-                      const currentQuery = location.search.substring(1);
-                      active = currentPath === path && currentQuery === query;
-                    }
-                    return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                     ${active ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`;
-                  }}
-                >
-                  {item.icon}
-                  {!collapsed && <span>{item.label}</span>}
-                </NavLink>
-              );
-            })}
+              })}
+            </div>
           </div>
         ))}
       </div>
 
       {/* Company block */}
-      <div className="p-4 border-t border-slate-800">
-        {tenant && !collapsed && (
-          <div className="text-xs text-slate-400">
-            <div className="font-semibold">{tenant.name}</div>
-            <div>{tenant.code}</div>
+      <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+        <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-lg flex-shrink-0">
+            {getInitials(tenant?.name)}
           </div>
-        )}
+          {!collapsed && (
+            <div className="overflow-hidden min-w-0">
+              <div className="font-bold text-sm text-slate-200 truncate">{tenant?.name || 'Company'}</div>
+              {tenant?.code && <div className="text-xs text-slate-500 font-mono truncate">{tenant.code}</div>}
+            </div>
+          )}
+        </div>
       </div>
     </aside>
-  );
-}
-
-function SidebarCompanyBlock({ collapsed }) {
-  const [tenant, setTenant] = useState(null);
-
-  useEffect(() => {
-    let mounted = true;
-    api.get('/tenants/me').then(res => { if (mounted) setTenant(res.data); }).catch(() => { });
-    return () => { mounted = false; };
-  }, []);
-
-  const name = tenant?.name || 'Company';
-  const code = tenant?.code || '';
-  const initials = name.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
-
-  return (
-    <div className={`flex items-center gap-3 mt-4 ${collapsed ? 'justify-center' : ''}`}>
-      <div className="h-10 w-10 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 font-semibold flex-shrink-0">{initials || 'HR'}</div>
-      {!collapsed && (
-        <div className="overflow-hidden">
-          <div className="font-semibold truncate">{name}</div>
-          {code && <div className="text-sm text-slate-500 truncate">{code}</div>}
-        </div>
-      )}
-    </div>
   );
 }

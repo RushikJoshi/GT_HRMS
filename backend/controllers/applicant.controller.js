@@ -163,6 +163,39 @@ exports.updateApplicantStatus = async (req, res) => {
 
         await applicant.save();
 
+        // --- AUTO-CLOSE JOB IF VACANCY FILLED ---
+        if (status === 'Selected' || status === 'Hired' || status === 'Finalized') {
+            try {
+                const { Requirement } = getModels(req);
+                const reqId = applicant.requirementId?._id || applicant.requirementId;
+                const reqDoc = await Requirement.findById(reqId);
+
+                if (reqDoc && reqDoc.status === 'Open') {
+                    // MODIFIED: Only count candidates who are explicitly converted to employees
+                    // This prevents closing the job if an offer/joining letter is generated but the candidate hasn't joined yet.
+                    const hiredCount = await Applicant.countDocuments({
+                        requirementId: reqId,
+                        status: { $in: ['Selected', 'Hired', 'Finalized'] },
+                        employeeId: { $ne: null } // Check for successful employee conversion
+                    });
+
+                    console.log(`[AUTO_CLOSE_CHECK] Job: ${reqDoc.jobTitle}, Vacancy: ${reqDoc.vacancy}, Converted Employees: ${hiredCount}`);
+
+                    if (hiredCount >= reqDoc.vacancy) {
+                        reqDoc.status = 'Closed';
+                        reqDoc.closedAt = new Date();
+                        reqDoc.closedBy = req.user?.id || 'System';
+                        await reqDoc.save();
+                        console.log(`[AUTO_CLOSE] Job ${reqDoc.jobTitle} closed automatically (Vacancy met by converted employees).`);
+                    } else {
+                        console.log(`[AUTO_CLOSE_CHECK] Job remains OPEN. Converted: ${hiredCount}/${reqDoc.vacancy}. (Candidates pending conversion do not count)`);
+                    }
+                }
+            } catch (autoCloseErr) {
+                console.error("[AUTO_CLOSE_ERROR]", autoCloseErr);
+            }
+        }
+
         if (oldStatus !== status) {
             try {
                 await EmailService.sendApplicationStatusEmail(
