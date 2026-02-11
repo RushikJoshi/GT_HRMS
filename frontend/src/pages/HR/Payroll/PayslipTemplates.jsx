@@ -101,9 +101,17 @@ const TemplateBuildPreview = ({ config, templateName, small = false }) => {
 
         switch (type) {
             case 'company-header':
+                const align = content.logoAlign || 'left';
+                const flexDir = align === 'right' ? 'row-reverse' : align === 'center' ? 'column' : 'row';
+                const textAlign = align === 'center' ? 'center' : 'left';
+
                 return (
                     <div key={key} style={{
-                        textAlign: 'center',
+                        display: 'flex',
+                        flexDirection: flexDir,
+                        alignItems: 'center', // Vertically center logo and text
+                        gap: small ? '8px' : '20px',
+                        textAlign: textAlign,
                         marginBottom: small ? 6 : 20,
                         paddingBottom: small ? 2 : 10,
                         borderBottom: small ? '1px solid #eee' : '2px solid #eee'
@@ -114,30 +122,33 @@ const TemplateBuildPreview = ({ config, templateName, small = false }) => {
                                 alt="Logo"
                                 style={{
                                     height: small ? '28px' : (content.logoSize || '80px'),
-                                    margin: small ? '0 auto 2px' : '0 auto 10px',
+                                    width: 'auto',
+                                    objectFit: 'contain',
                                     display: 'block'
                                 }}
                             />
                         )}
-                        {content.companyName && (
-                            <span style={{
-                                margin: small ? '2px 0' : '10px 0',
-                                fontSize: small ? 11 : (content.companyNameSize || '24px'),
-                                fontWeight: 'bold',
-                                display: 'block',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                maxWidth: small ? 120 : undefined
-                            }}>
-                                {content.companyName}
-                            </span>
-                        )}
-                        {content.showAddress && content.companyAddress && !small && (
-                            <p style={{ fontSize: '12px', color: '#666', margin: '5px 0', whiteSpace: 'pre-wrap' }}>
-                                {content.companyAddress}
-                            </p>
-                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            {content.companyName && (
+                                <span style={{
+                                    margin: small ? '2px 0' : '0 0 5px 0',
+                                    fontSize: small ? 11 : (content.companyNameSize || '24px'),
+                                    fontWeight: 'bold',
+                                    display: 'block',
+                                    lineHeight: 1.2,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                }}>
+                                    {content.companyName}
+                                </span>
+                            )}
+                            {content.showAddress && content.companyAddress && !small && (
+                                <p style={{ fontSize: '12px', color: '#666', margin: 0, whiteSpace: 'pre-wrap' }}>
+                                    {content.companyAddress}
+                                </p>
+                            )}
+                        </div>
                     </div>
                 );
 
@@ -753,7 +764,7 @@ export default function PayslipTemplates() {
                 bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
             >
                 {selectedBuilderTemplate && selectedBuilderTemplate.builderConfig && (
-                    <TemplateBuildPreview 
+                    <TemplateBuildPreview
                         config={selectedBuilderTemplate.builderConfig}
                         templateName={selectedBuilderTemplate.name}
                     />
