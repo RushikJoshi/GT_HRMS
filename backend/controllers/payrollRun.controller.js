@@ -35,7 +35,7 @@ exports.initiatePayrollRun = async (req, res) => {
             return res.status(500).json({ success: false, error: "tenant_db_unavailable", message: "Tenant database not available" });
         }
 
-        const { month, year } = req.body;
+        const { month, year, isFiltered, filters } = req.body;
 
         // Validate input
         if (!month || !year) {
@@ -50,34 +50,54 @@ exports.initiatePayrollRun = async (req, res) => {
             return res.status(400).json({ success: false, error: "Invalid year" });
         }
 
-        const { PayrollRun } = getModels(req);
+        const { PayrollRun, Employee } = getModels(req);
 
         // Check if payroll run already exists
-        const existing = await PayrollRun.findOne({ tenantId, month, year });
-        if (existing) {
+        let payrollRun = await PayrollRun.findOne({ tenantId, month, year });
+
+        if (payrollRun && ['APPROVED', 'PAID'].includes(payrollRun.status)) {
             return res.status(400).json({
                 success: false,
-                error: "Payroll run already exists",
-                data: existing,
-                message: `Payroll for ${month}/${year} already exists with status: ${existing.status}`
+                error: "Payroll run finalized",
+                message: `Payroll for ${month}/${year} is already ${payrollRun.status} and cannot be re-initiated.`
             });
         }
 
-        // Create new payroll run
-        const payrollRun = new PayrollRun({
-            tenantId,
-            month,
-            year,
-            status: 'INITIATED',
-            initiatedBy: req.user.id || req.user._id
-        });
+        const totalTenantEmployees = await Employee.countDocuments({ tenant: tenantId, status: 'Active' });
+
+        if (!payrollRun) {
+            // Create new payroll run
+            payrollRun = new PayrollRun({
+                tenantId,
+                month,
+                year,
+                status: 'INITIATED',
+                initiatedBy: req.user.id || req.user._id,
+                isFiltered: isFiltered || false,
+                filters: filters || {},
+                totalTenantEmployees
+            });
+        } else {
+            // Reset existing run to re-initiate
+            payrollRun.status = 'INITIATED';
+            payrollRun.isFiltered = isFiltered || false;
+            payrollRun.filters = filters || {};
+            payrollRun.totalTenantEmployees = totalTenantEmployees;
+            payrollRun.initiatedAt = new Date();
+            payrollRun.initiatedBy = req.user.id || req.user._id;
+            // Clear stats
+            payrollRun.totalGross = 0;
+            payrollRun.totalNetPay = 0;
+            payrollRun.processedEmployees = 0;
+            payrollRun.totalEmployees = 0;
+        }
 
         await payrollRun.save();
 
         res.status(201).json({
             success: true,
             data: payrollRun,
-            message: 'Payroll run initiated successfully'
+            message: isFiltered ? 'Filtered payroll run initiated successfully' : 'Payroll run initiated successfully'
         });
 
     } catch (error) {
@@ -392,3 +412,57 @@ exports.cancelPayrollRun = async (req, res) => {
     }
 };
 
+/**
+ * GET /api/payroll/filteredEmployees
+ * Fetch employees matching filters for payroll run
+ */
+exports.getFilteredEmployees = async (req, res) => {
+    try {
+        const { month, year, department, designation, employeeType, workMode } = req.query;
+
+        if (!month || !year) {
+            return res.status(400).json({ success: false, message: "Month and Year are required" });
+        }
+
+        const { Employee } = getModels(req);
+        const tenantId = req.user.tenantId;
+
+        const filter = { tenant: tenantId, status: 'Active' };
+
+        if (department && department !== 'All Departments') {
+            filter.department = department;
+        }
+
+        if (designation && designation !== 'All Designations') {
+            filter.designation = designation;
+        }
+
+        if (employeeType) {
+            const types = Array.isArray(employeeType) ? employeeType : employeeType.split(',').filter(Boolean);
+            if (types.length > 0) filter.employeeType = { $in: types };
+        }
+
+        if (workMode) {
+            const modes = Array.isArray(workMode) ? workMode : workMode.split(',').filter(Boolean);
+            if (modes.length > 0) filter.workMode = { $in: modes };
+        }
+
+        const employees = await Employee.find(filter)
+            .select('firstName lastName employeeId department designation employeeType workMode joiningDate salaryTemplateId')
+            .lean();
+
+        // Optional: Get basic total count for context
+        const totalCount = await Employee.countDocuments({ tenant: tenantId, status: 'Active' });
+
+        res.json({
+            success: true,
+            count: employees.length,
+            totalTenantEmployees: totalCount,
+            data: employees
+        });
+
+    } catch (error) {
+        console.error('[getFilteredEmployees] Error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};

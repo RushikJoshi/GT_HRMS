@@ -1,15 +1,3 @@
-/**
- * ============================================
- * ARCHITECT-GRADE CALCULATION ENGINE (v9.0)
- * ============================================
- * 
- * STRICT BUSINESS RULES:
- * 1. BASIC is always Step 1 (40% of CTC).
- * 2. All components must specify calculationType and basedOn.
- * 3. SPECIAL_ALLOWANCE is the automatic balancer (Step 3).
- * 4. Validation: Total must match CTC exactly; SA cannot be negative.
- */
-
 class SalaryCalculationEngine {
     /**
      * Main Entry Point
@@ -18,10 +6,21 @@ class SalaryCalculationEngine {
         const ctc = this._safeNum(annualCTC);
         if (ctc <= 0) return this._emptyResult(ctc);
 
-        // --- STEP 1: CALCULATE BASIC ---
-        const basicAnnual = this._round(ctc * 0.40);
-        const basicMonthly = this._round(basicAnnual / 12);
         const monthlyCTC = this._round(ctc / 12);
+
+        // Find Basic component to get its configured percentage
+        const basicComp = (earnings || []).find(e => this._isBasic(e));
+        let basicPercentage = 40; // Default fallback
+
+        if (basicComp) {
+            const val = parseFloat(basicComp.percentage || basicComp.value || 0);
+            if (val > 0) basicPercentage = val;
+            console.log(`🔍 [ENGINE] Basic % from component: ${basicPercentage}%`);
+        }
+
+        // --- STEP 1: CALCULATE BASIC ---
+        const basicAnnual = this._round(ctc * (basicPercentage / 100));
+        const basicMonthly = this._round(basicAnnual / 12);
 
         const ctx = {
             annualCTC: ctc,
@@ -46,12 +45,14 @@ class SalaryCalculationEngine {
             }
         };
 
-        // Initialize BASIC
+        // Initialize BASIC (Preserving original object if possible)
+        const basicOriginal = (earnings || []).find(e => this._isBasic(e)) || { name: 'Basic Salary' };
         result.earnings.push({
+            ...basicOriginal,
             code: 'BASIC',
-            name: 'Basic Salary',
-            calculationType: 'PERCENTAGE',
-            value: 40,
+            name: basicOriginal.name || 'Basic Salary',
+            calculationType: basicOriginal.calculationType || 'PERCENTAGE_OF_CTC',
+            value: basicPercentage,
             basedOn: 'CTC',
             monthly: basicMonthly,
             yearly: basicAnnual
@@ -61,9 +62,12 @@ class SalaryCalculationEngine {
         let totalCalculatedAnnual = basicAnnual;
         let totalBenefitsAnnual = 0;
 
+        console.log(`🚀 [ENGINE] Input Earnings:`, (earnings || []).map(e => e.name));
+
         // Process non-special earnings
-        const filteredEarnings = (earnings || []).filter(e => this._deriveCode(e) !== 'BASIC' && this._deriveCode(e) !== 'SPECIAL_ALLOWANCE');
+        const filteredEarnings = (earnings || []).filter(e => !this._isBasic(e) && !this._isSpecial(e));
         filteredEarnings.forEach(e => {
+            console.log(`🔍 [ENGINE] Processing: ${e.name}`);
             const calc = this._processComponent(e, ctx);
             result.earnings.push(calc);
             totalCalculatedAnnual += calc.yearly;
@@ -85,24 +89,22 @@ class SalaryCalculationEngine {
         });
 
         // --- STEP 3: AUTO-ADJUST SPECIAL ALLOWANCE ---
-        // Rule: CTC = Earnings + Benefits
-        // Special Allowance = CTC - (Sum of Other Earnings + Benefits)
         const saAnnual = this._round(ctc - (totalCalculatedAnnual + totalBenefitsAnnual));
         const saMonthly = this._round(saAnnual / 12);
 
-        if (saAnnual < 0) {
-            throw new Error(`CTC Mismatch: Components total exceeds CTC by ₹${Math.abs(saAnnual)}`);
-        }
-
+        const saOriginal = (earnings || []).find(e => this._isSpecial(e)) || { name: 'Special Allowance' };
         result.earnings.push({
+            ...saOriginal,
             code: 'SPECIAL_ALLOWANCE',
-            name: 'Special Allowance',
+            name: saOriginal.name || 'Special Allowance',
             calculationType: 'FIXED',
             value: saMonthly,
             basedOn: 'NA',
             monthly: saMonthly,
             yearly: saAnnual
         });
+
+        console.log(`✅ [ENGINE] Result Earnings:`, result.earnings.map(e => e.name));
 
         // Update Totals
         const totalEarningsAnnual = totalCalculatedAnnual + saAnnual;
@@ -130,15 +132,18 @@ class SalaryCalculationEngine {
 
         let monthly = 0;
 
-        if (calcType === 'PERCENTAGE' || calcType.includes('PERCENT')) {
+        if (calcType.includes('PERCENTAGE_OF_CTC') || (calcType.includes('PERCENT') && (calcType.includes('CTC') || basedOn === 'CTC'))) {
+            monthly = this._round((ctx.monthlyCTC * value) / 100);
+        } else if (calcType.includes('PERCENTAGE_OF_BASIC') || (calcType.includes('PERCENT') && basedOn === 'BASIC')) {
+            monthly = this._round((ctx.basicMonthly * value) / 100);
+        } else if (calcType === 'PERCENTAGE' || calcType.includes('PERCENT')) {
             const base = (basedOn === 'BASIC') ? ctx.basicMonthly : ctx.monthlyCTC;
             monthly = this._round((base * value) / 100);
         } else {
-            // FIXED/FLAT
             monthly = this._round(value);
         }
 
-        // Hardcoded Rules for Retirals (Industry Standard)
+        // Hardcoded Rules for Statutory Retirals
         if (code === 'EMPLOYER_PF' || code === 'EMPLOYEE_PF' || code === 'PF') {
             monthly = Math.min(this._round(ctx.basicMonthly * 0.12), 1800);
         } else if (code === 'GRATUITY') {
@@ -148,6 +153,7 @@ class SalaryCalculationEngine {
         }
 
         return {
+            ...comp, // Preserve original fields (_id, earningType, etc.)
             code,
             name: comp.name || code,
             calculationType: calcType,
@@ -158,6 +164,36 @@ class SalaryCalculationEngine {
         };
     }
 
+    static _isBasic(c) {
+        if (!c) return false;
+        const name = (c.name || '').toUpperCase();
+        const code = (c.code || '').toUpperCase();
+        return code === 'BASIC' || name === 'BASIC' || name === 'BASIC SALARY';
+    }
+
+    static _isSpecial(c) {
+        if (!c) return false;
+        const name = (c.name || '').toUpperCase();
+        const code = (c.code || '').toUpperCase();
+        return code === 'SPECIAL_ALLOWANCE' || name === 'SPECIAL ALLOWANCE' || name.includes('BALANCER');
+    }
+
+    static _deriveCode(c) {
+        if (!c) return 'UNKNOWN';
+        if (this._isBasic(c)) return 'BASIC';
+        if (this._isSpecial(c)) return 'SPECIAL_ALLOWANCE';
+
+        let raw = (c.code || c.name || '').toUpperCase().trim();
+        if (raw.includes('PF') || raw.includes('PROVIDENT')) {
+            if (raw.includes('EMPLOYER')) return 'EMPLOYER_PF';
+            return 'EMPLOYEE_PF';
+        }
+        if (raw.includes('GRATUITY')) return 'GRATUITY';
+        if (raw.includes('PROFESSIONAL TAX') || raw === 'PT') return 'PROFESSIONAL_TAX';
+
+        return raw.replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+    }
+
     static _safeNum(v) {
         const n = parseFloat(v);
         return isNaN(n) ? 0 : this._round(n);
@@ -165,20 +201,6 @@ class SalaryCalculationEngine {
 
     static _round(v) {
         return Math.round((v + Number.EPSILON) * 100) / 100;
-    }
-
-    static _deriveCode(c) {
-        if (!c) return 'UNKNOWN';
-        let raw = (c.code || c.name || '').toUpperCase().trim();
-        if (raw.includes('BASIC')) return 'BASIC';
-        if (raw.includes('SPECIAL') || raw.includes('BALANCER')) return 'SPECIAL_ALLOWANCE';
-        if (raw.includes('PF') || raw.includes('PROVIDENT')) {
-            if (raw.includes('EMPLOYER')) return 'EMPLOYER_PF';
-            return 'EMPLOYEE_PF';
-        }
-        if (raw.includes('GRATUITY')) return 'GRATUITY';
-        if (raw.includes('PROFESSIONAL TAX') || raw === 'PT') return 'PROFESSIONAL_TAX';
-        return raw.replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
     }
 
     static _emptyResult(ctc) {
@@ -191,3 +213,4 @@ class SalaryCalculationEngine {
 }
 
 module.exports = SalaryCalculationEngine;
+

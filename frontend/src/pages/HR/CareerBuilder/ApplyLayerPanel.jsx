@@ -3,9 +3,22 @@ import { GripVertical, Trash2, Plus, CreditCard } from 'lucide-react';
 
 export default function ApplyLayerPanel({ sections, selectedSectionId, onSelectSection, onReorder, onRemoveSection, onAddSection }) {
 
-    // Simple drag-sort implementation for sections could go here, 
-    // but for now relying on buttons or simple reorder logic passed from parent if implemented.
-    // Assuming simple list for MVP.
+    // Simple drag and drop logic
+    const handleDragStart = (e, index) => {
+        e.dataTransfer.setData('text/plain', index);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault(); // allow drop
+    };
+
+    const handleDrop = (e, toIndex) => {
+        e.preventDefault();
+        const fromIndex = Number(e.dataTransfer.getData('text/plain'));
+        if (fromIndex !== toIndex) {
+            onReorder(fromIndex, toIndex);
+        }
+    };
 
     return (
         <div className="w-72 bg-white border-r border-gray-200 flex flex-col shrink-0 z-30">
@@ -15,16 +28,41 @@ export default function ApplyLayerPanel({ sections, selectedSectionId, onSelectS
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                {/* Hero / Banner Section (Special - Fixed at Top) */}
+                <div
+                    onClick={() => onSelectSection('hero')}
+                    className={`group flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedSectionId === 'hero'
+                        ? 'bg-blue-50 border-blue-200 shadow-sm'
+                        : 'bg-white border-gray-100 hover:border-blue-100 hover:bg-gray-50'
+                        }`}
+                >
+                    <div className="text-blue-500">
+                        <CreditCard size={14} />
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                        <span className={`block text-xs font-black truncate ${selectedSectionId === 'hero' ? 'text-blue-700' : 'text-gray-700'}`}>
+                            HERO SECTION
+                        </span>
+                        <span className="text-[10px] text-gray-400 italic">Custom banner props</span>
+                    </div>
+                </div>
+
+                <div className="h-px bg-gray-100 mx-2 my-2"></div>
+
                 {sections.map((section, index) => (
                     <div
                         key={section.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, index)}
                         onClick={() => onSelectSection(section.id)}
-                        className={`group flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedSectionId === section.id
-                                ? 'bg-blue-50 border-blue-200 shadow-sm'
-                                : 'bg-white border-gray-100 hover:border-blue-100 hover:bg-gray-50'
+                        className={`group flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all select-none ${selectedSectionId === section.id
+                            ? 'bg-blue-50 border-blue-200 shadow-sm'
+                            : 'bg-white border-gray-100 hover:border-blue-100 hover:bg-gray-50'
                             }`}
                     >
-                        <div className="text-gray-300 group-hover:text-gray-400 cursor-move">
+                        <div className="text-gray-300 group-hover:text-gray-400 cursor-grab active:cursor-grabbing">
                             <GripVertical size={14} />
                         </div>
                         <div className="flex-1 overflow-hidden">
@@ -56,8 +94,8 @@ export default function ApplyLayerPanel({ sections, selectedSectionId, onSelectS
 
             <div className="p-4 bg-gray-50 border-t border-gray-100">
                 <div className="flex items-center gap-2 text-[10px] text-gray-400 font-medium">
-                    <CreditCard size={12} />
-                    <span>Drag to reorder sections</span>
+                    <GripVertical size={12} />
+                    <span>Drag handle to reorder sections</span>
                 </div>
             </div>
         </div>

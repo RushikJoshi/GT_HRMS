@@ -1,9 +1,18 @@
 import React, { useState } from 'react';
 import JobCard from './JobCard';
+import JobDetailModal from './JobDetailModal';
 
-export default function CareerBlockOpenings({ content, jobs = [], loading = false, myApplications = new Set(), onApply }) {
+export default function CareerBlockOpenings({
+    content,
+    jobs = [],
+    loading = false,
+    myApplications = new Set(),
+    onApply,
+    previewMode = 'desktop'
+}) {
 
-    // Removed local searchTerm logic
+    const [selectedJob, setSelectedJob] = useState(null);
+    const isMobile = previewMode === 'mobile';
 
     const {
         title = "Open Positions",
@@ -21,20 +30,20 @@ export default function CareerBlockOpenings({ content, jobs = [], loading = fals
 
     // Grid Columns Logic
     const getGridClass = () => {
-        if (layout === 'list') return 'grid-cols-1';
+        if (isMobile || layout === 'list') return 'grid-cols-1';
         if (Number(gridColumns) === 2) return 'grid-cols-1 md:grid-cols-2';
         if (Number(gridColumns) === 4) return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4';
         return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'; // Default 3
     };
 
     return (
-        <section className="py-20 px-4 sm:px-8 lg:px-12 bg-white w-full max-w-[1600px] mx-auto">
+        <section className={`${isMobile ? 'py-10 px-4' : 'py-20 px-4 sm:px-8 lg:px-12'} bg-white w-full max-w-[1600px] mx-auto`}>
 
             {/* Section Header */}
-            <div className="flex items-center justify-between mb-12 px-2">
-                <h2 className="text-4xl font-black text-gray-900 tracking-tight">{title}</h2>
-                <div className="bg-blue-50 px-4 py-2 rounded-full">
-                    <span className="text-sm font-black text-blue-600 uppercase tracking-widest">{safeJobs.length} Jobs Found</span>
+            <div className={`flex items-center justify-between ${isMobile ? 'mb-6' : 'mb-12'} px-2`}>
+                <h2 className={`${isMobile ? 'text-2xl' : 'text-4xl'} font-black text-gray-900 tracking-tight`}>{title}</h2>
+                <div className="bg-blue-50 px-3 py-1.5 rounded-full">
+                    <span className={`${isMobile ? 'text-[10px]' : 'text-sm'} font-black text-blue-600 uppercase tracking-widest`}>{safeJobs.length} Jobs</span>
                 </div>
             </div>
 
@@ -57,11 +66,21 @@ export default function CareerBlockOpenings({ content, jobs = [], loading = fals
                                 config={content} // Pass the entire content object as config
                                 isApplied={myApplications.has(job._id)}
                                 onApply={onApply}
+                                onViewDetails={(j) => setSelectedJob(j)}
+                                previewMode={previewMode}
                             />
                         </div>
                     ))}
                 </div>
             )}
+
+            {/* Job Detail Modal */}
+            <JobDetailModal
+                job={selectedJob}
+                onClose={() => setSelectedJob(null)}
+                onApply={onApply}
+                isApplied={selectedJob ? myApplications.has(selectedJob._id) : false}
+            />
         </section>
     );
 }

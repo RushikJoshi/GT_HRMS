@@ -111,7 +111,100 @@ const ApplicantSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
   }],
 
-  // Audited Salary Revisions
+  // ═══════════════════════════════════════════════════════════════════
+  // PROFESSIONAL REFERENCES
+  // ═══════════════════════════════════════════════════════════════════
+  references: [{
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100
+    },
+    designation: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100
+    },
+    company: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 150
+    },
+    relationship: {
+      type: String,
+      required: true,
+      enum: [
+        'Reporting Manager',
+        'Team Lead',
+        'HR Manager',
+        'Senior Colleague',
+        'Mentor',
+        'Professor',
+        'Client',
+        'Other'
+      ]
+    },
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+      match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    },
+    phone: {
+      type: String,
+      required: true,
+      trim: true,
+      match: /^[0-9+\-\s()]{10,15}$/
+    },
+    yearsKnown: {
+      type: String,
+      enum: ['< 1 year', '1-2 years', '2-5 years', '5+ years', null],
+      default: null
+    },
+    consentToContact: {
+      type: Boolean,
+      default: true
+    },
+    // HR Verification Fields
+    verificationStatus: {
+      type: String,
+      enum: ['Pending', 'Contacted', 'Verified', 'Failed'],
+      default: 'Pending'
+    },
+    verificationNotes: {
+      type: String,
+      trim: true
+    },
+    verifiedBy: {
+      type: String,
+      trim: true
+    },
+    verifiedAt: {
+      type: Date
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+
+  // Fresher exemption fields
+  isFresher: {
+    type: Boolean,
+    default: false
+  },
+  noReferenceReason: {
+    type: String,
+    enum: ['Fresher - No Work Experience', 'Other', null],
+    default: null
+  },
+
+  customData: { type: mongoose.Schema.Types.Mixed },
+
   salaryHistory: [{
     version: Number,
     effectiveFrom: Date,
@@ -129,8 +222,6 @@ const ApplicantSchema = new mongoose.Schema({
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
 
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
 });
 
 ApplicantSchema.index({ requirementId: 1, status: 1 });

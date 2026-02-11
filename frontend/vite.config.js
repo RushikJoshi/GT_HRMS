@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true, // Bind to 0.0.0.0 to allow network access
       port: DEV_PORT,
-      strictPort: false,
+      strictPort: true,
       hmr: {
         protocol: HMR_PROTOCOL,
         // Only set host if explicitly configured, otherwise let Vite auto-detect
@@ -34,11 +34,16 @@ export default defineConfig(({ mode }) => {
         usePolling: false,
       },
       proxy: {
+        '/socket.io': {
+          target: 'http://localhost:5003',
+          changeOrigin: true,
+          ws: true,
+        },
         '/api': {
-          target: BACKEND_URL,
+          target: 'http://localhost:5003',
           changeOrigin: true,
           secure: false,
-          ws: true, // Enable WebSocket proxying for API
+          ws: true,
         },
       },
     },

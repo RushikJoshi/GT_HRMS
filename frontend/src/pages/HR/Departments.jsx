@@ -17,7 +17,7 @@ export default function Departments() {
     setLoading(true);
     try {
       const res = await api.get('/hr/departments');
-      setDepts(res.data || []);
+      setDepts(res.data?.data || res.data || []);
     } catch (err) {
       console.error(err);
       showToast('error', 'Error', 'Failed to load departments');

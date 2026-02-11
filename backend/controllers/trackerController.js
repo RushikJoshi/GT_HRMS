@@ -1,3 +1,4 @@
+const dayjs = require('dayjs');
 const getTenantDB = require('../utils/tenantDB');
 
 const getModels = async (req) => {
@@ -24,7 +25,11 @@ exports.getCandidates = async (req, res) => {
         const tenantId = req.tenantId;
 
         // 1. Fetch from Tracker (Seeded or previously tracked)
-        const trackerCandidates = await TrackerCandidate.find({ tenant: tenantId }).lean();
+        const trackerCandidatesRaw = await TrackerCandidate.find({ tenant: tenantId }).lean();
+        const trackerCandidates = trackerCandidatesRaw.map(tc => ({
+            ...tc,
+            resumeUrl: tc.resume ? `/hr/resume/${tc.resume}` : null
+        }));
 
         // 2. Fetch from main Applicants collection
         const applicants = await Applicant.find({ tenant: tenantId }).populate('requirementId').lean();
@@ -43,6 +48,7 @@ exports.getCandidates = async (req, res) => {
                 requirementTitle: app.requirementId?.jobTitle || 'Unknown Role',
                 currentStatus: app.status || 'Applied',
                 currentStage: 'Application',
+                resumeUrl: app.resume ? `/hr/resume/${app.resume}` : null,
                 tenant: tenantId,
                 createdAt: app.createdAt,
                 source: 'Applicant'
@@ -50,9 +56,20 @@ exports.getCandidates = async (req, res) => {
         }).filter(Boolean);
 
         // 4. Combine and Sort
-        const finalResults = [...trackerCandidates, ...mappedApplicants].sort((a, b) =>
+        let finalResults = [...trackerCandidates, ...mappedApplicants].sort((a, b) =>
             new Date(b.createdAt) - new Date(a.createdAt)
         );
+
+        // 5. Final Healing: If any tracker candidate still lacks resumeUrl, try one last check against applicants
+        // (This handles legacy tracker data already in the DB)
+        for (let item of finalResults) {
+            if (!item.resumeUrl) {
+                const legacyApp = applicants.find(a => a.email === item.email);
+                if (legacyApp?.resume) {
+                    item.resumeUrl = `/hr/resume/${legacyApp.resume}`;
+                }
+            }
+        }
 
         res.json(finalResults);
     } catch (error) {
@@ -87,6 +104,7 @@ exports.getCandidateById = async (req, res) => {
                         requirementTitle: applicant.requirementId?.jobTitle || 'Unknown Role',
                         currentStatus: applicant.status || 'Applied',
                         currentStage: 'Application',
+                        resumeUrl: applicant.resume ? `/hr/resume/${applicant.resume}` : null,
                         createdAt: applicant.createdAt,
                         source: 'Applicant'
                     };
@@ -98,8 +116,31 @@ exports.getCandidateById = async (req, res) => {
             return res.status(404).json({ message: 'Candidate not found' });
         }
 
+        if (candidate) {
+            // Attach resumeUrl if present
+            if (candidate.resume) {
+                candidate.resumeUrl = `/hr/resume/${candidate.resume}`;
+            } else {
+                // HEALING: Look up applicant if tracker record lacks resume
+                const applicant = await Applicant.findOne({ email: candidate.email }).lean();
+                if (applicant?.resume) {
+                    candidate.resumeUrl = `/hr/resume/${applicant.resume}`;
+                    // Optional: Update the tracker record to avoid future lookups
+                    await TrackerCandidate.findByIdAndUpdate(candidate._id, { resume: applicant.resume });
+                }
+            }
+        }
+
+        console.log('✅ [GET_CANDIDATE_BY_ID] Returning candidate:', {
+            id: candidate._id,
+            name: candidate.name,
+            resume: candidate.resume,
+            resumeUrl: candidate.resumeUrl
+        });
+
         res.json(candidate);
     } catch (error) {
+        console.error('❌ [GET_CANDIDATE_BY_ID] Error:', error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -219,6 +260,7 @@ exports.updateStatus = async (req, res) => {
                         requirementTitle: applicant.requirementId?.jobTitle || 'Unknown Role',
                         currentStatus: status,
                         currentStage: stage,
+                        resume: applicant.resume,
                         tenant: req.tenantId
                     });
                     await candidate.save();
@@ -307,6 +349,155 @@ exports.seedData = async (req, res) => {
 
         res.json({ message: 'Seeded', count: created.length });
     } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+// ============= GET AGGREGATED STATUS (OPTIMIZED) =============
+exports.getStatus = async (req, res) => {
+    try {
+        const { CandidateStatusLog, TrackerCandidate, Applicant } = await getModels(req);
+        const { id } = req.params;
+
+        // 1. Resolve Candidate & find all possible IDs (Tracker and Applicant)
+        let candidateRaw = await TrackerCandidate.findById(id).lean();
+        let trackerId = null;
+        let applicantId = null;
+
+        if (candidateRaw) {
+            trackerId = candidateRaw._id;
+            // Try finding applicantId by email
+            const applicant = await Applicant.findOne({ email: candidateRaw.email, tenant: req.tenantId }).lean();
+            if (applicant) applicantId = applicant._id;
+        } else {
+            const applicant = await Applicant.findById(id).lean();
+            if (!applicant) return res.status(404).json({ message: "Candidate not found" });
+            candidateRaw = applicant;
+            applicantId = applicant._id;
+            // Try finding trackerId by email
+            const tc = await TrackerCandidate.findOne({ email: applicant.email, tenant: req.tenantId }).lean();
+            if (tc) trackerId = tc._id;
+        }
+
+        // 2. Fetch Logs for BOTH IDs
+        const queryIds = [trackerId, applicantId, id].filter(Boolean);
+        let logs = await CandidateStatusLog.find({ candidateId: { $in: queryIds } }).lean();
+
+        // 3. Merge applicant timeline if it's not already in StatusLogs
+        if (candidateRaw.timeline && Array.isArray(candidateRaw.timeline)) {
+            candidateRaw.timeline.forEach(t => {
+                const exists = logs.some(l => l.status === t.status && dayjs(l.actionDate).isSame(dayjs(t.timestamp), 'second'));
+                if (!exists) {
+                    logs.push({
+                        status: t.status,
+                        actionDate: t.timestamp,
+                        stage: 'Application',
+                        remarks: t.message,
+                        actionBy: t.updatedBy
+                    });
+                }
+            });
+        }
+
+        // Sort ASC
+        logs.sort((a, b) => new Date(a.actionDate) - new Date(b.actionDate));
+
+        // Format Helper: Fix bug where 'in:mm' was used. Correct format is 'hh:mm A'
+        const formatTime = (d) => d ? dayjs(d).format("MMM DD, YYYY – hh:mm A") : null;
+
+        // Initialize Response
+        const response = {
+            applied: { status: null, time: null },
+            shortlisted: { status: null, time: null },
+            interview: { status: null, time: null },
+            selected: { status: null, time: null },
+            rejected: { status: null, time: null }
+        };
+
+        const currentStatus = candidateRaw.currentStatus || candidateRaw.status || 'Applied';
+        const currentStage = candidateRaw.currentStage || candidateRaw.stage || '';
+        const updatedAt = candidateRaw.updatedAt || candidateRaw.createdAt || new Date();
+
+        // --- APPLIED ---
+        const appliedLog = logs.find(l => l.status === 'Applied');
+        response.applied = {
+            status: 'completed',
+            time: formatTime(appliedLog ? appliedLog.actionDate : candidateRaw.createdAt)
+        };
+
+        // --- SHORTLISTED ---
+        const shortLog = logs.find(l => l.status === 'Shortlisted');
+        const passedShortlist = ['Shortlisted', 'Interview Scheduled', 'Interviewing', 'Selected', 'Offer Sent', 'Hired'].some(s => currentStatus === s || currentStatus.includes('Round'));
+
+        if (shortLog) {
+            response.shortlisted = { status: 'completed', time: formatTime(shortLog.actionDate) };
+        } else if (passedShortlist) {
+            // Find earliest log that is Shortlisted or past it
+            const nextLog = logs.find(l => ['Shortlisted', 'Interview Scheduled', 'Interviewing', 'Selected'].includes(l.status));
+            response.shortlisted = {
+                status: 'completed',
+                time: formatTime(nextLog ? nextLog.actionDate : (currentStatus === 'Shortlisted' ? updatedAt : null))
+            };
+        }
+
+        // Rejection logic for Shortlisted
+        if (currentStatus === 'Rejected' && (currentStage === 'Shortlisting' || currentStage === 'Application')) {
+            const rejectLog = logs.find(l => l.status === 'Rejected');
+            response.shortlisted = { status: 'rejected', time: formatTime(rejectLog ? rejectLog.actionDate : updatedAt) };
+            response.rejected = { status: 'completed', time: formatTime(rejectLog ? rejectLog.actionDate : updatedAt) };
+        }
+
+        // --- INTERVIEW ---
+        const interviewLog = logs.find(l => l.status === 'Interview Scheduled' || l.status.includes('Interview') || l.status.includes('Round'));
+        const passedInterview = ['Selected', 'Offer Sent', 'Hired'].some(s => currentStatus === s);
+        const isInterviewing = currentStatus === 'Interview Scheduled' || currentStatus.includes('Round') || currentStatus.includes('Interview');
+
+        if (interviewLog) {
+            response.interview = {
+                status: passedInterview ? 'completed' : (isInterviewing ? 'in-progress' : 'completed'),
+                time: formatTime(interviewLog.actionDate)
+            };
+        } else if (passedInterview) {
+            const nextLog = logs.find(l => ['Selected', 'Offer Sent', 'Hired'].includes(l.status));
+            response.interview = { status: 'completed', time: formatTime(nextLog ? nextLog.actionDate : null) };
+        } else if (isInterviewing) {
+            response.interview = { status: 'in-progress', time: formatTime(updatedAt) };
+        }
+
+        // Rejection logic for Interview
+        if (currentStatus === 'Rejected' && (currentStage.includes('Round') || currentStage === 'Interview' || currentStage === 'Final')) {
+            if (!response.rejected.status) { // If not already handled by Shortlisted rejection
+                const rejectLog = logs.find(l => l.status === 'Rejected');
+                response.interview = { status: 'rejected', time: formatTime(rejectLog ? rejectLog.actionDate : updatedAt) };
+                response.rejected = { status: 'completed', time: formatTime(rejectLog ? rejectLog.actionDate : updatedAt) };
+            }
+        }
+
+        // --- SELECTED ---
+        const selectedLog = logs.find(l => ['Selected', 'Offer Sent', 'Hired'].includes(l.status));
+        if (selectedLog) {
+            response.selected = { status: 'completed', time: formatTime(selectedLog.actionDate) };
+        } else if (['Selected', 'Offer Sent', 'Hired'].includes(currentStatus)) {
+            response.selected = { status: 'completed', time: formatTime(updatedAt) };
+        }
+
+        // --- REJECTED (Fallback) ---
+        if (currentStatus === 'Rejected' && !response.rejected.status) {
+            const rejectLog = logs.find(l => l.status === 'Rejected');
+            const time = formatTime(rejectLog ? rejectLog.actionDate : updatedAt);
+            response.rejected = { status: 'completed', time };
+
+            // Mark where it failed
+            if (response.interview.status === 'in-progress' || response.interview.status === 'completed') {
+                response.interview = { status: 'rejected', time };
+            } else if (response.shortlisted.status === 'completed' || response.shortlisted.status === 'in-progress') {
+                response.shortlisted = { status: 'rejected', time };
+            }
+        }
+
+        res.json(response);
+
+    } catch (error) {
+        console.error('[GET_STATUS_ERROR]', error);
         res.status(500).json({ message: error.message });
     }
 };

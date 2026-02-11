@@ -72,6 +72,12 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const PayslipTemplateSchema = require("../models/PayslipTemplate");
     const PositionSchema = require("../models/Position");
     const CompanyIdConfigSchema = require("../models/CompanyIdConfig");
+    const BGVCaseSchema = require("../models/BGVCase");
+    const BGVCheckSchema = require("../models/BGVCheck");
+    const BGVEmailLogSchema = require("../models/BGVEmailLog");
+    const BGVEmailTemplateSchema = require("../models/BGVEmailTemplate");
+    const BGVReportSchema = require("../models/BGVReport");
+    const BGVTimelineSchema = require("../models/BGVTimeline");
 
 
     // Helper to register or FORCE refresh
@@ -139,6 +145,13 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("Position", PositionSchema);
     register("CompanyIdConfig", CompanyIdConfigSchema);
 
+    // BGV Models
+    register("BGVCase", BGVCaseSchema);
+    register("BGVCheck", BGVCheckSchema);
+    register("BGVEmailLog", BGVEmailLogSchema);
+    register("BGVEmailTemplate", BGVEmailTemplateSchema);
+    register("BGVReport", BGVReportSchema);
+    register("BGVTimeline", BGVTimelineSchema);
 
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {
@@ -169,9 +182,8 @@ function getTenantDB(tenantId) {
   if (!tenantId) throw new Error("tenantId required for getTenantDB");
   connectionAccessTime[tenantId] = Date.now();
 
-  // If already in cache, still run through registerModels (which now refreshes critical schemas)
+  // If already in cache, return immediately
   if (tenantDbs[tenantId]) {
-    registerModels(tenantDbs[tenantId], tenantId, false);
     return tenantDbs[tenantId];
   }
 
@@ -194,7 +206,7 @@ function getTenantDB(tenantId) {
 
   const dbName = `company_${tenantId}`;
   const tenantDb = mongoose.connection.useDb(dbName, { useCache: true });
-  registerModels(tenantDb, tenantId, true); // Force full refresh once on new connection load
+  registerModels(tenantDb, tenantId, false); // Optimized: Only register if not already done
   tenantDbs[tenantId] = tenantDb;
   return tenantDb;
 }

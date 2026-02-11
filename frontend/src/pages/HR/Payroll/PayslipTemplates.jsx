@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Spin, Switch, Tooltip, Upload, Button } from 'antd';
 import { showToast, showConfirmToast } from '../../../utils/uiNotifications';
 import api from '../../../utils/api';
-import { Edit2, Trash2, Plus, Eye, Download, FileText, CheckCircle, AlertTriangle, FileCode, Check, Upload as UploadIcon } from 'lucide-react';
+import { Edit2, Trash2, Plus, Eye, Download, FileText, CheckCircle, AlertTriangle, FileCode, Check, Upload as UploadIcon, Palette } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const PLACEHOLDERS = [
     '{{EMPLOYEE_NAME}}', '{{EMPLOYEE_ID}}', '{{DEPARTMENT}}', '{{DESIGNATION}}',
@@ -67,12 +68,246 @@ const DEFAULT_HTML = `<h2 style="text-align:center">PAYSLIP</h2>
     <b>Attendance Summary:</b> Present: {{PRESENT}}, Leaves: {{LEAVES}}, LOP: {{LOP}}, Total Days: {{TOTAL_DAYS}}
 </div>`;
 
+// Component to render BUILDER type template preview
+const TemplateBuildPreview = ({ config, templateName, small = false }) => {
+    const [sampleData] = useState({
+        EMPLOYEE_NAME: 'John Doe',
+        EMPLOYEE_ID: 'EMP001',
+        DEPARTMENT: 'Engineering',
+        DESIGNATION: 'Senior Developer',
+        MONTH: 'January 2024',
+        YEAR: '2024',
+        BASIC: 50000,
+        SPECIAL: 5000,
+        HRA: 10000,
+        GROSS: 65000,
+        EPF: 1800,
+        ESI: 650,
+        PT: 200,
+        INCOME_TAX: 5000,
+        TOTAL_DEDUCTIONS: 7650,
+        NET_PAY: 57350,
+        PRESENT: 25,
+        LEAVES: 3,
+        LOP: 0,
+        TOTAL_DAYS: 28,
+        GENERATED_ON: new Date().toLocaleDateString()
+    });
+
+    const renderComponent = (component, key) => {
+        if (!component) return null;
+
+        const { type, content = {} } = component;
+
+        switch (type) {
+            case 'company-header':
+                const align = content.logoAlign || 'left';
+                const flexDir = align === 'right' ? 'row-reverse' : align === 'center' ? 'column' : 'row';
+                const textAlign = align === 'center' ? 'center' : 'left';
+
+                return (
+                    <div key={key} style={{
+                        display: 'flex',
+                        flexDirection: flexDir,
+                        alignItems: 'center', // Vertically center logo and text
+                        gap: small ? '8px' : '20px',
+                        textAlign: textAlign,
+                        marginBottom: small ? 6 : 20,
+                        paddingBottom: small ? 2 : 10,
+                        borderBottom: small ? '1px solid #eee' : '2px solid #eee'
+                    }}>
+                        {content.showLogo && content.logoImage && (
+                            <img
+                                src={content.logoImage}
+                                alt="Logo"
+                                style={{
+                                    height: small ? '28px' : (content.logoSize || '80px'),
+                                    width: 'auto',
+                                    objectFit: 'contain',
+                                    display: 'block'
+                                }}
+                            />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            {content.companyName && (
+                                <span style={{
+                                    margin: small ? '2px 0' : '0 0 5px 0',
+                                    fontSize: small ? 11 : (content.companyNameSize || '24px'),
+                                    fontWeight: 'bold',
+                                    display: 'block',
+                                    lineHeight: 1.2,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                }}>
+                                    {content.companyName}
+                                </span>
+                            )}
+                            {content.showAddress && content.companyAddress && !small && (
+                                <p style={{ fontSize: '12px', color: '#666', margin: 0, whiteSpace: 'pre-wrap' }}>
+                                    {content.companyAddress}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                );
+
+            case 'employee-details-grid':
+                if (small) return null;
+                return (
+                    <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                        <div>
+                            <p><strong>Employee Name:</strong> {sampleData.EMPLOYEE_NAME}</p>
+                            <p><strong>Employee ID:</strong> {sampleData.EMPLOYEE_ID}</p>
+                            <p><strong>Department:</strong> {sampleData.DEPARTMENT}</p>
+                            <p><strong>Designation:</strong> {sampleData.DESIGNATION}</p>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                            <p><strong>Month:</strong> {sampleData.MONTH}</p>
+                            <p><strong>Generated On:</strong> {sampleData.GENERATED_ON}</p>
+                        </div>
+                    </div>
+                );
+
+            case 'earnings-table':
+                return (
+                    <div key={key} style={{ marginBottom: small ? 6 : 20 }}>
+                        <span style={{ fontWeight: 'bold', fontSize: small ? 10 : 16 }}>{content.title || 'Earnings'}</span>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: small ? 9 : 13 }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#f5f5f5' }}>
+                                    <th style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'left' }}>Description</th>
+                                    <th style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'right' }}>Amount</th>
+                                    {content.showYTD && !small && <th style={{ padding: 8, border: '1px solid #ddd', textAlign: 'right' }}>YTD</th>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd' }}>Basic</td>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.BASIC}</td>
+                                    {content.showYTD && !small && <td style={{ padding: 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.BASIC * 3}</td>}
+                                </tr>
+                                <tr>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd' }}>HRA</td>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.HRA}</td>
+                                    {content.showYTD && !small && <td style={{ padding: 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.HRA * 3}</td>}
+                                </tr>
+                                <tr style={{ fontWeight: 'bold', backgroundColor: '#f9f9f9' }}>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd' }}>Gross Earnings</td>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.GROSS}</td>
+                                    {content.showYTD && !small && <td style={{ padding: 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.GROSS * 3}</td>}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                );
+
+            case 'deductions-table':
+                return (
+                    <div key={key} style={{ marginBottom: small ? 6 : 20 }}>
+                        <span style={{ fontWeight: 'bold', fontSize: small ? 10 : 16 }}>{content.title || 'Deductions'}</span>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: small ? 9 : 13 }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#fee' }}>
+                                    <th style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'left' }}>Description</th>
+                                    <th style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'right' }}>Amount</th>
+                                    {content.showYTD && !small && <th style={{ padding: 8, border: '1px solid #ddd', textAlign: 'right' }}>YTD</th>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd' }}>EPF</td>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.EPF}</td>
+                                    {content.showYTD && !small && <td style={{ padding: 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.EPF * 3}</td>}
+                                </tr>
+                                <tr>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd' }}>ESI</td>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.ESI}</td>
+                                    {content.showYTD && !small && <td style={{ padding: 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.ESI * 3}</td>}
+                                </tr>
+                                <tr style={{ fontWeight: 'bold', backgroundColor: '#faf5f5' }}>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd' }}>Total Deductions</td>
+                                    <td style={{ padding: small ? 2 : 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.TOTAL_DEDUCTIONS}</td>
+                                    {content.showYTD && !small && <td style={{ padding: 8, border: '1px solid #ddd', textAlign: 'right' }}>₹{sampleData.TOTAL_DEDUCTIONS * 3}</td>}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                );
+
+            case 'net-pay-box':
+                return (
+                    <div key={key} style={{
+                        padding: small ? 4 : 15,
+                        backgroundColor: '#f0f9ff',
+                        border: small ? '1px solid #0ea5e9' : '2px solid #0ea5e9',
+                        borderRadius: 8,
+                        marginBottom: small ? 6 : 20,
+                        textAlign: 'center'
+                    }}>
+                        <span style={{ margin: 0, fontWeight: 'bold', fontSize: small ? 10 : 16 }}>{content.title || 'Net Payable'}</span>
+                        <div style={{ fontSize: small ? 11 : 24, fontWeight: 'bold', margin: small ? '2px 0' : '5px 0', color: '#0369a1' }}>
+                            ₹{sampleData.NET_PAY.toLocaleString()}
+                        </div>
+                        {!small && (
+                            <p style={{ fontSize: '12px', color: '#666', margin: '5px 0', fontStyle: 'italic' }}>
+                                Fifty Seven Thousand Three Hundred Fifty Rupees Only
+                            </p>
+                        )}
+                    </div>
+                );
+
+            case 'text':
+                if (small) return null;
+                return (
+                    <p key={key} style={{ margin: '10px 0', fontSize: content.fontSize || '14px' }}>
+                        {content.text || 'Sample text'}
+                    </p>
+                );
+
+            default:
+                return null;
+        }
+    };
+
+    if (!config || !config.sections || !Array.isArray(config.sections)) {
+        return (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+                <p>Invalid template configuration</p>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{
+            padding: small ? 6 : 40,
+            backgroundColor: '#fff',
+            maxWidth: small ? 320 : 800,
+            margin: '0 auto',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: small ? 10 : 14,
+            minHeight: small ? 60 : undefined,
+            overflow: 'hidden'
+        }}>
+            {config.sections.map((section, idx) => renderComponent(section, idx))}
+            {!small && <hr style={{ marginTop: '20px', borderTop: '1px solid #ddd' }} />}
+            {!small && (
+                <p style={{ fontSize: '11px', color: '#999', textAlign: 'center', marginTop: '10px' }}>
+                    This is a preview with sample data
+                </p>
+            )}
+        </div>
+    );
+};
+
 export default function PayslipTemplates() {
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
     const [showSelectionModal, setShowSelectionModal] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
+    const [showBuilderModal, setShowBuilderModal] = useState(false);
     const [previewHtml, setPreviewHtml] = useState('');
     const [selectedType, setSelectedType] = useState('HTML');
     const [fileList, setFileList] = useState([]);
@@ -85,6 +320,7 @@ export default function PayslipTemplates() {
     });
     const [isEditing, setIsEditing] = useState(false);
     const [currentId, setCurrentId] = useState(null);
+    const [selectedBuilderTemplate, setSelectedBuilderTemplate] = useState(null);
 
     useEffect(() => {
         fetchTemplates();
@@ -116,6 +352,12 @@ export default function PayslipTemplates() {
     };
 
     const handleTypeSelect = (type) => {
+        if (type === 'BUILDER') {
+            setShowSelectionModal(false);
+            navigate(`/hr/payroll/payslip-builder/new`);
+            return;
+        }
+
         setSelectedType(type);
         setFormData({
             name: '',
@@ -132,6 +374,10 @@ export default function PayslipTemplates() {
     };
 
     const openEditModal = (template) => {
+        if (template.templateType === 'BUILDER') {
+            navigate(`/hr/payroll/payslip-builder/${template._id}`);
+            return;
+        }
         setFormData({
             name: template.name,
             htmlContent: template.htmlContent || '',
@@ -198,14 +444,25 @@ export default function PayslipTemplates() {
         });
     };
 
-    const handlePreview = async () => {
-        if (selectedType === 'WORD') {
+    const handlePreview = async (templateToPreview = null) => {
+        // Use provided template or current formData
+        const previewData = templateToPreview || formData;
+
+        if (previewData.templateType === 'WORD') {
             showToast('info', 'Not Available', 'Preview for Word templates is coming soon. please use test generation.');
             return;
         }
+
+        if (previewData.templateType === 'BUILDER') {
+            // For BUILDER type, show the template in a modal
+            setSelectedBuilderTemplate(previewData);
+            setShowBuilderModal(true);
+            return;
+        }
+
         try {
             const res = await api.post('/payslip-templates/preview', {
-                htmlContent: formData.htmlContent
+                htmlContent: previewData.htmlContent
             });
             setPreviewHtml(res.data.data.html);
             setShowPreview(true);
@@ -269,8 +526,8 @@ export default function PayslipTemplates() {
                                         )}
                                     </h3>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1 ${tpl.templateType === 'WORD' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                            {tpl.templateType === 'WORD' ? <FileText size={10} /> : <FileCode size={10} />}
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1 ${tpl.templateType === 'WORD' ? 'bg-purple-100 text-purple-700' : (tpl.templateType === 'BUILDER' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700')}`}>
+                                            {tpl.templateType === 'WORD' ? <FileText size={10} /> : (tpl.templateType === 'BUILDER' ? <Palette size={10} /> : <FileCode size={10} />)}
                                             {tpl.templateType || 'HTML'}
                                         </span>
                                         <span className="text-[10px] text-slate-400">
@@ -280,8 +537,16 @@ export default function PayslipTemplates() {
                                 </div>
                                 <div className={`w-2.5 h-2.5 rounded-full ${tpl.isActive ? 'bg-green-500' : 'bg-slate-300'}`}></div>
                             </div>
-                            <div className="text-xs text-slate-500 mb-4 h-16 overflow-hidden bg-slate-50 p-2 rounded border border-slate-100 font-mono opacity-60">
-                                {tpl.templateType === 'WORD' ? `Word Template: ${tpl.placeholders?.length || 0} fields detected.` : (tpl.htmlContent?.substring(0, 150) + '...')}
+                            <div className="mb-4">
+                                {tpl.templateType === 'BUILDER' && tpl.builderConfig ? (
+                                    <div className="border border-slate-200 rounded bg-slate-50 overflow-hidden flex items-center justify-center" style={{ height: 90, minHeight: 90, maxHeight: 90, minWidth: 180, maxWidth: 320, margin: '0 auto' }}>
+                                        <TemplateBuildPreview config={tpl.builderConfig} templateName={tpl.name} small />
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-slate-500 h-16 overflow-hidden bg-slate-50 p-2 rounded border border-slate-100 font-mono opacity-60">
+                                        {tpl.templateType === 'WORD' ? `Word Template: ${tpl.placeholders?.length || 0} fields detected.` : (tpl.htmlContent?.substring(0, 150) + '...')}
+                                    </div>
+                                )}
                             </div>
                             <div className="flex justify-between items-center pt-3 border-t border-slate-100">
                                 <div className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
@@ -289,10 +554,7 @@ export default function PayslipTemplates() {
                                 </div>
                                 <div className="flex gap-2">
                                     {tpl.templateType !== 'WORD' && (
-                                        <button onClick={() => {
-                                            setFormData(tpl);
-                                            handlePreview();
-                                        }} className="text-slate-600 hover:text-blue-600 p-1.5 rounded-md hover:bg-slate-50 transition">
+                                        <button onClick={() => handlePreview(tpl)} className="text-slate-600 hover:text-blue-600 p-1.5 rounded-md hover:bg-slate-50 transition">
                                             <Eye size={16} />
                                         </button>
                                     )}
@@ -315,10 +577,10 @@ export default function PayslipTemplates() {
                 open={showSelectionModal}
                 onCancel={() => setShowSelectionModal(false)}
                 footer={null}
-                width={500}
+                width={700}
                 centered
             >
-                <div className="grid grid-cols-2 gap-4 py-4">
+                <div className="grid grid-cols-3 gap-4 py-4">
                     <button
                         onClick={() => handleTypeSelect('HTML')}
                         className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition group"
@@ -342,6 +604,19 @@ export default function PayslipTemplates() {
                         <div className="text-center">
                             <div className="font-bold text-slate-800">Word Template</div>
                             <div className="text-[10px] text-slate-500 mt-1">Upload a .docx file with &#123;&#123;tags&#125;&#125; placeholders.</div>
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => handleTypeSelect('BUILDER')}
+                        className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition group"
+                    >
+                        <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 group-hover:bg-indigo-100 group-hover:text-indigo-700 transition">
+                            <Palette size={24} />
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold text-slate-800">Visual Builder 2.0</div>
+                            <div className="text-[10px] text-slate-500 mt-1">Drag & drop design with live preview. No coding needed.</div>
                         </div>
                     </button>
                 </div>
@@ -475,6 +750,32 @@ export default function PayslipTemplates() {
             >
                 <div className="bg-white p-8 border border-slate-200 shadow-inner max-h-[600px] overflow-y-auto rounded" dangerouslySetInnerHTML={{ __html: previewHtml }} />
             </Modal>
+
+            {/* Builder Template Preview Modal */}
+            <Modal
+                title={selectedBuilderTemplate ? `Template Preview: ${selectedBuilderTemplate.name}` : 'Template Preview'}
+                open={showBuilderModal}
+                onCancel={() => {
+                    setShowBuilderModal(false);
+                    setSelectedBuilderTemplate(null);
+                }}
+                footer={null}
+                width={900}
+                bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
+            >
+                {selectedBuilderTemplate && selectedBuilderTemplate.builderConfig && (
+                    <TemplateBuildPreview
+                        config={selectedBuilderTemplate.builderConfig}
+                        templateName={selectedBuilderTemplate.name}
+                    />
+                )}
+                {(!selectedBuilderTemplate || !selectedBuilderTemplate.builderConfig) && (
+                    <div className="p-8 text-center text-gray-500">
+                        <p>Invalid template configuration</p>
+                    </div>
+                )}
+            </Modal>
+
         </div>
     );
 }

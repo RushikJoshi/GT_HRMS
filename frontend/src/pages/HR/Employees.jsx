@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api';
 import { formatDateDDMMYYYY } from '../../utils/dateUtils';
-import { DatePicker, Pagination, notification } from 'antd';
+import { DatePicker, Pagination, notification, Select } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications';
 import dayjs from 'dayjs';
+
 
 const BACKEND_URL = API_ROOT || 'https://hrms.gitakshmi.com';
 
@@ -13,24 +15,40 @@ const NATIONALITIES = [
   "Afghan", "Albanian", "Algerian", "American", "Andorran", "Angolan", "Antiguans", "Argentinean", "Armenian", "Australian", "Austrian", "Azerbaijani", "Bahamian", "Bahraini", "Bangladeshi", "Barbadian", "Barbudans", "Batswana", "Belarusian", "Belgian", "Belizean", "Beninese", "Bhutanese", "Bolivian", "Bosnian", "Brazilian", "British", "Bruneian", "Bulgarian", "Burkinabe", "Burmese", "Burundian", "Cambodian", "Cameroonian", "Canadian", "Cape Verdean", "Central African", "Chadian", "Chilean", "Chinese", "Colombian", "Comoran", "Congolese", "Costa Rican", "Croatian", "Cuban", "Cypriot", "Czech", "Danish", "Djibouti", "Dominican", "Dutch", "East Timorese", "Ecuadorean", "Egyptian", "Emirian", "Equatorial Guinean", "Eritrean", "Estonian", "Ethiopian", "Fijian", "Filipino", "Finnish", "French", "Gabonese", "Gambian", "Georgian", "German", "Ghanaian", "Greek", "Grenadian", "Guatemalan", "Guinea-Bissauan", "Guinean", "Guyanese", "Haitian", "Herzegovinian", "Honduran", "Hungarian", "I-Kiribati", "Icelander", "Indian", "Indonesian", "Iranian", "Iraqi", "Irish", "Israeli", "Italian", "Ivorian", "Jamaican", "Japanese", "Jordanian", "Kazakhstani", "Kenyan", "Kittian and Nevisian", "Kuwaiti", "Kyrgyz", "Laotian", "Latvian", "Lebanese", "Liberian", "Libyan", "Liechtensteiner", "Lithuanian", "Luxembourger", "Macedonian", "Malagasy", "Malawian", "Malaysian", "Maldivan", "Malian", "Maltese", "Marshallese", "Mauritanian", "Mauritian", "Mexican", "Micronesian", "Moldovan", "Monacan", "Mongolian", "Moroccan", "Mosotho", "Motswana", "Mozambican", "Namibian", "Nauruan", "Nepalese", "New Zealander", "Ni-Vanuatu", "Nicaraguan", "Nigerian", "Nigerien", "North Korean", "Northern Irish", "Norwegian", "Omani", "Pakistani", "Palauan", "Panamanian", "Papua New Guinean", "Paraguayan", "Peruvian", "Polish", "Portuguese", "Qatari", "Romanian", "Russian", "Rwandan", "Saint Lucian", "Salvadoran", "Samoan", "San Marinese", "Sao Tomean", "Saudi", "Scottish", "Senegalese", "Serbian", "Seychellois", "Sierra Leonean", "Singaporean", "Slovakian", "Slovenian", "Solomon Islander", "Somali", "South African", "South Korean", "Spanish", "Sri Lankan", "Sudanese", "Surinamer", "Swazi", "Swedish", "Swiss", "Syrian", "Taiwanese", "Tajik", "Tanzanian", "Thai", "Togolese", "Tongan", "Trinidadian or Tobagonian", "Tunisian", "Turkish", "Tuvaluan", "Ugandan", "Ukrainian", "Uruguayan", "Uzbekistani", "Venezuelan", "Vietnamese", "Welsh", "Yemenite", "Zambian", "Zimbabwean"
 ];
 
+const EMPLOYEE_TYPES = ['Full-time', 'Part-time', 'Intern', 'Contract', 'Consultant'];
+const WORK_MODES = ['Work From Office (WFO)', 'Work From Home (WFH)', 'Hybrid', 'Field / Onsite'];
+
+// const navigate = useNavigate()
+
 import ApplyLeaveForm from '../../components/ApplyLeaveForm';
 import SalaryAssignmentModal from '../../components/Payroll/SalaryAssignmentModal';
 import EmployeeProfileView from '../../components/EmployeeProfileView';
+import EmployeeExcelUploadModal from '../../components/HR/EmployeeExcelUploadModal';
 import { Calendar as CalendarIcon, User, Search, Filter, Plus, FileText, Edit2, Trash2, Eye, IndianRupee } from 'lucide-react';
 
 export default function Employees() {
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [openUploadPopup, setOpenUploadPopup] = useState(false);
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [applyingLeave, setApplyingLeave] = useState(null);
   const [assigningSalary, setAssigningSalary] = useState(null); // New state //
   const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedDesignations, setSelectedDesignations] = useState([]);
+  const [selectedEmployeeTypes, setSelectedEmployeeTypes] = useState([]);
+  const [selectedWorkModes, setSelectedWorkModes] = useState([]);
+  const [availableDepartments, setAvailableDepartments] = useState([]);
+  const [availableDesignations, setAvailableDesignations] = useState([]);
+  const [showFilterDropdowns, setShowFilterDropdowns] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [showDrafts, setShowDrafts] = useState(false);
   const [drafts, setDrafts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalEmployees, setTotalEmployees] = useState(0); // Added for pagination if backend supports it
   const pageSize = 10;
 
   // Joining Letter State
@@ -51,21 +69,69 @@ export default function Employees() {
     } catch (err) { console.error('Failed to load drafts', err); }
   }
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const url = '/hr/employees'; // Removed department filter param
-      const res = await api.get(url);
+      const params = new URLSearchParams();
+      if (selectedDepartment && selectedDepartment !== 'All Departments') {
+        params.append('department', selectedDepartment);
+      }
+      if (selectedDesignations.length > 0) {
+        params.append('designation', selectedDesignations.join(','));
+      }
+      if (selectedEmployeeTypes.length > 0) {
+        params.append('type', selectedEmployeeTypes.join(','));
+      }
+      if (selectedWorkModes.length > 0) {
+        params.append('workMode', selectedWorkModes.join(','));
+      }
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+
+      console.log(`[EMPLOYEE_LIST] Fetching with params:`, params.toString());
+      const res = await api.get(`/hr/employees?${params.toString()}`);
       const data = res.data?.data || res.data || [];
       setEmployees(data);
     } catch (err) {
       console.error(err);
       showToast('error', 'Error', 'Failed to load employees');
     } finally { setLoading(false); }
-  }
+  }, [selectedDepartment, selectedDesignations, selectedEmployeeTypes, selectedWorkModes, searchTerm]);
+
+  const fetchFilterOptions = useCallback(async () => {
+    try {
+      // Fetch Departments
+      const deptRes = await api.get('/hr/departments');
+      setAvailableDepartments(deptRes.data?.data || deptRes.data || []);
+
+      // Fetch Designations (Distinct) - We'll use the existing list but extract unique designations
+      // Or if there's a dedicated endpoint, use it. Assuming we need to extract from all employees for now
+      // as a fallback if no dedicated metadata endpoint exists.
+      const empRes = await api.get('/hr/employees');
+      const allEmps = empRes.data?.data || empRes.data || [];
+      const uniqueDesignations = [...new Set(allEmps.map(e => e.designation).filter(Boolean))];
+      setAvailableDesignations(uniqueDesignations);
+    } catch (err) {
+      console.error('Failed to load filter options', err);
+    }
+  }, []);
+
+  const clearFilters = () => {
+    setSelectedDepartment('');
+    setSelectedDesignations([]);
+    setSelectedEmployeeTypes([]);
+    setSelectedWorkModes([]);
+    setSearchTerm('');
+    setCurrentPage(1);
+  };
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  useEffect(() => {
+    fetchFilterOptions();
     async function fetchJoiningTemplates() {
       try {
         const res = await api.get('/letters/templates?type=joining');
@@ -73,7 +139,7 @@ export default function Employees() {
       } catch (err) { console.error("Failed to load joining templates", err); }
     }
     fetchJoiningTemplates();
-  }, []); // Removed selectedDepartment dependency
+  }, [fetchFilterOptions]);
 
   // Helper to derive a readable display name from various possible fields
   function getDisplayName(emp) {
@@ -93,6 +159,7 @@ export default function Employees() {
   function openNew() { setEditing(null); setViewing(null); setOpenForm(true); }
   function openEdit(e) { setEditing(e); setViewing(null); setOpenForm(true); }
   function openView(e) { setEditing(e); setViewing(true); setOpenForm(true); }
+  function openUpload() { setOpenUploadPopup(true); }
 
   function remove(id) {
     showConfirmToast({
@@ -167,6 +234,7 @@ export default function Employees() {
     } finally { setGeneratingJoining(false); }
   };
 
+
   if (openForm) {
     if (viewing) {
       return (
@@ -201,7 +269,6 @@ export default function Employees() {
       </div>
     );
   }
-
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
@@ -214,6 +281,7 @@ export default function Employees() {
             {showDrafts ? 'Hide Drafts' : 'Drafts'}
           </button>
           <button onClick={openNew} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employee</button>
+          <button onClick={openUpload} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employees From Excel</button>
         </div>
       </div>
 
@@ -249,47 +317,122 @@ export default function Employees() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 px-4 py-3 border-b border-slate-200">
-          <select
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-auto"
-          >
-            <option value="">All Departments</option>
-            {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-          <div className="relative flex-1 max-w-md">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden mb-6">
+        <div className="flex flex-wrap items-center gap-3 px-4 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[280px]">
+            <Search className="h-4 w-4 text-slate-400 absolute left-3 top-3.5" />
             <input
               type="text"
-              placeholder="Search employees..."
+              placeholder="Search by name, ID or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-sm transition-all"
             />
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+          </div>
+
+          {/* Filter Toggles & Actions */}
+          <div className="flex items-center gap-2 ml-auto">
+            {showFilterDropdowns ? (
+              <>
+                <div className="flex flex-wrap items-center gap-3 mr-2 animate-in fade-in slide-in-from-right-4 duration-300">
+                  {/* Department - Single Select */}
+                  <Select
+                    placeholder="All Departments"
+                    value={selectedDepartment || undefined}
+                    onChange={setSelectedDepartment}
+                    className="w-48"
+                    allowClear
+                  >
+                    <Select.Option value="">All Departments</Select.Option>
+                    {availableDepartments.map(d => (
+                      <Select.Option key={d._id} value={d.name}>{d.name}</Select.Option>
+                    ))}
+                  </Select>
+
+                  {/* Designation - Multi Select */}
+                  <Select
+                    mode="multiple"
+                    placeholder="All Roles"
+                    value={selectedDesignations}
+                    onChange={setSelectedDesignations}
+                    className="min-w-[150px] max-w-[200px]"
+                    maxTagCount="responsive"
+                    allowClear
+                  >
+                    {availableDesignations.map(d => (
+                      <Select.Option key={d} value={d}>{d}</Select.Option>
+                    ))}
+                  </Select>
+
+                  {/* Employee Type - Multi Select */}
+                  <Select
+                    mode="multiple"
+                    placeholder="Employee Type"
+                    value={selectedEmployeeTypes}
+                    onChange={setSelectedEmployeeTypes}
+                    className="min-w-[150px] max-w-[200px]"
+                    maxTagCount="responsive"
+                    allowClear
+                  >
+                    {EMPLOYEE_TYPES.map(t => (
+                      <Select.Option key={t} value={t}>{t}</Select.Option>
+                    ))}
+                  </Select>
+
+                  {/* Work Mode - Multi Select */}
+                  <Select
+                    mode="multiple"
+                    placeholder="Work Mode"
+                    value={selectedWorkModes}
+                    onChange={setSelectedWorkModes}
+                    className="min-w-[150px] max-w-[200px]"
+                    maxTagCount="responsive"
+                    allowClear
+                  >
+                    {WORK_MODES.map(m => (
+                      <Select.Option key={m} value={m}>{m}</Select.Option>
+                    ))}
+                  </Select>
+                </div>
+
+                {(selectedDepartment || selectedDesignations.length > 0 || selectedEmployeeTypes.length > 0 || selectedWorkModes.length > 0) ? (
+                  <button
+                    onClick={clearFilters}
+                    className="px-4 py-2 text-sm font-semibold text-red-500 bg-red-50 hover:bg-red-100 rounded-xl transition-all flex items-center gap-2 shadow-sm border border-red-100"
+                  >
+                    <Filter className="h-4 w-4" /> Clear Filters
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowFilterDropdowns(false)}
+                    className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all flex items-center gap-2"
+                  >
+                    Hide Filters
+                  </button>
+                )}
+              </>
+            ) : (
+              <button
+                onClick={() => setShowFilterDropdowns(true)}
+                className="px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all flex items-center gap-2 shadow-sm border border-blue-100"
+              >
+                <Filter className="h-4 w-4" /> Add Filters
+              </button>
+            )}
           </div>
         </div>
+
         {loading ? (
-          <div className="p-8 text-center text-slate-500">Loading employees...</div>
+          <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+            <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+            <span>Loading employees...</span>
+          </div>
         ) : employees.length === 0 ? (
           <div className="p-8 text-center text-slate-500">No employees yet. Add one to get started!</div>
         ) : (
           (() => {
-            const filteredEmployees = employees.filter(emp => {
-              if (selectedDepartment && emp.department !== selectedDepartment) return false;
-              if (!searchTerm) return true;
-              const term = searchTerm.toLowerCase();
-              const name = getDisplayName(emp).toLowerCase();
-              const email = (emp.email || '').toLowerCase();
-              const empId = (emp.employeeId || '').toLowerCase();
-              return name.includes(term) || email.includes(term) || empId.includes(term);
-            });
-            const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+            const paginatedEmployees = employees.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
             return (
               <>
@@ -303,7 +446,7 @@ export default function Employees() {
                           <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden md:table-cell whitespace-nowrap">Emp ID</th>
                           <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden lg:table-cell whitespace-nowrap">Email</th>
                           <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden xl:table-cell whitespace-nowrap">Phone</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 whitespace-nowrap">Role</th>
+                          <th className="px-4 py-3 text-left font-semibold text-slate-700 whitespace-nowrap">Designation / Role</th>
                           <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden md:table-cell whitespace-nowrap">Department</th>
                           <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden lg:table-cell whitespace-nowrap">Manager</th>
                           <th className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">Actions</th>
@@ -332,7 +475,8 @@ export default function Employees() {
                             <td className="px-4 py-3 text-slate-600 hidden lg:table-cell whitespace-nowrap">{emp.email}</td>
                             <td className="px-4 py-3 text-slate-600 hidden xl:table-cell whitespace-nowrap">{emp.contactNo || emp.phone || '-'}</td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              <span className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                              <div className="text-slate-900 font-medium">{emp.designation || '-'}</div>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 mt-1">
                                 {emp.role || '-'}
                               </span>
                             </td>
@@ -358,7 +502,8 @@ export default function Employees() {
                                 <button onClick={() => setApplyingLeave(emp)} className="p-1.5 rounded hover:bg-emerald-50 transition" title="Apply Leave" aria-label="Apply leave for employee">
                                   <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
                                 </button>
-                                <button onClick={() => setAssigningSalary(emp)} className="p-1.5 rounded hover:bg-purple-50 transition" title="Assign Salary Structure" aria-label="Assign Salary">
+                                {/* <button onClick={() => setAssigningSalary(emp)} className="p-1.5 rounded hover:bg-purple-50 transition" title="Assign Salary Structure" aria-label="Assign Salary"> */}
+                                <button onClick={() => navigate(`/hr/salary-structure/${emp._id}`)} className="p-1.5 rounded hover:bg-purple-50 transition" title="Assign Salary Structure" aria-label="Assign Salary">
                                   <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
                                 </button>
                                 <button
@@ -400,11 +545,14 @@ export default function Employees() {
                           )}
                           <div>
                             <div className="font-bold text-slate-900">{getDisplayName(emp)}</div>
-                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{emp.employeeId || 'NO ID'}</div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{emp.employeeId || 'NO ID'}</div>
+                              <span className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                {emp.role || 'Employee'}
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-600 mt-1 font-medium italic">{emp.designation || 'No Designation'}</div>
                           </div>
-                          <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                            {emp.role || 'Employee'}
-                          </span>
                         </div>
                       </div>
 
@@ -448,7 +596,7 @@ export default function Employees() {
                   <Pagination
                     current={currentPage}
                     pageSize={pageSize}
-                    total={filteredEmployees.length}
+                    total={employees.length}
                     onChange={(page) => setCurrentPage(page)}
                     showSizeChanger={false}
                     responsive={true}
@@ -595,7 +743,7 @@ export default function Employees() {
       }
 
       {/* Salary Assignment Modal */}
-      {
+      {/* {
         assigningSalary && (
           <SalaryAssignmentModal
             employee={assigningSalary}
@@ -605,8 +753,20 @@ export default function Employees() {
               load();
             }}
           />
+          
         )
-      }
+      } */}
+
+      {/* Excel Upload Modal */}
+      <EmployeeExcelUploadModal
+        isOpen={openUploadPopup}
+        onClose={() => setOpenUploadPopup(false)}
+        onSuccess={() => {
+          setOpenUploadPopup(false);
+          showToast('success', 'Success', 'Employees uploaded successfully!');
+          load();
+        }}
+      />
 
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 sm:p-6">
         <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-3">Employees by Department</h3>
@@ -664,7 +824,8 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
     ...e,
     payslips: e.payslips || (e.payslipUrl ? [e.payslipUrl] : [])
   })) : []);
-  const [jobType, setJobType] = useState(employee?.jobType || 'Full-Time');
+  const [employeeType, setEmployeeType] = useState(employee?.employeeType || employee?.jobType || 'Full-time');
+  const [workMode, setWorkMode] = useState(employee?.workMode || 'Work From Office (WFO)');
 
   const [bankName, setBankName] = useState(employee?.bankDetails?.bankName || '');
   const [accountNumber, setAccountNumber] = useState(employee?.bankDetails?.accountNumber || '');
@@ -677,6 +838,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const [department, setDepartment] = useState(employee?.department || '');
   const [departmentId, setDepartmentId] = useState(employee?.departmentId?._id || employee?.departmentId || '');
   const [manager, setManager] = useState(employee?.manager?._id || employee?.manager || '');
+  const [designation, setDesignation] = useState(employee?.designation || '');
   const [joiningDate, setJoiningDate] = useState(employee?.joiningDate ? new Date(employee.joiningDate).toISOString().split('T')[0] : '');
   const [departments, setDepartments] = useState([]);
   const [managers, setManagers] = useState([]);
@@ -1276,7 +1438,9 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
         emergencyContactName, emergencyContactNumber,
         tempAddress, permAddress: sameAsTemp ? tempAddress : permAddress,
         experience: processedExperience,
-        jobType,
+        employeeType,
+        workMode,
+        designation,
         bankDetails: { bankName, accountNumber, ifsc, branchName, location: bankLocation, bankProofUrl: currentBankProofUrl },
         education: {
           type: eduType,
@@ -1419,7 +1583,9 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
         emergencyContactName, emergencyContactNumber,
         tempAddress, permAddress: sameAsTemp ? tempAddress : permAddress,
         experience: processedExperience,
-        jobType: jobType || undefined,
+        employeeType: employeeType || undefined,
+        workMode: workMode || undefined,
+        designation: designation || undefined,
         bankDetails: { bankName, accountNumber, ifsc, branchName, location: bankLocation, bankProofUrl: currentBankProofUrl },
         education: {
           type: eduType,
@@ -2088,13 +2254,25 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
               <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Employment Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">Job Type</label>
-                  <select value={jobType} onChange={e => setJobType(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300">
-                    <option>Full-Time</option>
-                    <option>Part-Time</option>
-                    <option>Internship</option>
-                    <option>Contract</option>
+                  <label className="text-sm font-semibold text-slate-700">Employee Type</label>
+                  <select value={employeeType} onChange={e => setEmployeeType(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300">
+                    {EMPLOYEE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Work Mode</label>
+                  <select value={workMode} onChange={e => setWorkMode(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300">
+                    {WORK_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Designation / Job Role</label>
+                  <input
+                    value={designation}
+                    onChange={e => setDesignation(e.target.value)}
+                    placeholder="e.g. Senior Software Engineer"
+                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-slate-700">Role / Access Level</label>

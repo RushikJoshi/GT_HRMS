@@ -91,18 +91,79 @@ const mapToContract = (snapshot) => {
 
 const SalaryController = {
     /**
-     * Preview Salary
-     */
+ * Preview Salary
+ */
     async preview(req, res) {
         try {
             const { annualCTC, selectedEarnings, selectedDeductions, selectedBenefits } = req.body;
             console.log(`[SALARY_CONTROLLER] Preview requested: CTC=${annualCTC}`);
+
+            // Fetch actual component configurations from database
+            const tenantId = req.user?.tenant || req.user?.tenantId;
+            if (!tenantId) {
+                return res.status(400).json({ success: false, message: "Tenant ID missing" });
+            }
+
+            if (!req.tenantDB) {
+                return res.status(400).json({ success: false, message: "Tenant database not resolved" });
+            }
+
+            const SalaryComponent = req.tenantDB.model('SalaryComponent');
+            const DeductionMaster = req.tenantDB.model('DeductionMaster');
+            const BenefitComponent = req.tenantDB.model('BenefitComponent');
+
+            // Fetch all active components from database
+            const [dbEarnings, dbDeductions, dbBenefits] = await Promise.all([
+                SalaryComponent.find({ tenantId, isActive: true }).lean(),
+                DeductionMaster.find({ tenantId, isActive: true }).lean(),
+                BenefitComponent.find({ tenantId, isActive: true }).lean()
+            ]);
+
+
+            console.log(`🔍 DEBUG: Fetched ${dbEarnings.length} earnings, ${dbDeductions.length} deductions, ${dbBenefits.length} benefits from DB`);
+
+            // Helper to merge selected components with DB configurations
+            const mergeWithDB = (selectedList, dbList) => {
+                const normalize = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, '');
+
+                return (selectedList || []).map(selected => {
+                    // Find matching DB component
+                    const dbComp = dbList.find(db =>
+                        (db._id && selected._id && db._id.toString() === selected._id.toString()) ||
+                        (db.name && selected.name && normalize(db.name) === normalize(selected.name)) ||
+                        (db.code && selected.code && db.code.toUpperCase() === selected.code.toUpperCase())
+                    );
+
+                    if (dbComp) {
+                        return {
+                            ...selected,
+                            ...dbComp,
+                            _id: dbComp._id,
+                            calculationType: dbComp.calculationType || selected.calculationType,
+                            percentage: dbComp.percentage || selected.percentage,
+                            amount: dbComp.amount || selected.amount,
+                            // Ensure 'value' is set for the engine
+                            value: dbComp.percentage || dbComp.amount || selected.value || 0
+                        };
+                    }
+
+                    console.warn(`[SALARY_CONTROLLER] No DB config found for ${selected.name}, using selected data`);
+                    return selected;
+                });
+            };
+
+            // Merge selected components with actual DB configurations
+            const mergedEarnings = mergeWithDB(selectedEarnings, dbEarnings);
+            const mergedDeductions = mergeWithDB(selectedDeductions, dbDeductions);
+            const mergedBenefits = mergeWithDB(selectedBenefits, dbBenefits);
+
             const result = SalaryCalculationEngine.calculateSalary({
                 annualCTC,
-                earnings: selectedEarnings,
-                deductions: selectedDeductions,
-                benefits: selectedBenefits
+                earnings: mergedEarnings,
+                deductions: mergedDeductions,
+                benefits: mergedBenefits
             });
+            console.log(`✅ [SALARY_CONTROLLER] Engine Returned ${result.earnings.length} earnings.`);
             res.json({ success: true, data: result });
         } catch (error) {
             console.error('[SALARY_CONTROLLER] Preview Error:', error);

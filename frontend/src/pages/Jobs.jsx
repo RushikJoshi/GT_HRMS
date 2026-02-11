@@ -7,13 +7,13 @@ import JobModal from '../components/jobs/JobModal';
 import BenefitsSection from '../components/jobs/BenefitsSection';
 import { Briefcase } from 'lucide-react';
 import api from '../utils/api';
-import { useAuth } from '../context/AuthContext';
-import { isCandidateLoggedIn, getCandidate, getTenantId, setCompany, getCompany } from '../utils/auth';
+import CandidateProfileMenu from '../components/jobs/CandidateProfileMenu';
+import { useJobPortalAuth } from '../context/JobPortalAuthContext';
 
 const Jobs = () => {
   const params = useParams();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { candidate, logoutCandidate } = useJobPortalAuth();
 
   // Resolve identifier: prioritize URL param, but ignore 'jobs' string which is a routing error
   let identifier = params.companyId;
@@ -26,8 +26,7 @@ const Jobs = () => {
   const [companyName, setCompanyName] = useState('Careers');
   const [activeTenantId, setActiveTenantId] = useState(identifier);
 
-  const isAuth = isCandidateLoggedIn();
-  const candidate = getCandidate();
+  const isAuth = !!candidate;
 
   const [filters, setFilters] = useState({
     search: '',
@@ -118,8 +117,7 @@ const Jobs = () => {
   }, [filters, jobs]);
 
   const handleLogout = () => {
-    logout();
-    localStorage.removeItem('candidate');
+    logoutCandidate();
     navigate(0);
   };
 
@@ -142,30 +140,8 @@ const Jobs = () => {
   return (
     <div className="min-h-screen bg-gray-50/50 font-sans relative">
       <div className="absolute top-0 right-0 z-50 p-6 flex items-center gap-4">
-        {isAuth ? (
-          <div className="flex items-center gap-4 bg-white/90 backdrop-blur-md px-1.5 py-1.5 rounded-full shadow-lg shadow-blue-500/10 border border-white/50 ring-1 ring-gray-100 transition-all hover:shadow-xl">
-            <button
-              onClick={() => navigate('/candidate/dashboard')}
-              className="flex items-center gap-3 px-3 py-1 bg-gray-50 rounded-full border border-gray-100 hover:bg-blue-50 transition-colors group"
-            >
-              <div className="h-6 w-6 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-[10px] text-white font-bold shadow-sm group-hover:scale-110 transition-transform">
-                {candidate?.name?.charAt(0) || 'C'}
-              </div>
-              <span className="text-xs font-bold text-gray-700 hidden sm:inline truncate max-w-[100px] group-hover:text-blue-600 transition-colors">
-                {candidate?.name || 'Candidate'}
-              </span>
-            </button>
-
-            <div className="flex items-center gap-2 pr-3">
-              <div className="h-4 w-px bg-gray-200"></div>
-              <button
-                onClick={handleLogout}
-                className="text-xs font-bold text-red-500 hover:text-red-700 px-2 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
+        {candidate ? (
+          <CandidateProfileMenu identifier={identifier} />
         ) : (
           <div className="flex items-center gap-3">
             <button

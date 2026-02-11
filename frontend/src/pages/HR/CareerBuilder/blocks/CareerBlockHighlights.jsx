@@ -5,7 +5,8 @@ const icons = {
     Zap, Users, Globe, Star, Heart, Coffee, Shield, Award
 };
 
-export default function CareerBlockHighlights({ content }) {
+export default function CareerBlockHighlights({ content, previewMode = 'desktop' }) {
+    const isMobile = previewMode === 'mobile';
     const { title = "Why Work With Us?", cards = [] } = content || {};
 
     const defaultCards = [
@@ -27,9 +28,9 @@ export default function CareerBlockHighlights({ content }) {
     };
 
     return (
-        <section className="max-w-[90rem] mx-auto px-8 sm:px-12 lg:px-16 py-32 text-center">
-            <h2 className="text-5xl font-black text-gray-900 mb-20 tracking-tight">{title}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
+        <section className={`max-w-[90rem] mx-auto ${isMobile ? 'px-6 py-16' : 'px-8 sm:px-12 lg:px-16 py-32'} text-center`}>
+            <h2 className={`${isMobile ? 'text-3xl mb-12' : 'text-5xl mb-20'} font-black text-gray-900 tracking-tight`}>{title}</h2>
+            <div className={`grid ${isMobile ? 'grid-cols-1 gap-10' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12'}`}>
                 {displayCards.map((card, idx) => {
                     const Icon = icons[card.icon] || Zap;
                     return (

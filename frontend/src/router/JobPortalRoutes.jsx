@@ -38,7 +38,7 @@ function JobPortalProtectedRoute({ children }) {
   }
 
   if (!candidate) {
-    return <Navigate to="/jobs/login" replace />;
+    return <Navigate to="/candidate/login" replace />;
   }
 
   return children;
@@ -46,19 +46,22 @@ function JobPortalProtectedRoute({ children }) {
 
 /**
  * Main Job Portal Routes
- * Prefix: /jobs/*
+ * Handles both /candidate/* and /jobs/* (mounted from RootRouter)
  */
 function JobPortalRoutesContent() {
   return (
     <Routes>
-      {/* Public Job Portal Routes */}
-      <Route path="login" element={<CandidateLogin />} />
-      <Route path="signup" element={<CandidateSignup />} />
-      <Route path=":tenantId" element={<Jobs />} />
+      {/* Public Candidate Routes */}
+      <Route path="/candidate/login" element={<CandidateLogin />} />
+      <Route path="/candidate/signup" element={<CandidateSignup />} />
 
-      {/* Protected Job Portal Routes */}
+      {/* Public Jobs Listing (SEO friendly) */}
+      <Route path="/jobs/:companyId" element={<Jobs />} />
+      <Route path="/apply-job/:requirementId" element={<JobApplication />} />
+
+      {/* Protected Candidate Routes (Dashboard Shell) */}
       <Route
-        path="/"
+        path="/candidate"
         element={
           <JobPortalProtectedRoute>
             <JobPortalLayout />
@@ -66,14 +69,13 @@ function JobPortalRoutesContent() {
         }
       >
         <Route path="dashboard" element={<CandidateDashboard />} />
-        <Route path="openpositions" element={<CandidateOpenPositions />} />
         <Route path="open-positions" element={<CandidateOpenPositions />} />
         <Route path="applications" element={<CandidateApplications />} />
         <Route path="profile" element={<CandidateProfile />} />
       </Route>
 
       <Route
-        path="application/:applicationId"
+        path="/candidate/application/:applicationId"
         element={
           <JobPortalProtectedRoute>
             <ApplicationTrack />
@@ -81,24 +83,15 @@ function JobPortalRoutesContent() {
         }
       />
 
-      <Route
-        path="apply-job/:requirementId"
-        element={
-          <JobPortalProtectedRoute>
-            <JobApplication />
-          </JobPortalProtectedRoute>
-        }
-      />
-
-      {/* 404 for Job Portal */}
-      <Route path="*" element={<NotFound />} />
+      {/* 404 for Candidate Portal */}
+      <Route path="*" element={<Navigate to="/candidate/login" replace />} />
     </Routes>
   );
 }
 
 /**
- * Export with Provider
- * Wraps ONLY Job Portal routes with JobPortalAuthProvider
+ * Export wrapped with JobPortalAuthProvider
+ * Ensures useJobPortalAuth works for all candidate routes
  */
 export default function JobPortalRoutes() {
   return (

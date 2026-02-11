@@ -11,9 +11,11 @@ export default function ApplyPageBuilder() {
     const [saving, setSaving] = useState(false);
     const [config, setConfig] = useState({
         sections: [],
-        theme: { primaryColor: '#4F46E5', bannerGradient: "from-indigo-600 via-purple-600 to-pink-500" }
+        banner: { title: "Join Our Team", subtitle: "We are looking for talented individuals to join our journey.", bgType: "gradient", bgColor: "from-indigo-600 via-purple-600 to-pink-500" },
+        theme: { primaryColor: '#4F46E5' }
     });
     const [selectedSectionId, setSelectedSectionId] = useState(null);
+    const [previewMode, setPreviewMode] = useState("desktop");
 
     useEffect(() => {
         fetchConfig();
@@ -43,10 +45,9 @@ export default function ApplyPageBuilder() {
                 const currentConfig = res.data;
                 const applyConfig = currentConfig.applyPage || getDefaultConfig();
 
-                // If it's the first time and applyPage doesn't exist, we use defaults
                 setConfig({
                     ...applyConfig,
-                    // If we need to preserve other data to save back later, we'll handle that in handleSave
+                    banner: applyConfig.banner || getDefaultConfig().banner,
                     _fullConfig: currentConfig
                 });
 
@@ -71,7 +72,13 @@ export default function ApplyPageBuilder() {
     };
 
     const getDefaultConfig = () => ({
-        theme: { primaryColor: '#4F46E5', bannerGradient: "from-indigo-600 via-purple-600 to-pink-500" },
+        theme: { primaryColor: '#4F46E5' },
+        banner: {
+            title: "Join Our Team",
+            subtitle: "We are looking for talented individuals to join our journey.",
+            bgType: "gradient",
+            bgColor: "from-indigo-600 via-purple-600 to-pink-500"
+        },
         sections: [
             {
                 id: 'personal_details',
@@ -125,20 +132,31 @@ export default function ApplyPageBuilder() {
             setSaving(true);
             // We need to merge with existing career config to not lose it
             const fullPayload = {
-                ...config._fullConfig,
+                ...config._fullConfig, // Preserve existing Career/SEO data
                 applyPage: {
                     sections: config.sections,
+                    banner: config.banner,
                     theme: config.theme
                 }
             };
-            // Remove our internal helper
-            delete fullPayload.applyPage._fullConfig;
 
+
+            // Clean internal helpers before sending to API
+            delete fullPayload._fullConfig;
+
+            await api.post('/hrms/hr/career/publish', fullPayload);
             await api.post('/hr/career/customize', fullPayload);
+
             message.success("Apply Page published successfully!");
 
-            // Update internal state reference
-            setConfig(prev => ({ ...prev, _fullConfig: fullPayload }));
+            // Update internal state to match newly published config
+            const nextConfig = {
+                ...config,
+                _fullConfig: {
+                    ...fullPayload
+                }
+            };
+            setConfig(nextConfig);
 
         } catch (error) {
             console.error("Save error:", error);
@@ -163,6 +181,13 @@ export default function ApplyPageBuilder() {
     };
 
     const updateSection = (id, updates) => {
+        if (id === 'hero') {
+            setConfig(prev => ({
+                ...prev,
+                banner: { ...prev.banner, ...updates }
+            }));
+            return;
+        }
         setConfig(prev => ({
             ...prev,
             sections: prev.sections.map(s => s.id === id ? { ...s, ...updates } : s)
@@ -237,13 +262,49 @@ export default function ApplyPageBuilder() {
 
                 {/* CENTER: Canvas / Preview */}
                 <div className="flex-1 bg-gray-100 relative overflow-hidden flex flex-col items-center">
-                    <div className="w-full h-full p-8 overflow-y-auto scrollbar-hide">
-                        <div className="min-h-full transition-all duration-300 mx-auto max-w-[800px] pb-20">
-                            {/* We limit width to 800px for a realistic form preview */}
+                    <style>{`
+                        .mobile-preview {
+                            width: 390px;
+                            height: 844px;
+                            margin: 20px auto;
+                            border: 12px solid #1a1a1a;
+                            border-radius: 40px;
+                            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+                            overflow-y: auto;
+                            overflow-x: hidden;
+                            background: white;
+                            position: relative;
+                            scrollbar-width: none;
+                        }
+                        .mobile-preview::-webkit-scrollbar {
+                            display: none;
+                        }
+                        .mobile-preview::before {
+                            content: '';
+                            position: sticky;
+                            top: 0;
+                            left: 50%;
+                            transform: translateX(-50%);
+                            width: 150px;
+                            height: 25px;
+                            background: #1a1a1a;
+                            border-bottom-left-radius: 20px;
+                            border-bottom-right-radius: 20px;
+                            z-index: 100;
+                        }
+                        .desktop-preview {
+                            width: 100%;
+                            border: none;
+                            box-shadow: none;
+                        }
+                    `}</style>
+                    <div className="w-full h-full p-8 overflow-y-auto scrollbar-hide flex justify-center">
+                        <div className={`transition-all duration-500 ease-in-out ${previewMode === "mobile" ? "mobile-preview" : "desktop-preview max-w-[800px] mx-auto pb-20"}`}>
                             <ApplyPreview
                                 config={config}
                                 selectedSectionId={selectedSectionId}
                                 onSelectSection={setSelectedSectionId}
+                                previewMode={previewMode}
                             />
                         </div>
                     </div>
@@ -254,6 +315,8 @@ export default function ApplyPageBuilder() {
                     config={config}
                     selectedSectionId={selectedSectionId}
                     onUpdateSection={updateSection}
+                    previewMode={previewMode}
+                    setPreviewMode={setPreviewMode}
                 />
 
             </div>

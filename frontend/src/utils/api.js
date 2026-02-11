@@ -40,7 +40,14 @@ const api = axios.create({
  * - Ensures all requests include proper authentication and tenant context
  */
 api.interceptors.request.use((config) => {
-  const token = getToken();
+  // Try HRMS token first (sessionStorage)
+  let token = sessionStorage.getItem('token');
+
+  // If no HRMS token, try Job Portal token (localStorage)
+  if (!token) {
+    token = localStorage.getItem('token');
+  }
+
   if (token) {
     // Attach JWT token for authentication
     config.headers.Authorization = `Bearer ${token}`;
@@ -85,6 +92,11 @@ export function parseAxiosError(error) {
   }
 
   // Backend responded with a payload
+  // Handle Blob errors (happens when responseType is 'blob')
+  if (error.response?.data instanceof Blob) {
+    return { type: 'blob_error', message: 'Backend returned an error in blob format.', blob: error.response.data };
+  }
+
   const status = error.response?.status;
   const data = error.response?.data || {};
   const backendMessage = data.message || data.error || (typeof data === 'string' ? data : null);
@@ -110,7 +122,7 @@ api.interceptors.response.use(
       if (!window.__HRMS_API_ERROR) {
         window.__HRMS_API_ERROR = error.hrms.message;
         if (window.showToast) {
-          window.showToast({ message: window.__HRMS_API_ERROR, type: 'error' });
+          window.showToast('error', 'Network Error', window.__HRMS_API_ERROR);
         }
       }
     }

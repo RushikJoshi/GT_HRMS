@@ -11,8 +11,68 @@ import {
     FileSpreadsheet, AlertTriangle, CheckCircle, Save,
     Calendar as CalendarIcon, Clock
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+
+// --- Helpers & Compact Components ---
+
+const getImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${baseUrl}${cleanPath}`;
+};
+
+const getInitials = (name) => {
+    if (!name) return '??';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+};
+
+const EmployeeAvatar = ({ employee, size = "w-10 h-10", initialsSize = "text-[10px]", className = "" }) => {
+    const [imgError, setImgError] = useState(false);
+    const imageUrl = getImageUrl(employee?.profilePic);
+    const hasImage = imageUrl && employee.profilePic !== '/uploads/default-avatar.png';
+
+    if (!hasImage || imgError) {
+        const initials = getInitials(employee?.name);
+        return (
+            <div className={`${size} rounded-full bg-blue-100 flex items-center justify-center border-2 border-white shadow-sm shrink-0 ${className}`}>
+                <span className={`${initialsSize} font-black text-blue-600 uppercase tracking-tighter`}>{initials}</span>
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={imageUrl}
+            alt={employee?.name}
+            onError={() => setImgError(true)}
+            className={`${size} rounded-full object-cover border-2 border-slate-100 shadow-sm shrink-0 ${className}`}
+        />
+    );
+};
 
 export default function CalendarManagement() {
+    const [searchParams] = useSearchParams();
+
+    // Custom scrollbar styles
+    const scrollbarStyle = `
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #cbd5e1;
+        }
+    `;
     const [view, setView] = useState('calendar'); // 'calendar' or 'list'
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
@@ -26,13 +86,20 @@ export default function CalendarManagement() {
     const pageSize = 10;
     const [calendarData, setCalendarData] = useState(null);
     // Date panel state
-    const [selectedDate, setSelectedDate] = useState(null);
-    const [isPanelOpen, setIsPanelOpen] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [isPanelOpen, setIsPanelOpen] = useState(true);
     const [dateAttendanceData, setDateAttendanceData] = useState(null);
     const [dateLoading, setDateLoading] = useState(false);
     const [dateError, setDateError] = useState(null);
+    const [statusFilter, setStatusFilter] = useState('total');
+    const [showEmployeeList, setShowEmployeeList] = useState(false);
 
-    // Bulk Upload State
+    // Detail Modal State
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [selectedEmployeeDetail, setSelectedEmployeeDetail] = useState(null);
+    const [detailLoading, setDetailLoading] = useState(false);
+
+    // Bulk Upload State (Restored)
     const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
     const [uploadFile, setUploadFile] = useState(null);
     const [uploadPreview, setUploadPreview] = useState(null);
@@ -47,22 +114,22 @@ export default function CalendarManagement() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [holidaysRes, settingsRes, calendarRes] = await Promise.all([
-                api.get(`/holidays?year=${currentYear}`),
-                api.get('/attendance/settings'),
-                api.get(`/attendance/calendar?year=${currentYear}&month=${currentMonth + 1}`)
-            ]);
-            setHolidays(holidaysRes.data || []);
-            setSettings(settingsRes.data || {});
-            setCalendarData(calendarRes.data);
+            const res = await api.get(`/attendance/calendar?year=${currentYear}&month=${currentMonth + 1}`);
+            const data = res.data || {};
+
+            setCalendarData(data);
+            setHolidays(data.holidays || []);
+            setSettings(data.settings || {});
+
         } catch (err) {
             console.error('Failed to fetch calendar data:', err);
+            showToast('error', 'Error', 'Failed to load calendar data');
         } finally {
             setLoading(false);
         }
     };
 
-    // Fetch attendance details for a selected date when panel opens
+    // Fetch attendance details for a selected date
     useEffect(() => {
         if (!selectedDate || !isPanelOpen) return;
 
@@ -70,47 +137,38 @@ export default function CalendarManagement() {
             try {
                 setDateLoading(true);
                 setDateError(null);
-                const res = await api.get(`/attendance/by-date?date=${encodeURIComponent(selectedDate)}`);
-                console.debug('GET /attendance/by-date response:', res.data);
-                // Normalize backend response to frontend expected shape
-                const payload = res.data || {};
-                if (payload.summary || payload.employees) {
-                    setDateAttendanceData(payload);
-                } else if (Array.isArray(payload.records)) {
-                    const records = payload.records;
-                    const summary = {
-                        totalEmployees: records.length,
-                        onLeave: records.filter(r => (r.status || '').toLowerCase().includes('leave')).length,
-                        onDuty: records.filter(r => (r.status || '').toLowerCase().includes('duty') || (r.status || '').toLowerCase().includes('official')).length,
-                        present: records.filter(r => (r.status || '').toLowerCase() === 'present').length
-                    };
-                    const employees = records.map(r => ({
-                        employeeId: r.employee?.employeeId || r.employee?._id || r.employee,
-                        name: r.employee ? `${r.employee.firstName || ''} ${r.employee.lastName || ''}`.trim() : (r.name || 'Unknown'),
-                        profilePic: r.employee?.profilePic || '/uploads/default-avatar.png',
-                        department: r.employee?.department || r.employee?.departmentId || '-',
-                        attendanceStatus: r.status || '-',
-                        leaveDetails: r.leaveDetails || null
-                    }));
-
-                    setDateAttendanceData({ summary, employees, raw: payload });
-                } else {
-                    setDateAttendanceData(payload);
-                }
+                const res = await api.get(`/attendance/by-date?date=${selectedDate}&filterType=${statusFilter}`);
+                setDateAttendanceData(res.data);
             } catch (err) {
                 console.error('Failed to fetch date attendance:', err);
                 setDateError(err.response?.data || { message: err.message });
-                setDateAttendanceData(null);
             } finally {
                 setDateLoading(false);
             }
         };
 
         fetchDateDetails();
-    }, [selectedDate, isPanelOpen]);
+    }, [selectedDate, isPanelOpen, statusFilter]);
+
+    const handleEmployeeClick = async (employee) => {
+        try {
+            setDetailLoading(true);
+            setShowDetailModal(true);
+            const res = await api.get(`/attendance/employee/${employee._id}/${selectedDate}`);
+            setSelectedEmployeeDetail(res.data);
+        } catch (err) {
+            console.error('Failed to fetch employee details:', err);
+            showToast('error', 'Error', 'Failed to load employee details');
+        } finally {
+            setDetailLoading(false);
+        }
+    };
 
     const handleDateClick = (dateStr) => {
-        setSelectedDate(dateStr);
+        const dateStrIso = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+        setSelectedDate(dateStrIso);
+        setStatusFilter('total');
+        setShowEmployeeList(false); // Hide list on date change as per rule
         setIsPanelOpen(true);
     };
 
@@ -255,6 +313,7 @@ export default function CalendarManagement() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
+                <style>{scrollbarStyle}</style>
                 <div className="text-slate-400 font-bold uppercase tracking-widest">Loading Calendar...</div>
             </div>
         );
@@ -403,14 +462,48 @@ export default function CalendarManagement() {
                         </div>
                     </div>
 
-                    {/* Calendar + Right-side Date Panel (70% / 30%) */}
+                    {/* Monthly Summary Grid */}
+                    {calendarData?.summary && (
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-4 duration-700">
+                            <div className="bg-white border-l-4 border-emerald-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monthly Present</p>
+                                <div className="flex items-end justify-between">
+                                    <span className="text-3xl font-black text-slate-800 tracking-tighter">{calendarData.summary.totalPresent}</span>
+                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-widest">Days</span>
+                                </div>
+                            </div>
+                            <div className="bg-white border-l-4 border-rose-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monthly Absent</p>
+                                <div className="flex items-end justify-between">
+                                    <span className="text-3xl font-black text-slate-800 tracking-tighter">{calendarData.summary.totalAbsent}</span>
+                                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full uppercase tracking-widest">Days</span>
+                                </div>
+                            </div>
+                            <div className="bg-white border-l-4 border-indigo-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monthly Leave</p>
+                                <div className="flex items-end justify-between">
+                                    <span className="text-3xl font-black text-slate-800 tracking-tighter">{calendarData.summary.totalLeave}</span>
+                                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-widest">Days</span>
+                                </div>
+                            </div>
+                            <div className="bg-white border-l-4 border-amber-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monthly Holidays</p>
+                                <div className="flex items-end justify-between">
+                                    <span className="text-3xl font-black text-slate-800 tracking-tighter">{calendarData.summary.totalHolidays}</span>
+                                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full uppercase tracking-widest">Fixed</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Calendar + Right-side Date Panel (70% / 30%) with Non-Scroll Architecture */}
                     {calendarData && (
-                        <div className="flex gap-6 items-stretch">
-                            {/* Left: Calendar (70%) */}
+                        <div className="flex gap-6 items-start">
+                            {/* Left: Calendar (70%) - Expansion Zone */}
                             <div className="w-[70%]">
-                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-6 h-full">
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-visible">
                                     <AttendanceCalendar
-                                        data={calendarData.calendarDays || []}
+                                        data={calendarData.days || calendarData.calendarDays || []}
                                         holidays={calendarData.holidays || []}
                                         settings={calendarData.settings || {}}
                                         currentMonth={currentMonth}
@@ -421,66 +514,142 @@ export default function CalendarManagement() {
                                 </div>
                             </div>
 
-                            {/* Right: Fixed Date Panel (30%) */}
-                            <div className="w-[30%] max-w-[420px] sticky top-20 self-stretch">
-                                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-                                    <div className="px-4 py-3 border-b border-slate-100">
-                                        <div className="text-sm font-bold">{selectedDate ? new Date(selectedDate).toLocaleDateString() : ''}</div>
-                                        <div className="text-xs text-slate-400">{selectedDate ? new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long' }) : ''}</div>
+                            {/* Right: Sticky Date Panel (30%) */}
+                            <div className="w-[30%] max-w-[420px] sticky top-6 h-[calc(100vh-140px)] min-h-[500px]">
+                                <div className="h-full bg-slate-50 rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                                    {/* Panel Header - Sticky Part (flex-shrink-0) */}
+                                    <div className="flex-shrink-0 bg-white border-b border-slate-200 p-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="text-sm font-black text-slate-800 tracking-tight">
+                                                    {selectedDate ? new Date(selectedDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                                    {selectedDate ? new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long' }) : ''}
+                                                </div>
+                                            </div>
+                                            <div className="bg-blue-50 px-2 py-1 rounded-lg text-blue-600 border border-blue-100">
+                                                <CalendarIcon size={14} />
+                                            </div>
+                                        </div>
+
+                                        {/* Summary Cards Grid (Part of Sticky Top) */}
+                                        {dateAttendanceData && (
+                                            <div className="grid grid-cols-2 gap-2 mt-4">
+                                                <div
+                                                    onClick={() => { setStatusFilter('total'); setShowEmployeeList(true); }}
+                                                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center cursor-pointer transition-all duration-200 ${showEmployeeList && statusFilter === 'total' ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-600 hover:border-blue-200'}`}
+                                                >
+                                                    <div className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${showEmployeeList && statusFilter === 'total' ? 'text-blue-100' : 'text-slate-400'}`}>Total</div>
+                                                    <div className="font-black text-lg leading-none">{dateAttendanceData.summary?.totalEmployees ?? 0}</div>
+                                                </div>
+                                                <div
+                                                    onClick={() => {
+                                                        if (!dateAttendanceData.summary?.isFutureDate) {
+                                                            setStatusFilter('present');
+                                                            setShowEmployeeList(true);
+                                                        }
+                                                    }}
+                                                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 ${dateAttendanceData.summary?.isFutureDate ? 'opacity-30 grayscale cursor-not-allowed' : 'cursor-pointer'} ${showEmployeeList && statusFilter === 'present' ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-600 hover:border-emerald-200'}`}
+                                                >
+                                                    <div className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${showEmployeeList && statusFilter === 'present' ? 'text-emerald-100' : 'text-slate-400'}`}>Present</div>
+                                                    <div className="font-black text-lg leading-none">{dateAttendanceData.summary?.present ?? 0}</div>
+                                                </div>
+                                                <div
+                                                    onClick={() => {
+                                                        if (!dateAttendanceData.summary?.isFutureDate) {
+                                                            setStatusFilter('absent');
+                                                            setShowEmployeeList(true);
+                                                        }
+                                                    }}
+                                                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 ${dateAttendanceData.summary?.isFutureDate ? 'opacity-30 grayscale cursor-not-allowed' : 'cursor-pointer'} ${showEmployeeList && statusFilter === 'absent' ? 'bg-rose-600 border-rose-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-600 hover:border-rose-200'}`}
+                                                >
+                                                    <div className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${showEmployeeList && statusFilter === 'absent' ? 'text-rose-100' : 'text-slate-400'}`}>Absent</div>
+                                                    <div className="font-black text-lg leading-none">{dateAttendanceData.summary?.absent ?? 0}</div>
+                                                </div>
+                                                <div
+                                                    onClick={() => { setStatusFilter('leave'); setShowEmployeeList(true); }}
+                                                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center cursor-pointer transition-all duration-200 ${showEmployeeList && statusFilter === 'leave' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'}`}
+                                                >
+                                                    <div className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${showEmployeeList && statusFilter === 'leave' ? 'text-indigo-100' : 'text-slate-400'}`}>Leave</div>
+                                                    <div className="font-black text-lg leading-none">{dateAttendanceData.summary?.onLeave ?? 0}</div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <div className="p-4 flex flex-col flex-1 space-y-3">
+                                    {/* Employee List - Scrollable Part (flex-1 overflow-y-auto) */}
+                                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                                         {dateLoading ? (
-                                            <div className="text-sm text-slate-500">Loading...</div>
+                                            <div className="flex items-center justify-center h-full">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                            </div>
                                         ) : dateError ? (
-                                            <div className="text-sm text-rose-600">{dateError.message || 'Failed to load'}</div>
-                                        ) : dateAttendanceData ? (
-                                            <>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div className="bg-slate-50 p-3 rounded-lg text-center">
-                                                        <div className="text-xs text-slate-400">Total</div>
-                                                        <div className="font-bold text-lg">{dateAttendanceData.summary?.totalEmployees ?? 0}</div>
-                                                    </div>
-                                                    <div className="bg-slate-50 p-3 rounded-lg text-center">
-                                                        <div className="text-xs text-slate-400">On Leave</div>
-                                                        <div className="font-bold text-lg">{dateAttendanceData.summary?.onLeave ?? 0}</div>
-                                                    </div>
-                                                    <div className="bg-slate-50 p-3 rounded-lg text-center">
-                                                        <div className="text-xs text-slate-400">On Duty</div>
-                                                        <div className="font-bold text-lg">{dateAttendanceData.summary?.onDuty ?? 0}</div>
-                                                    </div>
-                                                    <div className="bg-slate-50 p-3 rounded-lg text-center">
-                                                        <div className="text-xs text-slate-400">Present</div>
-                                                        <div className="font-bold text-lg">{dateAttendanceData.summary?.present ?? 0}</div>
-                                                    </div>
+                                            <div className="flex items-center justify-center h-full text-center p-6">
+                                                <div>
+                                                    <AlertTriangle className="mx-auto text-rose-500 mb-2" size={32} />
+                                                    <div className="text-sm font-bold text-slate-800">{dateError.message || 'Failed to load data'}</div>
+                                                    <button onClick={() => fetchData()} className="mt-4 text-xs font-bold text-blue-600 uppercase hover:underline">Retry</button>
                                                 </div>
-
-                                                <div className="mt-3 text-sm font-semibold text-slate-700">Employees</div>
-                                                <div className="flex-1 overflow-y-auto mt-2 space-y-2 pr-2">
-                                                    {(dateAttendanceData.employees?.length || 0) === 0 ? (
-                                                        <div className="text-center text-slate-500 py-6">No leave records found</div>
-                                                    ) : (
-                                                        (dateAttendanceData.employees || []).map(emp => (
-                                                            <div key={emp.employeeId} className="flex items-center gap-3 p-3 rounded-md hover:bg-slate-50">
-                                                                <img src={emp.profilePic || '/uploads/default-avatar.png'} alt={emp.name} className="w-10 h-10 rounded-full object-cover" />
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="font-bold text-slate-800 truncate">{emp.name}</div>
-                                                                    <div className="text-xs text-slate-400 truncate">{emp.employeeId} • {emp.department || '—'}</div>
-                                                                    {emp.leaveDetails && (
-                                                                        <div className="text-[11px] text-slate-500 mt-1">
-                                                                            <span className="font-medium">{emp.leaveDetails.leaveType}</span>
-                                                                            <span className="ml-2 text-xs">{emp.leaveDetails.status} {emp.leaveDetails.isHalfDay ? '• Half Day' : ''}</span>
-                                                                        </div>
-                                                                    )}
+                                            </div>
+                                        ) : dateAttendanceData && showEmployeeList ? (
+                                            <>
+                                                <div className="flex items-center justify-between mb-3 sticky top-0 bg-slate-50 py-1 z-10">
+                                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{statusFilter} Records</div>
+                                                    <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-widest">{dateAttendanceData.employees?.length || 0} Employees</div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {dateAttendanceData.employees?.length > 0 ? (
+                                                        dateAttendanceData.employees.map(emp => (
+                                                            <div
+                                                                key={emp.employeeId}
+                                                                onClick={() => handleEmployeeClick(emp)}
+                                                                className="flex items-center gap-3 p-3 rounded-xl border border-white bg-white hover:border-blue-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 group"
+                                                            >
+                                                                <div className="relative flex-shrink-0">
+                                                                    <EmployeeAvatar employee={emp} />
+                                                                    <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${['Present', 'Half Day', 'On Duty'].includes(emp.status) ? 'bg-emerald-500' :
+                                                                        emp.status === 'Absent' ? 'bg-rose-500' :
+                                                                            emp.status === 'Leave' ? 'bg-indigo-500' :
+                                                                                emp.status === 'Holiday' ? 'bg-amber-500' :
+                                                                                    emp.status === 'Weekly Off' ? 'bg-slate-400' :
+                                                                                        'bg-slate-200'
+                                                                        }`}></div>
                                                                 </div>
-                                                                <div className="text-xs font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-700">{emp.attendanceStatus}</div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors uppercase tracking-tight text-xs">{emp.name}</div>
+                                                                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">{emp.employeeId} • {emp.department}</div>
+                                                                </div>
+                                                                <div className={`text-[8px] font-black px-2 py-1 rounded-lg uppercase tracking-widest border flex-shrink-0 ${['Present', 'Half Day', 'On Duty'].includes(emp.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                                                    emp.status === 'Absent' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                                                        emp.status === 'Leave' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                                                            emp.status === 'Holiday' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                                                                emp.status === 'Weekly Off' ? 'bg-slate-50 text-slate-600 border-slate-100' :
+                                                                                    'bg-slate-50 text-slate-400 border-slate-50'
+                                                                    }`}>
+                                                                    {emp.status === 'Not Marked' ? '--' : emp.status}
+                                                                </div>
                                                             </div>
                                                         ))
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                                                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm">
+                                                                <AlertCircle className="text-slate-300" size={32} />
+                                                            </div>
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Employees Found</p>
+                                                            <p className="text-[9px] text-slate-300 mt-1 uppercase">Filter: {statusFilter}</p>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </>
                                         ) : (
-                                            <div className="text-sm text-slate-400">Select a date to view details</div>
+                                            <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                                                <div className="w-20 h-20 bg-white rounded-full mb-4 flex items-center justify-center shadow-sm transition-transform hover:scale-110">
+                                                    <CalendarIcon className="text-slate-200" size={40} />
+                                                </div>
+                                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Click a summary card</p>
+                                                <p className="text-[9px] text-slate-300 uppercase font-bold leading-relaxed px-8">To view the detailed employee listing for the selected date.</p>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -885,7 +1054,117 @@ export default function CalendarManagement() {
                     </div>
                 </div>
             )}
-        </div>
+            {/* Employee Detail Modal */}
+            <Modal
+                open={showDetailModal}
+                onCancel={() => setShowDetailModal(false)}
+                footer={null}
+                width={600}
+                centered
+                closeIcon={<X className="text-slate-400 hover:text-rose-500 transition-colors" size={20} />}
+                className="attendance-detail-modal"
+            >
+                {detailLoading ? (
+                    <div className="py-20 flex flex-col items-center justify-center space-y-4">
+                        <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Fetching Details...</p>
+                    </div>
+                ) : selectedEmployeeDetail ? (
+                    <div className="p-2 space-y-8 animate-in fade-in zoom-in-95 duration-300">
+                        {/* Header */}
+                        <div className="flex items-center gap-6 pb-6 border-b border-slate-100">
+                            <EmployeeAvatar
+                                employee={selectedEmployeeDetail.employee}
+                                size="w-20 h-20"
+                                initialsSize="text-2xl"
+                                className="rounded-2xl shadow-lg"
+                            />
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">{selectedEmployeeDetail.employee?.name}</h2>
+                                <p className="text-sm font-bold text-blue-600 uppercase tracking-widest">{selectedEmployeeDetail.employee?.designation || 'Staff'}</p>
+                                <div className="flex items-center gap-3 mt-2">
+                                    <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-black text-slate-500 uppercase tracking-widest">{selectedEmployeeDetail.employee?.employeeId}</span>
+                                    <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-black text-slate-500 uppercase tracking-widest">{selectedEmployeeDetail.employee?.department}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Status Card */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Attendance Status</p>
+                                <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${['Present', 'Half Day', 'On Duty'].includes(selectedEmployeeDetail.status) ? 'bg-emerald-100 text-emerald-700' :
+                                    selectedEmployeeDetail.status === 'Absent' ? 'bg-rose-100 text-rose-700' :
+                                        selectedEmployeeDetail.status === 'Leave' ? 'bg-indigo-100 text-indigo-700' :
+                                            selectedEmployeeDetail.status === 'Holiday' ? 'bg-amber-100 text-amber-700' :
+                                                selectedEmployeeDetail.status === 'Weekly Off' ? 'bg-slate-200 text-slate-700' :
+                                                    'bg-slate-100 text-slate-400'
+                                    }`}>
+                                    {selectedEmployeeDetail.status}
+                                </div>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-right">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</p>
+                                <p className="text-sm font-black text-slate-800">{new Date(selectedEmployeeDetail.date).toLocaleDateString(undefined, { dateStyle: 'long' })}</p>
+                            </div>
+                        </div>
+
+                        {/* Attendance Logs */}
+                        {selectedEmployeeDetail.attendance ? (
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                    <Clock size={16} className="text-blue-500" />
+                                    Punch Records
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
+                                        <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Check In</p>
+                                        <p className="text-xl font-black text-emerald-700">{selectedEmployeeDetail.attendance.checkIn ? new Date(selectedEmployeeDetail.attendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}</p>
+                                        <p className="text-[10px] text-emerald-600 mt-1 font-bold">{selectedEmployeeDetail.attendance.logs?.[0]?.device || 'System'}</p>
+                                    </div>
+                                    <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
+                                        <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Check Out</p>
+                                        <p className="text-xl font-black text-rose-700">{selectedEmployeeDetail.attendance.checkOut ? new Date(selectedEmployeeDetail.attendance.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Working Hours</p>
+                                        <p className="text-lg font-black text-slate-700">{selectedEmployeeDetail.attendance.workingHours || 0} hrs</p>
+                                    </div>
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Overtime</p>
+                                        <p className="text-lg font-black text-emerald-600">{selectedEmployeeDetail.attendance.overtimeHours || 0} hrs</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : selectedEmployeeDetail.status === 'Holiday' ? (
+                            <div className="bg-amber-50/50 p-6 rounded-3xl border border-amber-100 border-dashed">
+                                <h3 className="text-sm font-black text-amber-700 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                    <Info size={16} />
+                                    Holiday Details
+                                </h3>
+                                <p className="text-lg font-black text-amber-800">{dateAttendanceData?.holiday || 'Public Holiday'}</p>
+                                <p className="text-sm font-bold text-slate-500 mt-2 uppercase tracking-widest">Office is Closed</p>
+                            </div>
+                        ) : (
+                            <div className="py-12 text-center bg-slate-50 rounded-3xl border border-slate-100 border-dashed">
+                                {selectedEmployeeDetail.isFutureDate ? (
+                                    <Clock className="mx-auto text-slate-300 mb-3" size={32} />
+                                ) : (
+                                    <AlertTriangle className="mx-auto text-rose-400 mb-3" size={32} />
+                                )}
+                                <p className="text-sm font-black text-slate-500 uppercase tracking-widest">
+                                    {selectedEmployeeDetail.isFutureDate ? 'Future Date - Not Marked' : 'Attendance Not Marked'}
+                                </p>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-tight">
+                                    {selectedEmployeeDetail.status === 'Weekly Off' ? 'Employee Weekly Off' : (selectedEmployeeDetail.isFutureDate ? 'Status will be calculated on this date' : 'Employee was likely absent')}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                ) : null}
+            </Modal >
+        </div >
     );
 }
-

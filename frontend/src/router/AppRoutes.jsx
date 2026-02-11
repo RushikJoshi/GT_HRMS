@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -35,6 +36,7 @@ import HRDashboard from '../pages/HR/HRDashboard';
 import Employees from '../pages/HR/Employees';
 import Departments from '../pages/HR/Departments';
 import LeavePolicies from '../pages/HR/LeavePolicies';
+import Leaves from '../pages/HR/Leaves';
 import LeaveApprovals from '../pages/HR/LeaveApprovals';
 import RegularizationApprovals from '../pages/HR/RegularizationApprovals';
 import OrgStructure from '../pages/HR/OrgStructure';
@@ -50,11 +52,17 @@ import CandidateStatusTracker from '../pages/HR/CandidateStatusTracker';
 import CandidateTimeline from '../pages/HR/CandidateStatusTracker/CandidateTimeline';
 import PaySlipDesign from '../pages/HR/Payroll/PaySlipDesign';
 import AttendanceHistory from '../pages/HR/AttendanceHistory';
+import BGVManagement from '../pages/HR/BGVManagement';
+import FaceUpdateRequest from '../pages/HR/FaceUpdateRequests';
+import BGVEmailManagement from '../pages/HR/BGVEmailManagement';
 
 // Letter modules
+import LetterDashboard from '../pages/HR/Letters/LetterDashboard';
+import IssueLetterWizard from '../pages/HR/Letters/IssueLetterWizard';
 import LetterTemplates from '../pages/HR/LetterTemplates';
 import LetterSettings from '../pages/HR/LetterSettings';
 import TemplatePreview from '../pages/HR/TemplatePreview';
+import MyDocuments from '../pages/Employee/MyDocuments';
 import SalaryStructure from '../pages/HR/SalaryStructure';
 import CreateRequirement from '../pages/HR/CreateRequirement';
 import PositionMaster from '../pages/HR/PositionMaster';
@@ -83,6 +91,7 @@ import ProcessPayroll from '../pages/HR/Payroll/ProcessPayroll';
 import Compensation from '../pages/HR/Compensation';
 import PayrollDashboard from '../pages/HR/Payroll/PayrollDashboard';
 import PayslipTemplates from '../pages/HR/Payroll/PayslipTemplates';
+import PayslipBuilder from '../pages/HR/Payroll/PayslipBuilder/PayslipBuilder';
 
 
 // Employee
@@ -114,7 +123,10 @@ const OutletProxy = () => <Outlet />;
 export default function AppRoutes() {
     return (
         <Routes>
+            {/* Root - Auto Redirect based on Auth */}
             <Route path="/" element={<AutoHome />} />
+
+
 
             {/* --- PUBLIC AUTH ROUTES (EXISTING - KEEP FOR BACKWARD COMPATIBILITY) --- */}
             <Route path="/login" element={<Login />} />
@@ -146,6 +158,7 @@ export default function AppRoutes() {
             <Route element={<CandidateProtectedRoute><OutletProxy /></CandidateProtectedRoute>}>
                 <Route path="/candidate/application/:applicationId" element={<ApplicationTrack />} />
             </Route>
+
 
             <Route path="/apply-job/:requirementId" element={<JobApplication />} />
 
@@ -204,6 +217,7 @@ export default function AppRoutes() {
                 <Route path="departments" element={<Departments />} />
                 <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
                 <Route path="leave-approvals" element={<LeaveApprovals />} />
+                <Route path="leave-requests" element={<Leaves />} />
                 <Route path="leave-approvals/regularization" element={<RegularizationApprovals category="Leave" />} />
                 <Route path="attendance" element={<AttendanceAdmin />} />
                 <Route path="attendance/correction" element={<RegularizationApprovals category="Attendance" />} />
@@ -222,8 +236,12 @@ export default function AppRoutes() {
                 <Route path="offers" element={<OffersList />} />
                 <Route path="offers/:id" element={<OfferDetail />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+                <Route path="bgv" element={<BGVManagement />} />
+                <Route path="bgv/emails" element={<BGVEmailManagement />} />
 
                 {/* Letters */}
+                <Route path="letters" element={<LetterDashboard />} />
+                <Route path="letters/issue" element={<IssueLetterWizard />} />
                 <Route path="letter-templates" element={<LetterTemplates />} />
                 <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
                 <Route path="letter-settings" element={<LetterSettings />} />
@@ -250,6 +268,7 @@ export default function AppRoutes() {
                 <Route path="payroll/payslips" element={<Payslips />} />
                 <Route path="payroll/payslip-design" element={<PaySlipDesign />} />
                 <Route path="payslip-templates" element={<PayslipTemplates />} />
+                <Route path="payroll/payslip-builder/:id" element={<PayslipBuilder />} />
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
@@ -272,6 +291,7 @@ export default function AppRoutes() {
                 <Route path="departments" element={<Departments />} />
                 <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
                 <Route path="leave-approvals" element={<LeaveApprovals />} />
+                <Route path="leave-requests" element={<Leaves />} />
                 <Route path="leave-approvals/regularization" element={<RegularizationApprovals category="Leave" />} />
                 <Route path="attendance" element={<AttendanceAdmin />} />
                 <Route path="attendance/correction" element={<RegularizationApprovals category="Attendance" />} />
@@ -293,8 +313,13 @@ export default function AppRoutes() {
                 <Route path="offers" element={<OffersList />} />
                 <Route path="offers/:id" element={<OfferDetail />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+                <Route path="bgv" element={<BGVManagement />} />
+                <Route path="face-update-requests" element={<FaceUpdateRequest />} />
+                <Route path="bgv/emails" element={<BGVEmailManagement />} />
 
                 {/* Letters */}
+                <Route path="letters" element={<LetterDashboard />} />
+                <Route path="letters/issue" element={<IssueLetterWizard />} />
                 <Route path="letter-templates" element={<LetterTemplates />} />
                 <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
                 <Route path="letter-settings" element={<LetterSettings />} />
@@ -322,6 +347,7 @@ export default function AppRoutes() {
                 <Route path="payroll/payslips" element={<Payslips />} />
                 <Route path="payroll/payslip-design" element={<PaySlipDesign />} />
                 <Route path="payslip-templates" element={<PayslipTemplates />} />
+                <Route path="payroll/payslip-builder/:id" element={<PayslipBuilder />} />
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
@@ -344,15 +370,26 @@ export default function AppRoutes() {
             >
                 <Route index element={<Navigate to="/employee/dashboard" replace />} />
                 <Route path="dashboard" element={<EmployeeDashboard />} />
+                <Route path="leaves" element={<EmployeeDashboard />} />
+                <Route path="attendance" element={<EmployeeDashboard />} />
+                <Route path="regularization" element={<EmployeeDashboard />} />
+                <Route path="profile" element={<EmployeeDashboard />} />
+                <Route path="team-attendance" element={<EmployeeDashboard />} />
+                <Route path="team-leaves" element={<EmployeeDashboard />} />
+                <Route path="team-regularization" element={<EmployeeDashboard />} />
+                <Route path="internal-jobs" element={<EmployeeDashboard />} />
+                <Route path="my-applications" element={<EmployeeDashboard />} />
                 <Route path="payslips" element={<ESSPayslips />} />
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
                 <Route path="my-requests" element={<MyRequests />} />
+                <Route path="my-documents" element={<MyDocuments />} />
                 <Route path="face-attendance" element={<FaceAttendance />} />
             </Route>
 
 
             <Route path="/verify-company/:token" element={<VerifyCompany />} />
             <Route path="*" element={<NotFound />} />
+
         </Routes>
     );
 }

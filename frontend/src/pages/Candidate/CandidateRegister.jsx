@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
 import api from '../../utils/api';
 import { getCompany, setCompany, getTenantId } from '../../utils/auth';
-import { ArrowLeft, Briefcase, Lock, Mail, User, Phone } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Briefcase, Lock, Mail, User, Phone, ShieldCheck, Sparkles } from 'lucide-react';
 
 export default function CandidateSignup() {
     const [searchParams] = useSearchParams();
@@ -92,133 +92,146 @@ export default function CandidateSignup() {
     if (pageLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="flex flex-col items-center gap-4">
+                    <div className="h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Initialising Portal...</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#FBFCFE] font-sans flex flex-col items-center justify-center py-12 px-4 relative overflow-hidden">
-            {/* Background Glows */}
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-50 rounded-full blur-[120px] -z-10 translate-x-1/4 -translate-y-1/4"></div>
-            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-50 rounded-full blur-[120px] -z-10 -translate-x-1/4 translate-y-1/4"></div>
+        <div className="min-h-screen bg-[#F8FAFC] font-sans flex flex-col items-center justify-center py-12 px-6 relative overflow-hidden selection:bg-indigo-100 selection:text-indigo-600">
+            {/* Background Decorations */}
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-slate-100/50 rounded-full blur-[80px] -z-10 translate-x-1/3 -translate-y-1/3"></div>
+            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-50/50 rounded-full blur-[80px] -z-10 -translate-x-1/3 translate-y-1/3"></div>
 
-            <div className="w-full max-w-md relative">
-                {/* Back Button */}
-                <button
-                    onClick={() => navigate(-1)}
-                    className="absolute -top-16 left-0 p-2.5 bg-white border border-gray-100 rounded-full shadow-sm text-gray-400 hover:text-gray-900 hover:shadow-md transition-all active:scale-95 flex items-center justify-center"
-                >
-                    <ArrowLeft size={18} />
-                </button>
-
-                <div className="text-center mb-8">
-                    {/* Icon Box */}
-                    <div className="inline-flex p-4 bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-50 mb-6 ring-4 ring-blue-50/30">
-                        <Briefcase className="w-10 h-10 text-blue-600" />
+            <div className="w-full max-w-[540px] z-10 animate-in fade-in duration-300">
+                {/* Header Section */}
+                <div className="text-center mb-10">
+                    <div className="mx-auto w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100 mb-6">
+                        <Briefcase className="text-white w-7 h-7" />
                     </div>
-
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-1">
-                        {company.name || "Test"}
-                    </h1>
-                    <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">Create Candidate Account</p>
+                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight mb-2">Create Account</h1>
+                    <p className="text-slate-500 font-medium text-sm">Join <span className="text-indigo-600 font-bold">{company.name}</span>'s talent network</p>
                 </div>
 
-                {/* Form Card */}
-                <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-gray-100/50 p-10">
-                    <div className="text-center mb-8">
-                        <h2 className="text-2xl font-black text-gray-900">Sign Up</h2>
-                        <p className="text-gray-500 font-medium mt-1">Start your journey with us today</p>
-                    </div>
-
-                    <form className="space-y-4" onSubmit={handleSubmit}>
+                {/* Card */}
+                <div className="bg-white p-10 lg:p-14 rounded-[3rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50">
+                    <form onSubmit={handleSubmit} className="space-y-8">
                         {error && (
-                            <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm font-bold border border-red-100 flex items-center gap-3">
-                                <span className="w-5 h-5 flex-shrink-0 bg-red-100 rounded-full flex items-center justify-center text-[10px]">!</span>
+                            <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3 text-rose-600 text-sm font-bold animate-in fade-in slide-in-from-top-2">
+                                <ShieldCheck className="w-5 h-5 flex-shrink-0" />
                                 {error}
                             </div>
                         )}
 
-                        <div className="space-y-4">
-                            <div className="relative group">
-                                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-                                <input
-                                    type="text"
-                                    name="name"
-                                    required
-                                    value={formData.name}
-                                    onChange={handleChange}
-                                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all font-medium text-gray-900 placeholder-gray-400"
-                                    placeholder="Full Name"
-                                />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Full Name</label>
+                                <div className="relative group">
+                                    <User className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                                    <input
+                                        name="name"
+                                        type="text"
+                                        placeholder="John Doe"
+                                        className="w-full pl-14 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        required
+                                        value={formData.name}
+                                        onChange={handleChange}
+                                    />
+                                </div>
                             </div>
 
-                            <div className="relative group">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-                                <input
-                                    type="email"
-                                    name="email"
-                                    required
-                                    value={formData.email}
-                                    onChange={handleChange}
-                                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all font-medium text-gray-900 placeholder-gray-400"
-                                    placeholder="Email Address"
-                                />
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Contact Phone</label>
+                                <div className="relative group">
+                                    <Phone className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                                    <input
+                                        name="phone"
+                                        type="tel"
+                                        placeholder="+1 234 567"
+                                        className="w-full pl-14 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        required
+                                        value={formData.phone}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Email Address</label>
+                                <div className="relative group">
+                                    <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                                    <input
+                                        name="email"
+                                        type="email"
+                                        placeholder="name@example.com"
+                                        className="w-full pl-14 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        required
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                    />
+                                </div>
                             </div>
 
-                            <div className="relative group">
-                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-                                <input
-                                    type="tel"
-                                    name="phone"
-                                    required
-                                    value={formData.phone}
-                                    onChange={handleChange}
-                                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all font-medium text-gray-900 placeholder-gray-400"
-                                    placeholder="Phone Number"
-                                />
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Account Password</label>
+                                <div className="relative group">
+                                    <Lock className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                                    <input
+                                        name="password"
+                                        type="password"
+                                        placeholder="••••••••"
+                                        className="w-full pl-14 pr-8 py-5 bg-slate-50 border-none rounded-3xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                                        required
+                                        value={formData.password}
+                                        onChange={handleChange}
+                                    />
+                                </div>
                             </div>
+                        </div>
 
-                            <div className="relative group">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-                                <input
-                                    type="password"
-                                    name="password"
-                                    required
-                                    value={formData.password}
-                                    onChange={handleChange}
-                                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all font-medium text-gray-900 placeholder-gray-400"
-                                    placeholder="Create Password"
-                                />
-                            </div>
+                        <div className="flex items-center gap-2 px-4 py-3 bg-indigo-50/50 rounded-2xl">
+                            <Sparkles className="text-indigo-500 w-4 h-4" />
+                            <p className="text-[10px] font-bold text-indigo-600 leading-tight">By creating an account, you agree to our Terms of Service and Privacy Policy.</p>
                         </div>
 
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-4.5 bg-blue-600 text-white rounded-2xl text-base font-black shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] mt-6"
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-[1.2rem] font-bold shadow-lg shadow-indigo-100 hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-xs uppercase tracking-widest"
                         >
-                            {loading ? "Creating Account..." : "Create Account"}
+                            {loading ? 'Creating Account...' : (
+                                <>
+                                    Complete Selection <ArrowRight size={18} />
+                                </>
+                            )}
                         </button>
                     </form>
 
-                    <div className="mt-10 text-center">
-                        <p className="text-gray-500 font-medium">
-                            Already have an account?{' '}
+                    <div className="mt-12 pt-10 border-t border-slate-50 text-center">
+                        <p className="text-slate-500 text-sm font-medium">
+                            Already part of our network?{' '}
                             <Link
                                 to={`/candidate/login?tenantId=${tenantId}`}
-                                className="text-blue-600 font-black hover:text-blue-700 transition"
+                                className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors ml-1 underline underline-offset-4 decoration-indigo-200"
                             >
-                                Login here
+                                Sign in here
                             </Link>
                         </p>
                     </div>
                 </div>
 
                 <div className="mt-12 text-center">
-                    <p className="text-xs text-gray-300 font-bold uppercase tracking-widest">
-                        &copy; {new Date().getFullYear()} {company.name || "Test"}. Powered by Gitakshmi HRMS
-                    </p>
+                    <Link to={`/jobs/${company.code || tenantId}`} className="text-slate-400 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 hover:text-indigo-50 transition-colors group">
+                        <div className="bg-slate-100 p-2 rounded-xl group-hover:bg-indigo-50 transition-colors">
+                            <ArrowLeft size={16} />
+                        </div>
+                        Back to Portal
+                    </Link>
                 </div>
             </div>
         </div>

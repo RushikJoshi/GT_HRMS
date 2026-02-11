@@ -102,7 +102,7 @@ export default function TenantLogin() {
                                 type="submit"
                                 className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-150 shadow"
                             >
-                                Login as Tenant
+                                Submit
                             </button>
                         </form>
 

@@ -126,6 +126,13 @@ exports.loginEmployeeController = async (req, res) => {
   try {
     const { companyCode, employeeId, password } = req.body;
 
+    console.log('🔍 [EMPLOYEE LOGIN] Incoming request:', {
+      companyCode,
+      employeeId,
+      passwordLength: password ? password.length : 0,
+      passwordProvided: !!password
+    });
+
     if (!companyCode || !employeeId || !password)
       return res.status(400).json({ message: "companyCode_employeeId_password_required" });
 
@@ -143,19 +150,40 @@ exports.loginEmployeeController = async (req, res) => {
       tenant: tenant._id
     });
 
-    if (!emp) return res.status(404).json({ message: "employee_not_found" });
+    if (!emp) {
+      console.log('❌ Employee not found:', { companyCode, employeeId, tenantId: tenant._id });
+      return res.status(404).json({ message: "employee_not_found" });
+    }
+
+    console.log('✅ Employee found:', {
+      employeeId: emp.employeeId,
+      hasPassword: !!emp.password,
+      passwordLength: emp.password ? emp.password.length : 0,
+      passwordPrefix: emp.password ? emp.password.substring(0, 10) : 'none'
+    });
 
     // 4) Compare password
     const stored = emp.password || "";
     let ok = false;
 
     if (stored.startsWith("$2")) {
+      console.log('🔐 Comparing bcrypt password...');
       ok = await bcrypt.compare(password, stored);
+      console.log('🔐 Bcrypt comparison result:', ok);
     } else {
+      console.log('🔐 Comparing plain text password...');
       ok = String(stored) === String(password);
+      console.log('🔐 Plain text comparison result:', ok);
     }
 
-    if (!ok) return res.status(401).json({ message: "invalid_credentials" });
+    if (!ok) {
+      console.log('❌ Password mismatch:', {
+        providedPassword: password,
+        storedPasswordType: stored.startsWith("$2") ? 'bcrypt' : 'plain',
+        storedPasswordLength: stored.length
+      });
+      return res.status(401).json({ message: "invalid_credentials" });
+    }
 
     // 5) Issue token
     // Normalize role to lower case and ensure "Admin" maps to "admin"

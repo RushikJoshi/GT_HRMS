@@ -51,7 +51,14 @@ const PayslipSchema = new mongoose.Schema({
         bankAccountNumber: String,
         bankIFSC: String,
         bankName: String,
-        panNumber: String
+        panNumber: String,
+        pfNumber: String,
+        uanNumber: String,
+        gender: String,
+        dob: Date,
+        joiningDate: Date,
+        branchName: String,
+        accountHolderName: String
     },
 
     // Earnings Snapshot (from salary template)

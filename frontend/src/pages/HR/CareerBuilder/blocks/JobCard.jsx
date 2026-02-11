@@ -3,7 +3,8 @@ import { Briefcase, MapPin, Calendar, ArrowRight } from 'lucide-react';
 import { formatDateDDMMYYYY } from '../../../../utils/dateUtils';
 import { API_ROOT } from '../../../../utils/api';
 
-export default function JobCard({ job, config = {}, onApply, isApplied }) {
+export default function JobCard({ job, config = {}, onApply, onViewDetails, isApplied, previewMode = 'desktop' }) {
+    const isMobile = previewMode === 'mobile';
     const {
         cardStyle = 'rounded',
         cardBackground = '#ffffff',
@@ -48,24 +49,14 @@ export default function JobCard({ job, config = {}, onApply, isApplied }) {
 
     return (
         <div style={{ backgroundColor: cardBackground }} className={containerClasses}>
-            {bannerUrl && (
-                <div className="w-full h-32 overflow-hidden relative">
-                    <img
-                        src={bannerUrl}
-                        alt={job.jobTitle}
-                        className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-                </div>
-            )}
-            <div className="p-7 flex-1 flex flex-col items-start text-left">
+            <div className={`${isMobile ? 'p-4' : 'p-7'} flex-1 flex flex-col items-start text-left`}>
 
                 {/* Header: Title + Opening Badge */}
                 <div className="w-full flex justify-between items-start mb-2">
-                    <h3 className="text-xl font-black text-gray-900 leading-tight w-3/4">
+                    <h3 className={`${isMobile ? 'text-lg' : 'text-xl'} font-black text-gray-900 leading-tight w-3/4`}>
                         {job.jobTitle}
                     </h3>
-                    <span className="bg-blue-50 text-blue-600 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full whitespace-nowrap">
+                    <span className={`${isMobile ? 'text-[8px] px-1.5' : 'text-[10px] px-2'} bg-blue-50 text-blue-600 font-black uppercase tracking-widest py-1 rounded-full whitespace-nowrap`}>
                         {job.positions || 1} Openings
                     </span>
                 </div>
@@ -74,7 +65,7 @@ export default function JobCard({ job, config = {}, onApply, isApplied }) {
                 {showPostedDate && (
                     <div className="flex items-center gap-2 text-xs font-bold text-gray-400 mb-4">
                         <Calendar size={14} />
-                        <span>Posted: {formatDateDDMMYYYY(job.createdAt)}</span>
+                        <span>Posted: {formatDateDDMMYYYY(job.publishedAt || job.createdAt)}</span>
                     </div>
                 )}
 
@@ -99,17 +90,17 @@ export default function JobCard({ job, config = {}, onApply, isApplied }) {
 
                 {/* Description */}
                 {showDescription && (
-                    <p className="text-gray-500 text-sm font-medium mb-6 line-clamp-2 leading-relaxed">
+                    <p className={`text-gray-500 ${isMobile ? 'text-[11px] mb-4' : 'text-sm mb-6'} font-medium line-clamp-2 leading-relaxed`}>
                         {job.description || `We are looking for a talented ${job.jobTitle} to join our growing team.`}
                     </p>
                 )}
             </div>
 
             {/* Footer Buttons */}
-            <div className="p-7 pt-0 mt-auto w-full flex gap-3">
+            <div className={`${isMobile ? 'p-4' : 'p-7'} pt-0 mt-auto w-full flex ${isMobile ? 'flex-col gap-2' : 'gap-3'}`}>
                 <button
-                    className="flex-1 px-4 py-3 bg-white border border-gray-200 text-gray-900 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all shadow-sm"
-                    onClick={() => onApply && onApply(job)} // For now view details essentially triggers apply or detail view
+                    className={`${isMobile ? 'px-3 py-2 text-xs' : 'px-4 py-3 text-sm'} flex-1 bg-white border border-gray-200 text-gray-900 rounded-xl font-bold hover:bg-gray-50 transition-all shadow-sm`}
+                    onClick={() => onViewDetails ? onViewDetails(job) : (onApply && onApply(job))}
                 >
                     View Details
                 </button>
@@ -118,10 +109,10 @@ export default function JobCard({ job, config = {}, onApply, isApplied }) {
                     <button
                         onClick={() => onApply && onApply(job)}
                         style={applyStyle}
-                        className={applyClasses}
+                        className={`${applyClasses} ${isMobile ? 'px-3 py-2 text-xs' : 'px-4 py-3 text-sm'}`}
                     >
                         {isApplied ? 'Applied' : config.applyButtonText || 'Apply Now'}
-                        {!isApplied && <ArrowRight size={16} />}
+                        {!isApplied && <ArrowRight size={isMobile ? 14 : 16} />}
                     </button>
                 )}
             </div>

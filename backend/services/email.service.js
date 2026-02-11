@@ -2,18 +2,46 @@ const nodemailer = require('nodemailer');
 
 class EmailService {
     constructor() {
-        // Create transporter using Gmail SMTP with App Password
-        // Environment variables must be set: SMTP_USER, SMTP_PASS, SMTP_HOST, SMTP_PORT
+        const smtpUser = process.env.SMTP_USER?.trim();
+        const rawPass = process.env.SMTP_PASS?.trim();
+
+        // Gmail "App Password" logic: Remove all spaces
+        // Gmail app passwords are 16 chars, usually shown as "abcd efgh ijkl mnop"
+        const smtpPass = rawPass ? rawPass.replace(/\s+/g, '') : '';
+
+        this.smtpUser = smtpUser;
+
+        // Diagnostic: Check for hidden/non-ASCII characters in email
+        const isAscii = (str) => /^[\x00-\x7F]*$/.test(str);
+        if (!isAscii(smtpUser)) {
+            console.warn('⚠️ [EmailService] Warning: SMTP_USER contains non-ASCII characters. Check for hidden symbols.');
+        }
+
         this.transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.gmail.com',
-            port: process.env.SMTP_PORT || 587,
-            secure: process.env.SMTP_PORT == 465, // true for 465, false for 587
+            service: 'gmail',
             auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
+                user: smtpUser,
+                pass: smtpPass
             },
+            debug: true,
+            logger: true
+        });
+
+        console.log(`📡 [EmailService] Connecting as: ${smtpUser}`);
+        console.log(`📡 [EmailService] Password Length: ${smtpPass.length} characters (No spaces)`);
+
+        this.transporter.verify((error) => {
+            if (error) {
+                console.error('❌ [EmailService] SMTP Connection Error:', error.message);
+                console.log('💡 HINT: Go to https://accounts.google.com/DisplayUnlockCaptcha and click Continue.');
+            } else {
+                console.log('✅ [EmailService] SMTP Server is ready');
+            }
         });
     }
+
+
+
 
     /**
      * Send an email to a specific recipient
@@ -31,7 +59,7 @@ class EmailService {
             console.log(`📧 [EmailService] Sending email to: ${to}`);
 
             const mailOptions = {
-                from: `"HRMS Notifications" <${process.env.SMTP_USER}>`,
+                from: `"HRMS Notifications" <${this.smtpUser || process.env.SMTP_USER}>`,
                 to: to,
                 subject: subject,
                 html: html,
@@ -44,6 +72,18 @@ class EmailService {
 
         } catch (error) {
             console.error(`❌ [EmailService] Failed to send email to ${to}:`, error.message);
+
+            // Make SMTP auth errors actionable (common with Gmail if password/app-password is wrong)
+            if (error && (error.code === 'EAUTH' || error.responseCode === 535)) {
+                const err = new Error(
+                    'SMTP authentication failed (535). Check SMTP_USER/SMTP_PASS. ' +
+                    'For Gmail, use an App Password (not your Gmail password) and ensure SMTP_PASS has no spaces.'
+                );
+                err.status = 500;
+                err.error = 'smtp_auth_failed';
+                throw err;
+            }
+
             // We throw the error so the calling controller handles it
             throw error;
         }
@@ -183,7 +223,7 @@ class EmailService {
 
         try {
             const mailOptions = {
-                from: `"HRMS Notifications" <${process.env.SMTP_USER}>`,
+                from: `"HRMS Notifications" <${this.smtpUser || process.env.SMTP_USER}>`,
                 to: to,
                 subject: subject,
                 html: html,
@@ -258,7 +298,7 @@ class EmailService {
 
         try {
             const mailOptions = {
-                from: `"HRMS Notifications" <${process.env.SMTP_USER}>`,
+                from: `"HRMS Notifications" <${this.smtpUser || process.env.SMTP_USER}>`,
                 to: to,
                 subject: subject,
                 html: html,

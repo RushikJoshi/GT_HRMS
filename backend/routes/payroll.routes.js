@@ -57,6 +57,7 @@ router.post('/ctc/upload-excel', auth.requireHr, templateController.uploadCtcExc
 router.post('/calculate-breakup', auth.requireHr, templateController.calculateBreakup);
 // Payroll Run Routes (HR Only)
 router.use('/runs', auth.requireHr);
+router.get('/filteredEmployees', auth.requireHr, payrollRunController.getFilteredEmployees);
 router.post('/runs', payrollRunController.initiatePayrollRun);
 router.get('/runs', payrollRunController.getPayrollRuns);
 router.get('/runs/:id', payrollRunController.getPayrollRunById);
@@ -67,6 +68,9 @@ router.post('/runs/:id/cancel', payrollRunController.cancelPayrollRun);
 
 // Payslip Routes - Employee self-service
 router.get('/payslips/my', payslipController.getMyPayslips);
+
+// Payslip Preview Route (HR Only)
+router.get('/payslips/:employeeId', auth.requireHr, payslipController.getPayslipByEmployeeAndMonth);
 
 // Payslip Routes - HR routes (full access)
 router.get('/payslips', auth.requireHr, payslipController.getPayslips);

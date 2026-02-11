@@ -7,6 +7,7 @@ import SidebarCompanyBlock from '../components/SidebarCompanyBlock';
 import { useAuth } from '../context/AuthContext';
 import { UIContext } from '../context/UIContext';
 import { Sun, Moon, LogOut, Menu, ArrowLeft } from 'lucide-react';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function EssLayout() {
   const { logout, user } = useAuth();
@@ -173,10 +174,12 @@ export default function EssLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-[#0F172A] p-6 lg:p-10 custom-scrollbar">
-          <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <Outlet context={{ activeTab, setActiveTab }} />
-          </div>
+        <main className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-[#0F172A] p-4 lg:p-8 custom-scrollbar">
+          <ErrorBoundary>
+            <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <Outlet context={{ activeTab, setActiveTab }} />
+            </div>
+          </ErrorBoundary>
         </main>
       </div>
     </div>

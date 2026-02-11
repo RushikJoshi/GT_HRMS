@@ -9,38 +9,10 @@ import AssignSalaryModal from '../../components/AssignSalaryModal';
 import { DatePicker, Pagination, Select, Modal, TimePicker, notification, Dropdown, Menu } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications'; // Imports fixed
 import dayjs from 'dayjs';
-import {
-    LayoutDashboard,
-    Users,
-    Building2,
-    Workflow,
-    UserCog,
-    Fingerprint,
-    CalendarDays,
-    Plane,
-    Gavel,
-    LineChart,
-    Layers,
-    Coins,
-    Zap,
-    Clock9,
-    Banknote,
-    Paintbrush,
-    Briefcase,
-    UserPlus,
-    Radar,
-    FileJson,
-    Lock,
-    Settings2,
-    Brush,
-    ExternalLink,
-    Shield,
-    Share2,
-    X,
-    Eye, Download, Edit2, RefreshCw, IndianRupee, Upload, FileText, CheckCircle, Settings, Plus, Trash2, GripVertical, Star, XCircle, Clock, ShieldCheck, ChevronRight, ChevronDown, RotateCcw, UserCheck, UserX, PlusCircle, Info, Search, Calendar
-} from 'lucide-react';
+import { Eye, Download, Edit2, RefreshCw, IndianRupee, Upload, FileText, CheckCircle, Settings, Plus, Trash2, X, GripVertical, Star, XCircle, Clock, ShieldCheck, Lock, ChevronRight, ChevronDown, RotateCcw, UserCheck, UserX, PlusCircle, UserPlus, Info, Search, Calendar, Shield } from 'lucide-react';
 import DynamicPipelineEngine from './DynamicPipelineEngine';
 import InterviewScheduleModal from './modals/InterviewScheduleModal';
+import JobBasedBGVModal from './modals/JobBasedBGVModal';
 
 // --- Helper Components ---
 
@@ -165,6 +137,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [addRoundModalVisible, setAddRoundModalVisible] = useState(false);
     const [newRoundName, setNewRoundName] = useState('');
     const [candidateForNewRound] = useState(null);
+
+    // BGV Initiation State (Package-Driven)
+    const [showBGVModal, setShowBGVModal] = useState(false);
+    const [bgvCandidate, setBgvCandidate] = useState(null);
 
     // Custom Other Round State
     const [addCustomRoundModalVisible, setAddCustomRoundModalVisible] = useState(false);
@@ -771,6 +747,56 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     };
 
 
+    const handleRejected = (applicant) => {
+        showConfirmToast({
+            title: 'Mark as Rejected',
+            description: `Reject ${applicant.name}? This action cannot be undone.`,
+            okText: 'Yes, Reject',
+            cancelText: 'Cancel',
+            onConfirm: async () => {
+                // Update status to "Rejected"
+                const success = await updateStatus(applicant, 'Rejected');
+                if (success) {
+                    showToast('error', 'Rejected', `${applicant.name} has been rejected and moved to Rejected tab.`);
+                }
+            }
+        });
+    };
+
+    const handleMoveToRound = (applicant, roundName) => {
+        showConfirmToast({
+            title: 'Move to Another Round',
+            description: `Move ${applicant.name} to "${roundName}"?`,
+            okText: 'Yes, Move',
+            cancelText: 'Cancel',
+            onConfirm: async () => {
+                // Update status to the selected round name
+                const success = await updateStatus(applicant, roundName);
+                if (success) {
+                    showToast('success', 'Round Changed', `${applicant.name} has been moved to ${roundName}.`);
+                }
+            }
+        });
+    };
+
+    const handleInitiateBGV = (applicant) => {
+        setBgvCandidate(applicant);
+        setShowBGVModal(true);
+    };
+
+    const   handleBGVSuccess = () => {
+        setShowBGVModal(false);
+        setBgvCandidate(null);
+        loadApplicants(); // Refresh to show updated BGV status
+    };
+
+    const openReviewPrompt = (applicant, status) => {
+        setSelectedApplicant(applicant);
+        setSelectedStatusForReview(status);
+        setReviewRating(0);
+        setReviewFeedback('');
+        setShowEvaluationDrawer(true);
+    };
 
     const submitReviewAndStatus = async () => {
         if (!selectedApplicant || !selectedStatusForReview) return;
@@ -1866,6 +1892,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Salary</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Offer</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Joining</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">BGV</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Actions</th>
                                         </tr>
                                     </thead>
@@ -2018,30 +2045,40 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             )
                                                         )}
                                                     </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <span className={`px-2 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-widest ${app.bgvStatus === 'CLEAR' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                                app.bgvStatus === 'FAILED' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                                                    app.bgvStatus === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                                        'bg-slate-50 text-slate-400 border-slate-100'
+                                                                }`}>
+                                                                {app.bgvStatus?.replace(/_/g, ' ') || 'NOT INITIATED'}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => app.bgvStatus === 'NOT_INITIATED' ? handleInitiateBGV(app) : navigate('/hr/bgv')}
+                                                                className="text-[9px] font-bold text-blue-600 hover:underline flex items-center gap-1"
+                                                            >
+                                                                {app.bgvStatus === 'NOT_INITIATED' ? 'Initiate' : 'Manage'}
+                                                            </button>
+                                                        </div>
+                                                    </td>
                                                     <td className="px-6 py-4">
                                                         {app.isOnboarded ? (
                                                             <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
                                                                 <CheckCircle size={14} />
                                                                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Converted</span>
                                                             </div>
-                                                        ) : (() => {
-                                                            const reqId = app.requirementId?._id || app.requirementId;
-                                                            const vacancies = app.totalVacancies || app.requirementId?.vacancy || 1;
-                                                            const hired = (applicants || []).filter(a => (a.requirementId?._id === reqId || a.requirementId === reqId) && a.isOnboarded).length;
-                                                            const isFull = hired >= vacancies;
-                                                            const isDisabled = !app.joiningLetterPath;
-
-                                                            return (
-                                                                <button
-                                                                    onClick={() => handleOnboard(app)}
-                                                                    disabled={isDisabled}
-                                                                    className={`w-full py-2 sm:py-3 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl transition shadow-lg uppercase tracking-widest ${isDisabled ? 'bg-slate-300 cursor-not-allowed' : isFull ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-100' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'}`}
-                                                                    title={isFull ? `Vacancy limit (${vacancies}) reached. Click to override and convert.` : ''}
-                                                                >
-                                                                    Convert
-                                                                </button>
-                                                            );
-                                                        })()}
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleOnboard(app)}
+                                                                disabled={!app.joiningLetterPath || ['FAILED', 'IN_PROGRESS', 'INITIATED'].includes(app.bgvStatus)}
+                                                                className={`w-full py-2 sm:py-3 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl transition shadow-lg uppercase tracking-widest ${(!app.joiningLetterPath || ['FAILED', 'IN_PROGRESS', 'INITIATED'].includes(app.bgvStatus)) ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'}`}
+                                                                title={app.bgvStatus === 'FAILED' ? 'BGV Failed' : app.bgvStatus === 'IN_PROGRESS' || app.bgvStatus === 'INITIATED' ? 'BGV In Progress' : ''}
+                                                            >
+                                                                {app.bgvStatus === 'FAILED' ? 'BGV FAILED' :
+                                                                    (['IN_PROGRESS', 'INITIATED'].includes(app.bgvStatus)) ? 'BGV PENDING' : 'Convert'}
+                                                            </button>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -3343,6 +3380,19 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     />
                 )}
             </Modal>
+
+            {/* BGV Initiation Modal (Package-Driven) */}
+            {showBGVModal && bgvCandidate && (
+                <JobBasedBGVModal
+                    applicant={bgvCandidate}
+                    jobTitle={bgvCandidate.requirementId?.jobTitle || 'N/A'}
+                    onClose={() => {
+                        setShowBGVModal(false);
+                        setBgvCandidate(null);
+                    }}
+                    onSuccess={handleBGVSuccess}
+                />
+            )}
         </div >
     );
 }

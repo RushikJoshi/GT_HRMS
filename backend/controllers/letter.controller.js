@@ -15,16 +15,8 @@ const OfferSchema = require('../models/Offer');
 // GLOBAL MODEL for Shared Collection (Fixes 500 collections limit)
 const GlobalOfferModel = mongoose.models.GlobalOffer || mongoose.model('GlobalOffer', OfferSchema, 'offers');
 
-// Try to load docx2pdf, fallback if not available
-let docx2pdf;
-try {
-    docx2pdf = require('docx2pdf');
-    console.log('✅ docx2pdf module loaded successfully');
-    console.log('🚀 LETTER CONTROLLER VERSION: 3.0 (DATE FIX APPLIED)');
-} catch (error) {
-    console.warn('⚠️ docx2pdf module not available, PDF conversion will be disabled:', error.message);
-    docx2pdf = null;
-}
+// PDF conversion uses LibreOfficeService (reliable cross-platform solution)
+console.log('🚀 LETTER CONTROLLER VERSION: 3.1 (LibreOffice PDF conversion)');
 
 async function extractPlaceholders(filePath) {
     try {
@@ -71,27 +63,29 @@ function getModels(req) {
         if (!db.models.CompanyProfile) {
             try { db.model('CompanyProfile', require('../models/CompanyProfile')); } catch (e) { }
         }
-        if (!db.models.Offer) {
-            try { db.model('Offer', require('../models/Offer')); } catch (e) { }
-        }
         if (!db.models.LetterApproval) {
             try { db.model('LetterApproval', require('../models/LetterApproval')); } catch (e) { }
         }
+        if (!db.models.BGVCase) {
+            try { db.model('BGVCase', require('../models/BGVCase')); } catch (e) { }
+        }
+
         return {
             CompanyProfile: db.model("CompanyProfile"),
             LetterTemplate: db.model("LetterTemplate"),
             GeneratedLetter: db.model("GeneratedLetter"),
+            LetterApproval: db.model("LetterApproval"),
             Applicant: db.model("Applicant"),
             Employee: db.model("Employee"),
             EmployeeSalarySnapshot: db.model("EmployeeSalarySnapshot"),
-            Offer: db.model("Offer")
+            BGVCase: db.model("BGVCase")
+            // SalaryStructure is GLOBAL, not tenant-specific
         };
     } catch (err) {
         console.error("[letter.controller] Error retrieving models:", err.message);
         throw new Error(`Failed to retrieve models from tenant database: ${err.message}`);
     }
 }
-
 // Helper to get correct Applicant model (for backward compatibility)
 function getApplicantModel(req) {
     if (req.tenantDB) {
@@ -167,6 +161,8 @@ const normalizeSalaryKey = (name) => {
     if (/book|periodical/i.test(n)) return 'books';
     if (/uniform/i.test(n)) return 'uniform';
     if (/mobile|phone/i.test(n)) return 'mobile';
+    if (/compensatory/i.test(n)) return 'compensatory';
+    if (/leave/i.test(n)) return 'leave';
     if (/special|allowance/i.test(n)) return 'special';
     if (/pt|prof|tax/i.test(n)) return 'pt';
     if (/^pf$|provident/i.test(n) && !/employer/i.test(n)) return 'pf';
@@ -1715,10 +1711,38 @@ exports.generateOfferLetter = async (req, res) => {
             return res.status(404).json({ message: "Applicant not found" });
         }
 
-        // --- BGV INTEGRATION REMOVED (Deprecated) ---
-        // The background verification check has been removed as per the feature deprecation request.
-        // This prevents model loading errors for BGVCase.
+        // --- BGV INTEGRATION ---
+        const { BGVCase } = getModels(req);
+        const bgv = await BGVCase.findOne({ applicationId: applicant._id, tenant: req.user.tenantId });
+
+        if (bgv) {
+            if (bgv.overallStatus === 'FAILED') {
+                // Auto-reject if not already rejected
+                if (applicant.status !== 'Rejected') {
+                    applicant.status = 'Rejected';
+                    applicant.timeline.push({
+                        status: 'Rejected',
+                        message: 'Offer blocked: Background Verification (BGV) FAILED.',
+                        updatedBy: 'System (BGV)',
+                        timestamp: new Date()
+                    });
+                    await applicant.save();
+                }
+                return res.status(403).json({
+                    message: "Offer letter blocked. Background Verification (BGV) FAILED. Candidate has been auto-rejected.",
+                    bgvStatus: 'FAILED'
+                });
+            }
+
+            if (bgv.overallStatus === 'IN_PROGRESS') {
+                return res.status(403).json({
+                    message: "Offer letter blocked. Background Verification (BGV) is still IN_PROGRESS.",
+                    bgvStatus: 'IN_PROGRESS'
+                });
+            }
+        }
         // -----------------------
+
         let relativePath;
         let downloadUrl;
         let templateType = template.templateType;
@@ -2386,19 +2410,40 @@ exports.previewJoiningLetter = async (req, res) => {
         const netAnnual = snapshot.summary?.netPay || snapshot.breakdown?.netPay || (grossAAnnual - totalDeductionsAnnual);
 
 
-        // Categorize Benefits for Gross B (Annual) and Gross C (Retirals)
-        const grossBListRaw = benefits.filter(b => /bonus|lta|leave|variable|annual|performance/i.test(b.name || ''));
-        const grossCListRaw = benefits.filter(b => !/bonus|lta|leave|variable|annual|performance/i.test(b.name || ''));
+        // SMART CATEGORIZATION (v10.0)
+        // 1. Compensatory Allowance should be in Gross A (Earnings)
+        const compensatoryFromBenefits = benefits.filter(b => /compensatory/i.test(b.name || ''));
+        const otherBenefits = benefits.filter(b => !/compensatory/i.test(b.name || ''));
 
+        // Add to earnings for representation
+        const enhancedEarnings = [...earnings];
+        compensatoryFromBenefits.forEach(b => {
+            if (!enhancedEarnings.find(e => e.name === b.name)) {
+                enhancedEarnings.push(b);
+            }
+        });
+
+        // 2. Separate Annual (B), Retirals (C), and Insurance (D)
+        const grossBListRaw = otherBenefits.filter(b => /bonus|lta|leave|variable|annual|performance/i.test(b.name || ''));
+        const grossCListRaw = otherBenefits.filter(b => /gratuity|pf|provident|retirals/i.test(b.name || '') && !/bonus|lta|leave|variable|annual|performance/i.test(b.name || ''));
+        const insuranceListRaw = otherBenefits.filter(b => /insurance|mediclaim/i.test(b.name || ''));
+
+        // Anything else goes to Gross C as fallback if not caught
+        const caughtNames = [...grossBListRaw, ...grossCListRaw, ...insuranceListRaw].map(b => b.name);
+        const remainingBenefits = otherBenefits.filter(b => !caughtNames.includes(b.name));
+        const finalGrossCListRaw = [...grossCListRaw, ...remainingBenefits];
+
+        const grossAAnnualTotal = enhancedEarnings.reduce((sum, e) => sum + (e.yearly || 0), 0);
         const grossBAnnualTotal = grossBListRaw.reduce((sum, b) => sum + (b.yearly || 0), 0);
-        const grossCAnnualTotal = grossCListRaw.reduce((sum, b) => sum + (b.yearly || 0), 0);
+        const grossCAnnualTotal = finalGrossCListRaw.reduce((sum, b) => sum + (b.yearly || 0), 0);
+        const insuranceAnnualTotal = insuranceListRaw.reduce((sum, b) => sum + (b.yearly || 0), 0);
 
         const totals = {
             grossA: {
-                monthly: Math.round(grossAAnnual / 12),
-                yearly: Math.round(grossAAnnual),
-                formattedM: safeCur(grossAAnnual / 12),
-                formattedY: safeCur(grossAAnnual)
+                monthly: Math.round(grossAAnnualTotal / 12),
+                yearly: Math.round(grossAAnnualTotal),
+                formattedM: safeCur(grossAAnnualTotal / 12),
+                formattedY: safeCur(grossAAnnualTotal)
             },
             grossB: {
                 monthly: Math.round(grossBAnnualTotal / 12),
@@ -2411,6 +2456,12 @@ exports.previewJoiningLetter = async (req, res) => {
                 yearly: Math.round(grossCAnnualTotal),
                 formattedM: safeCur(grossCAnnualTotal / 12),
                 formattedY: safeCur(grossCAnnualTotal)
+            },
+            grossD: {
+                monthly: Math.round(insuranceAnnualTotal / 12),
+                yearly: Math.round(insuranceAnnualTotal),
+                formattedM: safeCur(insuranceAnnualTotal / 12),
+                formattedY: safeCur(insuranceAnnualTotal)
             },
             deductions: {
                 monthly: Math.round(totalDeductionsAnnual / 12),
@@ -2440,18 +2491,18 @@ exports.previewJoiningLetter = async (req, res) => {
         // ... (rest of logic same) ...
 
         const salaryStructure = {
-            earnings: earnings.map(e => ({ name: e.name || '', monthly: safeCur(e.monthly), yearly: safeCur(e.yearly) })),
+            earnings: enhancedEarnings.map(e => ({ name: e.name || '', monthly: safeCur(e.monthly), yearly: safeCur(e.yearly) })),
             deductions: employeeDeductions.map(d => ({ name: d.name || '', monthly: safeCur(d.monthly), yearly: safeCur(d.yearly) })),
-            benefits: benefits.map(b => ({ name: b.name || '', monthly: safeCur(b.monthly), yearly: safeCur(b.yearly) })),
+            benefits: otherBenefits.map(b => ({ name: b.name || '', monthly: safeCur(b.monthly), yearly: safeCur(b.yearly) })),
             totals: totals
         };
 
-        // RECONSTRUCTED: enhancedSalaryComponents for table rendering
+        // RECONSTRUCTED: enhancedSalaryComponents for table rendering (v10.1)
         const salaryComponents = [];
 
         // A - Monthly Benefits (Gross A)
         salaryComponents.push({ name: 'A – Monthly Benefits', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
-        earnings.forEach(e => {
+        enhancedEarnings.forEach(e => {
             const m = safeCur(e.monthly);
             const y = safeCur(e.yearly);
             salaryComponents.push({ name: e.name, monthly: m, yearly: y, annual: y, MONTHLY: m, YEARLY: y, ANNUAL: y });
@@ -2497,7 +2548,7 @@ exports.previewJoiningLetter = async (req, res) => {
         // C - Retirals
         salaryComponents.push({ name: '', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
         salaryComponents.push({ name: 'C – Retirals Company\'s Benefits', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
-        grossCListRaw.forEach(b => {
+        finalGrossCListRaw.forEach(b => {
             const m = safeCur(b.monthly);
             const y = safeCur(b.yearly);
             salaryComponents.push({ name: b.name, monthly: m, yearly: y, annual: y, MONTHLY: m, YEARLY: y, ANNUAL: y });
@@ -2508,10 +2559,24 @@ exports.previewJoiningLetter = async (req, res) => {
             MONTHLY: totals.grossC.formattedM, YEARLY: totals.grossC.formattedY, ANNUAL: totals.grossC.formattedY
         });
 
+        // D - Other Benefits
+        salaryComponents.push({ name: '', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
+        salaryComponents.push({ name: 'D – Other Benefits', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
+        insuranceListRaw.forEach(b => {
+            const m = safeCur(b.monthly);
+            const y = safeCur(b.yearly);
+            salaryComponents.push({ name: b.name, monthly: m, yearly: y, annual: y, MONTHLY: m, YEARLY: y, ANNUAL: y });
+        });
+        salaryComponents.push({
+            name: 'GROSS D',
+            monthly: totals.grossD.formattedM, yearly: totals.grossD.formattedY, annual: totals.grossD.formattedY,
+            MONTHLY: totals.grossD.formattedM, YEARLY: totals.grossD.formattedY, ANNUAL: totals.grossD.formattedY
+        });
+
         // Final CTC
         salaryComponents.push({ name: '', monthly: '', yearly: '', annual: '', MONTHLY: '', YEARLY: '', ANNUAL: '' });
         salaryComponents.push({
-            name: 'Computed CTC (A+B+C)',
+            name: 'Computed CTC (A+B+C+D)',
             monthly: totals.computedCTC.formattedM, yearly: totals.computedCTC.formattedY, annual: totals.computedCTC.formattedY,
             MONTHLY: totals.computedCTC.formattedM, YEARLY: totals.computedCTC.formattedY, ANNUAL: totals.computedCTC.formattedY
         });
@@ -2548,7 +2613,7 @@ exports.previewJoiningLetter = async (req, res) => {
             reference_number: refNo
         };
 
-        // DYNAMIC FLATTENING for Static Templates
+        // DYNAMIC FLATTENING for Static Templates (v10.1)
         const flatComponentMap = {};
         const populateFlatMap = (items) => {
             items.forEach(item => {
@@ -2564,12 +2629,12 @@ exports.previewJoiningLetter = async (req, res) => {
             });
         };
 
-        populateFlatMap(earnings);
+        populateFlatMap(enhancedEarnings);
         populateFlatMap(employeeDeductions);
-        populateFlatMap(benefits);
+        populateFlatMap(otherBenefits);
 
         // Fix BASIC specifically
-        const basicComp = earnings.find(e => e.name.toUpperCase().trim() === 'BASIC' || e.code === 'BASIC' || e.name.toUpperCase().trim().includes('BASIC SALARY'));
+        const basicComp = enhancedEarnings.find(e => e.name.toUpperCase().trim() === 'BASIC' || e.code === 'BASIC' || e.name.toUpperCase().trim().includes('BASIC SALARY'));
         if (basicComp) {
             flatComponentMap['BASIC_MONTHLY'] = safeCur(basicComp.monthly);
             flatComponentMap['BASIC_YEARLY'] = safeCur(basicComp.yearly);
@@ -2587,17 +2652,21 @@ exports.previewJoiningLetter = async (req, res) => {
             ...(req.calculatedSalaryData || {}),
             ...(req.flatSalaryData || {}),
 
-            // Hardcoded totals
+            // Hardcoded totals matching all possible DOCX tags
             GROSS_A_MONTHLY: totals.grossA.formattedM,
             GROSS_A_YEARLY: totals.grossA.formattedY,
             GROSS_B_MONTHLY: totals.grossB.formattedM,
             GROSS_B_YEARLY: totals.grossB.formattedY,
             GROSS_C_MONTHLY: totals.grossC.formattedM,
             GROSS_C_YEARLY: totals.grossC.formattedY,
+            GROSS_D_MONTHLY: totals.grossD.formattedM,
+            GROSS_D_YEARLY: totals.grossD.formattedY,
             NET_SALARY_MONTHLY: totals.net.formattedM,
             NET_SALARY_YEARLY: totals.net.formattedY,
             CTC_MONTHLY: totals.computedCTC.formattedM,
             CTC_YEARLY: totals.computedCTC.formattedY,
+            TAKE_HOME_MONTHLY: totals.net.formattedM,
+            TAKE_HOME_YEARLY: totals.net.formattedY,
 
             salary_table_text_block: enhancedSalaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n'),
             SALARY_TABLE: enhancedSalaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n')
@@ -3006,10 +3075,10 @@ exports.generateGenericLetter = async (req, res) => {
                 console.log(`📄 [generateGenericLetter] Converting DOCX to PDF using LibreOffice...`);
                 console.log(`📄 [generateGenericLetter] DOCX Path: ${tempDocxPath}`);
                 console.log(`📄 [generateGenericLetter] Output Dir: ${outputDir}`);
-
+                
                 const libreOfficeService = require('../services/LibreOfficeService');
                 libreOfficeService.convertToPdfSync(tempDocxPath, outputDir);
-
+                
                 // Verify PDF was created with the expected name
                 if (!fs.existsSync(outputPath)) {
                     console.error(`❌ [generateGenericLetter] Expected PDF not found at: ${outputPath}`);
@@ -3018,9 +3087,9 @@ exports.generateGenericLetter = async (req, res) => {
                     console.log(`📋 [generateGenericLetter] Files in ${outputDir}:`, files);
                     throw new Error(`PDF file was not created at expected path: ${outputPath}`);
                 }
-
+                
                 console.log(`✅ [generateGenericLetter] PDF conversion successful: ${outputPath}`);
-
+                
                 // Cleanup temporary docx
                 try {
                     fs.unlinkSync(tempDocxPath);
@@ -3208,6 +3277,340 @@ exports.actionLetterApproval = async (req, res) => {
 // Helper to round to 2 decimals
 const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
 
+// =========================================================================
+// PRODUCTION-GRADE DOCUMENT MANAGEMENT & REVOCATION SYSTEM
+// =========================================================================
+
+/**
+ * GET DOCUMENT STATUS
+ * Check if a document is currently revoked, viewed, etc.
+ * Non-destructive - purely informational
+ */
+exports.getDocumentStatus = async (req, res) => {
+    try {
+        const { documentId } = req.params;
+        const tenantId = req.user?.tenantId || req.tenantId;
+
+        // Validate ID
+        if (!documentId || !mongoose.Types.ObjectId.isValid(documentId)) {
+            return res.status(400).json({ success: false, message: 'Invalid document ID' });
+        }
+
+        // Initialize service
+        const DocumentManagementService = require('../services/DocumentManagementService');
+        const docService = new DocumentManagementService(req.tenantDB);
+
+        // Get document status
+        const status = await docService.getDocumentStatus(documentId, tenantId);
+
+        res.json({ success: true, data: status });
+    } catch (error) {
+        console.error('❌ [GET STATUS] Error:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * REVOKE LETTER/OFFER
+ * Instantly disable access, mark as REVOKED
+ * Notification email sent to applicant/employee
+ * Non-destructive, fully auditable, reversible by super-admin
+ */
+exports.revokeLetter = async (req, res) => {
+    try {
+        const { documentId } = req.params;
+        const { reason, reasonDetails } = req.body;
+        const tenantId = req.user?.tenantId || req.tenantId;
+
+        // Validate input
+        if (!documentId) {
+            return res.status(400).json({ success: false, message: 'Document ID required' });
+        }
+        if (!reason) {
+            return res.status(400).json({ success: false, message: 'Revocation reason required' });
+        }
+
+        // Check permissions - only HR, Admin, or Super-Admin can revoke
+        const allowedRoles = ['hr', 'admin', 'super_admin'];
+        if (!allowedRoles.includes(req.user?.role?.toLowerCase())) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only HR and Admin can revoke documents'
+            });
+        }
+
+        // Initialize services
+        const DocumentManagementService = require('../services/DocumentManagementService');
+        const EmailNotificationService = require('../services/EmailNotificationService');
+        const docService = new DocumentManagementService(req.tenantDB);
+        const emailService = new EmailNotificationService(process.env);
+
+        const { GeneratedLetter, Applicant, Employee } = getModels(req);
+
+        // Get document
+        const letter = await GeneratedLetter.findById(documentId);
+        if (!letter) {
+            return res.status(404).json({ success: false, message: 'Document not found' });
+        }
+
+        // Check if already revoked
+        const currentStatus = await docService.getDocumentStatus(documentId, tenantId);
+        if (currentStatus.isRevoked) {
+            return res.status(400).json({
+                success: false,
+                message: 'Document is already revoked'
+            });
+        }
+
+        // Perform revocation
+        const revocation = await docService.revokeLetter({
+            tenantId,
+            generatedLetterId: documentId,
+            applicantId: letter.applicantId,
+            employeeId: letter.employeeId,
+            revokedBy: req.user?.id || req.user?._id,
+            revokedByRole: req.user?.role || 'admin',
+            reason,
+            reasonDetails
+        });
+
+        // Log audit trail
+        await docService.logAuditAction({
+            tenantId,
+            documentId,
+            applicantId: letter.applicantId,
+            employeeId: letter.employeeId,
+            action: 'revoked',
+            performedBy: req.user?.id || req.user?._id,
+            performedByRole: req.user?.role || 'admin',
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent'),
+            reason,
+            metadata: { revocationId: revocation._id }
+        });
+
+        // Send email notification to applicant/employee
+        let recipient = null;
+        if (letter.applicantId) {
+            recipient = await Applicant.findById(letter.applicantId);
+        } else if (letter.employeeId) {
+            recipient = await Employee.findById(letter.employeeId);
+        }
+
+        if (recipient && recipient.email) {
+            try {
+                const emailResult = await emailService.sendOfferRevocationEmail({
+                    email: recipient.email,
+                    name: recipient.name || `${recipient.firstName} ${recipient.lastName}`,
+                    positionTitle: letter.letterType === 'offer' ? recipient.designation || 'Position' : 'Position',
+                    companyName: process.env.COMPANY_NAME || 'Our Company',
+                    revocationReason: reason,
+                    revocationDetails: reasonDetails,
+                    hrContactName: 'HR Team',
+                    hrContactEmail: process.env.HR_EMAIL || 'hr@company.com',
+                    tenantId
+                });
+
+                // Update revocation record with notification status
+                if (emailResult.success) {
+                    await LetterRevocation.findByIdAndUpdate(
+                        revocation._id,
+                        {
+                            'notificationSent.email': true,
+                            'notificationSent.sentAt': new Date(),
+                            'notificationSent.sentTo': [recipient.email]
+                        }
+                    );
+                    console.log(`✅ [REVOKE] Notification email sent to ${recipient.email}`);
+                }
+            } catch (emailErr) {
+                console.error(`❌ [REVOKE] Email notification failed:`, emailErr.message);
+                // Continue even if email fails
+            }
+        }
+
+        res.json({
+            success: true,
+            message: 'Document revoked successfully',
+            data: {
+                revocationId: revocation._id,
+                documentId,
+                revokedAt: revocation.revokedAt,
+                reason,
+                notificationSent: !!recipient
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ [REVOKE] Error:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * REINSTATE LETTER/OFFER
+ * Only super-admin can reinstate revoked documents
+ * Restores access, fully auditable
+ */
+exports.reinstateLetter = async (req, res) => {
+    try {
+        const { revocationId } = req.params;
+        const { reinstatedReason } = req.body;
+        const tenantId = req.user?.tenantId || req.tenantId;
+
+        // Check permissions - only super-admin can reinstate
+        if (req.user?.role?.toLowerCase() !== 'super_admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only super-admin can reinstate revoked documents'
+            });
+        }
+
+        // Initialize service
+        const DocumentManagementService = require('../services/DocumentManagementService');
+        const docService = new DocumentManagementService(req.tenantDB);
+
+        // Reinstate
+        const revocation = await docService.reinstateLetter(revocationId, {
+            reinstatedBy: req.user?.id || req.user?._id,
+            reinstatedByRole: req.user?.role,
+            reinstatedReason
+        });
+
+        // Log audit trail
+        await docService.logAuditAction({
+            tenantId,
+            documentId: revocation.generatedLetterId,
+            applicantId: revocation.applicantId,
+            employeeId: revocation.employeeId,
+            action: 'reinstated',
+            performedBy: req.user?.id || req.user?._id,
+            performedByRole: req.user?.role,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent'),
+            reason: `Reinstated: ${reinstatedReason || ''}`,
+            metadata: { revocationId }
+        });
+
+        res.json({
+            success: true,
+            message: 'Document reinstated successfully',
+            data: {
+                revocationId: revocation._id,
+                documentId: revocation.generatedLetterId,
+                reinstatedAt: revocation.reinstatedAt
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ [REINSTATE] Error:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * GET DOCUMENT AUDIT TRAIL
+ * Complete history of all interactions with a document
+ * Who created, viewed, downloaded, revoked, etc.
+ */
+exports.getDocumentAuditTrail = async (req, res) => {
+    try {
+        const { documentId } = req.params;
+        const { limit = 100 } = req.query;
+        const tenantId = req.user?.tenantId || req.tenantId;
+
+        // Validate ID
+        if (!documentId || !mongoose.Types.ObjectId.isValid(documentId)) {
+            return res.status(400).json({ success: false, message: 'Invalid document ID' });
+        }
+
+        // Initialize service
+        const DocumentManagementService = require('../services/DocumentManagementService');
+        const docService = new DocumentManagementService(req.tenantDB);
+
+        // Get audit trail
+        const trail = await docService.getAuditTrail(documentId, tenantId, parseInt(limit));
+
+        res.json({
+            success: true,
+            data: {
+                documentId,
+                auditTrail: trail,
+                count: trail.length
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ [AUDIT TRAIL] Error:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * GET REVOCATION HISTORY
+ * All revocation and reinstatement events for a document
+ */
+exports.getRevocationHistory = async (req, res) => {
+    try {
+        const { documentId } = req.params;
+        const tenantId = req.user?.tenantId || req.tenantId;
+
+        // Validate ID
+        if (!documentId || !mongoose.Types.ObjectId.isValid(documentId)) {
+            return res.status(400).json({ success: false, message: 'Invalid document ID' });
+        }
+
+        // Initialize service
+        const DocumentManagementService = require('../services/DocumentManagementService');
+        const docService = new DocumentManagementService(req.tenantDB);
+
+        // Get revocation history
+        const history = await docService.getRevocationHistory(documentId, tenantId);
+
+        res.json({
+            success: true,
+            data: {
+                documentId,
+                revocationHistory: history,
+                count: history.length
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ [REVOCATION HISTORY] Error:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * ENFORCE ACCESS CONTROL
+ * Check if user can access document (not revoked, not expired)
+ * Called before serving document
+ */
+exports.enforceDocumentAccess = async (req, res) => {
+    try {
+        const { documentId } = req.params;
+        const tenantId = req.user?.tenantId || req.tenantId;
+        const userId = req.user?.id || req.user?._id;
+
+        // Initialize service
+        const DocumentManagementService = require('../services/DocumentManagementService');
+        const docService = new DocumentManagementService(req.tenantDB);
+
+        // Check access
+        const result = await docService.enforceAccessControl(documentId, userId, tenantId);
+
+        if (!result.allowed) {
+            return res.status(403).json({ success: false, message: result.reason });
+        }
+
+        res.json({ success: true, data: result });
+
+    } catch (error) {
+        console.error('❌ [ACCESS CONTROL] Error:', error.message);
+        res.status(403).json({ success: false, message: error.message });
+    }
+};
 
 module.exports = exports;
 

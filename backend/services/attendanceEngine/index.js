@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { isWeeklyOffDate } = require('../attendanceRulesEngine');
 
 /**
  * Attendance Engine: Converts live attendance logs into immutable snapshots
@@ -14,6 +15,7 @@ class AttendanceEngine {
     static async generateSnapshot({ tenantDB, employeeId, period }) {
         const Attendance = tenantDB.model('Attendance');
         const AttendanceSnapshot = tenantDB.model('AttendanceSnapshot');
+        const AttendanceSettings = tenantDB.model('AttendanceSettings');
 
         // Parse period
         const [year, month] = period.split('-').map(Number);
@@ -27,6 +29,9 @@ class AttendanceEngine {
             date: { $gte: startDate, $lte: endDate }
         }).lean();
 
+        // Fetch settings once for weekly off / advanced rules
+        let settings = await AttendanceSettings.findOne({}).lean().catch(() => null);
+
         // Calculate metrics
         let presentDays = 0;
         let absentDays = 0;
@@ -37,17 +42,42 @@ class AttendanceEngine {
         let halfDays = 0;
 
         attendanceRecords.forEach(rec => {
-            switch (rec.status) {
-                case 'present': presentDays++; break;
-                case 'absent': absentDays++; break;
-                case 'leave': leaveDays++; break;
-                case 'holiday': holidays++; break;
-                case 'weekly_off': weeklyOffs++; break;
-                case 'half_day':
-                    presentDays += 0.5;
-                    halfDays++;
-                    break;
+            const status = (rec.status || '').toLowerCase();
+            const date = new Date(rec.date);
+
+            // Holiday takes precedence over weekly off
+            if (status === 'holiday') {
+                holidays++;
+            } else {
+                const weekly = isWeeklyOffDate({
+                    date,
+                    settings: settings || { weeklyOffDays: [0] },
+                    employeeId: rec.employee
+                });
+
+                if (weekly.isWeeklyOff) {
+                    weeklyOffs++;
+                } else {
+                    switch (status) {
+                        case 'present':
+                            presentDays++;
+                            break;
+                        case 'absent':
+                            absentDays++;
+                            break;
+                        case 'leave':
+                            leaveDays++;
+                            break;
+                        case 'half_day':
+                            presentDays += 0.5;
+                            halfDays++;
+                            break;
+                        default:
+                            break;
+                    }
+                }
             }
+
             if (rec.isLate) lateMarks++;
         });
 

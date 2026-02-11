@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Pagination, notification } from 'antd';
 import api from '../../utils/api';
 import {
-  CheckCircle, XCircle, Search, Filter,
-  Calendar, User, Clock, AlertCircle, FileText
+  Search, FileText
 } from '../../components/Icons';
 import { formatDateDDMMYYYY } from '../../utils/dateUtils';
 
@@ -12,62 +11,32 @@ export default function Leaves() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All'); // All, Pending, Approved, Rejected
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Action Modal
-  const [selectedLeave, setSelectedLeave] = useState(null);
-  const [actionType, setActionType] = useState(null); // 'Approved' | 'Rejected'
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [processing, setProcessing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
   useEffect(() => {
     fetchLeaves();
-  }, []);
+  }, [currentPage]);
 
   const fetchLeaves = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/hr/leaves');
-      setLeaves(res.data);
+      const res = await api.get(`/hr/leaves/requests?page=${currentPage}&limit=${pageSize}`);
+      
+      // Handle both paginated and non-paginated responses
+      if (res.data.data) {
+        // New format with pagination
+        setLeaves(res.data.data);
+      } else {
+        // Fallback for array response
+        setLeaves(Array.isArray(res.data) ? res.data : []);
+      }
     } catch (err) {
       console.error("Failed to fetch leaves", err);
+      setLeaves([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAction = async () => {
-    if (!selectedLeave || !actionType) return;
-
-    try {
-      setProcessing(true);
-      const payload = { status: actionType };
-      if (actionType === 'Rejected') {
-        payload.rejectionReason = rejectionReason;
-      }
-
-      await api.post(`/hr/leaves/${selectedLeave._id}/action`, payload);
-
-      // Refresh list
-      await fetchLeaves();
-
-      // Close modal
-      setSelectedLeave(null);
-      setActionType(null);
-      setRejectionReason('');
-    } catch (err) {
-      notification.error({ message: 'Error', description: "Failed to update status", placement: 'topRight' });
-      console.error(err);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const openActionModal = (leave, type) => {
-    setSelectedLeave(leave);
-    setActionType(type);
-    setRejectionReason('');
   };
 
   // Filter logic
@@ -151,14 +120,12 @@ export default function Leaves() {
                   <th className="px-6 py-3">Duration</th>
                   <th className="px-6 py-3">Reason</th>
                   <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredLeaves.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((leave) => {
                   const start = formatDateDDMMYYYY(leave.startDate);
                   const end = formatDateDDMMYYYY(leave.endDate);
-                  const showActions = leave.status === 'Pending';
 
                   return (
                     <tr key={leave._id} className="hover:bg-gray-50/50 transition-colors">
@@ -199,31 +166,6 @@ export default function Leaves() {
                           {leave.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        {showActions && (
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => openActionModal(leave, 'Approved')}
-                              className="p-1.5 rounded-md text-green-600 hover:bg-green-50 transition-colors"
-                              title="Approve"
-                            >
-                              <CheckCircle className="w-5 h-5" />
-                            </button>
-                            <button
-                              onClick={() => openActionModal(leave, 'Rejected')}
-                              className="p-1.5 rounded-md text-red-600 hover:bg-red-50 transition-colors"
-                              title="Reject"
-                            >
-                              <XCircle className="w-5 h-5" />
-                            </button>
-                          </div>
-                        )}
-                        {!showActions && leave.status === 'Rejected' && leave.rejectionReason && (
-                          <span className="text-xs text-red-500 italic" title={leave.rejectionReason}>
-                            Reason: {leave.rejectionReason}
-                          </span>
-                        )}
-                      </td>
                     </tr>
                   );
                 })}
@@ -243,61 +185,6 @@ export default function Leaves() {
           </div>
         )}
       </div>
-
-      {/* Confirmation Modal */}
-      {selectedLeave && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                {actionType === 'Approved' ? 'Approve Request' : 'Reject Request'}
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Are you sure you want to {actionType?.toLowerCase()} the leave request for
-                <span className="font-medium text-gray-700 ml-1">
-                  {selectedLeave.employee?.firstName} {selectedLeave.employee?.lastName}
-                </span>?
-              </p>
-
-              {actionType === 'Rejected' && (
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Reason for Rejection</label>
-                  <textarea
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
-                    rows="3"
-                    placeholder="Briefly explain why..."
-                  />
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setSelectedLeave(null)}
-                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
-                  disabled={processing}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAction}
-                  disabled={processing}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium text-white shadow-sm transition-all
-                    ${actionType === 'Approved'
-                      ? 'bg-green-600 hover:bg-green-700'
-                      : 'bg-red-600 hover:bg-red-700'
-                    }
-                    ${processing ? 'opacity-70 cursor-not-allowed' : ''}
-                  `}
-                >
-                  {processing ? 'Processing...' : 'Confirm'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,9 +1,6 @@
 const mongoose = require('mongoose');
 const getTenantDB = require('../utils/tenantDB');
-const OfferSchema = require('../models/Offer');
-
-// GLOBAL MODEL for Shared Collection
-const GlobalOfferModel = mongoose.models.GlobalOffer || mongoose.model('GlobalOffer', OfferSchema, 'offers');
+const { getBGVModels } = require('../utils/bgvModels');
 
 class RecruitmentService {
 
@@ -212,33 +209,26 @@ class RecruitmentService {
 
         // Need to populate correctly
         const applicants = await Applicant.find({ tenant: tenantId })
-            .populate('requirementId', 'jobTitle jobOpeningId vacancy')
+            .populate('requirementId', 'jobTitle jobOpeningId')
             .populate('candidateId', 'name email mobile')
             .populate('salarySnapshotId')
             .sort({ createdAt: -1 })
-            .lean(); // Use lean for easier modification
+            .lean();
 
-        // 2. Fetch Latest Offers for these applicants from Global collection
-        const applicantIds = applicants.map(a => a._id);
-        const offers = await GlobalOfferModel.find({
-            candidateId: { $in: applicantIds },
-            tenantId: tenantId,
-            isLatest: true
-        }).select('candidateId status expiryDate offerDate token');
+        // Attach BGV Status to each applicant
+        const { BGVCase } = await getBGVModels(tenantId);
+        const bgvCases = await BGVCase.find({ tenant: tenantId });
 
-        // 3. Map offers to applicants
-        const offerMap = {};
-        offers.forEach(o => { offerMap[o.candidateId.toString()] = o; });
-
-        return applicants.map(app => {
+        const applicantsWithBGV = applicants.map(app => {
+            const bgv = bgvCases.find(b => b.applicationId.toString() === app._id.toString());
             return {
                 ...app,
-                totalVacancies: app.requirementId?.vacancy || 1,
-                latestOffer: offerMap[app._id.toString()] || null,
-                bgvStatus: 'NOT_INITIATED',
-                bgvId: null
+                bgvStatus: bgv ? bgv.overallStatus : 'NOT_INITIATED',
+                bgvId: bgv ? bgv._id : null
             };
         });
+
+        return applicantsWithBGV;
     }
 
     async applyForJob(jobId, candidateId, data) {

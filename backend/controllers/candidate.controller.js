@@ -1,3 +1,57 @@
+// Update candidate profile
+exports.updateCandidateProfile = async (req, res) => {
+    try {
+        const { id, tenantId } = req.candidate;
+        const { name, email, phone, professionalTier } = req.body;
+        const tenantDB = await getTenantDB(tenantId);
+        const Candidate = tenantDB.model("Candidate");
+
+        const update = {
+            name,
+            email,
+            mobile: phone,
+            professionalTier,
+        };
+
+        // If a new profile image was uploaded
+        if (req.file) {
+            update.profilePic = `uploads/profile-pics/${req.file.filename}`;
+        }
+
+        const candidate = await Candidate.findByIdAndUpdate(id, update, { new: true });
+        if (!candidate) return res.status(404).json({ error: "Candidate not found" });
+
+        res.json({ success: true, candidate });
+    } catch (err) {
+        console.error("Profile update error:", err);
+        res.status(500).json({ error: "Failed to update profile", details: err.message });
+    }
+};
+
+// Get candidate profile
+exports.getCandidateProfile = async (req, res) => {
+    try {
+        const { tenantId, id } = req.candidate;
+        const tenantDB = await getTenantDB(tenantId);
+        const Candidate = tenantDB.model("Candidate");
+        const candidate = await Candidate.findById(id).select('-password');
+
+        if (!candidate) {
+            return res.status(404).json({ error: "Candidate not found" });
+        }
+
+        res.json({
+            name: candidate.name,
+            email: candidate.email,
+            phone: candidate.mobile,
+            professionalTier: candidate.professionalTier || 'Technical Leader', // fallback or real field
+            // Include other fields as needed
+            ...candidate.toObject()
+        });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch profile", details: err.message });
+    }
+};
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const getTenantDB = require('../utils/tenantDB');
@@ -6,15 +60,15 @@ exports.registerCandidate = async (req, res) => {
     try {
         const { tenantId, name, email, password, mobile } = req.body;
         console.log('🔍 [CANDIDATE REGISTER] Request:', { tenantId, name, email, mobile });
-        
+
         if (!tenantId || !name || !email || !password) {
             console.warn('❌ [CANDIDATE REGISTER] Missing fields');
             return res.status(400).json({ error: "All fields are required" });
         }
-        
+
         const tenantDB = await getTenantDB(tenantId);
         console.log('✅ [CANDIDATE REGISTER] TenantDB obtained:', tenantDB.tenantId);
-        
+
         // Get or create Candidate model directly with schema
         let Candidate;
         try {
@@ -24,22 +78,22 @@ exports.registerCandidate = async (req, res) => {
             const CandidateSchema = require("../models/Candidate");
             Candidate = tenantDB.model("Candidate", CandidateSchema);
         }
-        
+
         console.log('✅ [CANDIDATE REGISTER] Candidate model loaded');
-        
+
         const existing = await Candidate.findOne({ email, tenant: tenantDB.tenantId });
         if (existing) {
             console.warn('⚠️ [CANDIDATE REGISTER] Email already registered:', email);
             return res.status(400).json({ error: "Email already registered" });
         }
-        
+
         const hashedPassword = await bcrypt.hash(password, 10);
         const candidate = new Candidate({ tenant: tenantDB.tenantId, name, email, password: hashedPassword, mobile });
         console.log('💾 [CANDIDATE REGISTER] Saving candidate:', email);
-        
+
         await candidate.save();
         console.log('✅ [CANDIDATE REGISTER] Registration successful for:', email);
-        
+
         res.status(201).json({ message: "Registration successful. Please login." });
     } catch (err) {
         console.error('❌ [CANDIDATE REGISTER] Error:', err.message, err.stack);
@@ -51,15 +105,15 @@ exports.loginCandidate = async (req, res) => {
     try {
         const { tenantId, email, password } = req.body;
         console.log('🔍 [CANDIDATE LOGIN] Request:', { tenantId, email });
-        
+
         if (!tenantId || !email || !password) {
             console.warn('❌ [CANDIDATE LOGIN] Missing fields');
             return res.status(400).json({ error: "Required fields missing" });
         }
-        
+
         const tenantDB = await getTenantDB(tenantId);
         console.log('✅ [CANDIDATE LOGIN] TenantDB obtained:', tenantDB.tenantId);
-        
+
         // Get or create Candidate model directly with schema
         let Candidate;
         try {
@@ -69,26 +123,26 @@ exports.loginCandidate = async (req, res) => {
             const CandidateSchema = require("../models/Candidate");
             Candidate = tenantDB.model("Candidate", CandidateSchema);
         }
-        
+
         const candidate = await Candidate.findOne({ email, tenant: tenantDB.tenantId });
-        
+
         if (!candidate) {
             console.warn('❌ [CANDIDATE LOGIN] Candidate not found:', email);
             return res.status(400).json({ error: "Invalid credentials" });
         }
-        
+
         const isValid = await bcrypt.compare(password, candidate.password);
         if (!isValid) {
             console.warn('❌ [CANDIDATE LOGIN] Invalid password');
             return res.status(400).json({ error: "Invalid credentials" });
         }
-        
+
         const token = jwt.sign(
             { id: candidate._id, tenantId: tenantDB.tenantId, role: 'candidate' },
             process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
-        
+
         console.log('✅ [CANDIDATE LOGIN] Token generated for:', email);
         res.json({
             token,
@@ -96,12 +150,39 @@ exports.loginCandidate = async (req, res) => {
                 id: candidate._id,
                 name: candidate.name,
                 email: candidate.email,
-                mobile: candidate.mobile
+                mobile: candidate.mobile,
+                profilePic: candidate.profilePic
             }
         });
     } catch (err) {
         console.error('❌ [CANDIDATE LOGIN] Error:', err.message, err.stack);
         res.status(500).json({ error: "Login failed" });
+    }
+};
+
+exports.getCandidateMe = async (req, res) => {
+    try {
+        const { tenantId, id } = req.candidate;
+        const tenantDB = await getTenantDB(tenantId);
+        const Candidate = tenantDB.model("Candidate");
+        const candidate = await Candidate.findById(id).select('-password');
+
+        if (!candidate) {
+            return res.status(404).json({ success: false, message: "Candidate not found" });
+        }
+
+        res.json({
+            success: true,
+            candidate: {
+                id: candidate._id,
+                name: candidate.name,
+                email: candidate.email,
+                mobile: candidate.mobile,
+                profilePic: candidate.profilePic
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 };
 
@@ -111,7 +192,7 @@ exports.getCandidateDashboard = async (req, res) => {
         const tenantDB = await getTenantDB(tenantId);
         const Candidate = tenantDB.model("Candidate");
         const Applicant = tenantDB.model("Applicant");
-        if (!tenantDB.models.Requirement) tenantDB.model("Requirement", require('../models/Requirement').schema);
+        if (!tenantDB.models.Requirement) tenantDB.model("Requirement", require('../models/Requirement'));
         let candidate = await Candidate.findById(id).select('-password');
         const applications = await Applicant.find({ candidateId: id })
             .populate('requirementId', 'jobTitle department status')

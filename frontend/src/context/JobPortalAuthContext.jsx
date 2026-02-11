@@ -4,17 +4,24 @@
  * COMPLETELY ISOLATED from HRMS AuthContext
  * Used ONLY for Job Portal (candidate login/signup)
  */
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback
+} from 'react';
 import { jwtDecode } from 'jwt-decode';
-
 import api from '../utils/api';
 
-export const JobPortalAuthContext = createContext();
+export const JobPortalAuthContext = createContext(null);
 
 export const useJobPortalAuth = () => {
   const context = useContext(JobPortalAuthContext);
   if (!context) {
-    throw new Error('useJobPortalAuth must be used within JobPortalAuthProvider');
+    throw new Error(
+      'useJobPortalAuth must be used within JobPortalAuthProvider'
+    );
   }
   return context;
 };
@@ -25,63 +32,151 @@ export function JobPortalAuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Initialize on mount
+  // --------------------------------------------
+  // Initialize authentication on mount
+  // --------------------------------------------
   useEffect(() => {
-    const initializeJobPortalAuth = () => {
-      const candidateToken = localStorage.getItem('token');
-      const candidateData = localStorage.getItem('candidate');
+    let isMounted = true;
 
-      if (!candidateToken) {
-        setCandidate(null);
-        setIsInitialized(true);
-        return;
-      }
-
+    const initializeJobPortalAuth = async () => {
       try {
-        const payload = jwtDecode(candidateToken);
+        const token = localStorage.getItem('token');
+        const cachedCandidate = localStorage.getItem('candidate');
 
-        // Check token expiry
-        if (payload.exp && payload.exp * 1000 < Date.now()) {
-          console.warn('Job Portal Token expired');
-          localStorage.removeItem('token');
-          localStorage.removeItem('candidate');
-          setCandidate(null);
-          setIsInitialized(true);
+        if (!token) {
+          if (isMounted) {
+            setCandidate(null);
+            setIsInitialized(true);
+          }
           return;
         }
 
+        let payload;
+        try {
+          payload = jwtDecode(token);
+        } catch {
+          throw new Error('Invalid JWT token');
+        }
+
+        // Validate minimal payload
+        if (!payload?.id || !payload?.tenantId) {
+          throw new Error('Invalid token payload');
+        }
+
+        // Handle expiry (seconds OR milliseconds)
+        if (payload.exp) {
+          const expiresAt =
+            payload.exp > 1e12 ? payload.exp : payload.exp * 1000;
+
+          if (expiresAt < Date.now()) {
+            console.warn('[JobPortalAuth] Token expired');
+            localStorage.removeItem('token');
+            localStorage.removeItem('candidate');
+            if (isMounted) {
+              setCandidate(null);
+              setIsInitialized(true);
+            }
+            return;
+          }
+        }
+
+        // Trusted token-based identity
         let candidateInfo = {
           id: payload.id,
           tenantId: payload.tenantId,
-          role: 'candidate',
+          role: userRole,
           email: payload.email
         };
 
-        if (candidateData) {
+        // Merge ONLY non-sensitive cached fields
+        if (cachedCandidate) {
           try {
-            candidateInfo = { ...candidateInfo, ...JSON.parse(candidateData) };
-          } catch (e) { /* ignore */ }
+            const stored = JSON.parse(cachedCandidate);
+            candidateInfo = {
+              ...candidateInfo,
+              name: stored.name,
+              profile: stored.profile,
+              avatar: stored.avatar
+            };
+          } catch {
+            console.warn('[JobPortalAuth] Corrupted candidate cache cleared');
+            localStorage.removeItem('candidate');
+          }
         }
 
-        setCandidate(candidateInfo);
-      } catch (e) {
-        console.error('Job Portal Auth initialization error:', e);
+        if (isMounted) {
+          setCandidate(candidateInfo);
+        }
+
+        console.log(
+          `[JobPortalAuth] Initializing with role: ${candidateInfo.role}`
+        );
+
+        // Sync latest candidate data
+        if (candidateInfo.role === 'candidate') {
+          try {
+            // Ensure candidate API call uses the candidate token (localStorage)
+            const res = await api.get('/candidate/me', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.data?.success && res.data?.candidate) {
+              const updatedInfo = {
+                ...candidateInfo,
+                ...res.data.candidate
+              };
+
+              if (isMounted) {
+                setCandidate(updatedInfo);
+              }
+
+              localStorage.setItem('candidate', JSON.stringify(updatedInfo));
+            }
+          } catch (apiErr) {
+            console.warn(
+              `[JobPortalAuth] Sync failed: ${apiErr.message} (${apiErr.response?.status})`
+            );
+
+            // Treat 403 the same as 401 for candidate sessions (invalid/incorrect token)
+            if (apiErr.response?.status === 401 || apiErr.response?.status === 403) {
+              localStorage.removeItem('token');
+              localStorage.removeItem('candidate');
+              if (isMounted) {
+                setCandidate(null);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[JobPortalAuth] Initialization error:', err);
         localStorage.removeItem('token');
         localStorage.removeItem('candidate');
-        setCandidate(null);
+        if (isMounted) {
+          setCandidate(null);
+        }
       } finally {
-        setIsInitialized(true);
+        if (isMounted) {
+          setIsInitialized(true);
+        }
       }
     };
 
     initializeJobPortalAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
+  // --------------------------------------------
+  // Login
+  // --------------------------------------------
   const loginCandidate = useCallback(async (tenantId, email, password) => {
     setIsLoading(true);
     setError(null);
+
     try {
-      const res = await api.post('/jobs/candidate/login', {
+      const res = await api.post('/candidate/login', {
         tenantId,
         email,
         password
@@ -89,7 +184,6 @@ export function JobPortalAuthProvider({ children }) {
 
       const token = res.data.token;
 
-      // Store in standard storage keys
       localStorage.setItem('token', token);
       localStorage.setItem('tenantId', tenantId);
 
@@ -103,8 +197,11 @@ export function JobPortalAuthProvider({ children }) {
       setCandidate(candidateData);
 
       return { success: true, candidate: candidateData };
-    } catch (error) {
-      const message = error.response?.data?.error || 'Login failed';
+    } catch (err) {
+      const message =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        'Login failed';
       setError(message);
       return { success: false, message };
     } finally {
@@ -112,14 +209,21 @@ export function JobPortalAuthProvider({ children }) {
     }
   }, []);
 
+  // --------------------------------------------
+  // Registration
+  // --------------------------------------------
   const registerCandidate = useCallback(async (data) => {
     setIsLoading(true);
     setError(null);
+
     try {
-      const res = await api.post('/jobs/candidate/register', data);
+      const res = await api.post('/candidate/register', data);
       return { success: true, ...res.data };
-    } catch (error) {
-      const message = error.response?.data?.error || error.response?.data?.message || 'Registration failed';
+    } catch (err) {
+      const message =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        'Registration failed';
       setError(message);
       return { success: false, message };
     } finally {
@@ -127,12 +231,38 @@ export function JobPortalAuthProvider({ children }) {
     }
   }, []);
 
+  // --------------------------------------------
+  // Logout
+  // --------------------------------------------
   const logoutCandidate = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('candidate');
-    // localStorage.removeItem('tenantId'); // Keep for easy re-login
     setCandidate(null);
   }, []);
+
+  // --------------------------------------------
+  // Refresh candidate profile
+  // --------------------------------------------
+  const refreshCandidate = useCallback(async () => {
+    if (!candidate || candidate.role !== 'candidate') return;
+
+    try {
+      const res = await api.get('/candidate/me');
+      if (res.data?.success) {
+        const updatedInfo = {
+          ...candidate,
+          ...res.data.candidate
+        };
+        setCandidate(updatedInfo);
+        localStorage.setItem(
+          'candidate',
+          JSON.stringify(updatedInfo)
+        );
+      }
+    } catch (err) {
+      console.warn('[JobPortalAuth] Refresh failed:', err.message);
+    }
+  }, [candidate]);
 
   const value = {
     candidate,
@@ -141,7 +271,8 @@ export function JobPortalAuthProvider({ children }) {
     error,
     loginCandidate,
     registerCandidate,
-    logoutCandidate
+    logoutCandidate,
+    refreshCandidate
   };
 
   return (

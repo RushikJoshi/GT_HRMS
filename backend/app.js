@@ -88,6 +88,13 @@ try {
     mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
     mongoose.model('CandidateStatusLog', require('./models/CandidateStatusLog'));
     mongoose.model('PayrollAdjustment', require('./models/PayrollAdjustment'));
+
+    // BGV Models
+    mongoose.model('BGVCase', require('./models/BGVCase'));
+    mongoose.model('BGVCheck', require('./models/BGVCheck'));
+    mongoose.model('BGVDocument', require('./models/BGVDocument'));
+    mongoose.model('BGVTimeline', require('./models/BGVTimeline'));
+    mongoose.model('BGVReport', require('./models/BGVReport'));
 } catch (e) {
     console.warn("Model registration warning:", e.message);
 }
@@ -110,6 +117,7 @@ const commentRoutes = require('./routes/comment.routes');
 const entityRoutes = require('./routes/entity.routes');
 const holidayRoutes = require('./routes/holiday.routes');
 const attendanceRoutes = require('./routes/attendance.routes');
+const attendancePolicyRoutes = require('./routes/attendancePolicy.routes');
 const letterRoutes = require('./routes/letter.routes');
 const offerTemplateRoutes = require('./routes/offerTemplate.routes');
 const payslipTemplateRoutes = require('./routes/payslipTemplate.routes');
@@ -128,6 +136,9 @@ const payrollAdjustmentRoutes = require('./routes/payrollAdjustment.routes');
 // Company ID Configuration
 const companyIdConfigRoutes = require('./routes/companyIdConfig.routes');
 const positionRoutes = require('./routes/position.routes');
+
+// Career Page (Optimized for 16MB limit fix)
+const careerOptimizedRoutes = require('./routes/career-optimized.routes');
 
 /* ===============================
    ROUTES (NO TENANT)
@@ -172,14 +183,20 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/entities', entityRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/attendance-policy', attendancePolicyRoutes);
 app.use('/api/salary-structure', salaryStructureRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
+app.use('/api/bgv', require('./routes/bgv.routes'));
+
+app.use('/api/career', careerOptimizedRoutes);
+app.use('/api/social-media', require('./routes/socialMedia.routes'));
+
 
 app.use('/api/positions', positionRoutes);
-app.use('/api/offers', offerRoutes);
+
 /* ===============================
    HRMS ALIAS ROUTES (For Frontend Inconsistencies)
 ================================ */
@@ -191,6 +208,7 @@ app.use(hrmsPrefix + '/letters', letterRoutes);
 app.use(hrmsPrefix + '/offer-templates', offerTemplateRoutes);
 app.use(hrmsPrefix + '/payslip-templates', payslipTemplateRoutes);
 app.use(hrmsPrefix + '/attendance', attendanceRoutes);
+app.use(hrmsPrefix + '/attendance-policy', attendancePolicyRoutes);
 app.use(hrmsPrefix + '/payroll', payrollRoutes);
 app.use(hrmsPrefix + '/payroll/corrections', payrollAdjustmentRoutes);
 app.use(hrmsPrefix + '/compensation', compensationRoutes);
@@ -206,7 +224,11 @@ app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {
     return letterRoutes(req, res, next);
 });
 
-// Alias /hr/ -> hrRoutes (handles /hr/employees etc)
+
+app.use(hrmsPrefix + '/interviews', require('./routes/interview.routes'));
+
+// Alias /hrms/hr/ -> hrRoutes (handles /hrms/hr/employees etc)
+
 // Since hrRoutes already prefixes routes with /hr, we mount it at the root of /api/hrms
 app.use(hrmsPrefix, hrRoutes);
 
@@ -242,9 +264,10 @@ app.use('/api/hrms', deductionRoutes);
 ================================ */
 const uploadsDir = path.join(__dirname, 'uploads');
 const offersDir = path.join(uploadsDir, 'offers');
+const profilePicsDir = path.join(uploadsDir, 'profile-pics');
 
 try {
-    [uploadsDir, offersDir].forEach(dir => {
+    [uploadsDir, offersDir, profilePicsDir].forEach(dir => {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     });
 } catch (e) {
