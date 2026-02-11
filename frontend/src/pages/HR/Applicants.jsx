@@ -972,7 +972,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         setShowBGVModal(true);
     };
 
-    const handleBGVSuccess = () => {
+    const   handleBGVSuccess = () => {
         setShowBGVModal(false);
         setBgvCandidate(null);
         loadApplicants(); // Refresh to show updated BGV status
