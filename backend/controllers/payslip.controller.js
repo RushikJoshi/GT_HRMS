@@ -77,11 +77,74 @@ exports.getPayslip = async (req, res) => {
             }
         });
 
+        // Start of replaced content
     } catch (error) {
         console.error("[GET_PAYSLIP] Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+/**
+ * Get payslip for a specific employee and period (query param support)
+ * GET /api/payroll/payslips/:employeeId?month=YYYY-MM
+ */
+exports.getPayslipByEmployeeAndMonth = async (req, res) => {
+    try {
+        const { employeeId } = req.params;
+        const { month } = req.query; // format: "2026-02"
+        const tenantId = req.user.tenantId;
+
+        if (!month) {
+            return res.status(400).json({ success: false, message: "Month query parameter is required (YYYY-MM)" });
+        }
+
+        const [currYear, currMonth] = month.split('-');
+
+        const { Payslip, Employee } = getModels(req);
+
+        // Find the payslip for the period
+        const payslip = await Payslip.findOne({
+            tenantId,
+            employeeId,
+            month: parseInt(currMonth),
+            year: parseInt(currYear)
+        }).lean();
+
+        if (!payslip) {
+            return res.status(404).json({ success: false, message: "Payslip not found for this period" });
+        }
+
+        // Populate employee details for display
+        const employee = await Employee.findById(employeeId).select('firstName lastName employeeId department designation bankDetails').lean();
+
+        // Populate department name if needed
+        if (employee.department) {
+            const Department = req.tenantDB.model('Department');
+            const dept = await Department.findById(employee.department);
+            if (dept) employee.departmentName = dept.name;
+        }
+
+        res.json({
+            success: true,
+            data: {
+                employeeDetails: employee,
+                payslipDate: new Date(payslip.year, payslip.month - 1, 1),
+                earnings: payslip.earningsSnapshot || payslip.earnings,
+                deductions: payslip.preTaxDeductionsSnapshot || payslip.deductions,
+                reimbursements: payslip.reimbursements || [],
+                attendance: payslip.attendanceSummary || payslip.attendance,
+                grossEarnings: payslip.grossEarnings,
+                totalDeductions: (payslip.preTaxDeductionsTotal || 0) + (payslip.incomeTax || 0) + (payslip.postTaxDeductionsTotal || 0),
+                netPay: payslip.netPay
+            }
+        });
+
+    } catch (error) {
+        console.error("[GET_PAYSLIP_PREVIEW] Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+// End of replaced content
 
 /**
  * Get all payslips for the logged-in employee

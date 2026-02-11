@@ -154,6 +154,9 @@ exports.createTemplate = async (req, res) => {
         await template.save();
         res.status(201).json({ success: true, data: template });
     } catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({ success: false, message: 'Template name already exists. Please choose a different name.' });
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -208,7 +211,7 @@ exports.uploadWordTemplate = [
 exports.updateTemplate = async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
-        const { name, htmlContent, isDefault, isActive } = req.body;
+        const { name, htmlContent, isDefault, isActive, builderConfig } = req.body;
         const PayslipTemplateModel = req.tenantDB.model('PayslipTemplate');
 
         const template = await PayslipTemplateModel.findOne({ _id: req.params.id });
@@ -223,6 +226,11 @@ exports.updateTemplate = async (req, res) => {
             template.htmlContent = htmlContent;
             template.placeholders = extractPlaceholders(htmlContent);
         }
+        if (builderConfig) {
+            template.builderConfig = builderConfig;
+            // Ensure Mixed type is marked as modified
+            template.markModified('builderConfig');
+        }
         if (typeof isDefault !== 'undefined') template.isDefault = isDefault;
         if (typeof isActive !== 'undefined') template.isActive = isActive;
         template.updatedBy = req.user.id;
@@ -230,6 +238,9 @@ exports.updateTemplate = async (req, res) => {
         await template.save();
         res.json({ success: true, data: template });
     } catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({ success: false, message: 'Template name already exists. Please choose a different name.' });
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -765,3 +776,194 @@ exports.previewTemplate = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+/**
+ * Helper function to convert Builder Config JSON to HTML string
+ */
+function convertBuilderConfigToHtml(config, data) {
+    if (!config || !config.sections) return '';
+
+    const styles = config.styles || {};
+    const bodyStyles = `
+        font-family: '${styles.fontFamily || 'Inter'}', sans-serif;
+        font-size: ${styles.fontSize || '12px'};
+        color: ${styles.color || '#000000'};
+        padding: ${styles.padding || '30px'};
+        background-color: #ffffff;
+    `;
+
+    let html = `<div style="${bodyStyles}">`;
+
+    config.sections.forEach(section => {
+        const content = section.content || {};
+        const style = section.styles || {};
+        const margin = `margin-top: ${style.marginTop || '0px'}; margin-bottom: ${style.marginBottom || '0px'};`;
+        const padding = `padding-top: ${style.paddingTop || '0px'}; padding-bottom: ${style.paddingBottom || '0px'};`;
+
+        html += `<div style="${margin} ${padding}">`;
+
+        switch (section.type) {
+            case 'company-header':
+                const align = content.logoAlign || 'left';
+                const flexDir = align === 'right' ? 'row-reverse' : align === 'center' ? 'column' : 'row';
+                const textAlign = align === 'center' ? 'center' : 'left';
+
+                html += `<div style="display: flex; flex-direction: ${flexDir}; align-items: start; gap: 20px; text-align: ${textAlign};">`;
+
+                if (content.showLogo && content.logoImage) {
+                    html += `<img src="${content.logoImage}" style="height: ${content.logoSize || '80px'}; width: auto; object-fit: contain;" alt="Logo" />`;
+                }
+
+                html += `<div style="flex: 1;">
+                            <h1 style="font-size: ${content.companyNameSize || '24px'}; font-weight: 800; margin: 0; line-height: 1.2;">
+                                ${content.companyName || data.COMPANY_NAME}
+                            </h1>`;
+
+                if (content.showAddress) {
+                    html += `<p style="margin: 5px 0 0; color: #6b7280; font-size: 12px; white-space: pre-line;">
+                                ${content.companyAddress || data.COMPANY_ADDRESS}
+                             </p>`;
+                }
+                html += `</div></div>`;
+                break;
+
+            case 'payslip-title':
+                // Replace variables in title
+                let titleText = content.text || 'PAYSLIP';
+                Object.keys(data).forEach(key => {
+                    const regex = new RegExp(`{{${key}}}`, 'g');
+                    titleText = titleText.replace(regex, data[key]);
+                });
+
+                html += `<div style="text-align: center; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 10px 0; margin: 20px 0;">
+                            <h2 style="font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0; color: #111827;">
+                                ${titleText}
+                            </h2>
+                         </div>`;
+                break;
+
+            case 'employee-details-grid':
+                const cols = content.columns || 2;
+                html += `<div style="display: grid; grid-template-columns: repeat(${cols}, 1fr); gap: 15px; font-size: 11px; margin-bottom: 20px;">`;
+                (content.fields || []).forEach(field => {
+                    const label = field.replace(/_/g, ' ');
+                    const value = data[field] || '';
+                    html += `<div style="border-bottom: 1px solid #f3f4f6; padding-bottom: 5px;">
+                                <span style="display: block; color: #9ca3af; font-weight: 700; text-transform: uppercase; font-size: 10px;">${label}</span>
+                                <span style="display: block; color: #111827; font-weight: 600; margin-top: 2px;">${value}</span>
+                             </div>`;
+                });
+                html += `</div>`;
+                break;
+
+            case 'earnings-table':
+            case 'deductions-table':
+            case 'reimbursements-table':
+                const isEarnings = section.type === 'earnings-table';
+                const isDeductions = section.type === 'deductions-table';
+                const titleColor = isEarnings ? '#2563eb' : isDeductions ? '#ef4444' : '#16a34a'; // blue, red, green
+                const sectionTitle = content.title || (isEarnings ? 'EARNINGS' : isDeductions ? 'DEDUCTIONS' : 'REIMBURSEMENTS');
+
+                html += `<div style="margin-bottom: 20px;">
+                            <h3 style="font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: ${titleColor}; margin-bottom: 10px;">
+                                ${sectionTitle}
+                            </h3>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                                <thead style="background-color: #f9fafb; color: #6b7280; font-weight: 800; text-transform: uppercase;">
+                                    <tr>
+                                        <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">Description</th>
+                                        <th style="padding: 8px; text-align: right; border: 1px solid #e5e7eb;">Amount</th>
+                                        ${content.showYTD ? `<th style="padding: 8px; text-align: right; border: 1px solid #e5e7eb;">YTD</th>` : ''}
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+
+                // Rows logic
+                if (content.customRows && content.customRows.length > 0) {
+                    // Custom static rows
+                    content.customRows.forEach(row => {
+                        html += `<tr>
+                            <td style="padding: 8px; border: 1px solid #f3f4f6;">${row.name || ''}</td>
+                            <td style="padding: 8px; border: 1px solid #f3f4f6; text-align: right;">₹ ${(parseFloat(row.amount) || 0).toFixed(2)}</td>
+                            ${content.showYTD ? `<td style="padding: 8px; border: 1px solid #f3f4f6; text-align: right; color: #9ca3af;">₹ ${(parseFloat(row.ytd) || 0).toFixed(2)}</td>` : ''}
+                        </tr>`;
+                    });
+                } else {
+                    // Dynamic rows from data
+                    // We assume up to 20 potential items to be safe, or just iterate through data keys?
+                    // The standard approach is to loop 1..N
+                    for (let i = 1; i <= 20; i++) {
+                        const prefix = isEarnings ? 'EARNING' : isDeductions ? 'DEDUCTION' : 'REIMB';
+                        const nameKey = `${prefix}_NAME_${i}`;
+                        const amountKey = `${prefix}_AMOUNT_${i}`;
+                        const ytdKey = `${prefix}_YTD_${i}`;
+
+                        // Check if data exists for this item
+                        if (data[nameKey] && data[nameKey].trim() !== '') {
+                            html += `<tr>
+                                        <td style="padding: 8px; border: 1px solid #f3f4f6;">${data[nameKey]}</td>
+                                        <td style="padding: 8px; border: 1px solid #f3f4f6; text-align: right;">₹ ${data[amountKey] || '0.00'}</td>
+                                        ${content.showYTD ? `<td style="padding: 8px; border: 1px solid #f3f4f6; text-align: right; color: #9ca3af;">₹ ${data[ytdKey] || '0.00'}</td>` : ''}
+                                      </tr>`;
+                        }
+                    }
+                }
+
+                // Total Row
+                const totalLabel = isEarnings ? 'Total Earnings' : isDeductions ? 'Total Deductions' : 'Total Reimbursements';
+                const totalValue = isEarnings ? data.GROSS_EARNINGS : isDeductions ? data.TOTAL_DEDUCTIONS : data.TOTAL_REIMBURSEMENTS;
+                const rowBgColor = isEarnings ? '#eff6ff' : isDeductions ? '#fef2f2' : '#f0fdf4';
+
+                html += `<tr style="background-color: ${rowBgColor}; font-weight: 700;">
+                            <td style="padding: 8px; border: 1px solid #e5e7eb; text-transform: uppercase;">${totalLabel}</td>
+                            <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: right;">₹ ${totalValue || '0.00'}</td>
+                            ${content.showYTD ? `<td style="padding: 8px; border: 1px solid #e5e7eb;"></td>` : ''}
+                         </tr>`;
+
+                html += `</tbody></table></div>`;
+                break;
+
+            case 'net-pay-box':
+                html += `<div style="background-color: ${content.bgColor || '#f9fafb'}; color: ${content.textColor || '#111827'}; padding: 20px; border-radius: 12px; border: 2px solid ${content.textColor || '#111827'}; margin: 20px 0; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <p style="font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7; margin: 0 0 5px;">${content.title || 'NET SALARY PAYABLE'}</p>
+                            </div>
+                            <div style="font-size: 24px; font-weight: 900;">₹ ${data.NET_PAY || '0.00'}</div>
+                         </div>`;
+                break;
+
+            case 'text':
+                let textContent = content.text || '';
+                Object.keys(data).forEach(key => {
+                    const regex = new RegExp(`{{${key}}}`, 'g');
+                    textContent = textContent.replace(regex, data[key]);
+                });
+
+                html += `<div style="text-align: ${content.align || 'left'}; font-size: ${content.size || '14px'}; font-weight: ${content.weight || 'normal'}; color: ${content.color || 'inherit'}; white-space: pre-wrap;">
+                            ${textContent}
+                         </div>`;
+                break;
+
+            case 'divider':
+                html += `<div style="height: ${content.thickness || '1px'}; background-color: ${content.color || '#e5e7eb'}; width: 100%; margin: 8px 0;"></div>`;
+                break;
+
+            case 'spacer':
+                html += `<div style="height: ${content.height || '20px'}; width: 100%;"></div>`;
+                break;
+
+            case 'image':
+                if (content.url) {
+                    html += `<div style="text-align: ${content.align || 'left'}; margin: 10px 0;">
+                                <img src="${content.url}" style="width: ${content.width || '100px'}; height: auto;" />
+                              </div>`;
+                }
+                break;
+        }
+
+        html += `</div>`;
+    });
+
+    html += `</div>`;
+    return html;
+}

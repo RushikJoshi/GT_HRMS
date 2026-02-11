@@ -69,6 +69,9 @@ router.post('/runs/:id/cancel', payrollRunController.cancelPayrollRun);
 // Payslip Routes - Employee self-service
 router.get('/payslips/my', payslipController.getMyPayslips);
 
+// Payslip Preview Route (HR Only)
+router.get('/payslips/:employeeId', auth.requireHr, payslipController.getPayslipByEmployeeAndMonth);
+
 // Payslip Routes - HR routes (full access)
 router.get('/payslips', auth.requireHr, payslipController.getPayslips);
 router.post('/payslips/:id/generate-pdf', payslipController.generatePayslipPDF);
