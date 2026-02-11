@@ -29,6 +29,7 @@ import {
   Brush,
   ExternalLink,
   Shield,
+  Share2,
   X
 } from 'lucide-react';
 
