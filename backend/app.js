@@ -218,11 +218,8 @@ app.use(hrmsPrefix + '/notifications', notificationRoutes);
 app.use(hrmsPrefix + '/comments', commentRoutes);
 app.use(hrmsPrefix + '/positions', positionRoutes);
 app.use(hrmsPrefix + '/employee', employeeRoutes);
-<<<<<<< HEAD
 app.use(hrmsPrefix + '/bgv', require('./routes/bgv.routes'));
-=======
 app.use(hrmsPrefix + '/vendor', vendorRoutes);
->>>>>>> main
 
 // Special case for letter_templates (plural vs singular)
 app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {

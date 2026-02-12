@@ -72,116 +72,116 @@ class BGVSLACronJobs {
 
     /**
      * Cron Job 2: Send SLA reminders every 6 hours
-     * Runs at: Every 6 hours (0 */6 * * *)
-    */
+     * Runs at: Every 6 hours (0 * / 6 * * * - space added for comment safety)
+     */
     static startReminderSender() {
-    cron.schedule('0 */6 * * *', async () => {
-        console.log('[SLA_CRON] Running SLA reminder sender...');
+        cron.schedule('0 */6 * * *', async () => {
+            console.log('[SLA_CRON] Running SLA reminder sender...');
 
-        try {
-            const tenants = await this.getAllTenants();
-            let totalReminders = 0;
+            try {
+                const tenants = await this.getAllTenants();
+                let totalReminders = 0;
 
-            for (const tenant of tenants) {
-                try {
-                    const reminders = await this.sendRemindersForTenant(tenant._id);
-                    totalReminders += reminders;
+                for (const tenant of tenants) {
+                    try {
+                        const reminders = await this.sendRemindersForTenant(tenant._id);
+                        totalReminders += reminders;
 
-                    console.log(`[SLA_CRON] Tenant ${tenant.code}: Sent ${reminders} reminders`);
-                } catch (tenantError) {
-                    console.error(`[SLA_CRON_ERROR] Tenant ${tenant.code}:`, tenantError.message);
+                        console.log(`[SLA_CRON] Tenant ${tenant.code}: Sent ${reminders} reminders`);
+                    } catch (tenantError) {
+                        console.error(`[SLA_CRON_ERROR] Tenant ${tenant.code}:`, tenantError.message);
+                    }
                 }
+
+                console.log(`[SLA_CRON] Reminder sender complete: ${totalReminders} reminders sent`);
+
+            } catch (error) {
+                console.error('[SLA_CRON_ERROR] Failed to send reminders:', error);
             }
+        });
 
-            console.log(`[SLA_CRON] Reminder sender complete: ${totalReminders} reminders sent`);
-
-        } catch (error) {
-            console.error('[SLA_CRON_ERROR] Failed to send reminders:', error);
-        }
-    });
-
-    console.log('[SLA_CRON] ✅ Reminder sender started (runs every 6 hours)');
-}
+        console.log('[SLA_CRON] ✅ Reminder sender started (runs every 6 hours)');
+    }
 
     /**
      * Send reminders for a specific tenant
      */
     static async sendRemindersForTenant(tenantId) {
-    const getTenantDB = require('../utils/tenantDB');
-    const db = await getTenantDB(tenantId);
+        const getTenantDB = require('../utils/tenantDB');
+        const db = await getTenantDB(tenantId);
 
-    const BGVCase = db.model('BGVCase');
+        const BGVCase = db.model('BGVCase');
 
-    // Get active cases
-    const activeCases = await BGVCase.find({
-        tenant: tenantId,
-        isClosed: false,
-        overallStatus: { $nin: ['CLOSED', 'CANCELLED'] }
-    });
+        // Get active cases
+        const activeCases = await BGVCase.find({
+            tenant: tenantId,
+            isClosed: false,
+            overallStatus: { $nin: ['CLOSED', 'CANCELLED'] }
+        });
 
-    let remindersSent = 0;
+        let remindersSent = 0;
 
-    for (const bgvCase of activeCases) {
-        const threshold = BGVSLAEngine.shouldSendReminder(
-            bgvCase.initiatedAt,
-            bgvCase.slaDeadline,
-            bgvCase.slaRemindersSent || []
-        );
+        for (const bgvCase of activeCases) {
+            const threshold = BGVSLAEngine.shouldSendReminder(
+                bgvCase.initiatedAt,
+                bgvCase.slaDeadline,
+                bgvCase.slaRemindersSent || []
+            );
 
-        if (threshold) {
-            try {
-                await BGVSLAEngine.sendSLAReminder(tenantId, bgvCase._id, threshold);
-                remindersSent++;
-            } catch (reminderError) {
-                console.error(`[SLA_REMINDER_ERROR] Case ${bgvCase.caseId}:`, reminderError.message);
+            if (threshold) {
+                try {
+                    await BGVSLAEngine.sendSLAReminder(tenantId, bgvCase._id, threshold);
+                    remindersSent++;
+                } catch (reminderError) {
+                    console.error(`[SLA_REMINDER_ERROR] Case ${bgvCase.caseId}:`, reminderError.message);
+                }
             }
         }
-    }
 
-    return remindersSent;
-}
+        return remindersSent;
+    }
 
     /**
      * Get all active tenants
      */
     static async getAllTenants() {
-    const mongoose = require('mongoose');
-    const Tenant = mongoose.model('Tenant');
+        const mongoose = require('mongoose');
+        const Tenant = mongoose.model('Tenant');
 
-    return await Tenant.find({ status: 'active' });
-}
+        return await Tenant.find({ status: 'active' });
+    }
 
     /**
      * Manual trigger for SLA check (for testing)
      */
     static async manualSLACheck(tenantId) {
-    console.log(`[SLA_MANUAL] Running manual SLA check for tenant: ${tenantId}`);
+        console.log(`[SLA_MANUAL] Running manual SLA check for tenant: ${tenantId}`);
 
-    try {
-        const results = await BGVSLAEngine.checkAllSLAs(tenantId);
-        console.log('[SLA_MANUAL] Results:', results);
-        return results;
-    } catch (error) {
-        console.error('[SLA_MANUAL_ERROR]', error);
-        throw error;
+        try {
+            const results = await BGVSLAEngine.checkAllSLAs(tenantId);
+            console.log('[SLA_MANUAL] Results:', results);
+            return results;
+        } catch (error) {
+            console.error('[SLA_MANUAL_ERROR]', error);
+            throw error;
+        }
     }
-}
 
     /**
      * Manual trigger for sending reminders (for testing)
      */
     static async manualSendReminders(tenantId) {
-    console.log(`[SLA_MANUAL] Sending reminders for tenant: ${tenantId}`);
+        console.log(`[SLA_MANUAL] Sending reminders for tenant: ${tenantId}`);
 
-    try {
-        const count = await this.sendRemindersForTenant(tenantId);
-        console.log(`[SLA_MANUAL] Sent ${count} reminders`);
-        return count;
-    } catch (error) {
-        console.error('[SLA_MANUAL_ERROR]', error);
-        throw error;
+        try {
+            const count = await this.sendRemindersForTenant(tenantId);
+            console.log(`[SLA_MANUAL] Sent ${count} reminders`);
+            return count;
+        } catch (error) {
+            console.error('[SLA_MANUAL_ERROR]', error);
+            throw error;
+        }
     }
-}
 }
 
 module.exports = BGVSLACronJobs;
