@@ -10,6 +10,9 @@ const BGVReportSchema = require('../models/BGVReport');
 const BGVEvidenceConfigSchema = require('../models/BGVEvidenceConfig');
 const BGVEmailTemplateSchema = require('../models/BGVEmailTemplate');
 const BGVEmailLogSchema = require('../models/BGVEmailLog');
+const BGVConsentSchema = require('../models/BGVConsent');
+const BGVRiskScoreSchema = require('../models/BGVRiskScore');
+const BGVTaskAssignmentSchema = require('../models/BGVTaskAssignment');
 const ApplicantSchema = require('../models/Applicant');
 const getTenantDB = require('./tenantDB');
 
@@ -42,7 +45,11 @@ async function getBGVModels(context) {
         BGVEvidenceConfig: db.model("BGVEvidenceConfig", BGVEvidenceConfigSchema),
         BGVEmailTemplate: db.model("BGVEmailTemplate", BGVEmailTemplateSchema),
         BGVEmailLog: db.model("BGVEmailLog", BGVEmailLogSchema),
-        Applicant: db.model("Applicant", ApplicantSchema)
+        BGVConsent: db.model("BGVConsent", BGVConsentSchema),
+        BGVRiskScore: db.model("BGVRiskScore", BGVRiskScoreSchema),
+        BGVTaskAssignment: db.model("BGVTaskAssignment", BGVTaskAssignmentSchema),
+        Applicant: db.model("Applicant", ApplicantSchema),
+        Employee: db.model("Employee", require('../models/Employee'))
     };
 
 

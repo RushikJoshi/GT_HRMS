@@ -6,7 +6,7 @@ const auth = require('../middleware/auth.jwt');
 console.log('[DEBUG] Loading Tenant Routes...');
 
 // Only register routes if the corresponding controller method exists
-// PSA dashboard stats for Super Admin
+// Register PSA stats route
 router.get('/psa/stats', ctrl.psaStats);
 
 // tenant self info for HR users

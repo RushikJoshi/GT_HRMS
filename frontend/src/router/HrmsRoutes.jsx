@@ -82,6 +82,9 @@ import PayrollDashboard from '../pages/HR/Payroll/PayrollDashboard';
 // Employee Self-Service
 import ESSPayslips from '../pages/ESS/Payslips';
 
+// 🔥 NEW: BGV Pages
+import MyTasks from '../pages/HR/BGV/MyTasks';
+
 
 // Employee
 import EmployeeDashboard from '../pages/Employee/EmployeeDashboard';
@@ -195,6 +198,9 @@ export default function HrmsRoutes() {
         {/* Career Builder */}
         <Route path="career-builder" element={<CareerBuilder />} />
         <Route path="apply-builder" element={<ApplyPageBuilder />} />
+
+        {/* 🔥 NEW: BGV Routes */}
+        <Route path="my-tasks" element={<MyTasks />} />
 
         {/* Global inside HR */}
         <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
