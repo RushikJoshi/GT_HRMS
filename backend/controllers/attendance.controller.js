@@ -15,6 +15,10 @@ const Employee = require('../models/Employee');
 const TenantSchema = require('../models/Tenant');
 const Tenant = require('../models/Tenant');
 const FaceRecognitionService = require('../services/faceRecognition.service');
+const {
+    applyAttendanceRules,
+    isWeeklyOffDate
+} = require('../services/attendanceRulesEngine');
 
 
 const FACE_EMBEDDING_DIM = 128;
@@ -40,10 +44,13 @@ const MASTER_FACE_KEY = Buffer.from(
     'hex'
 );
 
-if (!MASTER_FACE_KEY || MASTER_FACE_KEY.length !== 32) {
+// if (!MASTER_FACE_KEY || MASTER_FACE_KEY.length !== 32) {
+//     throw new Error('Invalid MASTER_FACE_KEY');
+// }
+
+if (!MASTER_FACE_KEY) {
     throw new Error('Invalid MASTER_FACE_KEY');
 }
-
 // ====== ENCRYPTION CONFIG ======
 const ENCRYPTION_KEY = process.env.FACE_EMBEDDING_KEY || 'default-key-32-char-string-here!';
 const FACE_MATCH_THRESHOLD = 0.60; // CRITICAL: Euclidean distance threshold - 0.60 is standard for face-api.js
@@ -212,18 +219,40 @@ exports.validateLocation = async (req, res) => {
 
 
 const calculateWorkingHours = (logs = []) => {
-    if (logs.length < 2) return 0;
+    if (!Array.isArray(logs) || logs.length < 2) return 0;
+
+    // Normalize and filter valid log times
+    const normalized = logs
+        .map(l => ({
+            type: (l.type || '').toString().toUpperCase(),
+            time: l.time ? new Date(l.time) : null
+        }))
+        .filter(l => l.time && !isNaN(l.time.getTime()));
+
+    if (normalized.length < 2) return 0;
+
+    // Ensure logs are ordered by time
+    normalized.sort((a, b) => a.time - b.time);
 
     let totalMinutes = 0;
     let inTime = null;
 
-    for (const log of logs) {
+    for (const log of normalized) {
         if (log.type === 'IN') {
-            inTime = new Date(log.time);
+            // Start a new inTime (if previous IN without OUT, replace it)
+            inTime = log.time;
         } else if (log.type === 'OUT' && inTime) {
-            const outTime = new Date(log.time);
-            const duration = (outTime - inTime) / (1000 * 60); // Duration in minutes
-            totalMinutes += duration;
+            let outTime = log.time;
+            let duration = (outTime - inTime) / (1000 * 60); // minutes
+
+            // Handle overnight shifts where OUT may be on the next day but represented earlier
+            if (duration < 0) {
+                // add 24 hours as fallback (assume OUT is next day)
+                duration += 24 * 60;
+            }
+
+            // protect against weird negative durations
+            if (duration > 0) totalMinutes += duration;
             inTime = null;
         }
     }
@@ -576,7 +605,6 @@ exports.punch = async (req, res) => {
         attendance.workingHours = calculateWorkingHours(attendance.logs);
 
         // ========== OVERTIME ==========
-        // ========== OVERTIME ==========
         // Business Rule: Standard Shift = 8 Hours. Calculate overtime if > 8h.
         if (attendance.workingHours > 0) {
             attendance.overtimeHours = calculateOvertimeHours(
@@ -587,29 +615,49 @@ exports.punch = async (req, res) => {
             );
         }
 
-        // ========== RE-EVALUATE STATUS (Policy Thresholds) ==========
-        let newStatus = attendance.status;
+        // ========== FETCH ACCUMULATED STATS ==========
+        // Required for implementing "Late Marks -> Half Day" policies
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const [accumulatedLateCount, accumulatedEarlyExitCount] = await Promise.all([
+            Attendance.countDocuments({
+                employee: employeeId,
+                tenant: tenantId,
+                date: { $gte: startOfMonth, $lt: today },
+                isLate: true
+            }),
+            Attendance.countDocuments({
+                employee: employeeId,
+                tenant: tenantId,
+                date: { $gte: startOfMonth, $lt: today },
+                isEarlyOut: true
+            })
+        ]);
 
-        // Skip re-evaluation if it's already a special status like leave/holiday manually set
-        if (!['leave', 'holiday', 'weekly_off'].includes(attendance.status)) {
-            if (attendance.workingHours >= settings.fullDayThresholdHours) {
-                newStatus = 'present';
-            } else if (attendance.workingHours >= settings.halfDayThresholdHours) {
-                newStatus = 'half_day';
-            } else {
-                // If they haven't worked enough yet, they are technically 'absent' or 'present' (until shift end)
-                // For better UX, if shift is still ongoing, we can keep it as 'present' label
-                newStatus = attendance.workingHours > 0 ? 'half_day' : 'present';
-                // Actually, let's follow the threshold strictly for final result
-                if (nextPunchType === 'OUT') {
-                    if (attendance.workingHours < settings.halfDayThresholdHours) {
-                        newStatus = 'absent';
-                    }
-                }
-            }
-        }
+        // ========== RULES ENGINE: FINAL STATUS & FLAGS ==========
+        const rulesResult = applyAttendanceRules({
+            date: today,
+            employeeId,
+            logs: attendance.logs,
+            workingHours: attendance.workingHours,
+            baseStatus: attendance.status,
+            settings,
+            accumulatedLateCount,
+            accumulatedEarlyExitCount
+        });
 
-        attendance.status = newStatus;
+        attendance.status = rulesResult.status;
+        attendance.isLate = rulesResult.isLate;
+        attendance.isEarlyOut = rulesResult.isEarlyOut;
+        attendance.workingHours = rulesResult.workingHours;
+        attendance.lateMinutes = rulesResult.lateMinutes;
+        attendance.earlyExitMinutes = rulesResult.earlyExitMinutes;
+        attendance.isWFH = !!rulesResult.isWFH;
+        attendance.isOnDuty = !!rulesResult.isOnDuty;
+        attendance.isCompOffDay = !!rulesResult.isCompOffDay;
+        attendance.isNightShift = !!rulesResult.isNightShift;
+        attendance.lopDays = typeof rulesResult.lopDays === 'number' ? rulesResult.lopDays : attendance.lopDays;
+        attendance.ruleEngineVersion = rulesResult.engineVersion || 1;
+        attendance.ruleEngineMeta = rulesResult.meta || attendance.ruleEngineMeta;
         await attendance.save();
 
         res.json({
@@ -619,7 +667,10 @@ exports.punch = async (req, res) => {
                 punchMode: settings.punchMode,
                 isLate: attendance.isLate,
                 isEarlyOut: attendance.isEarlyOut,
-                workingHours: attendance.workingHours
+                workingHours: attendance.workingHours,
+                lateMinutes: attendance.lateMinutes,
+                earlyExitMinutes: attendance.earlyExitMinutes,
+                violations: rulesResult.policyViolations || []
             }
         });
 
@@ -667,34 +718,26 @@ exports.getMyAttendance = async (req, res) => {
         const data = await Attendance.find(filter).sort({ date: 1 })
             .populate('employee', 'firstName lastName employeeId');
 
-        // Fetch settings to check weekly offs
+        // Fetch settings to check weekly offs (including advanced weekly off rules)
         const settings = await AttendanceSettings.findOne({ tenant: req.tenantId });
-        const weeklyOffDays = settings?.weeklyOffDays || [0];
-
-        console.log(`\n📊 [getMyAttendance] Fetched ${data.length} records. Weekly off days: [${weeklyOffDays.join(', ')}]`);
-
-        // CRITICAL FIX: Override ANY status to 'weekly_off' if day matches configured weekly off
         const correctedData = data.map(att => {
-            const dateObj = new Date(att.date);
-            const dayOfWeek = dateObj.getDay();
-            const dateStr = att.date.toISOString().split('T')[0];
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const raw = att.toObject ? att.toObject() : JSON.parse(JSON.stringify(att));
+            const dateObj = new Date(raw.date);
 
-            // If this day is a configured weekly off, ALWAYS set status to 'weekly_off'
-            if (weeklyOffDays.includes(dayOfWeek)) {
-                const oldStatus = att.status;
-                console.log(`🔧 [CORRECTION] ${dateStr} (${dayNames[dayOfWeek]}): "${oldStatus}" → "weekly_off"`);
+            const { isWeeklyOff } = isWeeklyOffDate({
+                date: dateObj,
+                settings: settings || { weeklyOffDays: [0] },
+                employeeId: raw.employee?._id || raw.employee
+            });
 
-                const corrected = att.toObject ? att.toObject() : JSON.parse(JSON.stringify(att));
-                corrected.status = 'weekly_off';
-                corrected.correctedBySystem = true;
-                return corrected;
+            if (isWeeklyOff) {
+                raw.status = 'weekly_off';
+                raw.correctedBySystem = true;
             }
 
-            return att.toObject ? att.toObject() : att;
+            return raw;
         });
 
-        console.log(`✅ [getMyAttendance] Returning ${correctedData.length} corrected records\n`);
         res.json(correctedData);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1580,7 +1623,16 @@ exports.bulkUpload = async (req, res) => {
     try {
         const { records } = req.body;
 
+        console.log('🚀 BULK UPLOAD STARTED');
+        console.log('📊 Request Details:', {
+            recordsCount: records?.length,
+            tenantId: req.tenantId,
+            userId: req.userId,
+            userEmail: req.user?.email
+        });
+
         if (!records || !Array.isArray(records)) {
+            console.error('❌ Invalid records format');
             return res.status(400).json({
                 success: false,
                 message: "Records must be an array"
@@ -1588,6 +1640,7 @@ exports.bulkUpload = async (req, res) => {
         }
 
         if (records.length === 0) {
+            console.error('❌ No records provided');
             return res.status(400).json({
                 success: false,
                 message: "No records provided"
@@ -1598,6 +1651,14 @@ exports.bulkUpload = async (req, res) => {
         const tenantId = req.tenantId;
         const userId = req.userId;
 
+        if (!tenantId) {
+            console.error('❌ No tenant ID in request');
+            return res.status(400).json({
+                success: false,
+                message: "Tenant ID is required"
+            });
+        }
+
         const results = {
             uploadedCount: 0,
             failedCount: 0,
@@ -1606,7 +1667,10 @@ exports.bulkUpload = async (req, res) => {
 
         // Cache settings for late/early out calculation
         let settings = await AttendanceSettings.findOne({ tenant: tenantId });
-        if (!settings) settings = new AttendanceSettings({ tenant: tenantId });
+        if (!settings) {
+            console.log('⚠️ No AttendanceSettings found, creating default');
+            settings = new AttendanceSettings({ tenant: tenantId });
+        }
 
         /* ---------------- Helpers ---------------- */
 
@@ -1634,21 +1698,50 @@ exports.bulkUpload = async (req, res) => {
         const parseDate = (val) => {
             if (!val) return null;
 
+            console.log(`🔍 parseDate input: ${val} (type: ${typeof val})`);
+
+            // If it's already an ISO string from frontend normalization
+            if (typeof val === 'string' && val.includes('T') && val.includes('Z')) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    console.log(`   → ISO string parsed: ${d.toISOString()}`);
+                    return d;
+                }
+            }
+
             // Excel date number
             if (typeof val === 'number') {
-                return new Date(Math.round((val - 25569) * 86400 * 1000));
+                console.log(`📊 Treating as Excel number: ${val}`);
+                const result = new Date(Math.round((val - 25569) * 86400 * 1000));
+                console.log(`   → Result: ${result.toISOString()}`);
+                return result;
+            }
+
+            // Try parsing as any string
+            if (typeof val === 'string') {
+                console.log(`📝 Treating as string: ${val}`);
             }
 
             const d = new Date(val);
-            return isNaN(d.getTime()) ? null : d;
+            const result = isNaN(d.getTime()) ? null : d;
+            console.log(`   → Parsed date: ${result ? result.toISOString() : 'Invalid'}`);
+            return result;
         };
 
         const parseTime = (val, baseDate) => {
             if (!val) return null;
 
-            // If it's already a full Date object
+            // If it's already a full Date object (from ISO string)
             if (val instanceof Date && !isNaN(val.getTime())) {
                 return val;
+            }
+
+            // If it's already an ISO string from frontend
+            if (typeof val === 'string' && val.includes('T')) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    return d;
+                }
             }
 
             // Excel time fraction (e.g. 0.375 for 09:00:00)
@@ -1658,19 +1751,19 @@ exports.bulkUpload = async (req, res) => {
                 const hours = Math.floor(totalSeconds / 3600);
                 const minutes = Math.floor((totalSeconds % 3600) / 60);
                 const seconds = totalSeconds % 60;
-                d.setHours(hours, minutes, seconds, 0);
+                d.setUTCHours(hours, minutes, seconds, 0);
                 return d;
             }
 
-            // String time like "09:00:00" or "09:00"
-            if (typeof val === 'string' && val.includes(':')) {
+            // String time like "09:00:00" or "09:00" (simple time format)
+            if (typeof val === 'string' && val.includes(':') && !val.includes('T')) {
                 const parts = val.split(':').map(Number);
                 const d = new Date(baseDate);
-                d.setHours(parts[0], parts[1] || 0, parts[2] || 0, 0);
+                d.setUTCHours(parts[0], parts[1] || 0, parts[2] || 0, 0);
                 return d;
             }
 
-            // Try generic date parse
+            // Try generic date parse as fallback
             const tried = new Date(val);
             if (!isNaN(tried.getTime())) return tried;
 
@@ -1763,25 +1856,35 @@ exports.bulkUpload = async (req, res) => {
                 if (!empIdVal) throw new Error("Employee ID is missing");
                 if (!dateVal) throw new Error("Date is missing");
 
+                console.log(`   📝 Processing Row ${rowIdx}: EmpID=${empIdVal}, Date=${dateVal}`);
+
                 const employee = await Employee.findOne({
                     tenant: tenantId,
                     $or: [{ employeeId: empIdVal }, { customId: empIdVal }]
                 });
 
                 if (!employee) {
-                    throw new Error(`Employee not found: ${empIdVal}`);
+                    throw new Error(`Employee not found: ${empIdVal}. Available employees: check database`);
                 }
+
+                console.log(`   ✅ Found employee: ${employee.firstName} ${employee.lastName} (ID: ${employee._id})`);
 
                 const attendanceDate = parseDate(dateVal);
                 if (!attendanceDate) {
                     throw new Error(`Invalid date format: ${dateVal}`);
                 }
-                attendanceDate.setHours(0, 0, 0, 0);
+                // Date is already properly parsed from frontend's UTC normalization
+                console.log(`   🎯 Final attendance date: ${attendanceDate.toISOString()}`);
 
                 const checkInTime = parseTime(checkInVal, attendanceDate);
                 const checkOutTime = parseTime(checkOutVal, attendanceDate);
+                
+                console.log(`   ✓ Check-in: ${checkInTime ? checkInTime.toISOString() : 'none'}`);
+                console.log(`   ✗ Check-out: ${checkOutTime ? checkOutTime.toISOString() : 'none'}`);
 
                 const finalStatus = normalizeStatus(statusVal);
+                
+                console.log(`   📅 Attendance Date: ${attendanceDate.toLocaleDateString()}, Status: ${finalStatus}, Hours: ${workingHoursVal}`);
 
                 let attendance = await Attendance.findOne({
                     tenant: tenantId,
@@ -1795,6 +1898,9 @@ exports.bulkUpload = async (req, res) => {
                         employee: employee._id,
                         date: attendanceDate
                     });
+                    console.log(`      🆕 Created new attendance record`);
+                } else {
+                    console.log(`      🔄 Updating existing attendance record`);
                 }
 
                 attendance.status = finalStatus;
@@ -1803,7 +1909,6 @@ exports.bulkUpload = async (req, res) => {
                 attendance.leaveType = leaveTypeVal;
                 attendance.ipAddress = req.ip || '0.0.0.0';
                 attendance.userAgent = req.get('user-agent') || '';
-                attendance.updatedBy = userId;
                 attendance.isManualOverride = true;
                 attendance.overrideReason = "Bulk Upload";
 
@@ -1854,14 +1959,44 @@ exports.bulkUpload = async (req, res) => {
                     }
                 }
 
-                await attendance.save();
+                console.log(`      💾 Saving attendance record...`);
+                console.log(`      📝 Record data:`, {
+                    tenant: attendance.tenant,
+                    employee: attendance.employee,
+                    date: attendance.date,
+                    status: attendance.status,
+                    workingHours: attendance.workingHours,
+                    checkIn: attendance.checkIn,
+                    checkOut: attendance.checkOut,
+                    isManualOverride: attendance.isManualOverride
+                });
+                const savedRecord = await attendance.save();
+                console.log(`      ✅ Successfully saved! Record ID: ${savedRecord._id}`);
                 results.uploadedCount++;
 
             } catch (err) {
                 results.failedCount++;
-                results.errors.push(`Row ${rowIdx}: ${err.message}`);
+                const errorMsg = `Row ${rowIdx}: ${err.message}`;
+                results.errors.push(errorMsg);
+                console.error(`      ❌ ${errorMsg}`);
+                console.error(`      🔍 Error Details:`, {
+                    name: err.name,
+                    message: err.message,
+                    code: err.code,
+                    keyPattern: err.keyPattern,
+                    keyValue: err.keyValue,
+                    validationErrors: err.errors ? Object.keys(err.errors).map(k => `${k}: ${err.errors[k]?.message || err.errors[k]}`) : 'none'
+                });
             }
         }
+
+        console.log('✅ BULK UPLOAD COMPLETED');
+        console.log('📊 Results:', {
+            uploadedCount: results.uploadedCount,
+            failedCount: results.failedCount,
+            errorsCount: results.errors.length,
+            tenantId: tenantId.toString()
+        });
 
         return res.json({
             success: true,
@@ -1873,10 +2008,12 @@ exports.bulkUpload = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Bulk upload error:", error);
+        console.error("❌ BULK UPLOAD CRITICAL ERROR:", error);
+        console.error('Stack:', error.stack);
         return res.status(500).json({
             success: false,
-            message: error.message || "Error uploading records"
+            message: error.message || "Error uploading records",
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 };
@@ -2532,7 +2669,11 @@ exports.getByDate = async (req, res) => {
 
         let settings = await AttendanceSettings.findOne({ tenant: req.tenantId });
         if (!settings) settings = { weeklyOffDays: [0] };
-        const isWeeklyOff = settings.weeklyOffDays.includes(targetDate.getDay());
+        const { isWeeklyOff } = isWeeklyOffDate({
+            date: targetDate,
+            settings,
+            employeeId: null
+        });
 
         // 2. Compute Statuses for all relevant employees
         // If FUTURE: Only consider employees with leaves (as Total = Leave count rule)
@@ -2641,7 +2782,11 @@ exports.getEmployeeDateDetail = async (req, res) => {
 
         const holiday = await Holiday.findOne({ tenant: req.tenantId, date: targetDate }).lean();
         const settings = await AttendanceSettings.findOne({ tenant: req.tenantId });
-        const isWeeklyOff = settings?.weeklyOffDays?.includes(targetDate.getDay());
+        const { isWeeklyOff } = isWeeklyOffDate({
+            date: targetDate,
+            settings: settings || { weeklyOffDays: [0] },
+            employeeId
+        });
 
         res.json({
             employee: {

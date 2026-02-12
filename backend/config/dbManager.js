@@ -78,10 +78,16 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const BGVEmailTemplateSchema = require("../models/BGVEmailTemplate");
     const BGVReportSchema = require("../models/BGVReport");
     const BGVTimelineSchema = require("../models/BGVTimeline");
+<<<<<<< HEAD
     const BGVDocumentSchema = require("../models/BGVDocument");
     const BGVConsentSchema = require("../models/BGVConsent");
     const BGVRiskScoreSchema = require("../models/BGVRiskScore");
     const BGVTaskAssignmentSchema = require("../models/BGVTaskAssignment");
+=======
+    const VendorRegistrationSchema = require("../models/vendor.model.js");
+    const VendorBankDetailsSchema = require("../models/vendorBank.model.js");
+    const VendorFormConfigSchema = require("../models/VendorFormConfig.model.js");
+>>>>>>> main
 
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
@@ -160,6 +166,11 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("BGVConsent", BGVConsentSchema);
     register("BGVRiskScore", BGVRiskScoreSchema);
     register("BGVTaskAssignment", BGVTaskAssignmentSchema);
+
+    // Vendor Models
+    register("VendorRegistration", VendorRegistrationSchema);
+    register("VendorBankDetails", VendorBankDetailsSchema);
+    register("VendorFormConfig", VendorFormConfigSchema);
 
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {

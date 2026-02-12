@@ -161,8 +161,8 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const loadDepartments = useCallback(async () => {
     try {
       const res = await api.get('/hr/departments');
-      const deptList = Array.isArray(res.data) ? res.data : [];
-      setDepartments(deptList);
+      const deptList = res.data?.data || res.data || [];
+      setDepartments(Array.isArray(deptList) ? deptList : []);
     } catch (err) {
       console.error('Failed to load departments', err);
       setDepartments([]);

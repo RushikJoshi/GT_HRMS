@@ -53,6 +53,7 @@ import CandidateTimeline from '../pages/HR/CandidateStatusTracker/CandidateTimel
 import PaySlipDesign from '../pages/HR/Payroll/PaySlipDesign';
 import AttendanceHistory from '../pages/HR/AttendanceHistory';
 import BGVManagement from '../pages/HR/BGVManagement';
+import FaceUpdateRequest from '../pages/HR/FaceUpdateRequests';
 import BGVEmailManagement from '../pages/HR/BGVEmailManagement';
 
 // Letter modules
@@ -65,10 +66,15 @@ import MyDocuments from '../pages/Employee/MyDocuments';
 import SalaryStructure from '../pages/HR/SalaryStructure';
 import CreateRequirement from '../pages/HR/CreateRequirement';
 import PositionMaster from '../pages/HR/PositionMaster';
+import VendorList from '../pages/HR/VendorList';
+import VendorFormStep1 from '../pages/HR/VendorFormStep1';
+import VendorFormStep2 from '../pages/HR/VendorFormStep2';
+import VendorDetails from '../pages/HR/VendorDetails';
 
 // Career Builder
 import CareerBuilder from '../pages/HR/CareerBuilder/CareerBuilder';
 import ApplyPageBuilder from '../pages/HR/CareerBuilder/ApplyPageBuilder';
+import VendorCustomization from '../pages/HR/Customization/Vendor/VendorCustomization';
 
 // Settings
 import CompanySettings from '../pages/settings/CompanySettings';
@@ -86,6 +92,7 @@ import ProcessPayroll from '../pages/HR/Payroll/ProcessPayroll';
 import Compensation from '../pages/HR/Compensation';
 import PayrollDashboard from '../pages/HR/Payroll/PayrollDashboard';
 import PayslipTemplates from '../pages/HR/Payroll/PayslipTemplates';
+import PayslipBuilder from '../pages/HR/Payroll/PayslipBuilder/PayslipBuilder';
 
 
 // Employee
@@ -226,8 +233,10 @@ export default function AppRoutes() {
                 <Route path="org" element={<OrgStructure />} />
                 <Route path="org-tree" element={<CeoOrg />} />
                 <Route path="access" element={<AccessControl />} />
-                <Route path="offer-templates" element={<OfferTemplates />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+
+
+
                 <Route path="bgv" element={<BGVManagement />} />
                 <Route path="bgv/emails" element={<BGVEmailManagement />} />
 
@@ -241,6 +250,7 @@ export default function AppRoutes() {
                 {/* Career Builder */}
                 <Route path="career-builder" element={<CareerBuilder />} />
                 <Route path="apply-builder" element={<ApplyPageBuilder />} />
+                <Route path="customization/vendor" element={<VendorCustomization />} />
 
                 {/* Payroll */}
                 <Route path="salary-structure/:candidateId" element={<SalaryStructure />} />
@@ -260,6 +270,7 @@ export default function AppRoutes() {
                 <Route path="payroll/payslips" element={<Payslips />} />
                 <Route path="payroll/payslip-design" element={<PaySlipDesign />} />
                 <Route path="payslip-templates" element={<PayslipTemplates />} />
+                <Route path="payroll/payslip-builder/:id" element={<PayslipBuilder />} />
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
@@ -302,7 +313,11 @@ export default function AppRoutes() {
                 <Route path="access" element={<AccessControl />} />
                 <Route path="offer-templates" element={<OfferTemplates />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+
+
+
                 <Route path="bgv" element={<BGVManagement />} />
+                <Route path="face-update-requests" element={<FaceUpdateRequest />} />
                 <Route path="bgv/emails" element={<BGVEmailManagement />} />
 
                 {/* Letters */}
@@ -335,6 +350,7 @@ export default function AppRoutes() {
                 <Route path="payroll/payslips" element={<Payslips />} />
                 <Route path="payroll/payslip-design" element={<PaySlipDesign />} />
                 <Route path="payslip-templates" element={<PayslipTemplates />} />
+                <Route path="payroll/payslip-builder/:id" element={<PayslipBuilder />} />
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
@@ -371,6 +387,12 @@ export default function AppRoutes() {
                 <Route path="my-requests" element={<MyRequests />} />
                 <Route path="my-documents" element={<MyDocuments />} />
                 <Route path="face-attendance" element={<FaceAttendance />} />
+
+                {/* Vendor Management (Moved from HR) */}
+                <Route path="vendor/list" element={<VendorList />} />
+                <Route path="vendor/step1" element={<VendorFormStep1 />} />
+                <Route path="vendor/step2/:vendorId?" element={<VendorFormStep2 />} />
+                <Route path="vendor/details/:id" element={<VendorDetails />} />
             </Route>
 
 

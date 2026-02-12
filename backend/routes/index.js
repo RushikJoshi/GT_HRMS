@@ -7,5 +7,6 @@ router.use('/employees', require('./employee.routes'));
 router.use('/department', require('./department.routes'));
 router.use('/module', require('./module.routes'));
 router.use('/email', require('./email.routes'));
+router.use('/vendor', require('./vendor.routes'));
 
 module.exports = router;

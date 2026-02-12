@@ -92,6 +92,11 @@ export function parseAxiosError(error) {
   }
 
   // Backend responded with a payload
+  // Handle Blob errors (happens when responseType is 'blob')
+  if (error.response?.data instanceof Blob) {
+    return { type: 'blob_error', message: 'Backend returned an error in blob format.', blob: error.response.data };
+  }
+
   const status = error.response?.status;
   const data = error.response?.data || {};
   const backendMessage = data.message || data.error || (typeof data === 'string' ? data : null);
@@ -117,7 +122,7 @@ api.interceptors.response.use(
       if (!window.__HRMS_API_ERROR) {
         window.__HRMS_API_ERROR = error.hrms.message;
         if (window.showToast) {
-          window.showToast({ message: window.__HRMS_API_ERROR, type: 'error' });
+          window.showToast('error', 'Network Error', window.__HRMS_API_ERROR);
         }
       }
     }
