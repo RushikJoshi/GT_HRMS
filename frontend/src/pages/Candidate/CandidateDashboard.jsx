@@ -48,14 +48,14 @@ export default function CandidateDashboard() {
                     ? applications.filter(a => {
                         if (!a?.status) return false;
                         const status = a.status.toLowerCase();
-                        return !['hired', 'rejected', 'selected', 'offered'].includes(status);
+                        return !['hired', 'rejected', 'selected', 'offered', 'joining letter issued'].includes(status);
                     }).length
                     : (applications.inProgress || 0),
                 selected: isArray
                     ? applications.filter(a => {
                         if (!a?.status) return false;
                         const status = a.status.toLowerCase();
-                        return ['hired', 'selected', 'offered'].includes(status);
+                        return ['hired', 'selected', 'offered', 'joining letter issued'].includes(status);
                     }).length
                     : (applications.selected || 0),
                 rejected: isArray

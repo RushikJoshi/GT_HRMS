@@ -57,13 +57,9 @@ export default function RootRouter() {
       <Route path="/" element={<RootHome />} />
 
       {/* BACKWARD COMPATIBILITY: Redirect old HRMS routes to new HRMS routes */}
-      <Route path="/hr" element={<Navigate to="/hr" replace />} />
-      <Route path="/hr/*" element={<Navigate to="/hr" replace />} />
-      <Route path="/employee" element={<Navigate to="/employee" replace />} />
+      {/* <Route path="/hr/*" element={<Navigate to="/hr" replace />} />
       <Route path="/employee/*" element={<Navigate to="/employee" replace />} />
-      <Route path="/psa" element={<Navigate to="/psa" replace />} />
-      <Route path="/psa/*" element={<Navigate to="/psa" replace />} />
-      <Route path="/login" element={<Navigate to="/login" replace />} />
+      <Route path="/psa/*" element={<Navigate to="/psa" replace />} /> */}
 
       {/* HRMS System - All routes prefixed with /hrms */}
       <Route path="/*" element={<HrmsRoutes />} />

@@ -34,7 +34,7 @@ export const getPreviousStage = (currentStage, workflow = DEFAULT_PIPELINE) => {
 };
 
 export const isTerminalStage = (stage) => {
-    return ['Finalized', 'Rejected', 'Selected'].includes(stage);
+    return ['Finalized', 'Rejected', 'Selected', 'Offer Issued', 'Offer Expired'].includes(stage);
 };
 
 
@@ -42,6 +42,7 @@ export const INTERVIEW_VARIANTS = ['Interview Scheduled', 'Interview Rescheduled
 
 export const normalizeStatus = (status) => {
     if (INTERVIEW_VARIANTS.includes(status)) return 'Interview';
+    if (['Offer Issued', 'Offer Expired', 'Offer Letter Issued', 'Offer Generated', 'Salary Assigned', 'Selected', 'Joining Letter Issued'].includes(status)) return 'Finalized';
     return status;
 };
 

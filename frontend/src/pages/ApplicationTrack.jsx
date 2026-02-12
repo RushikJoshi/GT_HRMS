@@ -2,55 +2,51 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import {
-    ArrowLeft, Clock, Briefcase, Calendar,
-    Building2, MapPin, ExternalLink, ShieldCheck,
-    AlertCircle, CheckCircle2, ChevronRight,
-    Star, Send
+    ArrowLeft, Clock, Briefcase, Building2, MapPin,
+    ExternalLink, ShieldCheck, AlertCircle,
+    CheckCircle2, Download, X, Upload, FileText
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getTenantId } from '../utils/auth';
 
 export default function ApplicationTrack() {
+    // 1. All Hooks Must Be at the Top
     const { applicationId } = useParams();
     const navigate = useNavigate();
+    const tenantId = getTenantId();
+
     const [timeline, setTimeline] = useState([]);
     const [jobDetails, setJobDetails] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const tenantId = getTenantId();
+    const [showOfferModal, setShowOfferModal] = useState(false);
+    const [uploadedDocs, setUploadedDocs] = useState([]);
+    const [uploadingDoc, setUploadingDoc] = useState(null);
+    const [bgvInitiated, setBgvInitiated] = useState(false);
+    const [requiredDocs, setRequiredDocs] = useState([]);
 
     const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
-    const handleDownload = async (url, title) => {
-        if (!url) return;
-        try {
-            const finalUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
-            const res = await api.head(finalUrl);
-            if (res.status === 200) {
-                window.open(finalUrl, '_blank');
-            }
-        } catch (err) {
-            console.error(`Download failed for ${title}:`, err);
-            alert(`Sorry! This ${title} is not yet available on the server. Please check back later or contact HR.`);
-        }
-    };
-
+    // 2. Stages Configuration
     const stages = [
         { id: 'Applied', label: 'Application Submitted', backendKeys: ['Applied', 'applied'], description: 'Initial application received' },
-        { id: 'Shortlisted', label: 'Resume Screening', backendKeys: ['Shortlisted', 'shortlisted', 'Screening', 'screening'], description: 'HR is reviewing your profile' },
-        { id: 'Interview', label: 'Interview Process', backendKeys: ['Interview', 'interview', 'Interview Scheduled', 'Interview Completed'], description: 'Technical & HR rounds' },
-        { id: 'Offered', label: 'Offer Extended', backendKeys: ['Offered', 'offered', 'Selected', 'selected'], description: 'Job offer released' },
-        { id: 'Hired', label: 'Hired', backendKeys: ['Hired', 'hired'], description: 'Onboarding completed' }
+        { id: 'Shortlisted', label: 'Resume Screening', backendKeys: ['Shortlisted', 'shortlisted', 'Screening', 'screening', 'Technical'], description: 'HR is reviewing your profile' },
+        { id: 'Interview', label: 'Interview Process', backendKeys: ['Interview', 'interview', 'Interview Scheduled', 'Interview Completed', 'L1 Round', 'L2 Round'], description: 'Technical & Skill evaluations' },
+        { id: 'HR', label: 'HR Round', backendKeys: ['HR Round', 'HR Interview', 'Cultural Fit'], description: 'Culture fit & salary discussion' },
+        { id: 'Offered', label: 'Finalized', backendKeys: ['Offered', 'offered', 'Selected', 'selected', 'Offer Issued', 'Offer Accepted', 'Finalized', 'Hired', 'hired', 'Joining Letter Issued'], description: 'Final selection & onboarding' }
     ];
 
+    // 3. Effects
     useEffect(() => {
         async function fetchTimeline() {
+            if (!applicationId) return;
             setLoading(true);
             setError(null);
             try {
                 const res = await api.get(`/candidate/application/track/${applicationId}`);
                 setTimeline(res.data?.timeline || []);
                 setJobDetails(res.data?.jobDetails || null);
+
                 if (!res.data?.jobDetails) {
                     setError("Application details not found.");
                 }
@@ -61,8 +57,27 @@ export default function ApplicationTrack() {
                 setLoading(false);
             }
         }
-        if (applicationId) fetchTimeline();
+        fetchTimeline();
     }, [applicationId]);
+
+    // Fetch BGV docs when status is Offer Accepted
+    useEffect(() => {
+        if (jobDetails?.status === 'Offer Accepted' && applicationId) {
+            const fetchDocs = async () => {
+                try {
+                    const res = await api.get(`/candidate/application/bgv-documents/${applicationId}`);
+                    if (res.data) {
+                        setBgvInitiated(res.data.bgvInitiated);
+                        setUploadedDocs(res.data.documents || []);
+                        setRequiredDocs(res.data.requiredDocs || []);
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch BGV docs", err);
+                }
+            };
+            fetchDocs();
+        }
+    }, [jobDetails?.status, applicationId]);
 
     useEffect(() => {
         const handlePopState = (event) => {
@@ -78,6 +93,82 @@ export default function ApplicationTrack() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [tenantId, navigate]);
 
+    // 4. Handlers
+    const handleDownload = async (url, title) => {
+        if (!url) return;
+        try {
+            const baseUrl = API_BASE.replace(/\/api$/, '');
+            const finalUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+            window.open(finalUrl, '_blank');
+        } catch (err) {
+            console.error(`Download failed for ${title}:`, err);
+            alert(`Sorry! This ${title} is not yet available.`);
+        }
+    };
+
+    const handleAcceptOffer = async () => {
+        if (!window.confirm("Are you sure you want to ACCEPT this offer?")) return;
+        try {
+            setLoading(true);
+            const res = await api.post(`/candidate/application/accept-offer/${applicationId}`);
+            if (res.data.success) {
+                alert("Offer Accepted! Now please upload your documents below.");
+                window.location.reload();
+            }
+        } catch (err) {
+            console.error("Failed to accept offer:", err);
+            alert(err.response?.data?.error || "Failed to accept offer.");
+            setLoading(false);
+        }
+    };
+
+    const handleRejectOffer = async () => {
+        if (!window.confirm("Are you sure you want to REJECT this offer?")) return;
+        try {
+            setLoading(true);
+            const res = await api.post(`/candidate/application/reject-offer/${applicationId}`);
+            if (res.data.success) {
+                alert("Offer Rejected.");
+                window.location.reload();
+            }
+        } catch (err) {
+            console.error("Failed to reject offer:", err);
+            alert(err.response?.data?.error || "Failed to reject offer.");
+            setLoading(false);
+        }
+    };
+
+    const handleFileUpload = async (event, docType) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) {
+            alert("File size must be less than 5MB");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('document', file);
+        formData.append('type', docType);
+
+        setUploadingDoc(docType);
+        try {
+            await api.post(`/candidate/application/bgv-documents/${applicationId}/upload`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            const res = await api.get(`/candidate/application/bgv-documents/${applicationId}`);
+            if (res.data && res.data.documents) {
+                setUploadedDocs(res.data.documents);
+            }
+        } catch (err) {
+            console.error("Upload failed", err);
+            alert("Failed to upload document.");
+        } finally {
+            setUploadingDoc(null);
+        }
+    };
+
+    // 5. Early Returns (AFTER hooks)
     if (loading) return (
         <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
@@ -103,13 +194,13 @@ export default function ApplicationTrack() {
         </div>
     );
 
+    // 6. Final Render Data
     const currentStatus = (jobDetails?.status || 'Applied').toLowerCase();
     const statusIndex = stages.findIndex(s => s.backendKeys.some(key => key.toLowerCase() === currentStatus));
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] pb-20 animate-in fade-in duration-200">
             <div className="max-w-[1400px] mx-auto px-6 lg:px-10">
-                {/* Header Section */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-12 pt-8">
                     <div className="flex items-center gap-6">
                         <button
@@ -126,7 +217,6 @@ export default function ApplicationTrack() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                    {/* LEFT COLUMN: Job Card & Status SUMMARY */}
                     <div className="lg:col-span-4 space-y-10">
                         <div className="bg-white rounded-[2.5rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50 p-10 lg:p-12 relative overflow-hidden group">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
@@ -150,10 +240,10 @@ export default function ApplicationTrack() {
                                 <div className="mt-12 pt-10 border-t border-slate-50 space-y-4">
                                     {jobDetails?.offerLetterUrl && (
                                         <button
-                                            onClick={() => handleDownload(jobDetails.offerLetterUrl, 'Offer Letter')}
-                                            className="w-full bg-emerald-600 text-white py-5 rounded-full font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:shadow-xl hover:translate-y-[-2px] transition-all flex items-center justify-center gap-3"
+                                            onClick={() => setShowOfferModal(true)}
+                                            className="w-full bg-white border border-indigo-100 text-indigo-600 py-5 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-50 transition-all flex items-center justify-center gap-3 shadow-sm"
                                         >
-                                            <ExternalLink className="w-4 h-4" /> Download Offer Letter
+                                            <FileText className="w-4 h-4" /> View Offer Letter
                                         </button>
                                     )}
 
@@ -176,9 +266,92 @@ export default function ApplicationTrack() {
                             </div>
                         </div>
 
+                        {/* OFFER ACTIONS */}
+                        {jobDetails?.offerLetterUrl && (jobDetails?.status === 'Offer Issued' || jobDetails?.status === 'Selected') && (
+                            <div className="bg-white rounded-[2.5rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50 p-8 text-center animate-in slide-in-from-bottom-5">
+                                <h3 className="text-xl font-bold text-slate-800 mb-4">Pending Action</h3>
+                                <p className="text-slate-500 text-sm mb-8 px-4">
+                                    Congratulations! Please review the offer letter and accept to proceed.
+                                </p>
+                                <div className="flex flex-col gap-3">
+                                    <button
+                                        onClick={() => setShowOfferModal(true)}
+                                        className="w-full bg-white border border-slate-200 text-slate-600 py-4 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <ExternalLink size={16} /> View Offer Letter
+                                    </button>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleRejectOffer}
+                                            className="flex-1 bg-white border border-rose-200 text-rose-600 py-4 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-50 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <X size={16} /> Reject
+                                        </button>
+                                        <button
+                                            onClick={handleAcceptOffer}
+                                            className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <CheckCircle2 size={16} /> Accept
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* BGV Uploader directly on this page - only show if initiated by HR */}
+                        {jobDetails?.status === 'Offer Accepted' && bgvInitiated && (
+                            <div className="bg-emerald-50 rounded-[2.5rem] border border-emerald-100 p-8 animate-in slide-in-from-bottom-5">
+                                <div className="text-center mb-6">
+                                    <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
+                                    <h3 className="text-xl font-bold text-emerald-800 mb-2">BGV Verification</h3>
+                                    <p className="text-emerald-600 text-sm px-4">
+                                        Please upload the following documents to complete your background verification.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-3 bg-white/50 p-4 rounded-2xl border border-emerald-100/50">
+                                    {requiredDocs.map((doc) => {
+                                        const uploaded = uploadedDocs.find(d => d.documentType === doc.key || d.name === doc.key);
+                                        return (
+                                            <div key={doc.key} className="bg-white p-4 rounded-xl border border-emerald-100 flex items-center justify-between shadow-sm">
+                                                <div>
+                                                    <p className="text-slate-700 font-bold text-sm">{doc.label}</p>
+                                                    {uploaded ? (
+                                                        <p className="text-[10px] text-emerald-600 font-bold uppercase mt-1 flex items-center gap-1">
+                                                            <CheckCircle2 size={10} /> Uploaded • {dayjs(uploaded.uploadedAt).format('MMM DD')}
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Pending</p>
+                                                    )}
+                                                </div>
+                                                {uploaded ? (
+                                                    <div className="flex items-center gap-2 text-emerald-500">
+                                                        <CheckCircle2 size={20} />
+                                                    </div>
+                                                ) : (
+                                                    <label className={`cursor-pointer px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition flex items-center gap-2 border border-indigo-100 ${uploadingDoc === doc.key ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                        {uploadingDoc === doc.key ? (
+                                                            <span className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                                                        ) : (
+                                                            <Upload size={14} />
+                                                        )}
+                                                        <span>Upload</span>
+                                                        <input
+                                                            type="file"
+                                                            className="hidden"
+                                                            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                                            onChange={(e) => handleFileUpload(e, doc.key)}
+                                                        />
+                                                    </label>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    {/* RIGHT COLUMN: Journey Timeline */}
                     <div className="lg:col-span-8">
                         <div className="bg-white rounded-[2.5rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50 p-10 lg:p-14">
                             <h2 className="text-2xl font-bold text-slate-800 mb-16 flex items-center gap-5 tracking-tight">
@@ -189,15 +362,12 @@ export default function ApplicationTrack() {
                             </h2>
 
                             <div className="relative pl-12 sm:pl-20">
-                                {/* The vertical connector line */}
                                 <div className="absolute left-[34px] sm:left-[41px] top-4 bottom-4 w-1.5 bg-slate-50 rounded-full" />
-
                                 <div className="space-y-20">
                                     {stages.map((stage, index) => {
                                         const isCurrent = index === statusIndex;
                                         const isCompleted = index < statusIndex;
                                         const isFuture = index > statusIndex;
-
                                         const logs = timeline.filter(log => stage.backendKeys.some(k => k.toLowerCase() === log.status?.toLowerCase()));
                                         const log = logs.length > 0 ? logs[logs.length - 1] : null;
                                         const timestamp = log?.timestamp || log?.actionDate;
@@ -205,23 +375,15 @@ export default function ApplicationTrack() {
                                         return (
                                             <div key={index} className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between group">
                                                 <div className="flex items-center gap-10">
-                                                    {/* ICON CIRCLE */}
                                                     <div className={`w-16 sm:w-20 h-16 sm:h-20 flex-shrink-0 rounded-[1.5rem] border-4 flex items-center justify-center bg-white shadow-lg transition-all duration-700 relative
-                                                        ${isCurrent ? 'border-indigo-600 ring-12 ring-indigo-50 scale-110' : (isCompleted ? 'border-emerald-500 bg-emerald-50 shadow-emerald-100/50' : 'border-slate-50 opacity-100')}`}>
-
+                                                        ${isCurrent ? 'border-indigo-600 ring-12 ring-indigo-50 scale-110' : (isCompleted ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50')}`}>
                                                         {isCurrent ? (
                                                             <div className="w-4 h-4 bg-indigo-600 rounded-full animate-ping" />
                                                         ) : (
-                                                            isCompleted ? (
-                                                                <CheckCircle2 className="h-7 w-7 text-emerald-500 transition-all scale-100 group-hover:scale-110" />
-                                                            ) : (
-                                                                <div className="w-2.5 h-2.5 bg-slate-100 rounded-full group-hover:bg-slate-200 transition-colors" />
-                                                            )
+                                                            isCompleted ? <CheckCircle2 className="h-7 w-7 text-emerald-500" /> : <div className="w-2.5 h-2.5 bg-slate-100 rounded-full" />
                                                         )}
                                                     </div>
-
-                                                    {/* STAGE INFO */}
-                                                    <div className="transition-all duration-500">
+                                                    <div>
                                                         <h3 className={`font-bold text-xl tracking-tight mb-2 ${isFuture ? 'text-slate-300' : 'text-slate-800'} ${isCurrent ? 'text-indigo-600' : ''}`}>
                                                             {stage.label}
                                                         </h3>
@@ -230,23 +392,34 @@ export default function ApplicationTrack() {
                                                                 {isCompleted ? 'Historical Log' : (isCurrent ? 'In Active Progress' : 'Upcoming Stage')}
                                                             </p>
                                                             {timestamp && (
-                                                                <>
-                                                                    <span className="h-1 w-1 bg-slate-300 rounded-full"></span>
-                                                                    <p className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
-                                                                        {dayjs(timestamp).format('MMM DD, YYYY')}
-                                                                    </p>
-                                                                </>
+                                                                <p className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
+                                                                    {dayjs(timestamp).format('MMM DD, YYYY')}
+                                                                </p>
                                                             )}
                                                         </div>
                                                     </div>
                                                 </div>
-
-                                                {/* STAGE DESCRIPTION / TOOLTIP */}
                                                 {!isFuture && (
-                                                    <div className="mt-4 sm:mt-0 sm:ml-auto p-4 bg-[#F8FAFC] border border-slate-100 rounded-2xl max-w-[200px] shadow-sm transform group-hover:translate-x-[-8px] transition-all">
-                                                        <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-                                                            {log?.remarks || stage.description}
-                                                        </p>
+                                                    <div className="mt-4 sm:mt-0 sm:ml-auto space-y-3 max-w-[300px] w-full">
+                                                        {logs.length > 0 ? logs.map((log, lIdx) => (
+                                                            <div key={lIdx} className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                    <span className="text-[9px] font-black uppercase text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">
+                                                                        {log.status === 'Interview Scheduled' ? 'Scheduled' : (log.status || stage.label)}
+                                                                    </span>
+                                                                    <span className="text-[8px] font-bold text-slate-400">
+                                                                        {dayjs(log.timestamp || log.actionDate).format('DD MMM')}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[10px] text-slate-600 font-medium leading-relaxed">
+                                                                    {log.message || log.remarks || stage.description}
+                                                                </p>
+                                                            </div>
+                                                        )) : (
+                                                            <div className="p-4 bg-[#F8FAFC] border border-slate-100 rounded-2xl shadow-sm italic text-slate-400 text-[10px]">
+                                                                Waiting to initiate this stage...
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -258,6 +431,41 @@ export default function ApplicationTrack() {
                     </div>
                 </div>
             </div>
+
+            {/* Offer Letter Modal */}
+            {showOfferModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2rem] w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl relative overflow-hidden">
+                        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">Offer Letter</h3>
+                                <p className="text-slate-400 text-xs font-bold uppercase mt-1">Review your document</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => handleDownload(jobDetails?.offerLetterUrl, 'Offer Letter')}
+                                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all"
+                                >
+                                    <Download size={16} /> Download
+                                </button>
+                                <button
+                                    onClick={() => setShowOfferModal(false)}
+                                    className="p-3 rounded-full hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-all"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 bg-slate-100 p-6 overflow-hidden">
+                            <iframe
+                                src={jobDetails?.offerLetterUrl?.startsWith('http') ? jobDetails?.offerLetterUrl : `${API_BASE.replace(/\/api$/, '')}${jobDetails?.offerLetterUrl}`}
+                                className="w-full h-full rounded-2xl border border-slate-200 bg-white shadow-sm"
+                                title="Offer Letter"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
