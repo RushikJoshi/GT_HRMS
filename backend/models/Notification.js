@@ -5,7 +5,7 @@ const NotificationSchema = new mongoose.Schema({
     receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     receiverRole: {
         type: String,
-        enum: ['employee', 'manager', 'hr', 'psa'],
+        enum: ['employee', 'manager', 'hr', 'psa', 'candidate'],
         required: true
     },
 

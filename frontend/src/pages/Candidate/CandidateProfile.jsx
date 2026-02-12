@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
-import api, { API_ROOT } from '../../utils/api';
 import {
     User, Mail, Phone, MapPin, FileText,
     Edit3, CheckCircle2, CloudUpload, ShieldCheck,
-    Calendar, Shield, AlertCircle
+    Calendar, Shield, AlertCircle, Download, X, ExternalLink
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import api, { API_ROOT } from '../../utils/api'; // Centralized axios instance with auth & tenant headers
 import Cropper from 'react-easy-crop';
 import { Modal, Slider } from 'antd';
 
@@ -24,6 +25,7 @@ export default function CandidateProfile() {
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
     const [profileImage, setProfileImage] = useState(null);
     const [profileImageUrl, setProfileImageUrl] = useState('');
+    const [showOfferModal, setShowOfferModal] = useState(false);
 
     const fetchProfile = useCallback(async () => {
         setLoading(true);
@@ -36,6 +38,64 @@ export default function CandidateProfile() {
             setLoading(false);
         }
     }, []);
+
+    const handleDownload = async (url, title) => {
+        if (!url) return;
+        try {
+            const finalUrl = url.startsWith('http') ? url : `${API_ROOT}${url}`;
+            // Direct open without HEAD check to avoid CORS/Auth issues on static files
+            window.open(finalUrl, '_blank');
+        } catch (err) {
+            console.error(`Download failed for ${title}:`, err);
+            alert(`Sorry! This ${title} is not yet available on the server. Please check back later or contact HR.`);
+        }
+    };
+
+    const handleAcceptOffer = async () => {
+        const appId = profileData?.bgvApplicationId || profileData?.applicationId;
+        if (!appId) {
+            alert("Application ID not found. Please try refreshing the page.");
+            return;
+        }
+        if (!window.confirm("Are you sure you want to ACCEPT this offer? Once accepted, you can proceed with background verification.")) return;
+
+        try {
+            setLoading(true);
+            const res = await api.post(`/candidate/application/accept-offer/${appId}`);
+            if (res.data.success) {
+                alert("Offer Accepted! You can now upload your BGV documents.");
+                setShowOfferModal(false);
+                await fetchProfile();
+            }
+        } catch (err) {
+            console.error("Failed to accept offer:", err);
+            alert(err.response?.data?.error || "Failed to accept offer. Please try again.");
+            setLoading(false);
+        }
+    };
+
+    const handleRejectOffer = async () => {
+        const appId = profileData?.bgvApplicationId || profileData?.applicationId;
+        if (!appId) {
+            alert("Application ID not found. Please try refreshing the page.");
+            return;
+        }
+        if (!window.confirm("Are you sure you want to REJECT this offer? This cannot be undone.")) return;
+
+        try {
+            setLoading(true);
+            const res = await api.post(`/candidate/application/reject-offer/${appId}`);
+            if (res.data.success) {
+                alert("Offer Rejected.");
+                setShowOfferModal(false);
+                await fetchProfile();
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Failed to reject offer.");
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchProfile();
@@ -335,6 +395,102 @@ export default function CandidateProfile() {
                             <button className="bg-white text-indigo-600 px-8 py-3.5 rounded-full font-bold text-xs uppercase tracking-widest shadow-sm border border-slate-100 hover:shadow-md transition-all">Choose File</button>
                         </div>
                     </div>
+
+                    {/* Official Documents Section */}
+                    {(profileData.offerLetterUrl || profileData.joiningLetterUrl) && (
+                        <div className="bg-white rounded-[2.5rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50 p-10 lg:p-14 animate-in slide-in-from-bottom-5">
+                            <div className="flex items-center gap-5 mb-10">
+                                <div className="bg-emerald-50 p-4 rounded-2xl text-emerald-600 border border-emerald-100 ring-4 ring-emerald-50">
+                                    <FileText size={32} />
+                                </div>
+                                <div>
+                                    <h2 className="text-3xl font-bold text-slate-800 tracking-tight leading-none mb-1">Official Documents</h2>
+                                    <p className="text-slate-500 font-medium">Download your issued letters</p>
+                                </div>
+                            </div>
+
+                            <p className="text-slate-500 mb-8 leading-relaxed">
+                                Below are the official documents issued to you by the HR department. You can download them for your records.
+                            </p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {profileData.offerLetterUrl && (
+                                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100/50 flex flex-col items-center text-center gap-6 group hover:border-indigo-200 transition-all">
+                                        <div className="h-20 w-20 bg-white rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                                            <FileText size={40} />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-slate-800 text-xl tracking-tight">Offer Letter</h4>
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Ref ID: {profileData.offerRefCode || 'OL-GEN'}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowOfferModal(true)}
+                                            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <ExternalLink size={16} /> View Offer Letter
+                                        </button>
+
+                                        {(!profileData?.bgvRequired && !profileData?.joiningLetterUrl) && (
+                                            <div className="flex gap-3 mt-3 w-full">
+                                                <button
+                                                    onClick={handleRejectOffer}
+                                                    className="flex-1 bg-white border border-rose-200 text-rose-600 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-rose-50 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <X size={16} /> Reject
+                                                </button>
+                                                <button
+                                                    onClick={handleAcceptOffer}
+                                                    className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:-translate-y-1 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <CheckCircle2 size={16} /> Accept
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {profileData.joiningLetterUrl && (
+                                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100/50 flex flex-col items-center text-center gap-6 group hover:border-emerald-200 transition-all">
+                                        <div className="h-20 w-20 bg-white rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                                            <FileText size={40} />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-slate-800 text-xl tracking-tight">Joining Letter</h4>
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Available for Download</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleDownload(profileData.joiningLetterUrl, 'Joining Letter')}
+                                            className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <FileText size={16} /> Download PDF
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* BGV Documents Section - Only shown if enabled */}
+                    {profileData?.bgvRequired && (
+                        <div className="bg-white p-10 lg:p-14 rounded-[2.5rem] border border-indigo-100 shadow-[0px_8px_16px_rgba(79,70,229,0.06)] relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full opacity-50 group-hover:scale-150 transition-transform duration-700"></div>
+
+                            <h3 className="text-xl font-bold text-slate-900 tracking-tight mb-8 flex items-center gap-4">
+                                <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600">
+                                    <ShieldCheck size={20} />
+                                </div>
+                                Background Verification Documents
+                            </h3>
+
+                            <p className="text-slate-500 mb-8 leading-relaxed">
+                                Please upload the required documents for your background verification. Ensure all documents are clear and readable.
+                            </p>
+
+                            <BGVUploadManager
+                                applicationId={profileData.bgvApplicationId}
+                                onRefresh={fetchProfile}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Side: Quick Stats */}
@@ -382,6 +538,151 @@ export default function CandidateProfile() {
                     />
                 </div>
             </Modal>
+
+            {/* Offer Letter Modal */}
+            {showOfferModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2rem] w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl relative overflow-hidden ring-1 ring-white/20">
+                        {/* Header */}
+                        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white z-10">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 tracking-tight">Offer Letter</h3>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Review your document</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => handleDownload(profileData?.offerLetterUrl, 'Offer Letter')}
+                                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all"
+                                >
+                                    <Download size={16} /> Download
+                                </button>
+                                <button
+                                    onClick={() => setShowOfferModal(false)}
+                                    className="p-3 rounded-full hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-all border border-transparent hover:border-slate-200"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 bg-slate-100 p-6 overflow-hidden relative">
+                            <iframe
+                                src={profileData?.offerLetterUrl?.startsWith('http') ? profileData?.offerLetterUrl : `${API_ROOT}${profileData?.offerLetterUrl}`}
+                                className="w-full h-full rounded-2xl border border-slate-200 bg-white shadow-sm"
+                                title="Offer Letter"
+                            />
+                        </div>
+
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// BGV Upload Manager Component
+function BGVUploadManager({ applicationId, onRefresh }) {
+    const [documents, setDocuments] = useState([]);
+    const [uploading, setUploading] = useState(false);
+
+    useEffect(() => {
+        fetchDocuments();
+    }, [applicationId]);
+
+    const fetchDocuments = async () => {
+        try {
+            const res = await api.get(`/candidate/application/bgv-documents/${applicationId}`);
+            setDocuments(res.data.documents || []);
+        } catch (err) {
+            console.error("Failed to fetch documents", err);
+        }
+    };
+
+    const handleFileUpload = async (e, type) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('document', file);
+        formData.append('type', type);
+
+        try {
+            setUploading(true);
+            await api.post(`/candidate/application/bgv-documents/${applicationId}/upload`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            await fetchDocuments();
+            // alert(`${type} uploaded successfully!`); 
+        } catch (err) {
+            console.error(err);
+            alert("Upload failed.");
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const requiredDocs = [
+        { id: 'AadharCard', label: 'Aadhar Card' },
+        { id: 'PANCard', label: 'PAN Card' },
+        { id: 'DegreeCertificate', label: 'Highest Degree Certificate' },
+        { id: 'RelievingLetter', label: 'Relieving Letter (Last Company)' },
+        { id: 'Payslips', label: 'Last 3 Months Payslips' }
+    ];
+
+    return (
+        <div className="space-y-4">
+            {requiredDocs.map((doc) => {
+                const existing = documents.find(d => d.name === doc.id);
+                return (
+                    <div key={doc.id} className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100/50 hover:border-indigo-100 transition-colors">
+                        <div className="flex items-center gap-5">
+                            <div className={`p-3 rounded-xl ${existing ? 'bg-emerald-100 text-emerald-600' : 'bg-white text-slate-400 border border-slate-200'}`}>
+                                {existing ? <CheckCircle2 size={24} /> : <FileText size={24} />}
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-slate-800 text-sm mb-1">{doc.label}</h4>
+                                {existing ? (
+                                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider flex items-center gap-1">
+                                        <CheckCircle2 size={10} /> Uploaded
+                                    </p>
+                                ) : (
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Required</p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <input
+                                type="file"
+                                id={`file-${doc.id}`}
+                                className="hidden"
+                                onChange={(e) => handleFileUpload(e, doc.id)}
+                                disabled={uploading || existing?.verified}
+                            />
+
+                            {existing?.filePath && (
+                                <button
+                                    onClick={() => window.open(`${API_ROOT}/${existing.filePath}`, '_blank')}
+                                    className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all"
+                                    title="View Document"
+                                >
+                                    <FileText size={18} />
+                                </button>
+                            )}
+
+                            <label
+                                htmlFor={`file-${doc.id}`}
+                                className={`cursor-pointer px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 ${existing
+                                    ? 'bg-white text-slate-500 border border-slate-200 hover:border-indigo-200 hover:text-indigo-600'
+                                    : 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-0.5'
+                                    }`}
+                            >
+                                {uploading ? '...' : (existing ? 'Replace' : 'Upload')}
+                            </label>
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }

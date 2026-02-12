@@ -32,7 +32,7 @@ export default function CandidateApplications() {
 
     const getStatusStyle = (status) => {
         const s = status?.toLowerCase();
-        if (['hired', 'selected', 'offered'].includes(s)) return 'bg-emerald-50 text-emerald-600 border-emerald-100 ring-emerald-500/10';
+        if (['hired', 'selected', 'offered', 'joining letter issued'].includes(s)) return 'bg-emerald-50 text-emerald-600 border-emerald-100 ring-emerald-500/10';
         if (['interview', 'shortlisted'].includes(s)) return 'bg-soft-yellow/10 text-amber-600 border-amber-100 ring-amber-500/10';
         if (s === 'rejected') return 'bg-rose-50 text-rose-600 border-rose-100 ring-rose-500/10';
         return 'bg-slate-50 text-indigo-600 border-indigo-100 ring-indigo-500/10';

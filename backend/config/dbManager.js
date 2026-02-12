@@ -78,6 +78,9 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const BGVEmailTemplateSchema = require("../models/BGVEmailTemplate");
     const BGVReportSchema = require("../models/BGVReport");
     const BGVTimelineSchema = require("../models/BGVTimeline");
+    const VendorRegistrationSchema = require("../models/vendor.model.js");
+    const VendorBankDetailsSchema = require("../models/vendorBank.model.js");
+    const VendorFormConfigSchema = require("../models/VendorFormConfig.model.js");
 
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
@@ -151,6 +154,11 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("BGVEmailTemplate", BGVEmailTemplateSchema);
     register("BGVReport", BGVReportSchema);
     register("BGVTimeline", BGVTimelineSchema);
+
+    // Vendor Models
+    register("VendorRegistration", VendorRegistrationSchema);
+    register("VendorBankDetails", VendorBankDetailsSchema);
+    register("VendorFormConfig", VendorFormConfigSchema);
 
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {

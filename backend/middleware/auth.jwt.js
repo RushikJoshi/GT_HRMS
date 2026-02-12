@@ -67,10 +67,14 @@ exports.requireAdminOrHr = async (req, res, next) => {
 exports.requireHr = (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: 'no_user' });
   const userRole = (req.user.role || '').toLowerCase();
-  const allowedRoles = ['hr', 'admin', 'psa', 'employee', 'user', 'company_admin', 'candidate'];
+  const allowedRoles = [
+    'hr', 'admin', 'psa', 'employee', 'user', 'company_admin', 'candidate',
+    'company admin', 'company-admin', 'manager'
+  ];
 
   if (!allowedRoles.includes(userRole)) {
-    return res.status(403).json({ message: 'forbidden' });
+    console.warn(`[requireHr] Forbidden: Role '${userRole}' not in allowed list.`);
+    return res.status(403).json({ message: 'forbidden', role: userRole });
   }
   if (req.user.tenantId) req.tenantId = req.user.tenantId;
   next();

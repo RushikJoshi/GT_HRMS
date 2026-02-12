@@ -46,6 +46,7 @@ const BGVDocumentSchema = new mongoose.Schema({
             'ADDRESS_PROOF',
             'POLICE_VERIFICATION',
             'REFERENCE_LETTER',
+            'PASSPORT_PHOTO',
             'OTHER'
         ],
         required: true,
