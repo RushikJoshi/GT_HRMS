@@ -660,15 +660,12 @@ const ChecksTab = ({ caseData, onVerify, loading, onOpenConsentModal, onOpenDisc
     );
 };
 
-<<<<<<< HEAD
 // Documents Tab (UPGRADED WITH OCR VIEW)
 const DocumentsTab = ({ caseData, onRefresh, onReprocessOCR }) => {
     const [selectedDocId, setSelectedDocId] = useState(null);
-=======
-// Documents Tab
-const DocumentsTab = ({ caseData, onRefresh }) => {
+
     const handleDownload = (doc) => {
-        const url = `${API_ROOT}/${doc.filePath}`;
+        const url = `${api.defaults.baseURL}${doc.filePath}`;
         const link = document.createElement('a');
         link.href = url;
         link.setAttribute('download', doc.originalName);
@@ -679,16 +676,14 @@ const DocumentsTab = ({ caseData, onRefresh }) => {
     };
 
     const handlePreview = (doc) => {
-        const url = `${API_ROOT}/${doc.filePath}`;
+        const url = `${api.defaults.baseURL}${doc.filePath}`;
         window.open(url, '_blank');
     };
->>>>>>> main
 
     return (
         <div className="space-y-4">
             {caseData.documents && caseData.documents.length > 0 ? (
                 caseData.documents.map((doc) => (
-<<<<<<< HEAD
                     <div key={doc._id} className="bg-white rounded-3xl border-2 border-slate-200 overflow-hidden hover:shadow-xl transition-all">
                         <div className="p-6 flex items-center justify-between">
                             <div className="flex items-center gap-4">
@@ -719,18 +714,6 @@ const DocumentsTab = ({ caseData, onRefresh }) => {
                                         <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
                                         <span>Version {doc.version}</span>
                                     </div>
-=======
-                    <div key={doc._id} className="bg-white rounded-2xl border-2 border-slate-200 p-6 flex items-center justify-between hover:shadow-lg transition-all group">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-100 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all">
-                                <FileText size={24} className="text-blue-600 group-hover:text-white" />
-                            </div>
-                            <div>
-                                <div className="font-bold text-slate-900">{doc.documentType?.replace(/_/g, ' ')}</div>
-                                <div className="text-sm text-slate-500">{doc.originalName}</div>
-                                <div className="text-xs text-slate-400 mt-1">
-                                    Uploaded {dayjs(doc.uploadedAt).fromNow()} • Version {doc.version}
->>>>>>> main
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
@@ -763,8 +746,6 @@ const DocumentsTab = ({ caseData, onRefresh }) => {
                                 </a>
                             </div>
                         </div>
-<<<<<<< HEAD
-
                         {/* OCR DATA PANEL */}
                         {selectedDocId === doc._id && doc.evidenceMetadata && (
                             <div className="border-t-2 border-slate-100 bg-slate-50/50 p-6 animate-in slide-in-from-top duration-300">
@@ -869,39 +850,6 @@ const DocumentsTab = ({ caseData, onRefresh }) => {
                     </div>
                     <p className="text-slate-500 font-bold">No evidence documents uploaded yet</p>
                     <p className="text-xs text-slate-400 mt-1">Intelligent OCR verification will start automatically after upload</p>
-=======
-                        <div className="flex items-center gap-3">
-                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${doc.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
-                                doc.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
-                                    'bg-indigo-50 text-indigo-600'
-                                }`}>
-                                {doc.status}
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => handlePreview(doc)}
-                                    className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                                    title="Preview Document"
-                                >
-                                    <Eye size={18} />
-                                </button>
-                                <button
-                                    onClick={() => handleDownload(doc)}
-                                    className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                                    title="Download Document"
-                                >
-                                    <Download size={18} />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                ))
-            ) : (
-                <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-                    <FileText size={64} className="mx-auto mb-4 text-slate-300" />
-                    <p className="font-bold text-slate-500 text-lg">No documents uploaded yet</p>
-                    <p className="text-sm text-slate-400 mt-1">Uploaded evidence will appear here</p>
->>>>>>> main
                 </div>
             )}
         </div>
