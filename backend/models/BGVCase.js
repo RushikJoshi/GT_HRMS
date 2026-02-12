@@ -16,7 +16,8 @@ const BGVCaseSchema = new mongoose.Schema({
     applicationId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Applicant',
-        required: true,
+        required: false,
+        default: null,
         index: true
     },
     candidateId: {

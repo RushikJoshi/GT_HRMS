@@ -78,6 +78,10 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const BGVEmailTemplateSchema = require("../models/BGVEmailTemplate");
     const BGVReportSchema = require("../models/BGVReport");
     const BGVTimelineSchema = require("../models/BGVTimeline");
+    const BGVDocumentSchema = require("../models/BGVDocument");
+    const BGVConsentSchema = require("../models/BGVConsent");
+    const BGVRiskScoreSchema = require("../models/BGVRiskScore");
+    const BGVTaskAssignmentSchema = require("../models/BGVTaskAssignment");
 
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
@@ -145,12 +149,17 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("CompanyIdConfig", CompanyIdConfigSchema);
 
     // BGV Models
+    register("BGVDocument", BGVDocumentSchema);
     register("BGVCase", BGVCaseSchema);
     register("BGVCheck", BGVCheckSchema);
     register("BGVEmailLog", BGVEmailLogSchema);
     register("BGVEmailTemplate", BGVEmailTemplateSchema);
     register("BGVReport", BGVReportSchema);
     register("BGVTimeline", BGVTimelineSchema);
+    register("BGVEvidenceConfig", require("../models/BGVEvidenceConfig"));
+    register("BGVConsent", BGVConsentSchema);
+    register("BGVRiskScore", BGVRiskScoreSchema);
+    register("BGVTaskAssignment", BGVTaskAssignmentSchema);
 
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {

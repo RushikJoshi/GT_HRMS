@@ -178,51 +178,135 @@ async function calculateEmployeePayroll(
 
     const adjustmentTotal = pendingAdjustments.reduce((sum, adj) => sum + adj.adjustmentAmount, 0);
 
-    // 🔥 PRIMARY SOURCE: EmployeeCompensation
-    let comp = await EmployeeCompensation.findOne({
-        employeeId: employee._id,
-        isActive: true,
-        status: 'ACTIVE'
-    }).lean();
-
-    let salaryTemplate;
-    let compensationSource = 'EMPLOYEE_COMPENSATION';
+    // 🔍 STEP 0: Select Salary Source (Waterfall Logic)
+    let salaryTemplate = null;
+    let compensationSource = 'UNKNOWN';
     let isLegacyFallback = false;
 
-    if (!comp) {
-        // 🔄 FALLBACK: Try to use Employee's salarySnapshot
-        console.warn(`⚠️ [PAYROLL] No EmployeeCompensation found for ${employee.firstName} ${employee.lastName}, trying salarySnapshot fallback...`);
-
-        // Populate the employee's salarySnapshotId if it exists
-        const Employee = db.model('Employee');
-        const Applicant = db.model('Applicant');
-
-        // Try Employee Master first
-        let personWithSnapshot = await Employee.findById(employee._id).populate('salarySnapshotId').lean();
-
-        // Fallback to Applicant if not found in Employee model
-        if (!personWithSnapshot) {
-            personWithSnapshot = await Applicant.findById(employee._id).populate('salarySnapshotId').lean();
-        }
-
-        if (personWithSnapshot && personWithSnapshot.salarySnapshotId) {
-            const snapshot = personWithSnapshot.salarySnapshotId;
-            console.log(`✅ [PAYROLL] Using salarySnapshot fallback for ${employee.firstName} ${employee.lastName}`);
-
-            // Convert snapshot to compensation format
+    // 1️⃣ Priority 1: Explicit Template ID (if provided and exists in DB)
+    if (explicitTemplateId) {
+        const SalaryTemplate = db.model('SalaryTemplate');
+        const template = await SalaryTemplate.findById(explicitTemplateId).lean();
+        if (template) {
+            console.log(`🎯 [PAYROLL] Using explicit SalaryTemplate: ${template.templateName}`);
             salaryTemplate = {
-                _id: snapshot._id,
-                templateName: `Legacy Snapshot`,
-                annualCTC: snapshot.annualCTC || 0,
-                monthlyCTC: snapshot.monthlyCTC || Math.round((snapshot.annualCTC || 0) / 12),
-                earnings: (snapshot.earnings || []).map(e => ({
-                    name: e.name || 'Unknown Earning',
+                ...template,
+                earnings: (template.earnings || []).map(e => ({
+                    ...e,
                     monthlyAmount: e.monthlyAmount || 0,
-                    annualAmount: e.annualAmount || 0,
+                    annualAmount: e.annualAmount || (e.monthlyAmount * 12) || 0,
                     proRata: e.proRata !== false,
                     taxable: e.taxable !== false
                 })),
-                employerDeductions: (snapshot.employerDeductions || []).map(b => ({
+                employerDeductions: (template.employerDeductions || []).map(d => ({
+                    ...d,
+                    monthlyAmount: d.monthlyAmount || 0
+                }))
+            };
+            compensationSource = 'SALARY_TEMPLATE';
+        }
+    }
+
+    // 2️⃣ Priority 2: EmployeeCompensation (Active CTC Structure)
+    if (!salaryTemplate) {
+        let comp = await EmployeeCompensation.findOne({
+            employeeId: employee._id,
+            isActive: true,
+            status: 'ACTIVE'
+        }).lean();
+
+        // Fallback: If not found by employeeId, try looking for an applicant with this ID
+        // some records might still be in Applicant collection or use applicantId as key
+        if (!comp) {
+            const Applicant = db.model('Applicant');
+            const applicant = await Applicant.findById(employee._id).populate('salarySnapshotId').lean();
+            if (applicant && applicant.salarySnapshotId) {
+                console.log(`✅ [PAYROLL] Found applicant-based compensation for ${employee.firstName}`);
+                const snapshot = applicant.salarySnapshotId;
+
+                // Convert snapshot to template-like format
+                salaryTemplate = {
+                    _id: snapshot._id,
+                    templateName: `Applicant Snapshot`,
+                    annualCTC: snapshot.ctc || 0,
+                    monthlyCTC: snapshot.monthlyCTC || Math.round((snapshot.ctc || 0) / 12),
+                    earnings: (snapshot.earnings || []).map(e => ({
+                        name: e.name || 'Unknown Earning',
+                        monthlyAmount: e.monthlyAmount || 0,
+                        annualAmount: e.yearlyAmount || (e.monthlyAmount * 12) || 0,
+                        proRata: e.proRata !== false,
+                        taxable: e.taxable !== false
+                    })),
+                    employerDeductions: (snapshot.benefits || snapshot.employerDeductions || []).map(b => ({
+                        name: b.name || 'Unknown Benefit',
+                        monthlyAmount: b.monthlyAmount || 0
+                    })),
+                    settings: {
+                        includePensionScheme: true,
+                        pfWageRestriction: true,
+                        includeESI: true
+                    }
+                };
+                compensationSource = 'APPLICANT_COMPENSATION';
+            }
+        }
+
+        if (comp && !salaryTemplate) {
+            console.log(`✅ [PAYROLL] Using active EmployeeCompensation for ${employee.firstName}`);
+            const normalizedComp = normalizeCompensation(comp);
+            const grossTotals = ensureGrossTotals(normalizedComp);
+
+            salaryTemplate = {
+                _id: comp._id,
+                templateName: `Active Compensation`,
+                annualCTC: grossTotals.totalCTC || 0,
+                monthlyCTC: Math.round((grossTotals.totalCTC || 0) / 12),
+                earnings: (normalizedComp.components || [])
+                    .filter(c => c && (c.type || '').toUpperCase() === 'EARNING')
+                    .map(e => ({
+                        name: e.name || 'Unknown Earning',
+                        monthlyAmount: e.monthlyAmount || 0,
+                        annualAmount: e.annualAmount || (e.monthlyAmount * 12) || 0,
+                        proRata: e.isProRata !== false,
+                        taxable: e.isTaxable !== false
+                    })),
+                employerDeductions: (normalizedComp.components || [])
+                    .filter(c => c && (c.type || '').toUpperCase() === 'BENEFIT')
+                    .map(b => ({
+                        name: b.name || 'Unknown Benefit',
+                        monthlyAmount: b.monthlyAmount || 0
+                    })),
+                settings: comp.settings || {
+                    includePensionScheme: true,
+                    pfWageRestriction: true,
+                    includeESI: true
+                }
+            };
+            compensationSource = 'EMPLOYEE_COMPENSATION';
+        }
+    }
+
+    // 3️⃣ Priority 3: Salary Snapshot Fallback (Employee populates)
+    if (!salaryTemplate) {
+        const Employee = db.model('Employee');
+        const personWithSnapshot = await Employee.findById(employee._id).populate('salarySnapshotId').lean();
+
+        if (personWithSnapshot && personWithSnapshot.salarySnapshotId) {
+            const snapshot = personWithSnapshot.salarySnapshotId;
+            console.log(`🔄 [PAYROLL] Using salarySnapshot fallback for ${employee.firstName}`);
+            salaryTemplate = {
+                _id: snapshot._id,
+                templateName: `Legacy Snapshot`,
+                annualCTC: snapshot.ctc || 0,
+                monthlyCTC: snapshot.monthlyCTC || Math.round((snapshot.ctc || 0) / 12),
+                earnings: (snapshot.earnings || []).map(e => ({
+                    name: e.name || 'Unknown Earning',
+                    monthlyAmount: e.monthlyAmount || 0,
+                    annualAmount: e.yearlyAmount || (e.monthlyAmount * 12) || 0,
+                    proRata: e.proRata !== false,
+                    taxable: e.taxable !== false
+                })),
+                employerDeductions: (snapshot.benefits || snapshot.employerDeductions || []).map(b => ({
                     name: b.name || 'Unknown Benefit',
                     monthlyAmount: b.monthlyAmount || 0
                 })),
@@ -230,67 +314,55 @@ async function calculateEmployeePayroll(
                     includePensionScheme: true,
                     pfWageRestriction: true,
                     includeESI: true
-                },
-                _compensationSource: 'SALARY_SNAPSHOT_FALLBACK'
+                }
             };
             compensationSource = 'SALARY_SNAPSHOT_FALLBACK';
             isLegacyFallback = true;
-        } else {
-            // No compensation AND no snapshot - this is an error
-            throw new Error(`Employee ${employee._id} (${employee.firstName} ${employee.lastName}) has no active Employee Compensation record and no salary snapshot. Please set up compensation in Payroll -> Employee Compensation.`);
         }
-    } else {
-        // ✅ EmployeeCompensation found - convert to salary template
-        console.log(`✅ [PAYROLL] EmployeeCompensation found for ${employee.firstName} ${employee.lastName}`);
-        console.log(`📊 [PAYROLL] Raw compensation components count: ${comp.components?.length || 0}`);
+    }
 
-        // Normalize and validate compensation
-        const normalizedComp = normalizeCompensation(comp);
-        const grossTotals = ensureGrossTotals(normalizedComp);
-
-        console.log(`📊 [PAYROLL] Normalized components count: ${normalizedComp.components?.length || 0}`);
-        console.log(`💰 [PAYROLL] Total CTC: ${grossTotals.totalCTC}`);
-
-        // Build salary template from EmployeeCompensation
-        salaryTemplate = {
-            _id: comp._id,
-            templateName: `Compensation`,
-            annualCTC: grossTotals.totalCTC || 0,
-            monthlyCTC: Math.max(0, Math.round((grossTotals.totalCTC || 0) / 12)),
-            earnings: (normalizedComp.components || [])
-                .filter(c => c && c.type === 'EARNING')
-                .map(e => ({
-                    name: e.name || 'Unknown Earning',
+    // 4️⃣ Priority 4: Default Template assigned to Employee
+    if (!salaryTemplate && employee.salaryTemplateId) {
+        const SalaryTemplate = db.model('SalaryTemplate');
+        const template = await SalaryTemplate.findById(employee.salaryTemplateId).lean();
+        if (template) {
+            console.log(`🎯 [PAYROLL] Using employee default SalaryTemplate: ${template.templateName}`);
+            salaryTemplate = {
+                ...template,
+                earnings: (template.earnings || []).map(e => ({
+                    ...e,
                     monthlyAmount: e.monthlyAmount || 0,
-                    annualAmount: e.annualAmount || 0,
-                    proRata: e.isProRata !== false,  // Default true
-                    taxable: e.isTaxable !== false   // Default true
+                    annualAmount: e.annualAmount || (e.monthlyAmount * 12) || 0,
+                    proRata: e.proRata !== false,
+                    taxable: e.taxable !== false
                 })),
-            employerDeductions: (normalizedComp.components || [])
-                .filter(c => c && c.type === 'BENEFIT')
-                .map(b => ({
-                    name: b.name || 'Unknown Benefit',
-                    monthlyAmount: b.monthlyAmount || 0
-                })),
-            settings: {
-                includePensionScheme: true,
-                pfWageRestriction: true,
-                includeESI: true
-            },
-            _compensationSource: 'EMPLOYEE_COMPENSATION'
+                employerDeductions: (template.employerDeductions || []).map(d => ({
+                    ...d,
+                    monthlyAmount: d.monthlyAmount || 0
+                }))
+            };
+            compensationSource = 'SALARY_TEMPLATE_DEFAULT';
+        }
+    }
+
+    // 🛑 Final Guard: If no structure found, return zeroed results with a warning instead of throwing
+    if (!salaryTemplate) {
+        console.warn(`⚠️ [PAYROLL] No salary structure found for ${employee.firstName}. Returning zero preview.`);
+        salaryTemplate = {
+            templateName: 'MISSING_STRUCTURE',
+            annualCTC: 0,
+            monthlyCTC: 0,
+            earnings: [],
+            employerDeductions: [],
+            settings: { includePensionScheme: false, pfWageRestriction: false, includeESI: false }
         };
+        isLegacyFallback = true; // Use this to flag missing data
+    }
 
-        console.log(`📊 [PAYROLL] Converted earnings count: ${salaryTemplate.earnings.length}`);
-
-        // 🔥 CRITICAL VALIDATION: Ensure we have earnings
-        if (!salaryTemplate.earnings || salaryTemplate.earnings.length === 0) {
-            throw new Error(`Employee ${employee._id} (${employee.firstName} ${employee.lastName}) has EmployeeCompensation but NO EARNING components defined. Please add earnings in Payroll -> Employee Compensation.`);
-        }
-
-        // Log first earning for verification
-        if (salaryTemplate.earnings.length > 0) {
-            console.log(`📊 [PAYROLL] First earning: ${salaryTemplate.earnings[0].name} = ₹${salaryTemplate.earnings[0].monthlyAmount}`);
-        }
+    // 🛑 Earning Guard: Ensure at least one earning exists
+    if (!salaryTemplate.earnings || salaryTemplate.earnings.length === 0) {
+        console.warn(`⚠️ [PAYROLL] Salary structure for ${employee.firstName} has NO EARNING components.`);
+        // Don't throw, let it calculate as 0
     }
 
     // Get attendance for the month
@@ -311,10 +383,10 @@ async function calculateEmployeePayroll(
 
     // STEP 1: Calculate Gross Earnings (with pro-rata)
     const grossCalculation = calculateGrossEarnings(
-        salaryTemplate.earnings,
-        daysInMonth,
-        attendanceSummary.presentDays,
-        attendanceSummary.lopDays
+        salaryTemplate.earnings || [],
+        attendanceSummary.totalDays || daysInMonth,
+        attendanceSummary.presentDays || 0,
+        attendanceSummary.lopDays || 0
     );
 
     console.log(`📊 [PAYROLL] Gross calculation result:`);
@@ -517,11 +589,21 @@ function calculateAttendanceSummary(attendanceRecords, daysInMonth, holidayDates
     let lopDays = 0;
     let holidayDays = 0;
 
+    // Validate joining date
+    const isValidJoinDate = joiningDate instanceof Date && !isNaN(joiningDate.getTime());
+
     // Check if employee joined mid-month
-    const actualStartDate = joiningDate && joiningDate > monthStartDate ? joiningDate : monthStartDate;
-    const actualDaysInMonth = actualStartDate > monthStartDate
-        ? daysInMonth - (actualStartDate.getDate() - 1)
-        : daysInMonth;
+    const actualStartDate = isValidJoinDate && joiningDate > monthStartDate ? joiningDate : monthStartDate;
+
+    let actualDaysInMonth = daysInMonth;
+    if (isValidJoinDate && joiningDate > monthStartDate) {
+        actualDaysInMonth = Math.max(0, daysInMonth - (joiningDate.getDate() - 1));
+    }
+
+    // Guard against invalid days
+    if (isNaN(actualDaysInMonth) || actualDaysInMonth <= 0) {
+        actualDaysInMonth = daysInMonth;
+    }
 
     attendanceRecords.forEach(record => {
         const dateStr = record.date.toISOString().split('T')[0];
@@ -605,6 +687,14 @@ function calculateGrossEarnings(earnings, daysInMonth, presentDays, lopDays) {
         const isTaxable = earning.taxable === false ? false : true;
         if (isTaxable) taxableGross += amount;
     });
+
+    // 🔒 SAFETY: If no component was identified as 'basic', use the first earning as a fallback 
+    // to ensure deductions (PF/ESI) don't crash with zero base.
+    if (basicAmount === 0 && earningsSnapshot.length > 0) {
+        console.warn(`⚠️ [PAYROLL] No 'basic' component found. Falling back to first component for deduction base.`);
+        basicAmount = earningsSnapshot[0].amount;
+        originalBasicAmount = earningsSnapshot[0].originalAmount;
+    }
 
     return {
         earningsSnapshot,

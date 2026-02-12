@@ -106,6 +106,15 @@ async function startServer() {
             }
         }
 
+        // Initialize BGV SLA Automation
+        try {
+            const BGVSLACronJobs = require('./cron/bgvSLACron');
+            BGVSLACronJobs.initializeCronJobs();
+            console.log('✅ BGV SLA automation initialized');
+        } catch (cronError) {
+            console.error('⚠️ Warning: Failed to initialize BGV SLA cron jobs:', cronError.message);
+        }
+
         // Ngrok (Dev only)
         const useNgrok = String(process.env.USE_NGROK || '').toLowerCase() === 'false' && process.env.NODE_ENV !== 'production';
         if (useNgrok && ngrok) {
