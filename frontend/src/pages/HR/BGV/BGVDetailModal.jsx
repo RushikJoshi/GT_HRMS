@@ -4,7 +4,7 @@ import ConsentFormModal from './ConsentFormModal';
 import AddDiscrepancyModal from './AddDiscrepancyModal';
 import TaskAssignmentModal from './TaskAssignmentModal';
 
-import api from '../../../utils/api';
+import api, { API_ROOT } from '../../../utils/api';
 import { showToast } from '../../../utils/uiNotifications';
 import {
     X, Shield, CheckCircle, XCircle, Clock, AlertCircle, FileText,

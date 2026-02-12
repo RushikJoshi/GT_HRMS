@@ -14,12 +14,18 @@ const payslipTemplateSchema = new mongoose.Schema({
     },
     templateType: {
         type: String,
-        enum: ['HTML', 'WORD', 'CUSTOM'],
+        enum: ['HTML', 'WORD', 'CUSTOM', 'BUILDER'],
         default: 'HTML'
+    },
+    builderConfig: {
+        type: Object, // Stores the JSON tree for visual builder
+        default: null
     },
     htmlContent: {
         type: String,
-        required: function () { return this.templateType === 'HTML'; }
+        // Only required for HTML templates, not for BUILDER
+        required: function () { return this.templateType === 'HTML'; },
+        default: ''
     },
     filePath: {
         type: String,

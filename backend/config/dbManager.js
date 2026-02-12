@@ -161,6 +161,11 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("BGVRiskScore", BGVRiskScoreSchema);
     register("BGVTaskAssignment", BGVTaskAssignmentSchema);
 
+    // Vendor Models
+    register("VendorRegistration", VendorRegistrationSchema);
+    register("VendorBankDetails", VendorBankDetailsSchema);
+    register("VendorFormConfig", VendorFormConfigSchema);
+
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {
       try {

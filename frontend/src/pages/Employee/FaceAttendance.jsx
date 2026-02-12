@@ -611,9 +611,19 @@ const FaceAttendance = () => {
         setStatus('success');
         setMessage(res.data.message);
 
+        // Check for policy violations to show popup
+        const violations = res.data.data?.status?.policyViolations || [];
+        if (violations.length > 0) {
+          setViolationModal({ show: true, violations });
+        }
+
         setTimeout(() => {
           stopCamera();
           setCapturing(false);
+          // Only switch back if we aren't showing a modal to acknowledge
+          if (violations.length === 0) {
+            setMode('attendance');
+          }
         }, 3000);
       }
     } catch (err) {
@@ -766,6 +776,9 @@ const FaceAttendance = () => {
       </div>
     );
   }
+
+  // State for policy violations modal
+  const [violationModal, setViolationModal] = useState({ show: false, violations: [] });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 sm:p-6 lg:p-8">
@@ -1144,8 +1157,38 @@ const FaceAttendance = () => {
           </div>
         </div>
       )}
+
+      {/* Policy Violation Modal */}
+      {violationModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"></div>
+          <div className="relative bg-slate-800 border border-orange-500/50 w-full max-w-md rounded-3xl p-6 shadow-2xl transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="w-8 h-8 text-orange-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-white text-center">Attendance Notice</h2>
+            </div>
+
+            <div className="space-y-3 mb-8">
+              {violationModal.violations.map((violation, idx) => (
+                <div key={idx} className="bg-slate-900/50 border border-slate-700 p-4 rounded-xl flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-2 shrink-0"></div>
+                  <p className="text-slate-200 text-sm leading-relaxed">{violation}</p>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setViolationModal({ show: false, violations: [] })}
+              className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all transform hover:scale-[1.02]"
+            >
+              Acknowledge & Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
 export default FaceAttendance;

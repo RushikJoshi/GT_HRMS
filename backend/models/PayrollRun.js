@@ -95,6 +95,22 @@ const PayrollRunSchema = new mongoose.Schema({
         default: 0
     },
 
+    // Filtering Support
+    isFiltered: {
+        type: Boolean,
+        default: false
+    },
+    filters: {
+        department: String,
+        designation: String,
+        employeeTypes: [String],
+        workModes: [String]
+    },
+    totalTenantEmployees: {
+        type: Number,
+        default: 0
+    },
+
     // Errors & Notes
     executionErrors: [{
         employeeId: {

@@ -1,7 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { notification } from 'antd';
 import api from '../../utils/api';
-import { Save, Clock, Calendar, ToggleLeft, ToggleRight, ShieldCheck, MapPin, Globe, Lock, Plus, X } from 'lucide-react';
+import {
+    Save,
+    Clock,
+    Calendar,
+    ToggleLeft,
+    ToggleRight,
+    ShieldCheck,
+    MapPin,
+    Globe,
+    Lock,
+    Plus,
+    X,
+    Settings2,
+    Clock3,
+    LogOut,
+    UserCheck,
+    Home,
+    Briefcase,
+    Gift,
+    Cpu
+} from 'lucide-react';
 
 export default function AttendanceSettings() {
     const [settings, setSettings] = useState({
@@ -31,7 +51,83 @@ export default function AttendanceSettings() {
         allowedIPs: [],
         allowedIPRanges: [],
         locationRestrictionMode: 'none',
-        geofance: []
+        geofance: [],
+        // Advanced Policy – keep structure in sync with backend schema
+        advancedPolicy: {
+            weeklyOff: {
+                mode: 'basic',
+                saturdayHalfDayEnabled: false,
+                alternateSaturday: {
+                    workingWeeks: [1, 3],
+                    offWeeks: [2, 4]
+                },
+                employeeOverrides: []
+            },
+            lateMarkRules: {
+                enabled: false,
+                allowedLateMinutesPerDay: 0,
+                lateMarksToHalfDay: 0,
+                lateMarksToFullDay: 0,
+                autoLeaveDeductionEnabled: false
+            },
+            earlyExitRules: {
+                enabled: false,
+                allowedEarlyMinutesPerDay: 0,
+                earlyExitsToHalfDay: 0,
+                earlyExitsToFullDay: 0
+            },
+            halfDayRules: {
+                enabled: false,
+                workingHoursThreshold: 0,
+                lateMinutesThreshold: 0,
+                saturdayHalfDayEnabled: false
+            },
+            absentRules: {
+                noPunchConsideredAbsent: true,
+                singlePunchBehaviour: 'half_day',
+                autoLeaveDeductionEnabled: false,
+                convertToLopWhenNoLeave: false
+            },
+            leaveIntegration: {
+                autoLeaveDeductionOrder: ['CL', 'SL', 'EL', 'Optional', 'LOP'],
+                sandwichRuleEnabled: false,
+                wfhPresentMode: 'present'
+            },
+            wfhSettings: {
+                enabled: false,
+                gpsRestrictionEnabled: false,
+                ipRestrictionEnabled: false,
+                autoPresentMode: 'requires_approval'
+            },
+            odSettings: {
+                enabled: false,
+                approvalRequired: true,
+                odCountMode: 'present'
+            },
+            compOffSettings: {
+                enabled: false,
+                autoCreditOnHolidayWork: false,
+                expiryDays: 30,
+                approvalRequired: true
+            },
+            deviceSettings: {
+                allowedSources: [],
+                faceRecognitionMandatory: false,
+                webCheckinAllowed: true
+            },
+            manualCorrectionWorkflow: {
+                enabled: true,
+                requireManagerApproval: true,
+                requireHrApproval: true
+            },
+            nightShiftRules: {
+                enabled: false,
+                shiftSpansMidnight: false,
+                nightShiftAllowanceEnabled: false,
+                nightShiftAllowanceCode: '',
+                overtimeSeparateForNightShift: false
+            }
+        }
     });
     const [saving, setSaving] = useState(false);
 
@@ -208,240 +304,861 @@ export default function AttendanceSettings() {
                 </h3>
 
                 <div className="space-y-6">
-                    <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Restriction Mode</label>
-                        <select
-                            value={settings.locationRestrictionMode}
-                            onChange={(e) => {
-                                const mode = e.target.value;
-                                setSettings({
-                                    ...settings,
-                                    locationRestrictionMode: mode,
-                                    geoFencingEnabled: mode === 'geo' || mode === 'both',
-                                    ipRestrictionEnabled: mode === 'ip' || mode === 'both'
-                                });
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-blue-500 transition"
-                        >
-                            <option value="none">No Restriction (WFH / Field Employees)</option>
-                            <option value="geo">Geo-fencing Only</option>
-                            <option value="ip">IP Restriction Only</option>
-                            <option value="both">Both Geo-fencing and IP</option>
-                        </select>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        Location based restrictions (Geo / IP) are currently disabled for this tenant.
+                        Use the advanced policy rules below to control attendance through working hours,
+                        late marks, WFH and OD rules instead.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <InputGroup
+                            label="Full Day Threshold (Hrs)"
+                            type="number"
+                            value={settings.fullDayThresholdHours}
+                            onChange={(e) => setSettings({ ...settings, fullDayThresholdHours: parseFloat(e.target.value || '0') })}
+                        />
+                        <InputGroup
+                            label="Half Day Threshold (Hrs)"
+                            type="number"
+                            value={settings.halfDayThresholdHours}
+                            onChange={(e) => setSettings({ ...settings, halfDayThresholdHours: parseFloat(e.target.value || '0') })}
+                        />
+                        <InputGroup
+                            label="Grace Minutes"
+                            type="number"
+                            value={settings.graceTimeMinutes}
+                            onChange={(e) => setSettings({ ...settings, graceTimeMinutes: parseInt(e.target.value || '0', 10) })}
+                        />
                     </div>
-
-                    {(settings.locationRestrictionMode === 'geo' || settings.locationRestrictionMode === 'both') && (
-                        <div className="space-y-6">
-                            <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 space-y-4">
-                                <div className="text-sm font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Office Location (Circular Radius)</div>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <InputGroup
-                                        label="Office Latitude"
-                                        type="number"
-                                        step="any"
-                                        value={settings.officeLatitude || ''}
-                                        onChange={(e) => setSettings({ ...settings, officeLatitude: parseFloat(e.target.value) })}
-                                    />
-                                    <InputGroup
-                                        label="Office Longitude"
-                                        type="number"
-                                        step="any"
-                                        value={settings.officeLongitude || ''}
-                                        onChange={(e) => setSettings({ ...settings, officeLongitude: parseFloat(e.target.value) })}
-                                    />
-                                    <InputGroup
-                                        label="Allowed Radius (meters)"
-                                        type="number"
-                                        value={settings.allowedRadiusMeters}
-                                        onChange={(e) => setSettings({ ...settings, allowedRadiusMeters: parseInt(e.target.value) })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="text-sm font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Geofence Polygon (Multi-point)</div>
-                                    <button
-                                        onClick={() => {
-                                            const newPoints = [...(settings.geofance || []), { lat: 0, lng: 0 }];
-                                            setSettings({ ...settings, geofance: newPoints });
-                                        }}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-black uppercase hover:bg-blue-100 dark:hover:bg-blue-950/30 transition"
-                                    >
-                                        <Plus size={14} />
-                                        Add Point
-                                    </button>
-                                </div>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Add at least 3 points to define a polygon boundary. If defined, this takes precedence over circular radius.</p>
-
-                                <div className="space-y-3">
-                                    {(settings.geofance || []).map((point, idx) => (
-                                        <div key={idx} className="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm relative">
-                                            <div className="absolute -left-2 -top-2 w-5 h-5 bg-slate-800 text-white text-[10px] flex items-center justify-center rounded-full font-black">{idx + 1}</div>
-                                            <div className="grid grid-cols-2 gap-4 flex-1">
-                                                <div className="flex flex-col gap-1">
-                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Latitude</label>
-                                                    <input
-                                                        type="number"
-                                                        step="any"
-                                                        value={point.lat}
-                                                        onChange={(e) => {
-                                                            const newPoints = [...settings.geofance];
-                                                            newPoints[idx] = { ...newPoints[idx], lat: parseFloat(e.target.value) || 0 };
-                                                            setSettings({ ...settings, geofance: newPoints });
-                                                        }}
-                                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 transition"
-                                                    />
-                                                </div>
-                                                <div className="flex flex-col gap-1">
-                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Longitude</label>
-                                                    <input
-                                                        type="number"
-                                                        step="any"
-                                                        value={point.lng}
-                                                        onChange={(e) => {
-                                                            const newPoints = [...settings.geofance];
-                                                            newPoints[idx] = { ...newPoints[idx], lng: parseFloat(e.target.value) || 0 };
-                                                            setSettings({ ...settings, geofance: newPoints });
-                                                        }}
-                                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 transition"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    const newPoints = settings.geofance.filter((_, i) => i !== idx);
-                                                    setSettings({ ...settings, geofance: newPoints });
-                                                }}
-                                                className="mt-4 p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition self-center"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                        </div>
-                                    ))}
-
-                                    {(!settings.geofance || settings.geofance.length === 0) && (
-                                        <div className="text-center py-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No polygon points defined</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {(settings.locationRestrictionMode === 'ip' || settings.locationRestrictionMode === 'both') && (
-                        <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 space-y-4">
-                            <div className="text-sm font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-2">IP Restriction Settings</div>
-
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Allowed IP Addresses</label>
-                                <div className="space-y-2">
-                                    {(settings.allowedIPs || []).map((ip, idx) => (
-                                        <div key={idx} className="flex items-center gap-2">
-                                            <input
-                                                type="text"
-                                                value={ip}
-                                                onChange={(e) => {
-                                                    const newIPs = [...(settings.allowedIPs || [])];
-                                                    newIPs[idx] = e.target.value;
-                                                    setSettings({ ...settings, allowedIPs: newIPs });
-                                                }}
-                                                className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 rounded-lg text-sm font-bold outline-none focus:border-blue-500 transition"
-                                                placeholder="192.168.1.1"
-                                            />
-                                            <button
-                                                onClick={() => {
-                                                    const newIPs = (settings.allowedIPs || []).filter((_, i) => i !== idx);
-                                                    setSettings({ ...settings, allowedIPs: newIPs });
-                                                }}
-                                                className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                    <button
-                                        onClick={() => {
-                                            setSettings({ ...settings, allowedIPs: [...(settings.allowedIPs || []), ''] });
-                                        }}
-                                        className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-black uppercase hover:bg-blue-100 dark:hover:bg-blue-950/30 transition"
-                                    >
-                                        <Plus size={14} />
-                                        Add IP Address
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Allowed IP Ranges (CIDR format)</label>
-                                <div className="space-y-2">
-                                    {(settings.allowedIPRanges || []).map((range, idx) => (
-                                        <div key={idx} className="flex items-center gap-2">
-                                            <input
-                                                type="text"
-                                                value={range}
-                                                onChange={(e) => {
-                                                    const newRanges = [...(settings.allowedIPRanges || [])];
-                                                    newRanges[idx] = e.target.value;
-                                                    setSettings({ ...settings, allowedIPRanges: newRanges });
-                                                }}
-                                                className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 rounded-lg text-sm font-bold outline-none focus:border-blue-500 transition"
-                                                placeholder="192.168.1.0/24"
-                                            />
-                                            <button
-                                                onClick={() => {
-                                                    const newRanges = (settings.allowedIPRanges || []).filter((_, i) => i !== idx);
-                                                    setSettings({ ...settings, allowedIPRanges: newRanges });
-                                                }}
-                                                className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                    <button
-                                        onClick={() => {
-                                            setSettings({ ...settings, allowedIPRanges: [...(settings.allowedIPRanges || []), ''] });
-                                        }}
-                                        className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-black uppercase hover:bg-blue-100 dark:hover:bg-blue-950/30 transition"
-                                    >
-                                        <Plus size={14} />
-                                        Add IP Range
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
 
             {/* Policy Toggles */}
             <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-100 dark:border-slate-800 shadow-xl col-span-1 md:col-span-2">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                    <div className="flex gap-12">
+                <div className="flex flex-wrap gap-8">
+                    <ToggleItem
+                        label="Sandwich Leave Rules"
+                        description="Apply leave to weekends between absences"
+                        active={settings.sandwichLeave}
+                        onClick={() => setSettings({ ...settings, sandwichLeave: !settings.sandwichLeave })}
+                    />
+                    <ToggleItem
+                        label="Auto-Mark Absent"
+                        description="Mark absent if no punch log exists"
+                        active={settings.autoAbsent}
+                        onClick={() => setSettings({ ...settings, autoAbsent: !settings.autoAbsent })}
+                    />
+                </div>
+            </div>
+
+            {/* === ADVANCED ATTENDANCE POLICY SECTIONS (COLLAPSIBLE) === */}
+
+            {/* Weekly Off & Half-Day Logic */}
+            <CollapsibleCard
+                title="Weekly Off & Saturday Rules"
+                icon={<Calendar className="text-indigo-500" />}
+                description="Configure weekly off combinations, alternate Saturdays, and Saturday half-day behavior"
+            >
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                                Weekly Off Mode
+                            </label>
+                            <select
+                                value={settings.advancedPolicy?.weeklyOff?.mode || 'basic'}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        weeklyOff: {
+                                            ...settings.advancedPolicy.weeklyOff,
+                                            mode: e.target.value
+                                        }
+                                    }
+                                })}
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-indigo-500 transition"
+                            >
+                                <option value="basic">Use Weekly Off Days Only</option>
+                                <option value="sunday">Sunday Off</option>
+                                <option value="saturday_sunday">Saturday + Sunday Off</option>
+                                <option value="alternate_saturday">Alternate Saturday Off (1st &amp; 3rd Saturday Off)</option>
+                                <option value="alternate_saturday">Alternate Saturday Off (2nd &amp; 4th Saturday Off)</option>
+                                <option value="custom">Custom (Use Weekly Off + Overrides)</option>
+                            </select>
+                        </div>
                         <ToggleItem
-                            label="Sandwich Leave Rules"
-                            description="Apply leave to weekends between absences"
-                            active={settings.sandwichLeave}
-                            onClick={() => setSettings({ ...settings, sandwichLeave: !settings.sandwichLeave })}
-                        />
-                        <ToggleItem
-                            label="Auto-Mark Absent"
-                            description="Mark absent if no punch log exists"
-                            active={settings.autoAbsent}
-                            onClick={() => setSettings({ ...settings, autoAbsent: !settings.autoAbsent })}
+                            label="Saturday Half Day"
+                            description="Treat Saturdays as half-day working instead of weekly off"
+                            active={!!settings.advancedPolicy?.weeklyOff?.saturdayHalfDayEnabled}
+                            onClick={() => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    weeklyOff: {
+                                        ...settings.advancedPolicy.weeklyOff,
+                                        saturdayHalfDayEnabled: !settings.advancedPolicy.weeklyOff.saturdayHalfDayEnabled
+                                    }
+                                }
+                            })}
                         />
                     </div>
 
-                    <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="bg-slate-800 text-white px-10 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-2xl shadow-slate-500/20 hover:bg-slate-900 hover:-translate-y-1 transition disabled:opacity-50 disabled:translate-y-0"
-                    >
-                        {saving ? 'Saving...' : 'Save Configuration'}
-                    </button>
+                    {settings.advancedPolicy?.weeklyOff?.mode === 'alternate_saturday' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <InputGroup
+                                label="Working Saturdays (Weeks)"
+                                type="text"
+                                value={(settings.advancedPolicy.weeklyOff.alternateSaturday.workingWeeks || []).join(',')}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    const list = val.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v));
+                                    setSettings({
+                                        ...settings,
+                                        advancedPolicy: {
+                                            ...settings.advancedPolicy,
+                                            weeklyOff: {
+                                                ...settings.advancedPolicy.weeklyOff,
+                                                alternateSaturday: {
+                                                    ...settings.advancedPolicy.weeklyOff.alternateSaturday,
+                                                    workingWeeks: list
+                                                }
+                                            }
+                                        }
+                                    });
+                                }}
+                            />
+                            <InputGroup
+                                label="Off Saturdays (Weeks)"
+                                type="text"
+                                value={(settings.advancedPolicy.weeklyOff.alternateSaturday.offWeeks || []).join(',')}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    const list = val.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v));
+                                    setSettings({
+                                        ...settings,
+                                        advancedPolicy: {
+                                            ...settings.advancedPolicy,
+                                            weeklyOff: {
+                                                ...settings.advancedPolicy.weeklyOff,
+                                                alternateSaturday: {
+                                                    ...settings.advancedPolicy.weeklyOff.alternateSaturday,
+                                                    offWeeks: list
+                                                }
+                                            }
+                                        }
+                                    });
+                                }}
+                            />
+                        </div>
+                    )}
                 </div>
+            </CollapsibleCard>
+
+            {/* Late Mark Rules */}
+            <CollapsibleCard
+                title="Late Mark Rules"
+                icon={<Clock3 className="text-amber-500" />}
+                description="Define allowed late minutes and conversion of late marks into half-day or LOP"
+            >
+                <div className="space-y-6">
+                    <ToggleItem
+                        label="Enable Late Mark Rules"
+                        description="Apply advanced late mark thresholds and auto leave deduction"
+                        active={!!settings.advancedPolicy?.lateMarkRules?.enabled}
+                        onClick={() => setSettings({
+                            ...settings,
+                            advancedPolicy: {
+                                ...settings.advancedPolicy,
+                                lateMarkRules: {
+                                    ...settings.advancedPolicy.lateMarkRules,
+                                    enabled: !settings.advancedPolicy.lateMarkRules.enabled
+                                }
+                            }
+                        })}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <InputGroup
+                            label="Allowed Late Minutes / Day"
+                            type="number"
+                            value={settings.advancedPolicy.lateMarkRules.allowedLateMinutesPerDay}
+                            onChange={(e) => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    lateMarkRules: {
+                                        ...settings.advancedPolicy.lateMarkRules,
+                                        allowedLateMinutesPerDay: parseInt(e.target.value || '0', 10)
+                                    }
+                                }
+                            })}
+                        />
+                        <InputGroup
+                            label="Late Marks = Half Day"
+                            type="number"
+                            value={settings.advancedPolicy.lateMarkRules.lateMarksToHalfDay}
+                            onChange={(e) => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    lateMarkRules: {
+                                        ...settings.advancedPolicy.lateMarkRules,
+                                        lateMarksToHalfDay: parseInt(e.target.value || '0', 10)
+                                    }
+                                }
+                            })}
+                        />
+                        <InputGroup
+                            label="Late Marks = 1 Day LOP"
+                            type="number"
+                            value={settings.advancedPolicy.lateMarkRules.lateMarksToFullDay}
+                            onChange={(e) => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    lateMarkRules: {
+                                        ...settings.advancedPolicy.lateMarkRules,
+                                        lateMarksToFullDay: parseInt(e.target.value || '0', 10)
+                                    }
+                                }
+                            })}
+                        />
+                    </div>
+                    <ToggleItem
+                        label="Auto Leave Deduction on Late"
+                        description="Automatically deduct leave when late thresholds are breached"
+                        active={!!settings.advancedPolicy.lateMarkRules.autoLeaveDeductionEnabled}
+                        onClick={() => setSettings({
+                            ...settings,
+                            advancedPolicy: {
+                                ...settings.advancedPolicy,
+                                lateMarkRules: {
+                                    ...settings.advancedPolicy.lateMarkRules,
+                                    autoLeaveDeductionEnabled: !settings.advancedPolicy.lateMarkRules.autoLeaveDeductionEnabled
+                                }
+                            }
+                        })}
+                    />
+                </div>
+            </CollapsibleCard>
+
+            {/* Early Exit Rules */}
+            <CollapsibleCard
+                title="Early Exit Rules"
+                icon={<LogOut className="text-rose-500" />}
+                description="Track early exits and configure when they contribute to half-day or LOP"
+            >
+                <div className="space-y-6">
+                    <ToggleItem
+                        label="Enable Early Exit Rules"
+                        description="Apply early exit thresholds and conversions"
+                        active={!!settings.advancedPolicy?.earlyExitRules?.enabled}
+                        onClick={() => setSettings({
+                            ...settings,
+                            advancedPolicy: {
+                                ...settings.advancedPolicy,
+                                earlyExitRules: {
+                                    ...settings.advancedPolicy.earlyExitRules,
+                                    enabled: !settings.advancedPolicy.earlyExitRules.enabled
+                                }
+                            }
+                        })}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <InputGroup
+                            label="Allowed Early Minutes / Day"
+                            type="number"
+                            value={settings.advancedPolicy.earlyExitRules.allowedEarlyMinutesPerDay}
+                            onChange={(e) => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    earlyExitRules: {
+                                        ...settings.advancedPolicy.earlyExitRules,
+                                        allowedEarlyMinutesPerDay: parseInt(e.target.value || '0', 10)
+                                    }
+                                }
+                            })}
+                        />
+                        <InputGroup
+                            label="Early Exits = Half Day"
+                            type="number"
+                            value={settings.advancedPolicy.earlyExitRules.earlyExitsToHalfDay}
+                            onChange={(e) => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    earlyExitRules: {
+                                        ...settings.advancedPolicy.earlyExitRules,
+                                        earlyExitsToHalfDay: parseInt(e.target.value || '0', 10)
+                                    }
+                                }
+                            })}
+                        />
+                        <InputGroup
+                            label="Early Exits = 1 Day LOP"
+                            type="number"
+                            value={settings.advancedPolicy.earlyExitRules.earlyExitsToFullDay}
+                            onChange={(e) => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    earlyExitRules: {
+                                        ...settings.advancedPolicy.earlyExitRules,
+                                        earlyExitsToFullDay: parseInt(e.target.value || '0', 10)
+                                    }
+                                }
+                            })}
+                        />
+                    </div>
+                </div>
+            </CollapsibleCard>
+
+            {/* Half-Day & Absent Rules */}
+            <CollapsibleCard
+                title="Half-Day & Absent Rules"
+                icon={<UserCheck className="text-emerald-500" />}
+                description="Control when a day is treated as half-day or absent based on work hours and punches"
+            >
+                <div className="space-y-6">
+                    <ToggleItem
+                        label="Enable Half-Day Rules"
+                        description="Apply additional thresholds on top of basic presence rules"
+                        active={!!settings.advancedPolicy?.halfDayRules?.enabled}
+                        onClick={() => setSettings({
+                            ...settings,
+                            advancedPolicy: {
+                                ...settings.advancedPolicy,
+                                halfDayRules: {
+                                    ...settings.advancedPolicy.halfDayRules,
+                                    enabled: !settings.advancedPolicy.halfDayRules.enabled
+                                }
+                            }
+                        })}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <InputGroup
+                            label="Half-Day if Hours &lt;"
+                            type="number"
+                            value={settings.advancedPolicy.halfDayRules.workingHoursThreshold}
+                            onChange={(e) => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    halfDayRules: {
+                                        ...settings.advancedPolicy.halfDayRules,
+                                        workingHoursThreshold: parseFloat(e.target.value || '0')
+                                    }
+                                }
+                            })}
+                        />
+                        <InputGroup
+                            label="Half-Day if Late &gt; (mins)"
+                            type="number"
+                            value={settings.advancedPolicy.halfDayRules.lateMinutesThreshold}
+                            onChange={(e) => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    halfDayRules: {
+                                        ...settings.advancedPolicy.halfDayRules,
+                                        lateMinutesThreshold: parseInt(e.target.value || '0', 10)
+                                    }
+                                }
+                            })}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <ToggleItem
+                            label="No Punch = Absent"
+                            description="Automatically mark absent if no punches are recorded"
+                            active={!!settings.advancedPolicy.absentRules.noPunchConsideredAbsent}
+                            onClick={() => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    absentRules: {
+                                        ...settings.advancedPolicy.absentRules,
+                                        noPunchConsideredAbsent: !settings.advancedPolicy.absentRules.noPunchConsideredAbsent
+                                    }
+                                }
+                            })}
+                        />
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                                Only IN / No OUT
+                            </label>
+                            <select
+                                value={settings.advancedPolicy.absentRules.singlePunchBehaviour}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        absentRules: {
+                                            ...settings.advancedPolicy.absentRules,
+                                            singlePunchBehaviour: e.target.value
+                                        }
+                                    }
+                                })}
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 transition"
+                            >
+                                <option value="half_day">Treat as Half-Day</option>
+                                <option value="absent">Treat as Absent</option>
+                            </select>
+                        </div>
+                        <ToggleItem
+                            label="Convert to LOP if No Leave"
+                            description="When auto leave deduction fails, convert deficit to Loss of Pay"
+                            active={!!settings.advancedPolicy.absentRules.convertToLopWhenNoLeave}
+                            onClick={() => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    absentRules: {
+                                        ...settings.advancedPolicy.absentRules,
+                                        convertToLopWhenNoLeave: !settings.advancedPolicy.absentRules.convertToLopWhenNoLeave
+                                    }
+                                }
+                            })}
+                        />
+                    </div>
+                </div>
+            </CollapsibleCard>
+
+            {/* Leave & Attendance Integration + WFH / OD / Comp-off */}
+            <CollapsibleCard
+                title="Leave, WFH, OD & Comp-Off Integration"
+                icon={<Home className="text-sky-500" />}
+                description="Control how leave, WFH, on-duty and comp-off interact with attendance"
+            >
+                <div className="space-y-8">
+                    <div className="space-y-3">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                            Auto Leave Deduction Priority
+                        </label>
+                        <input
+                            type="text"
+                            value={(settings.advancedPolicy.leaveIntegration.autoLeaveDeductionOrder || []).join(',')}
+                            onChange={(e) => {
+                                const list = e.target.value
+                                    .split(',')
+                                    .map(v => v.trim())
+                                    .filter(Boolean);
+                                setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        leaveIntegration: {
+                                            ...settings.advancedPolicy.leaveIntegration,
+                                            autoLeaveDeductionOrder: list
+                                        }
+                                    }
+                                });
+                            }}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-sky-500 transition"
+                            placeholder="CL,SL,EL,Optional,LOP"
+                        />
+                        <ToggleItem
+                            label="Holiday + Weekend Sandwich Rule"
+                            description="Count weekends between two leaves as leave as per company policy"
+                            active={!!settings.advancedPolicy.leaveIntegration.sandwichRuleEnabled}
+                            onClick={() => setSettings({
+                                ...settings,
+                                advancedPolicy: {
+                                    ...settings.advancedPolicy,
+                                    leaveIntegration: {
+                                        ...settings.advancedPolicy.leaveIntegration,
+                                        sandwichRuleEnabled: !settings.advancedPolicy.leaveIntegration.sandwichRuleEnabled
+                                    }
+                                }
+                            })}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* WFH */}
+                        <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl p-4 space-y-4 border border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-2 text-xs font-black text-slate-500 uppercase tracking-widest">
+                                <Home size={16} className="text-sky-500" />
+                                Work From Home
+                            </div>
+                            <ToggleItem
+                                label="Enable WFH"
+                                description="Allow employees to be marked present while working remotely"
+                                active={!!settings.advancedPolicy.wfhSettings.enabled}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        wfhSettings: {
+                                            ...settings.advancedPolicy.wfhSettings,
+                                            enabled: !settings.advancedPolicy.wfhSettings.enabled
+                                        }
+                                    }
+                                })}
+                            />
+                            <ToggleItem
+                                label="GPS Restriction"
+                                description="Apply GPS validation when on WFH"
+                                active={!!settings.advancedPolicy.wfhSettings.gpsRestrictionEnabled}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        wfhSettings: {
+                                            ...settings.advancedPolicy.wfhSettings,
+                                            gpsRestrictionEnabled: !settings.advancedPolicy.wfhSettings.gpsRestrictionEnabled
+                                        }
+                                    }
+                                })}
+                            />
+                            <ToggleItem
+                                label="IP Restriction"
+                                description="Restrict WFH to specific IPs/VPNs"
+                                active={!!settings.advancedPolicy.wfhSettings.ipRestrictionEnabled}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        wfhSettings: {
+                                            ...settings.advancedPolicy.wfhSettings,
+                                            ipRestrictionEnabled: !settings.advancedPolicy.wfhSettings.ipRestrictionEnabled
+                                        }
+                                    }
+                                })}
+                            />
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                                    WFH Treated As
+                                </label>
+                                <select
+                                    value={settings.advancedPolicy.leaveIntegration.wfhPresentMode}
+                                    onChange={(e) => setSettings({
+                                        ...settings,
+                                        advancedPolicy: {
+                                            ...settings.advancedPolicy,
+                                            leaveIntegration: {
+                                                ...settings.advancedPolicy.leaveIntegration,
+                                                wfhPresentMode: e.target.value
+                                            }
+                                        }
+                                    })}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-sky-500 transition"
+                                >
+                                    <option value="present">Present (Full Day)</option>
+                                    <option value="half_day">Half Day</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* On Duty */}
+                        <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl p-4 space-y-4 border border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-2 text-xs font-black text-slate-500 uppercase tracking-widest">
+                                <Briefcase size={16} className="text-amber-500" />
+                                On-Duty
+                            </div>
+                            <ToggleItem
+                                label="Enable On-Duty"
+                                description="Allow OD days to count as presence as per policy"
+                                active={!!settings.advancedPolicy.odSettings.enabled}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        odSettings: {
+                                            ...settings.advancedPolicy.odSettings,
+                                            enabled: !settings.advancedPolicy.odSettings.enabled
+                                        }
+                                    }
+                                })}
+                            />
+                            <ToggleItem
+                                label="Approval Required"
+                                description="Require manager/HR approval for OD requests"
+                                active={!!settings.advancedPolicy.odSettings.approvalRequired}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        odSettings: {
+                                            ...settings.advancedPolicy.odSettings,
+                                            approvalRequired: !settings.advancedPolicy.odSettings.approvalRequired
+                                        }
+                                    }
+                                })}
+                            />
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                                    OD Counted As
+                                </label>
+                                <select
+                                    value={settings.advancedPolicy.odSettings.odCountMode}
+                                    onChange={(e) => setSettings({
+                                        ...settings,
+                                        advancedPolicy: {
+                                            ...settings.advancedPolicy,
+                                            odSettings: {
+                                                ...settings.advancedPolicy.odSettings,
+                                                odCountMode: e.target.value
+                                            }
+                                        }
+                                    })}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm font-bold outline-none focus:border-amber-500 transition"
+                                >
+                                    <option value="present">Present</option>
+                                    <option value="half_day">Half Day</option>
+                                    <option value="custom">Custom (Reporting only)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Comp-Off */}
+                        <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl p-4 space-y-4 border border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-2 text-xs font-black text-slate-500 uppercase tracking-widest">
+                                <Gift size={16} className="text-emerald-500" />
+                                Comp-Off
+                            </div>
+                            <ToggleItem
+                                label="Enable Comp-Off"
+                                description="Track compensatory off for working on holidays/week-offs"
+                                active={!!settings.advancedPolicy.compOffSettings.enabled}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        compOffSettings: {
+                                            ...settings.advancedPolicy.compOffSettings,
+                                            enabled: !settings.advancedPolicy.compOffSettings.enabled
+                                        }
+                                    }
+                                })}
+                            />
+                            <ToggleItem
+                                label="Auto Credit on Holiday Work"
+                                description="Automatically credit comp-off when employees work on holidays/weekly-offs"
+                                active={!!settings.advancedPolicy.compOffSettings.autoCreditOnHolidayWork}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        compOffSettings: {
+                                            ...settings.advancedPolicy.compOffSettings,
+                                            autoCreditOnHolidayWork: !settings.advancedPolicy.compOffSettings.autoCreditOnHolidayWork
+                                        }
+                                    }
+                                })}
+                            />
+                            <InputGroup
+                                label="Comp-Off Expiry (Days)"
+                                type="number"
+                                value={settings.advancedPolicy.compOffSettings.expiryDays}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        compOffSettings: {
+                                            ...settings.advancedPolicy.compOffSettings,
+                                            expiryDays: parseInt(e.target.value || '0', 10)
+                                        }
+                                    }
+                                })}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </CollapsibleCard>
+
+            {/* Device & Punch Source + Night Shift & Manual Correction */}
+            <CollapsibleCard
+                title="Device, Punch Source & Night Shift Rules"
+                icon={<Cpu className="text-purple-500" />}
+                description="Control which devices can punch and configure night-shift specific rules"
+            >
+                <div className="space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Device & Source */}
+                        <div className="space-y-4">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                Allowed Punch Sources
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                {['biometric', 'mobile', 'web'].map(source => {
+                                    const active = (settings.advancedPolicy.deviceSettings.allowedSources || []).includes(source);
+                                    return (
+                                        <button
+                                            key={source}
+                                            type="button"
+                                            onClick={() => {
+                                                const current = settings.advancedPolicy.deviceSettings.allowedSources || [];
+                                                const exists = current.includes(source);
+                                                const next = exists ? current.filter(s => s !== source) : [...current, source];
+                                                setSettings({
+                                                    ...settings,
+                                                    advancedPolicy: {
+                                                        ...settings.advancedPolicy,
+                                                        deviceSettings: {
+                                                            ...settings.advancedPolicy.deviceSettings,
+                                                            allowedSources: next
+                                                        }
+                                                    }
+                                                });
+                                            }}
+                                            className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition ${
+                                                active
+                                                    ? 'bg-purple-600 text-white border-purple-600'
+                                                    : 'bg-slate-50 dark:bg-slate-950 text-slate-500 border-slate-200 dark:border-slate-800'
+                                            }`}
+                                        >
+                                            {source === 'biometric' && 'Biometric'}
+                                            {source === 'mobile' && 'Mobile App'}
+                                            {source === 'web' && 'Web'}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <ToggleItem
+                                label="Face Recognition Mandatory"
+                                description="Require face verification for allowed punch sources"
+                                active={!!settings.advancedPolicy.deviceSettings.faceRecognitionMandatory}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        deviceSettings: {
+                                            ...settings.advancedPolicy.deviceSettings,
+                                            faceRecognitionMandatory: !settings.advancedPolicy.deviceSettings.faceRecognitionMandatory
+                                        }
+                                    }
+                                })}
+                            />
+                            <ToggleItem
+                                label="Allow Web Check-In"
+                                description="Permit browser-based check-in (subject to IP/geo restrictions)"
+                                active={!!settings.advancedPolicy.deviceSettings.webCheckinAllowed}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        deviceSettings: {
+                                            ...settings.advancedPolicy.deviceSettings,
+                                            webCheckinAllowed: !settings.advancedPolicy.deviceSettings.webCheckinAllowed
+                                        }
+                                    }
+                                })}
+                            />
+                        </div>
+
+                        {/* Night Shift & Manual Correction */}
+                        <div className="space-y-4">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                Night Shift & Correction Workflow
+                            </div>
+                            <ToggleItem
+                                label="Enable Night Shift Rules"
+                                description="Treat shifts that span midnight with special rules"
+                                active={!!settings.advancedPolicy.nightShiftRules.enabled}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        nightShiftRules: {
+                                            ...settings.advancedPolicy.nightShiftRules,
+                                            enabled: !settings.advancedPolicy.nightShiftRules.enabled
+                                        }
+                                    }
+                                })}
+                            />
+                            <ToggleItem
+                                label="Shift Spans Midnight"
+                                description="Mark default shift as spanning past midnight"
+                                active={!!settings.advancedPolicy.nightShiftRules.shiftSpansMidnight}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        nightShiftRules: {
+                                            ...settings.advancedPolicy.nightShiftRules,
+                                            shiftSpansMidnight: !settings.advancedPolicy.nightShiftRules.shiftSpansMidnight
+                                        }
+                                    }
+                                })}
+                            />
+                            <ToggleItem
+                                label="Night Shift Allowance"
+                                description="Tag eligibility for night shift allowance (code driven in payroll)"
+                                active={!!settings.advancedPolicy.nightShiftRules.nightShiftAllowanceEnabled}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        nightShiftRules: {
+                                            ...settings.advancedPolicy.nightShiftRules,
+                                            nightShiftAllowanceEnabled: !settings.advancedPolicy.nightShiftRules.nightShiftAllowanceEnabled
+                                        }
+                                    }
+                                })}
+                            />
+                            <InputGroup
+                                label="Night Shift Allowance Code"
+                                type="text"
+                                value={settings.advancedPolicy.nightShiftRules.nightShiftAllowanceCode || ''}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        nightShiftRules: {
+                                            ...settings.advancedPolicy.nightShiftRules,
+                                            nightShiftAllowanceCode: e.target.value
+                                        }
+                                    }
+                                })}
+                            />
+                            <ToggleItem
+                                label="Separate OT for Night Shift"
+                                description="Track overtime for night shifts separately"
+                                active={!!settings.advancedPolicy.nightShiftRules.overtimeSeparateForNightShift}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        nightShiftRules: {
+                                            ...settings.advancedPolicy.nightShiftRules,
+                                            overtimeSeparateForNightShift: !settings.advancedPolicy.nightShiftRules.overtimeSeparateForNightShift
+                                        }
+                                    }
+                                })}
+                            />
+                            <ToggleItem
+                                label="3-Level Correction Workflow"
+                                description="Employee → Manager → HR approval via Regularization module"
+                                active={!!settings.advancedPolicy.manualCorrectionWorkflow.enabled}
+                                onClick={() => setSettings({
+                                    ...settings,
+                                    advancedPolicy: {
+                                        ...settings.advancedPolicy,
+                                        manualCorrectionWorkflow: {
+                                            ...settings.advancedPolicy.manualCorrectionWorkflow,
+                                            enabled: !settings.advancedPolicy.manualCorrectionWorkflow.enabled
+                                        }
+                                    }
+                                })}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </CollapsibleCard>
+
+            {/* Global Save Button at Bottom */}
+            <div className="col-span-1 md:col-span-2 flex justify-end mt-4 mb-2">
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="bg-slate-800 text-white px-10 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-2xl shadow-slate-500/20 hover:bg-slate-900 hover:-translate-y-1 transition disabled:opacity-50 disabled:translate-y-0"
+                >
+                    {saving ? 'Saving...' : 'Save Configuration'}
+                </button>
             </div>
         </div>
     );
@@ -466,6 +1183,44 @@ function ToggleItem({ label, description, active, onClick }) {
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</div>
                 <div className="text-xs font-bold text-slate-600 dark:text-slate-400">{description}</div>
             </div>
+        </div>
+    );
+}
+
+function CollapsibleCard({ title, icon, description, children }) {
+    const [open, setOpen] = useState(true);
+    return (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-100 dark:border-slate-800 shadow-xl col-span-1 md:col-span-2">
+            <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                className="w-full flex items-center justify-between gap-4 text-left"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-200">
+                        {icon || <Settings2 className="text-slate-500" />}
+                    </div>
+                    <div>
+                        <h3 className="text-sm md:text-base font-black text-slate-800 dark:text-white uppercase tracking-widest">
+                            {title}
+                        </h3>
+                        {description && (
+                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                                {description}
+                            </p>
+                        )}
+                    </div>
+                </div>
+                <div className="text-slate-400">
+                    {open ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                </div>
+            </button>
+
+            {open && (
+                <div className="mt-6 space-y-4">
+                    {children}
+                </div>
+            )}
         </div>
     );
 }

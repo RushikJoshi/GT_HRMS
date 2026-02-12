@@ -89,14 +89,14 @@ export default function HRDashboard() {
           <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
         </div>
         <h2 className="text-xl font-bold text-slate-800 mb-2">Company Data Not Found</h2>
-        <p className="text-slate-600 mb-6 max-w-md">
+        <div className="text-slate-600 mb-6 max-w-md">
           We sent a request to fetch your company details but received no response. This could be due to:
           <ul className="list-disc text-left ml-6 mt-2 space-y-1">
             <li>Expired session/token</li>
             <li>Backend server issues (recently restarted?)</li>
             <li>Invalid Tenant ID</li>
           </ul>
-        </p>
+        </div>
         <button
           onClick={_logout}
           className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-lg"
@@ -244,52 +244,6 @@ export default function HRDashboard() {
             </div>
           ))}
           {departments.length === 0 && <div className="text-slate-400 text-sm col-span-full">No departments found.</div>}
-        </div>
-      </div>
-
-      {/* Quick Links */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm p-4 md:p-6">
-        <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
-          <Settings size={20} className="text-slate-400" />
-          Quick Actions
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link
-            to="/hr/org"
-            className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-200 transition-all shadow-sm group"
-          >
-            <div className="p-3 bg-indigo-100 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <Shield size={24} />
-            </div>
-            <div>
-              <div className="font-bold text-slate-800 text-sm">Org Structure</div>
-              <div className="text-xs text-slate-500 font-medium">Visualize hierarchy</div>
-            </div>
-          </Link>
-          <Link
-            to="/hr/users"
-            className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-200 transition-all shadow-sm group"
-          >
-            <div className="p-3 bg-indigo-100 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <Settings size={24} />
-            </div>
-            <div>
-              <div className="font-bold text-slate-800 text-sm">Manage Users</div>
-              <div className="text-xs text-slate-500 font-medium">System access control</div>
-            </div>
-          </Link>
-          <Link
-            to="/hr/employees"
-            className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-200 transition-all shadow-sm group"
-          >
-            <div className="p-3 bg-indigo-100 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <UserPlus size={24} />
-            </div>
-            <div>
-              <div className="font-bold text-slate-800 text-sm">Employee List</div>
-              <div className="text-xs text-slate-500 font-medium">View all staff</div>
-            </div>
-          </Link>
         </div>
       </div>
 

@@ -1,26 +1,3 @@
-/**
- * ============================================
- * EMPLOYEE COMPENSATION PAGE (FIXED)
- * ============================================
- * 
- * UPDATED: January 22, 2026
- * 
- * CHANGES:
- * 1. ✅ Calls GET /api/applicants (same endpoint as Salary Structure modal)
- * 2. ✅ Reads applicant.salaryStructure directly
- * 3. ✅ Maps: grossA, grossB, grossC, annualCTC
- * 4. ✅ Shows "CTC NOT SET" when salaryStructure is missing
- * 5. ✅ Reuses data from /api/applicants (no new API)
- * 
- * DATA MAPPING:
- * - applicant.salaryStructure.grossA → grossA (Gross Monthly)
- * - applicant.salaryStructure.grossB → grossB (Gross Annual)
- * - applicant.salaryStructure.grossC → grossC (Retention Annual)
- * - applicant.salaryStructure.annualCTC → totalCTC
- * 
- * RESULT: Employee Compensation shows SAME values as Salary Structure modal
- */
-
 import React, { useState, useEffect } from 'react';
 import {
     Search, Filter, Eye, TrendingUp, History, IndianRupee,
@@ -54,13 +31,6 @@ export default function Compensation() {
         fetchData();
     }, []);
 
-    /**
-     * MAPPING LAYER: Extract salary data from applicants
-     * Maps salarySnapshotId (populated from /requirements/applicants) to Employee Compensation format
-     * 
-     * NOTE: Backend returns applicant.salarySnapshotId populated with EmployeeSalarySnapshot data
-     * This contains: ctc, monthlyCTC, earnings[], employeeDeductions[], benefits[], breakdown{}, summary{}
-     */
     const mapSalaryData = (applicant) => {
         // Get salary snapshot from populated salarySnapshotId field
         const salarySnapshot = applicant?.salarySnapshotId || {};

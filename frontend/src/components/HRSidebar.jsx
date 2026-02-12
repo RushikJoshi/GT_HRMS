@@ -29,6 +29,7 @@ import {
   Brush,
   ExternalLink,
   Shield,
+  Share2,
   X
 } from 'lucide-react';
 
@@ -61,6 +62,7 @@ const ICONS = {
   access: <Lock size={ICON_SIZE} />,
   settings: <Settings2 size={ICON_SIZE} />,
   customization: <Brush size={ICON_SIZE} className="text-indigo-400" />,
+  social: <Share2 size={ICON_SIZE} className="text-green-400" />,
   viewCareers: <ExternalLink size={ICON_SIZE} className="text-blue-400" />
 };
 
@@ -74,6 +76,7 @@ const NAV_GROUPS = [
     title: 'People',
     items: [
       { to: '/hr/employees', label: 'Employees', icon: ICONS.employees },
+
       { to: '/hr/departments', label: 'Departments', icon: ICONS.departments },
       { to: '/hr/org', label: 'Org Structure', icon: ICONS.org },
       { to: '/hr/users', label: 'User Management', icon: ICONS.users }
@@ -172,7 +175,8 @@ const NAV_GROUPS = [
         icon: ICONS.customization,
         children: [
           { to: '/hr/career-builder', label: 'Edit Career Page' },
-          { to: '/hr/apply-builder', label: 'Edit Apply Page' }
+          { to: '/hr/apply-builder', label: 'Edit Apply Page' },
+          { to: '/tenant/customization/vendor', label: 'Edit Vendor Forms' }
         ]
       },
       {

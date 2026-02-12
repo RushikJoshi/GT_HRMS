@@ -2,10 +2,14 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api';
 import { formatDateDDMMYYYY } from '../../utils/dateUtils';
-import { DatePicker, Pagination, notification } from 'antd';
+import { DatePicker, Pagination, notification, Select } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications';
 import dayjs from 'dayjs';
-
+import ApplyLeaveForm from '../../components/ApplyLeaveForm';
+import SalaryAssignmentModal from '../../components/Payroll/SalaryAssignmentModal';
+import EmployeeProfileView from '../../components/EmployeeProfileView';
+import EmployeeExcelUploadModal from '../../components/HR/EmployeeExcelUploadModal';
+import { Calendar as CalendarIcon, User, Search, Filter, Plus, FileText, Edit2, Trash2, Eye, IndianRupee, LayoutGrid, LayoutList, MoreHorizontal, Download, Upload, Users, Briefcase, MapPin, Phone, Mail, ChevronDown } from 'lucide-react';
 
 const BACKEND_URL = API_ROOT || 'https://hrms.gitakshmi.com';
 
@@ -15,13 +19,8 @@ const NATIONALITIES = [
   "Afghan", "Albanian", "Algerian", "American", "Andorran", "Angolan", "Antiguans", "Argentinean", "Armenian", "Australian", "Austrian", "Azerbaijani", "Bahamian", "Bahraini", "Bangladeshi", "Barbadian", "Barbudans", "Batswana", "Belarusian", "Belgian", "Belizean", "Beninese", "Bhutanese", "Bolivian", "Bosnian", "Brazilian", "British", "Bruneian", "Bulgarian", "Burkinabe", "Burmese", "Burundian", "Cambodian", "Cameroonian", "Canadian", "Cape Verdean", "Central African", "Chadian", "Chilean", "Chinese", "Colombian", "Comoran", "Congolese", "Costa Rican", "Croatian", "Cuban", "Cypriot", "Czech", "Danish", "Djibouti", "Dominican", "Dutch", "East Timorese", "Ecuadorean", "Egyptian", "Emirian", "Equatorial Guinean", "Eritrean", "Estonian", "Ethiopian", "Fijian", "Filipino", "Finnish", "French", "Gabonese", "Gambian", "Georgian", "German", "Ghanaian", "Greek", "Grenadian", "Guatemalan", "Guinea-Bissauan", "Guinean", "Guyanese", "Haitian", "Herzegovinian", "Honduran", "Hungarian", "I-Kiribati", "Icelander", "Indian", "Indonesian", "Iranian", "Iraqi", "Irish", "Israeli", "Italian", "Ivorian", "Jamaican", "Japanese", "Jordanian", "Kazakhstani", "Kenyan", "Kittian and Nevisian", "Kuwaiti", "Kyrgyz", "Laotian", "Latvian", "Lebanese", "Liberian", "Libyan", "Liechtensteiner", "Lithuanian", "Luxembourger", "Macedonian", "Malagasy", "Malawian", "Malaysian", "Maldivan", "Malian", "Maltese", "Marshallese", "Mauritanian", "Mauritian", "Mexican", "Micronesian", "Moldovan", "Monacan", "Mongolian", "Moroccan", "Mosotho", "Motswana", "Mozambican", "Namibian", "Nauruan", "Nepalese", "New Zealander", "Ni-Vanuatu", "Nicaraguan", "Nigerian", "Nigerien", "North Korean", "Northern Irish", "Norwegian", "Omani", "Pakistani", "Palauan", "Panamanian", "Papua New Guinean", "Paraguayan", "Peruvian", "Polish", "Portuguese", "Qatari", "Romanian", "Russian", "Rwandan", "Saint Lucian", "Salvadoran", "Samoan", "San Marinese", "Sao Tomean", "Saudi", "Scottish", "Senegalese", "Serbian", "Seychellois", "Sierra Leonean", "Singaporean", "Slovakian", "Slovenian", "Solomon Islander", "Somali", "South African", "South Korean", "Spanish", "Sri Lankan", "Sudanese", "Surinamer", "Swazi", "Swedish", "Swiss", "Syrian", "Taiwanese", "Tajik", "Tanzanian", "Thai", "Togolese", "Tongan", "Trinidadian or Tobagonian", "Tunisian", "Turkish", "Tuvaluan", "Ugandan", "Ukrainian", "Uruguayan", "Uzbekistani", "Venezuelan", "Vietnamese", "Welsh", "Yemenite", "Zambian", "Zimbabwean"
 ];
 
-// const navigate = useNavigate()
-
-import ApplyLeaveForm from '../../components/ApplyLeaveForm';
-import SalaryAssignmentModal from '../../components/Payroll/SalaryAssignmentModal';
-import EmployeeProfileView from '../../components/EmployeeProfileView';
-import EmployeeExcelUploadModal from '../../components/HR/EmployeeExcelUploadModal';
-import { Calendar as CalendarIcon, User, Search, Filter, Plus, FileText, Edit2, Trash2, Eye, IndianRupee } from 'lucide-react';
+const EMPLOYEE_TYPES = ['Full-time', 'Part-time', 'Intern', 'Contract', 'Consultant'];
+const WORK_MODES = ['Work From Office (WFO)', 'Work From Home (WFH)', 'Hybrid', 'Field / Onsite'];
 
 export default function Employees() {
   const navigate = useNavigate();
@@ -34,10 +33,18 @@ export default function Employees() {
   const [applyingLeave, setApplyingLeave] = useState(null);
   const [assigningSalary, setAssigningSalary] = useState(null); // New state //
   const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedDesignations, setSelectedDesignations] = useState([]);
+  const [selectedEmployeeTypes, setSelectedEmployeeTypes] = useState([]);
+  const [selectedWorkModes, setSelectedWorkModes] = useState([]);
+  const [availableDepartments, setAvailableDepartments] = useState([]);
+  const [availableDesignations, setAvailableDesignations] = useState([]);
+  const [showFilterDropdowns, setShowFilterDropdowns] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [showDrafts, setShowDrafts] = useState(false);
   const [drafts, setDrafts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalEmployees, setTotalEmployees] = useState(0); // Added for pagination if backend supports it
   const pageSize = 10;
 
   // Joining Letter State
@@ -50,6 +57,22 @@ export default function Employees() {
   const [showJoiningPreview, setShowJoiningPreview] = useState(false);
   const [joiningRefNo, setJoiningRefNo] = useState('');
   const [joiningIssueDate, setJoiningIssueDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [viewMode, setViewMode] = useState('list');
+
+  // Quick Stats for Dashboard Header
+  const stats = useMemo(() => {
+    const total = employees.length;
+    // Assuming active if status is not explicitly 'Inactive' or 'Terminated' or based on your logic
+    // If no status field, assume active. 
+    const active = employees.length;
+    const depts = new Set(employees.map(e => e.department).filter(Boolean)).size;
+    // New joiners in last 30 days
+    const newJoiners = employees.filter(e => {
+      if (!e.joiningDate) return false;
+      return dayjs(e.joiningDate).isAfter(dayjs().subtract(30, 'days'));
+    }).length;
+    return { total, active, depts, newJoiners };
+  }, [employees]);
 
   async function loadDrafts() {
     try {
@@ -58,21 +81,69 @@ export default function Employees() {
     } catch (err) { console.error('Failed to load drafts', err); }
   }
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const url = '/hr/employees'; // Removed department filter param
-      const res = await api.get(url);
+      const params = new URLSearchParams();
+      if (selectedDepartment && selectedDepartment !== 'All Departments') {
+        params.append('department', selectedDepartment);
+      }
+      if (selectedDesignations.length > 0) {
+        params.append('designation', selectedDesignations.join(','));
+      }
+      if (selectedEmployeeTypes.length > 0) {
+        params.append('type', selectedEmployeeTypes.join(','));
+      }
+      if (selectedWorkModes.length > 0) {
+        params.append('workMode', selectedWorkModes.join(','));
+      }
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+
+      console.log(`[EMPLOYEE_LIST] Fetching with params:`, params.toString());
+      const res = await api.get(`/hr/employees?${params.toString()}`);
       const data = res.data?.data || res.data || [];
       setEmployees(data);
     } catch (err) {
       console.error(err);
       showToast('error', 'Error', 'Failed to load employees');
     } finally { setLoading(false); }
-  }
+  }, [selectedDepartment, selectedDesignations, selectedEmployeeTypes, selectedWorkModes, searchTerm]);
+
+  const fetchFilterOptions = useCallback(async () => {
+    try {
+      // Fetch Departments
+      const deptRes = await api.get('/hr/departments');
+      setAvailableDepartments(deptRes.data?.data || deptRes.data || []);
+
+      // Fetch Designations (Distinct) - We'll use the existing list but extract unique designations
+      // Or if there's a dedicated endpoint, use it. Assuming we need to extract from all employees for now
+      // as a fallback if no dedicated metadata endpoint exists.
+      const empRes = await api.get('/hr/employees');
+      const allEmps = empRes.data?.data || empRes.data || [];
+      const uniqueDesignations = [...new Set(allEmps.map(e => e.designation).filter(Boolean))];
+      setAvailableDesignations(uniqueDesignations);
+    } catch (err) {
+      console.error('Failed to load filter options', err);
+    }
+  }, []);
+
+  const clearFilters = () => {
+    setSelectedDepartment('');
+    setSelectedDesignations([]);
+    setSelectedEmployeeTypes([]);
+    setSelectedWorkModes([]);
+    setSearchTerm('');
+    setCurrentPage(1);
+  };
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  useEffect(() => {
+    fetchFilterOptions();
     async function fetchJoiningTemplates() {
       try {
         const res = await api.get('/letters/templates?type=joining');
@@ -80,7 +151,7 @@ export default function Employees() {
       } catch (err) { console.error("Failed to load joining templates", err); }
     }
     fetchJoiningTemplates();
-  }, []); // Removed selectedDepartment dependency
+  }, [fetchFilterOptions]);
 
   // Helper to derive a readable display name from various possible fields
   function getDisplayName(emp) {
@@ -211,23 +282,78 @@ export default function Employees() {
     );
   }
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Employees</h1>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+    <div className="space-y-6 pb-12">
+      {/* Header Section */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            Employee Directory
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">Manage your organization's workforce, profiles, and roles.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => { setShowDrafts(!showDrafts); if (!showDrafts) loadDrafts(); }}
-            className={`px-4 py-2 rounded-lg transition shadow-md border text-sm sm:text-base w-full sm:w-auto ${showDrafts ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${showDrafts ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >
+            <FileText size={16} />
             {showDrafts ? 'Hide Drafts' : 'Drafts'}
           </button>
-          <button onClick={openNew} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employee</button>
-          <button onClick={openUpload} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">+ Add Employees From Excel</button>
+          <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+          <button onClick={openUpload} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">
+            <Upload size={16} />
+            <span className="hidden sm:inline">Import Excel</span>
+          </button>
+          <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all shadow-md shadow-blue-100">
+            <Plus size={18} />
+            <span>Add Employee</span>
+          </button>
         </div>
       </div>
 
+      {/* Stats Section */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+            <Users size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Employees</div>
+            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.total || 0}</div>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+            <User size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active</div>
+            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.active || 0}</div>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
+            <Briefcase size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Departments</div>
+            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.depts || 0}</div>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+            <CalendarIcon size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New Joiners</div>
+            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.newJoiners || 0}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Drafts Section */}
       {showDrafts && (
-        <div className="bg-amber-50 rounded-lg border border-amber-200 shadow-sm p-4 mb-6">
+        <div className="bg-amber-50 rounded-lg border border-amber-200 shadow-sm p-4 mb-6 animate-in slide-in-from-top-2">
           <h3 className="text-lg font-semibold text-amber-900 mb-3 flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
@@ -258,95 +384,184 @@ export default function Employees() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 px-4 py-3 border-b border-slate-200">
-          <select
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-auto"
-          >
-            <option value="">All Departments</option>
-            {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-          <div className="relative flex-1 max-w-md">
+      {/* Modern Filter Bar */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="relative flex-1 w-full md:max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
             <input
               type="text"
-              placeholder="Search employees..."
+              placeholder="Search employees by name, ID or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
             />
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setShowFilterDropdowns(!showFilterDropdowns)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-all whitespace-nowrap ${showFilterDropdowns ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            >
+              <Filter size={16} />
+              <span>Filters</span>
+              {(selectedDepartment || selectedDesignations.length > 0 || selectedEmployeeTypes.length > 0 || selectedWorkModes.length > 0) && (
+                <span className="flex h-2 w-2 rounded-full bg-blue-600"></span>
+              )}
+            </button>
+
+            <div className="h-6 w-px bg-slate-200 hidden md:block"></div>
+
+            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                title="List View"
+              >
+                <LayoutList size={16} />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                title="Grid View"
+              >
+                <LayoutGrid size={16} />
+              </button>
+            </div>
           </div>
         </div>
-        {loading ? (
-          <div className="p-8 text-center text-slate-500">Loading employees...</div>
-        ) : employees.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">No employees yet. Add one to get started!</div>
-        ) : (
-          (() => {
-            const filteredEmployees = employees.filter(emp => {
-              if (selectedDepartment && emp.department !== selectedDepartment) return false;
-              if (!searchTerm) return true;
-              const term = searchTerm.toLowerCase();
-              const name = getDisplayName(emp).toLowerCase();
-              const email = (emp.email || '').toLowerCase();
-              const empId = (emp.employeeId || '').toLowerCase();
-              return name.includes(term) || email.includes(term) || empId.includes(term);
-            });
-            const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-            return (
-              <>
-                {/* Desktop/Tablet Table View */}
-                <div className="table-responsive mobile-card-hide">
-                  <div className="inline-block min-w-full align-middle">
-                    <table className="min-w-full text-left text-sm">
-                      <thead className="bg-slate-50 border-b border-slate-200">
+        {/* Expanded Filters */}
+        {showFilterDropdowns && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-100 animate-in slide-in-from-top-2">
+            <Select
+              placeholder="Department"
+              value={selectedDepartment || undefined}
+              onChange={setSelectedDepartment}
+              className="w-full"
+              allowClear
+            >
+              <Select.Option value="">All Departments</Select.Option>
+              {availableDepartments.map(d => (
+                <Select.Option key={d._id} value={d.name}>{d.name}</Select.Option>
+              ))}
+            </Select>
+
+            <Select
+              mode="multiple"
+              placeholder="Designation"
+              value={selectedDesignations}
+              onChange={setSelectedDesignations}
+              className="w-full"
+              maxTagCount="responsive"
+              allowClear
+            >
+              {availableDesignations.map(d => (
+                <Select.Option key={d} value={d}>{d}</Select.Option>
+              ))}
+            </Select>
+
+            <Select
+              mode="multiple"
+              placeholder="Type"
+              value={selectedEmployeeTypes}
+              onChange={setSelectedEmployeeTypes}
+              className="w-full"
+              maxTagCount="responsive"
+              allowClear
+            >
+              {EMPLOYEE_TYPES.map(t => (
+                <Select.Option key={t} value={t}>{t}</Select.Option>
+              ))}
+            </Select>
+
+            <div className="flex gap-2">
+              <Select
+                mode="multiple"
+                placeholder="Work Mode"
+                value={selectedWorkModes}
+                onChange={setSelectedWorkModes}
+                className="flex-1"
+                maxTagCount="responsive"
+                allowClear
+              >
+                {WORK_MODES.map(m => (
+                  <Select.Option key={m} value={m}>{m}</Select.Option>
+                ))}
+              </Select>
+
+              <button
+                onClick={clearFilters}
+                className="px-3 py-1 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors"
+                title="Clear All"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+          <span>Loading employees...</span>
+        </div>
+      ) : employees.length === 0 ? (
+        <div className="p-8 text-center text-slate-500">No employees yet. Add one to get started!</div>
+      ) : (
+        (() => {
+          const paginatedEmployees = employees.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+          return (
+            <>
+              {viewMode === 'list' ? (
+                <>
+                  {/* Desktop/Tablet Table View */}
+                  <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
+                    <table className="min-w-full text-left text-sm divide-y divide-slate-200">
+                      <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 whitespace-nowrap">Name</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden md:table-cell whitespace-nowrap">Emp ID</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden lg:table-cell whitespace-nowrap">Email</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden xl:table-cell whitespace-nowrap">Phone</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 whitespace-nowrap">Role</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden md:table-cell whitespace-nowrap">Department</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 hidden lg:table-cell whitespace-nowrap">Manager</th>
-                          <th className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">Actions</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Name</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Role</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Contact</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Department</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Manager</th>
+                          <th className="px-6 py-4 text-right font-semibold text-slate-700 whitespace-nowrap">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 bg-white">
                         {paginatedEmployees.map(emp => (
-                          <tr key={emp._id} className="hover:bg-slate-50 transition">
-                            <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">
-                              <div className="flex items-center gap-2 sm:gap-3">
+                          <tr key={emp._id} className="hover:bg-slate-50 transition group">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-3">
                                 {emp.profilePic ? (
-                                  <img src={`${BACKEND_URL}${emp.profilePic}`} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-200 flex-shrink-0" />
+                                  <img src={`${BACKEND_URL}${emp.profilePic}`} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm" />
                                 ) : (
-                                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 border border-slate-200 flex-shrink-0">
+                                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-500 border border-slate-200 shadow-sm">
                                     {emp.firstName?.[0]}{emp.lastName?.[0]}
                                   </div>
                                 )}
-                                <div className="min-w-0 flex-1">
-                                  <div className="truncate">{getDisplayName(emp)}</div>
-                                  <div className="text-xs text-slate-500 md:hidden">{emp.employeeId || '-'}</div>
-                                  <div className="text-xs text-slate-500 lg:hidden md:block hidden">{emp.email}</div>
+                                <div>
+                                  <div className="font-semibold text-slate-900">{getDisplayName(emp)}</div>
+                                  <div className="text-xs text-slate-500">{emp.employeeId || '-'}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-slate-600 hidden md:table-cell whitespace-nowrap">{emp.employeeId || '-'}</td>
-                            <td className="px-4 py-3 text-slate-600 hidden lg:table-cell whitespace-nowrap">{emp.email}</td>
-                            <td className="px-4 py-3 text-slate-600 hidden xl:table-cell whitespace-nowrap">{emp.contactNo || emp.phone || '-'}</td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <span className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-slate-900 font-medium">{emp.designation || '-'}</div>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 mt-1">
                                 {emp.role || '-'}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-slate-600 hidden md:table-cell whitespace-nowrap">{emp.department || '-'}</td>
-                            <td className="px-4 py-3 text-slate-600 hidden lg:table-cell whitespace-nowrap min-w-[120px] max-w-[180px]">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-slate-600 flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5"><Mail size={12} /> {emp.email}</div>
+                                <div className="flex items-center gap-1.5"><Phone size={12} /> {emp.contactNo || emp.phone || '-'}</div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-slate-600">{emp.department || '-'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-slate-600">
                               {(() => {
                                 if (!emp.manager) return '-';
                                 if (typeof emp.manager === 'string') {
@@ -359,33 +574,38 @@ export default function Employees() {
                                 return '-';
                               })()}
                             </td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap min-w-[200px]">
-                              <div className="flex items-center justify-end gap-1 sm:gap-2">
-                                <button onClick={() => openView(emp)} className="p-1.5 rounded hover:bg-slate-100 transition" title="View Details">
-                                  <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" />
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => openView(emp)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition" title="View Details">
+                                  <Eye size={18} />
                                 </button>
-                                <button onClick={() => setApplyingLeave(emp)} className="p-1.5 rounded hover:bg-emerald-50 transition" title="Apply Leave" aria-label="Apply leave for employee">
-                                  <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
+                                <button onClick={() => setApplyingLeave(emp)} className="p-2 rounded-lg hover:bg-emerald-50 text-emerald-600 transition" title="Apply Leave">
+                                  <CalendarIcon size={18} />
                                 </button>
-                                {/* <button onClick={() => setAssigningSalary(emp)} className="p-1.5 rounded hover:bg-purple-50 transition" title="Assign Salary Structure" aria-label="Assign Salary"> */}
-                                <button onClick={() => navigate(`/hr/salary-structure/${emp._id}`)} className="p-1.5 rounded hover:bg-purple-50 transition" title="Assign Salary Structure" aria-label="Assign Salary">
-                                  <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
+                                <button onClick={() => navigate(`/hr/salary-structure/${emp._id}`)} className="p-2 rounded-lg hover:bg-purple-50 text-purple-600 transition" title="Assign Salary">
+                                  <IndianRupee size={18} />
                                 </button>
-                                <button
-                                  onClick={() => openJoiningModal(emp)}
-                                  disabled={!emp.salaryLocked}
-                                  className={`p-1.5 rounded transition ${!emp.salaryLocked ? 'opacity-40 cursor-not-allowed grayscale' : 'hover:bg-amber-50'}`}
-                                  title={emp.salaryLocked ? "Joining Letter" : "Lock salary in Salary Assignment first"}
-                                  aria-label="Joining Letter"
-                                >
-                                  <FileText className={`h-4 w-4 sm:h-5 sm:w-5 ${emp.salaryLocked ? 'text-amber-600' : 'text-slate-400'}`} />
-                                </button>
-                                <button onClick={() => openEdit(emp)} className="p-1.5 rounded hover:bg-blue-50 transition" title="Edit" aria-label="Edit employee">
-                                  <Edit2 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                                </button>
-                                <button onClick={() => remove(emp._id)} className="p-1.5 rounded hover:bg-red-50 text-red-600 transition" title="Delete" aria-label="Delete employee">
-                                  <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
-                                </button>
+
+                                <div className="relative group/menu">
+                                  <button className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition">
+                                    <MoreHorizontal size={18} />
+                                  </button>
+                                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden hidden group-hover/menu:block z-20">
+                                    <button onClick={() => openEdit(emp)} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm flex items-center gap-2 text-slate-700">
+                                      <Edit2 size={14} /> Edit Details
+                                    </button>
+                                    <button
+                                      onClick={() => openJoiningModal(emp)}
+                                      disabled={!emp.salaryLocked}
+                                      className={`w-full text-left px-4 py-2 hover:bg-slate-50 text-sm flex items-center gap-2 ${emp.salaryLocked ? 'text-slate-700' : 'text-slate-400 cursor-not-allowed'}`}
+                                    >
+                                      <FileText size={14} /> Joining Letter
+                                    </button>
+                                    <button onClick={() => remove(emp._id)} className="w-full text-left px-4 py-2 hover:bg-red-50 text-sm flex items-center gap-2 text-red-600 border-t border-slate-100">
+                                      <Trash2 size={14} /> Delete Employee
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -393,84 +613,127 @@ export default function Employees() {
                       </tbody>
                     </table>
                   </div>
-                </div>
 
-                {/* Mobile Card View (<= 480px) */}
-                <div className="mobile-card-show bg-slate-50/50 divide-y divide-slate-200">
-                  {paginatedEmployees.map(emp => (
-                    <div key={emp._id} className="p-4 bg-white space-y-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-3">
+                  {/* Mobile List View */}
+                  <div className="md:hidden space-y-4">
+                    {paginatedEmployees.map(emp => (
+                      <div key={emp._id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                        <div className="flex items-start gap-4">
                           {emp.profilePic ? (
-                            <img src={`${BACKEND_URL}${emp.profilePic}`} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                            <img src={`${BACKEND_URL}${emp.profilePic}`} alt="" className="w-12 h-12 rounded-full object-cover border border-slate-200" />
                           ) : (
-                            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm border border-slate-200">
+                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm border border-slate-200">
                               {emp.firstName?.[0]}{emp.lastName?.[0]}
                             </div>
                           )}
-                          <div>
-                            <div className="font-bold text-slate-900">{getDisplayName(emp)}</div>
-                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{emp.employeeId || 'NO ID'}</div>
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h3 className="font-bold text-slate-900">{getDisplayName(emp)}</h3>
+                                <p className="text-xs text-slate-500">{emp.designation || 'No Designation'}</p>
+                              </div>
+                              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-full border border-blue-100">{emp.role}</span>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                              <div className="flex items-center gap-1.5"><Briefcase size={12} /> {emp.department || '-'}</div>
+                              <div className="flex items-center gap-1.5"><Phone size={12} /> {emp.contactNo || '-'}</div>
+                            </div>
                           </div>
-                          <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                            {emp.role || 'Employee'}
-                          </span>
+                        </div>
+                        <div className="pt-3 border-t border-slate-100 flex gap-2 overflow-x-auto no-scrollbar">
+                          <button onClick={() => openView(emp)} className="flex-1 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 flex items-center justify-center gap-1">VIEW</button>
+                          <button onClick={() => setApplyingLeave(emp)} className="flex-1 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-700 flex items-center justify-center gap-1">LEAVE</button>
+                          <button onClick={() => openEdit(emp)} className="flex-1 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold text-blue-700 flex items-center justify-center gap-1">EDIT</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                /* Grid View */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-in fade-in duration-500">
+                  {paginatedEmployees.map(emp => (
+                    <div key={emp._id} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all duration-300 overflow-hidden group flex flex-col relative">
+                      <div className="absolute top-3 right-3 z-10">
+                        <div className="relative group/menu">
+                          <button className="p-1.5 rounded-full bg-white/80 hover:bg-white text-slate-400 hover:text-slate-600 shadow-sm backdrop-blur-sm border border-slate-100 transition-all">
+                            <MoreHorizontal size={16} />
+                          </button>
+                          <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden hidden group-hover/menu:block">
+                            <button onClick={() => openEdit(emp)} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-medium flex items-center gap-2 text-slate-700">
+                              <Edit2 size={12} /> Edit
+                            </button>
+                            <button onClick={() => remove(emp._id)} className="w-full text-left px-4 py-2 hover:bg-red-50 text-xs font-medium flex items-center gap-2 text-red-600 border-t border-slate-50">
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4 py-3 border-y border-slate-50">
-                        <div>
-                          <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">Department</div>
-                          <div className="text-xs font-semibold text-slate-700">{emp.department || '-'}</div>
+                      <div className="p-6 flex flex-col items-center text-center pb-4">
+                        <div className="relative mb-3">
+                          {emp.profilePic ? (
+                            <img src={`${BACKEND_URL}${emp.profilePic}`} alt="" className="w-24 h-24 rounded-full object-cover border-4 border-slate-50 shadow-inner group-hover:scale-105 transition-transform duration-300" />
+                          ) : (
+                            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center text-2xl font-bold text-slate-400 border-4 border-white shadow-inner">
+                              {emp.firstName?.[0]}{emp.lastName?.[0]}
+                            </div>
+                          )}
                         </div>
-                        <div className="text-right">
-                          <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">Phone</div>
-                          <div className="text-xs font-semibold text-slate-700">{emp.contactNo || emp.phone || '-'}</div>
+                        <h3 className="font-bold text-slate-900 text-lg truncate w-full px-2" title={getDisplayName(emp)}>{getDisplayName(emp)}</h3>
+                        <p className="text-sm text-slate-500 mb-2 truncate w-full px-4">{emp.designation || 'No Designation'}</p>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                          {emp.role || 'Employee'}
+                        </span>
+                      </div>
+
+                      <div className="px-5 py-3 space-y-2.5 bg-slate-50/50 border-t border-b border-slate-100 flex-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500 flex items-center gap-1.5"><Briefcase size={12} /> Department</span>
+                          <span className="font-semibold text-slate-700 truncate max-w-[100px]">{emp.department || '-'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500 flex items-center gap-1.5"><Phone size={12} /> Phone</span>
+                          <span className="font-semibold text-slate-700 truncate max-w-[100px]">{emp.contactNo || '-'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500 flex items-center gap-1.5"><Mail size={12} /> Email</span>
+                          <span className="font-semibold text-slate-700 truncate max-w-[100px]" title={emp.email}>{emp.email}</span>
                         </div>
                       </div>
 
-                      <div className="flex gap-2 pt-1 overflow-x-auto no-scrollbar pb-1">
-                        <button onClick={() => openView(emp)} className="flex-1 py-2 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 min-w-[80px]">
-                          <Eye size={14} /> VIEW
+                      <div className="p-3 grid grid-cols-3 gap-2 bg-white">
+                        <button onClick={() => openView(emp)} className="py-2 rounded-lg hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition flex justify-center items-center gap-1 text-[10px] font-bold border border-transparent hover:border-slate-200" title="View Profile">
+                          <Eye size={14} /> PROFILE
                         </button>
-                        <button onClick={() => setApplyingLeave(emp)} className="flex-1 py-2 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 min-w-[80px]">
+                        <button onClick={() => setApplyingLeave(emp)} className="py-2 rounded-lg hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 transition flex justify-center items-center gap-1 text-[10px] font-bold border border-transparent hover:border-emerald-100" title="Apply Leave">
                           <CalendarIcon size={14} /> LEAVE
                         </button>
-                        <button onClick={() => setAssigningSalary(emp)} className="flex-1 py-2 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 min-w-[80px]">
-                          <IndianRupee size={14} /> SALARY
-                        </button>
-                        <button
-                          onClick={() => openJoiningModal(emp)}
-                          disabled={!emp.salaryLocked}
-                          className={`flex-1 py-2 border rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 min-w-[80px] transition ${!emp.salaryLocked ? 'bg-slate-50 text-slate-400 border-slate-100 cursor-not-allowed opacity-50 grayscale' : 'bg-amber-50 text-amber-700 border-amber-100'}`}
-                        >
-                          <FileText size={14} /> JOINING
-                        </button>
-                        <button onClick={() => openEdit(emp)} className="flex-1 py-2 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 min-w-[80px]">
-                          <Edit2 size={14} /> EDIT
+                        <button onClick={() => navigate(`/hr/salary-structure/${emp._id}`)} className="py-2 rounded-lg hover:bg-purple-50 text-slate-500 hover:text-purple-600 transition flex justify-center items-center gap-1 text-[10px] font-bold border border-transparent hover:border-purple-100" title="Salary">
+                          <IndianRupee size={14} /> PAY
                         </button>
                       </div>
                     </div>
                   ))}
                 </div>
+              )}
 
-                <div className="px-4 sm:px-6 py-4 border-t border-slate-200 flex justify-center sm:justify-end bg-white">
-                  <Pagination
-                    current={currentPage}
-                    pageSize={pageSize}
-                    total={filteredEmployees.length}
-                    onChange={(page) => setCurrentPage(page)}
-                    showSizeChanger={false}
-                    responsive={true}
-                    size="small"
-                    className="text-xs sm:text-sm"
-                  />
-                </div>
-              </>
-            );
-          })()
-        )}
-      </div >
+              {/* Pagination */}
+              <div className="px-4 py-4 mt-4 border-t border-slate-200 flex justify-center">
+                <Pagination
+                  current={currentPage}
+                  pageSize={pageSize}
+                  total={employees.length}
+                  onChange={(page) => setCurrentPage(page)}
+                  showSizeChanger={false}
+                  responsive={true}
+                  className="scale-90 sm:scale-100"
+                />
+              </div>
+            </>
+          );
+        })()
+      )}
 
       {
         applyingLeave && (
@@ -686,7 +949,8 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
     ...e,
     payslips: e.payslips || (e.payslipUrl ? [e.payslipUrl] : [])
   })) : []);
-  const [jobType, setJobType] = useState(employee?.jobType || 'Full-Time');
+  const [employeeType, setEmployeeType] = useState(employee?.employeeType || employee?.jobType || 'Full-time');
+  const [workMode, setWorkMode] = useState(employee?.workMode || 'Work From Office (WFO)');
 
   const [bankName, setBankName] = useState(employee?.bankDetails?.bankName || '');
   const [accountNumber, setAccountNumber] = useState(employee?.bankDetails?.accountNumber || '');
@@ -699,6 +963,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const [department, setDepartment] = useState(employee?.department || '');
   const [departmentId, setDepartmentId] = useState(employee?.departmentId?._id || employee?.departmentId || '');
   const [manager, setManager] = useState(employee?.manager?._id || employee?.manager || '');
+  const [designation, setDesignation] = useState(employee?.designation || '');
   const [joiningDate, setJoiningDate] = useState(employee?.joiningDate ? new Date(employee.joiningDate).toISOString().split('T')[0] : '');
   const [departments, setDepartments] = useState([]);
   const [managers, setManagers] = useState([]);
@@ -1298,7 +1563,9 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
         emergencyContactName, emergencyContactNumber,
         tempAddress, permAddress: sameAsTemp ? tempAddress : permAddress,
         experience: processedExperience,
-        jobType,
+        employeeType,
+        workMode,
+        designation,
         bankDetails: { bankName, accountNumber, ifsc, branchName, location: bankLocation, bankProofUrl: currentBankProofUrl },
         education: {
           type: eduType,
@@ -1441,7 +1708,9 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
         emergencyContactName, emergencyContactNumber,
         tempAddress, permAddress: sameAsTemp ? tempAddress : permAddress,
         experience: processedExperience,
-        jobType: jobType || undefined,
+        employeeType: employeeType || undefined,
+        workMode: workMode || undefined,
+        designation: designation || undefined,
         bankDetails: { bankName, accountNumber, ifsc, branchName, location: bankLocation, bankProofUrl: currentBankProofUrl },
         education: {
           type: eduType,
@@ -1682,8 +1951,8 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
                 <div>
                   <label className="text-sm font-semibold text-slate-700">Job Type</label>
                   <select
-                    value={jobType}
-                    onChange={e => setJobType(e.target.value)}
+                    value={employeeType}
+                    onChange={e => setEmployeeType(e.target.value)}
                     className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
                   >
                     <option>Full-Time</option>
@@ -2110,13 +2379,25 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
               <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Employment Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">Job Type</label>
-                  <select value={jobType} onChange={e => setJobType(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300">
-                    <option>Full-Time</option>
-                    <option>Part-Time</option>
-                    <option>Internship</option>
-                    <option>Contract</option>
+                  <label className="text-sm font-semibold text-slate-700">Employee Type</label>
+                  <select value={employeeType} onChange={e => setEmployeeType(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300">
+                    {EMPLOYEE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Work Mode</label>
+                  <select value={workMode} onChange={e => setWorkMode(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300">
+                    {WORK_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Designation / Job Role</label>
+                  <input
+                    value={designation}
+                    onChange={e => setDesignation(e.target.value)}
+                    placeholder="e.g. Senior Software Engineer"
+                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-slate-700">Role / Access Level</label>

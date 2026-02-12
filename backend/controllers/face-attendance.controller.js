@@ -493,19 +493,19 @@ exports.verifyFaceAttendance = async (req, res) => {
     console.log('  - registeredEmbedding length:', Array.isArray(registeredEmbedding) ? registeredEmbedding.length : 'NOT ARRAY ❌');
     console.log('  - liveEmbedding is array?:', Array.isArray(liveEmbedding));
     console.log('  - liveEmbedding length:', Array.isArray(liveEmbedding) ? liveEmbedding.length : 'NOT ARRAY ❌');
-    
+
     if (Array.isArray(registeredEmbedding)) {
       console.log('\n📌 REGISTERED EMBEDDING (from database):');
       console.log('   First 10:', registeredEmbedding.slice(0, 10).map(v => v.toFixed(4)));
       console.log('   Last 5:', registeredEmbedding.slice(123).map(v => v.toFixed(4)));
     }
-    
+
     if (Array.isArray(liveEmbedding)) {
       console.log('\n📌 LIVE EMBEDDING (from frontend):');
       console.log('   First 10:', liveEmbedding.slice(0, 10).map(v => v.toFixed(4)));
       console.log('   Last 5:', liveEmbedding.slice(123).map(v => v.toFixed(4)));
     }
-    
+
     const matchResult = faceService.compareFaceEmbeddings(
       registeredEmbedding,
       liveEmbedding
@@ -592,6 +592,7 @@ exports.verifyFaceAttendance = async (req, res) => {
     }
 
     // ============ STEP 8: CHECK FOR DUPLICATE ATTENDANCE ============
+    const { AttendanceSettings } = getModels(req);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     today.setHours(0, 0, 0, 0);
@@ -613,6 +614,30 @@ exports.verifyFaceAttendance = async (req, res) => {
       });
     }
 
+    // ============ FETCH SETTINGS & CALCULATE RULES ============
+    let settings = await AttendanceSettings.findOne({ tenant: tenantId });
+    if (!settings) {
+      settings = new AttendanceSettings({ tenant: tenantId });
+      await settings.save();
+    }
+
+    // Count accumulated stats for the current month
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const [accumulatedLateCount, accumulatedEarlyExitCount] = await Promise.all([
+      Attendance.countDocuments({
+        employee: employeeId,
+        tenant: tenantId,
+        date: { $gte: startOfMonth, $lt: today },
+        isLate: true
+      }),
+      Attendance.countDocuments({
+        employee: employeeId,
+        tenant: tenantId,
+        date: { $gte: startOfMonth, $lt: today },
+        isEarlyOut: true
+      })
+    ]);
+
     // ============ STEP 9: CREATE ATTENDANCE RECORD ============
     if (!attendance) {
       attendance = new Attendance({
@@ -620,7 +645,7 @@ exports.verifyFaceAttendance = async (req, res) => {
         employee: employeeId,
         date: today,
         checkIn: now,
-        status: 'PRESENT',
+        status: 'present',
         logs: []
       });
     }
@@ -635,6 +660,30 @@ exports.verifyFaceAttendance = async (req, res) => {
       matchScore: matchResult.matchScore,
       ip: req.ip || req.headers['x-forwarded-for']?.split(',')[0]
     });
+
+    // ============ APPLY RULES ENGINE ============
+    const { applyAttendanceRules } = require('../services/attendanceRulesEngine');
+    const rulesResult = applyAttendanceRules({
+      date: today,
+      employeeId,
+      logs: attendance.logs,
+      workingHours: 0,
+      baseStatus: attendance.status,
+      settings,
+      accumulatedLateCount,
+      accumulatedEarlyExitCount
+    });
+
+    attendance.status = rulesResult.status;
+    attendance.isLate = rulesResult.isLate;
+    attendance.isEarlyOut = rulesResult.isEarlyOut;
+    attendance.lateMinutes = rulesResult.lateMinutes;
+    attendance.earlyExitMinutes = rulesResult.earlyExitMinutes;
+    attendance.lopDays = rulesResult.lopDays;
+    attendance.ruleEngineMeta = rulesResult.meta;
+    attendance.isWFH = rulesResult.isWFH;
+    attendance.isOnDuty = rulesResult.isOnDuty;
+    attendance.isCompOffDay = rulesResult.isCompOffDay;
 
     await attendance.save();
 
@@ -680,24 +729,32 @@ exports.verifyFaceAttendance = async (req, res) => {
 
     console.log('✅ Attendance marked via face recognition');
 
+    const responseData = {
+      attendanceId: attendance._id,
+      checkInTime: attendance.checkIn,
+      employee: {
+        id: employee._id,
+        name: `${employee.firstName} ${employee.lastName}`,
+        role: employee.role
+      },
+      verification: {
+        matchScore: matchResult.matchScore,
+        confidence: matchResult.confidence,
+        liveness: livenessValid
+      },
+      status: {
+        isLate: attendance.isLate,
+        status: attendance.status,
+        lateMinutes: attendance.lateMinutes,
+        policyViolations: rulesResult.policyViolations || []
+      },
+      processingTime: `${Date.now() - startTime}ms`
+    };
+
     return res.json({
       success: true,
       message: 'Attendance marked successfully via face recognition',
-      data: {
-        attendanceId: attendance._id,
-        checkInTime: attendance.checkIn,
-        employee: {
-          id: employee._id,
-          name: `${employee.firstName} ${employee.lastName}`,
-          role: employee.role
-        },
-        verification: {
-          matchScore: matchResult.matchScore,
-          confidence: matchResult.confidence,
-          liveness: livenessValid
-        },
-        processingTime: `${Date.now() - startTime}ms`
-      }
+      data: responseData
     });
 
   } catch (err) {
@@ -830,7 +887,8 @@ function getModels(req) {
     FaceData: require('../models/FaceData'),
     Attendance: require('../models/Attendance'),
     Employee: require('../models/Employee'),
-    AuditLog: require('../models/AuditLog')
+    AuditLog: require('../models/AuditLog'),
+    AttendanceSettings: require('../models/AttendanceSettings')
   };
 }
 

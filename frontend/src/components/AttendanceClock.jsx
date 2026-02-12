@@ -14,11 +14,14 @@ export default function AttendanceClock({
     isCheckedIn,
     isCheckedOut,
     checkInTime,
+    lastPunchIn = null, // New: Time of the most recent IN punch
+    baseWorkedSeconds = 0, // New: Total seconds from completed sessions
     onAction,
     isLoading,
     location = "Remote",
     settings = {},
-    error = null
+    error = null,
+    isFinalCheckOut = false
 }) {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [radius, setRadius] = useState(typeof window !== 'undefined' && window.innerWidth < 768 ? 100 : 120);
@@ -42,26 +45,28 @@ export default function AttendanceClock({
         let interval;
 
         const updateTimer = () => {
-            if (isCheckedIn && !isCheckedOut && checkInTime) {
-                const now = new Date();
-                const start = new Date(checkInTime);
-                const diffValues = Math.max(0, (now - start) / 1000); // In Seconds
+            // Worked time = Completed sessions + Current session (if running)
+            let total = baseWorkedSeconds;
 
-                setWorkedSeconds(diffValues);
-                setIsOvertime(diffValues > SHIFT_DURATION);
-            } else if (!isCheckedIn) {
-                setWorkedSeconds(0);
-                setIsOvertime(false);
+            if (isCheckedIn && !isCheckedOut && lastPunchIn) {
+                const now = new Date();
+                const start = new Date(lastPunchIn);
+                const currentSessionSeconds = Math.max(0, (now - start) / 1000);
+                total += currentSessionSeconds;
             }
+
+            setWorkedSeconds(total);
+            setIsOvertime(total > SHIFT_DURATION);
         };
 
+        updateTimer(); // Initial calculation
+
         if (isCheckedIn && !isCheckedOut) {
-            updateTimer(); // Initial call
             interval = setInterval(updateTimer, 1000);
         }
 
         return () => clearInterval(interval);
-    }, [isCheckedIn, isCheckedOut, checkInTime]);
+    }, [isCheckedIn, isCheckedOut, lastPunchIn, baseWorkedSeconds]);
 
     // Responsive Radius
     useEffect(() => {
@@ -101,7 +106,7 @@ export default function AttendanceClock({
 
     // UI Configuration
     const isMultipleMode = settings?.punchMode === 'multiple';
-    const showShiftCompleted = !isMultipleMode && isCheckedOut;
+    const showShiftCompleted = isFinalCheckOut || (!isMultipleMode && isCheckedOut);
 
     let statusBadgeText = isCheckedIn && !isCheckedOut ? (isOvertime ? "Overtime Running" : "Active Shift") : "Idle";
     let statusBadgeStyle = isCheckedIn && !isCheckedOut
@@ -246,33 +251,68 @@ export default function AttendanceClock({
             {/* Action Button */}
             <div className="w-full max-w-[280px] z-20 relative">
                 {showShiftCompleted ? (
-                    <div className="w-full py-3 bg-emerald-600 text-white rounded-lg font-semibold text-sm text-center shadow-md flex flex-col items-center gap-2">
-                        <CheckCircle size={20} />
-                        <span>Shift Completed</span>
+                    <div className="w-full py-5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-2xl font-bold text-sm text-center border border-emerald-200 dark:border-emerald-800 shadow-sm flex flex-col items-center gap-1 animate-in fade-in zoom-in duration-500">
+                        <div className="bg-emerald-500 text-white p-2 rounded-full mb-2 shadow-lg shadow-emerald-500/20">
+                            <CheckCircle size={20} />
+                        </div>
+                        <span className="uppercase tracking-[0.2em] text-[9px] font-black opacity-60">Operations Finished</span>
+                        <span className="text-xl font-black tracking-tight">Shift Ended</span>
                     </div>
                 ) : (
-                    <button
-                        onClick={onAction}
-                        disabled={isLoading}
-                        className={`w-full py-3 rounded-lg font-semibold text-sm transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg ${isCheckedIn && !isCheckedOut
-                            ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                            }`}
-                    >
-                        {isLoading ? (
-                            <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        ) : (isCheckedIn && !isCheckedOut) ? (
-                            <>
-                                <LogOut size={18} />
-                                <span>Check Out</span>
-                            </>
+                    <>
+                        {isMultipleMode && isCheckedIn && !isCheckedOut ? (
+                            <div className="grid grid-cols-2 gap-3 w-full">
+                                <button
+                                    onClick={onAction} // Same action, just different intent in UI
+                                    disabled={isLoading}
+                                    className="py-3 rounded-lg font-semibold text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-all flex flex-col items-center justify-center gap-1 shadow-sm active:scale-95"
+                                >
+                                    <Clock size={16} className="mb-0.5" />
+                                    <span>Take Break</span>
+                                </button>
+
+                                <button
+                                    onClick={onAction}
+                                    disabled={isLoading}
+                                    className="py-3 rounded-lg font-semibold text-xs bg-rose-600 hover:bg-rose-700 text-white transition-all flex flex-col items-center justify-center gap-1 shadow-md active:scale-95"
+                                >
+                                    <LogOut size={16} className="mb-0.5" />
+                                    <span>End Shift</span>
+                                </button>
+                            </div>
                         ) : (
-                            <>
-                                <LogIn size={18} />
-                                <span>{isMultipleMode && isCheckedIn ? 'Check In Again' : 'Check In'}</span>
-                            </>
+                            <button
+                                onClick={onAction}
+                                disabled={isLoading}
+                                className={`w-full py-3 rounded-lg font-semibold text-sm transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg ${isCheckedIn && !isCheckedOut
+                                    ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                    }`}
+                            >
+                                {isLoading ? (
+                                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                ) : (isCheckedIn && !isCheckedOut) ? (
+                                    <>
+                                        <LogOut size={18} />
+                                        <span>Check Out</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <LogIn size={18} />
+                                        <span>{isMultipleMode && isCheckedIn ? 'Resume Shift' : 'Check In'}</span>
+                                    </>
+                                )}
+                            </button>
                         )}
-                    </button>
+                    </>
+                )}
+
+                {/* Status indicator for break */}
+                {isCheckedIn && isCheckedOut && !isFinalCheckOut && (
+                    <div className="mt-4 flex items-center justify-center gap-2 text-amber-500 bg-amber-50 dark:bg-amber-900/20 py-2 rounded-lg border border-amber-100 dark:border-amber-800 animate-in fade-in duration-500">
+                        <Clock size={14} className="animate-pulse" />
+                        <span className="text-[10px] font-black uppercase tracking-widest italic">Break In Progress</span>
+                    </div>
                 )}
 
                 {/* Error Message Display */}

@@ -55,7 +55,6 @@ input[type="number"] {
   display: none !important;
 }
 
-
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -75,65 +74,65 @@ input[type="number"] {
 @layer base {
   body {
     @apply text-slate-800 antialiased;
-    background-color: #F8FAFC;
+    background-color: #f8fafc;
   }
 }
 
 /* Premium Color Utilities */
 .bg-premium-gradient {
-  background: linear-gradient(to right, #4A8FE7, #3A7BC8);
+  background: linear-gradient(to right, #4a8fe7, #3a7bc8);
 }
 
 .bg-premium-gradient-light {
-  background: linear-gradient(135deg, #4A8FE7 0%, #77D4C8 100%);
+  background: linear-gradient(135deg, #4a8fe7 0%, #77d4c8 100%);
 }
 
 .text-premium-blue {
-  color: #4A8FE7;
+  color: #4a8fe7;
 }
 
 .text-mint-aqua {
-  color: #77D4C8;
+  color: #77d4c8;
 }
 
 .text-deep-navy {
-  color: #2C3E50;
+  color: #2c3e50;
 }
 
 .bg-premium-blue {
-  background-color: #4A8FE7;
+  background-color: #4a8fe7;
 }
 
 .bg-premium-blue-dark {
-  background-color: #3A7BC8;
+  background-color: #3a7bc8;
 }
 
 .bg-icon-bg {
-  background-color: #EEF2F8;
+  background-color: #eef2f8;
 }
 
 .bg-soft-bg {
-  background-color: #F5F8FB;
+  background-color: #f5f8fb;
 }
 
 .border-premium-blue {
-  border-color: #4A8FE7;
+  border-color: #4a8fe7;
 }
 
 .hover\:text-premium-blue:hover {
-  color: #4A8FE7;
+  color: #4a8fe7;
 }
 
 .hover\:bg-premium-blue:hover {
-  background-color: #4A8FE7;
+  background-color: #4a8fe7;
 }
 
 .hover\:bg-premium-blue-dark:hover {
-  background-color: #3A7BC8;
+  background-color: #3a7bc8;
 }
 
 .hover\:border-premium-blue:hover {
-  border-color: #4A8FE7;
+  border-color: #4a8fe7;
 }
 
 /* Custom Slider Styles */
@@ -142,14 +141,14 @@ input[type="number"] {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #4A8FE7;
+  background: #4a8fe7;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(74, 143, 231, 0.3);
   transition: all 0.2s;
 }
 
 .slider::-webkit-slider-thumb:hover {
-  background: #3A7BC8;
+  background: #3a7bc8;
   transform: scale(1.1);
   box-shadow: 0 4px 12px rgba(74, 143, 231, 0.5);
 }
@@ -158,7 +157,7 @@ input[type="number"] {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #4A8FE7;
+  background: #4a8fe7;
   cursor: pointer;
   border: none;
   box-shadow: 0 2px 8px rgba(74, 143, 231, 0.3);
@@ -166,7 +165,24 @@ input[type="number"] {
 }
 
 .slider::-moz-range-thumb:hover {
-  background: #3A7BC8;
+  background: #3a7bc8;
   transform: scale(1.1);
   box-shadow: 0 4px 12px rgba(74, 143, 231, 0.5);
+}
+
+/* ===== FORCE ANT DESIGN NOTIFICATIONS TO TOP-RIGHT ===== */
+.ant-notification {
+  top: 70px !important;
+  right: 24px !important;
+  left: auto !important;
+}
+
+.ant-notification-topRight {
+  top: 70px !important;
+  right: 24px !important;
+  left: auto !important;
+}
+
+.ant-notification-notice {
+  margin-bottom: 16px;
 }
