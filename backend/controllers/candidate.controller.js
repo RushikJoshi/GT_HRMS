@@ -33,19 +33,38 @@ exports.getCandidateProfile = async (req, res) => {
     try {
         const { tenantId, id } = req.candidate;
         const tenantDB = await getTenantDB(tenantId);
+        const Applicant = tenantDB.model("Applicant");
         const Candidate = tenantDB.model("Candidate");
-        const candidate = await Candidate.findById(id).select('-password');
 
+        const candidate = await Candidate.findById(id).select('-password');
         if (!candidate) {
             return res.status(404).json({ error: "Candidate not found" });
         }
+
+        const acceptedApp = await Applicant.findOne({
+            candidateId: id,
+            status: { $in: ['Offer Accepted', 'Joining Letter Issued', 'Hired'] }
+        });
+
+        // Find applications with letters
+        const letterApp = await Applicant.findOne({
+            candidateId: id,
+            $or: [
+                { offerLetterPath: { $exists: true, $ne: null, $ne: '' } },
+                { joiningLetterPath: { $exists: true, $ne: null, $ne: '' } }
+            ]
+        }).sort({ updatedAt: -1 });
 
         res.json({
             name: candidate.name,
             email: candidate.email,
             phone: candidate.mobile,
-            professionalTier: candidate.professionalTier || 'Technical Leader', // fallback or real field
-            // Include other fields as needed
+            professionalTier: candidate.professionalTier || 'Technical Leader',
+            bgvRequired: !!acceptedApp,
+            bgvApplicationId: acceptedApp?._id,
+            offerLetterUrl: letterApp?.offerLetterPath ? `/uploads/offers/${letterApp.offerLetterPath}` : null,
+            joiningLetterUrl: letterApp?.joiningLetterPath ? `/uploads/${letterApp.joiningLetterPath}` : null,
+            latestApplicationId: letterApp?._id,
             ...candidate.toObject()
         });
     } catch (err) {
@@ -55,6 +74,9 @@ exports.getCandidateProfile = async (req, res) => {
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const getTenantDB = require('../utils/tenantDB');
+const { getBGVModels } = require('../utils/bgvModels');
+const path = require('path');
+const fs = require('fs');
 
 exports.registerCandidate = async (req, res) => {
     try {
@@ -163,8 +185,18 @@ exports.loginCandidate = async (req, res) => {
 exports.getCandidateMe = async (req, res) => {
     try {
         const { tenantId, id } = req.candidate;
+        console.log(`🔍 [CANDIDATE_ME] Fetching for Tenant: ${tenantId}, ID: ${id}`);
+
         const tenantDB = await getTenantDB(tenantId);
-        const Candidate = tenantDB.model("Candidate");
+
+        // Ensure Candidate model is registered on this connection
+        let Candidate;
+        try {
+            Candidate = tenantDB.model("Candidate");
+        } catch (e) {
+            Candidate = tenantDB.model("Candidate", require("../models/Candidate"));
+        }
+
         const candidate = await Candidate.findById(id).select('-password');
 
         if (!candidate) {
@@ -291,5 +323,293 @@ exports.trackApplication = async (req, res) => {
     } catch (err) {
         console.error("[TRACK_APP] Error:", err.message);
         res.status(500).json({ error: "Failed to track application", details: err.message });
+    }
+};
+
+exports.acceptOffer = async (req, res) => {
+    try {
+        const { tenantId, id } = req.candidate;
+        const { applicationId } = req.params;
+        const tenantDB = await getTenantDB(tenantId);
+
+        const Applicant = tenantDB.model("Applicant");
+        const Notification = tenantDB.model("Notification"); // For HR notification
+
+        const application = await Applicant.findOne({ _id: applicationId, candidateId: id }).populate('requirementId');
+
+        if (!application) {
+            return res.status(404).json({ error: "Application not found" });
+        }
+
+        if (application.status !== 'Offer Issued' && application.status !== 'Selected') {
+            // Allow 'Selected' too in case status wasn't updated correctly or legacy
+            return res.status(400).json({ error: "No pending offer found to accept." });
+        }
+
+        application.status = 'Offer Accepted';
+        application.offerAcceptedAt = new Date();
+
+        if (!application.timeline) application.timeline = [];
+        application.timeline.push({
+            status: 'Offer Accepted',
+            message: 'Candidate has accepted the offer.',
+            updatedBy: 'Candidate',
+            timestamp: new Date()
+        });
+
+        await application.save();
+
+
+        // Note: BGV Auto-initiation removed as per requirements. 
+        // BGV must be manually initiated by HR from the dashboard.
+
+        // Notify HR
+        try {
+            console.log(`✅ [OFFER ACCEPT] Candidate ${id} accepted offer for App ${applicationId}`);
+            const job = application.requirementId;
+            if (job && job.createdBy) {
+                await Notification.create({
+                    tenant: tenantId,
+                    receiverId: job.createdBy, // Notify the creator of the job
+                    receiverRole: 'hr',
+                    entityType: 'Application',
+                    entityId: applicationId,
+                    title: 'Offer Accepted',
+                    message: `Candidate ${req.candidate.name} has accepted the offer for ${job.jobTitle}.`,
+                    isRead: false
+                });
+            }
+        } catch (e) {
+            console.warn("Failed to notify HR:", e.message);
+        }
+
+        res.json({
+            success: true,
+            message: "Offer accepted successfully! You can now proceed to upload BGV documents.",
+            status: 'Offer Accepted'
+        });
+
+    } catch (err) {
+        console.error("Accept Offer Error:", err.message);
+        res.status(500).json({ error: "Failed to accept offer" });
+    }
+};
+
+// Get BGV Documents for an Application
+exports.getBGVDocuments = async (req, res) => {
+    try {
+        const { tenantId, id } = req.candidate;
+        const { applicationId } = req.params;
+        const tenantDB = await getTenantDB(tenantId);
+        const { BGVCase, BGVDocument, BGVCheck } = await getBGVModels({ tenantId, tenantDB });
+
+        // Find BGV Case linked to this application
+        const bgvCase = await BGVCase.findOne({ applicationId, candidateId: id });
+
+        if (!bgvCase) {
+            // Important: Return bgvInitiated: false if no case exists
+            return res.json({ bgvInitiated: false, documents: [], requiredDocs: [] });
+        }
+
+        // Fetch checks to determine required documents
+        const checks = await BGVCheck.find({ caseId: bgvCase._id }).select('type');
+        const checkTypes = checks.map(c => c.type);
+
+        // Map Check Types to required frontend document keys
+        const requiredDocs = [];
+        if (checkTypes.includes('IDENTITY')) {
+            requiredDocs.push({ key: 'AADHAAR', label: 'Aadhar Card' });
+            requiredDocs.push({ key: 'PAN', label: 'PAN Card' });
+        }
+        if (checkTypes.includes('ADDRESS')) {
+            // Could add address proof here if needed
+            requiredDocs.push({ key: 'ADDRESS_PROOF', label: 'Address Proof' });
+        }
+        if (checkTypes.includes('EDUCATION')) {
+            requiredDocs.push({ key: 'DEGREE_CERTIFICATE', label: 'Degree Certificate' });
+        }
+        if (checkTypes.includes('EMPLOYMENT')) {
+            requiredDocs.push({ key: 'RELIEVING_LETTER', label: 'Relieving Letter' });
+            requiredDocs.push({ key: 'PAYSLIP', label: 'Payslips (Last 3 months)' });
+        }
+
+        // Always add Passport Photo as it's usually standard
+        requiredDocs.push({ key: 'PASSPORT_PHOTO', label: 'Passport Photo' });
+
+        // Fetch already uploaded documents
+        const documents = await BGVDocument.find({ caseId: bgvCase._id, isDeleted: false })
+            .select('documentType fileName originalName filePath status verified uploadedAt')
+            .sort({ uploadedAt: -1 })
+            .lean();
+
+        // Transform for frontend
+        const formattedDocs = documents.map(doc => ({
+            name: doc.documentType,
+            fileName: doc.originalName,
+            filePath: doc.filePath,
+            verified: doc.status === 'VERIFIED',
+            status: doc.status,
+            uploadedAt: doc.uploadedAt
+        }));
+
+        res.json({
+            bgvInitiated: true,
+            package: bgvCase.package,
+            requiredDocs,
+            documents: formattedDocs
+        });
+
+    } catch (err) {
+        console.error("[BGV_DOCS] Error:", err.message);
+        res.status(500).json({ error: "Failed to fetch BGV documents" });
+    }
+};
+
+// Upload BGV Document
+exports.uploadBGVDocument = async (req, res) => {
+    try {
+        const { tenantId, id } = req.candidate;
+        const { applicationId } = req.params;
+        const { type } = req.body; // Document Type
+        const tenantDB = await getTenantDB(tenantId);
+        const { BGVCase, BGVDocument, BGVTimeline, BGVCheck } = await getBGVModels({ tenantId, tenantDB });
+
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        // 3. Find BGV Case
+        const candidateId = id.toString();
+        const tenantIdStr = tenantId.toString();
+
+        let bgvCase = await BGVCase.findOne({ applicationId, candidateId: id });
+
+        if (!bgvCase) {
+            return res.status(404).json({ error: "BGV Case not initialized. Please contact HR." });
+        }
+
+        if (bgvCase.isClosed) {
+            return res.status(400).json({ error: "BGV Case is closed. Cannot upload documents." });
+        }
+
+        // 4. Determine directory (Absolute Path)
+        const uploadsBaseDir = path.join(process.cwd(), 'uploads');
+        const bgvDir = path.join(uploadsBaseDir, tenantIdStr, 'bgv', bgvCase.caseId.toString());
+
+        if (!fs.existsSync(bgvDir)) {
+            fs.mkdirSync(bgvDir, { recursive: true });
+        }
+
+        const ext = path.extname(req.file.originalname);
+        const normalizedType = type.toUpperCase();
+        const filename = `${normalizedType}_${Date.now()}${ext}`;
+        const finalPath = path.join(bgvDir, filename);
+
+        // 5. Store Relative URL for database
+        const relativeUrl = `uploads/${tenantIdStr}/bgv/${bgvCase.caseId}/${filename}`;
+
+        // 6. Move file from temp to final location (Absolute Paths)
+        const tempPath = path.isAbsolute(req.file.path) ? req.file.path : path.join(process.cwd(), req.file.path);
+
+        try {
+            fs.renameSync(tempPath, finalPath);
+        } catch (renameErr) {
+            console.error("❌ [BGV_UPLOAD] File Move Failed (cross-device?):", renameErr);
+            // Fallback: copy + unlink
+            fs.copyFileSync(tempPath, finalPath);
+            fs.unlinkSync(tempPath);
+        }
+
+        // 7. Map Document Type to Check Type & Update Check Status
+        let checkType = null;
+        if (['AADHAAR', 'PAN', 'IDENTITY'].includes(normalizedType)) checkType = 'IDENTITY';
+        else if (['DEGREE_CERTIFICATE', 'EDUCATION'].includes(normalizedType)) checkType = 'EDUCATION';
+        else if (['RELIEVING_LETTER', 'PAYSLIP', 'EMPLOYMENT'].includes(normalizedType)) checkType = 'EMPLOYMENT';
+        else if (['ADDRESS_PROOF', 'ADDRESS'].includes(normalizedType)) checkType = 'ADDRESS';
+        else if (['PASSPORT_PHOTO'].includes(normalizedType)) checkType = 'IDENTITY';
+
+        let checkId = null;
+        if (checkType) {
+            try {
+                const check = await BGVCheck.findOne({ caseId: bgvCase._id, type: checkType });
+                if (check) {
+                    checkId = check._id;
+                    if (['NOT_STARTED', 'DOCUMENTS_PENDING'].includes(check.status)) {
+                        check.status = 'DOCUMENTS_UPLOADED';
+                        await check.save();
+                    }
+                }
+            } catch (checkErr) {
+                console.warn("[BGV_UPLOAD] Check status update failed:", checkErr.message);
+            }
+        }
+
+        // 8. Create Document Record
+        const document = await BGVDocument.create({
+            tenant: tenantId,
+            caseId: bgvCase._id,
+            checkId,
+            candidateId: id,
+            documentType: normalizedType, // Ensure Uppercase for Enum
+            fileName: filename,
+            originalName: req.file.originalname,
+            filePath: relativeUrl,
+            fileSize: req.file.size,
+            mimeType: req.file.mimetype,
+            version: (await BGVDocument.countDocuments({ caseId: bgvCase._id, documentType: normalizedType, isDeleted: false })) + 1,
+            uploadedBy: {
+                userId: id,
+                userName: 'Candidate',
+                userRole: 'candidate'
+            },
+            status: 'UPLOADED'
+        });
+
+        // 9. Timeline Entry
+        try {
+            await BGVTimeline.create({
+                tenant: tenantId,
+                caseId: bgvCase._id,
+                checkId,
+                eventType: 'DOCUMENT_UPLOADED',
+                title: 'Candidate Uploaded Document',
+                description: `Candidate uploaded ${normalizedType} (${req.file.originalname})`,
+                performedBy: {
+                    userId: id,
+                    userName: 'Candidate',
+                    userRole: 'candidate'
+                },
+                newStatus: 'DOCUMENTS_UPLOADED',
+                visibleTo: ['ALL'],
+                metadata: { documentId: document._id }
+            });
+        } catch (tmErr) {
+            console.warn("[BGV_UPLOAD] Timeline entry failed:", tmErr.message);
+        }
+
+        res.json({
+            success: true,
+            message: "Document uploaded successfully",
+            document: {
+                name: normalizedType,
+                fileName: req.file.originalname,
+                filePath: relativeUrl,
+                verified: false
+            }
+        });
+
+    } catch (err) {
+        console.error("❌ [BGV_UPLOAD] FATAL ERROR:", err);
+        console.error("Context:", {
+            tenantId: req.candidate?.tenantId,
+            applicationId: req.params?.applicationId,
+            candidateId: req.candidate?.id,
+            file: req.file ? {
+                path: req.file.path,
+                mimetype: req.file.mimetype,
+                originalname: req.file.originalname
+            } : 'No file'
+        });
+        res.status(500).json({ error: "Failed to upload document", details: err.message });
     }
 };

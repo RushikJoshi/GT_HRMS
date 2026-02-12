@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SendEmailModal from './SendEmailModal';
 
-import api from '../../../utils/api';
+import api, { API_ROOT } from '../../../utils/api';
 import { showToast } from '../../../utils/uiNotifications';
 import {
     X, Shield, CheckCircle, XCircle, Clock, AlertCircle, FileText,
@@ -502,14 +502,30 @@ const ChecksTab = ({ caseData, onVerify, loading }) => {
 
 // Documents Tab
 const DocumentsTab = ({ caseData, onRefresh }) => {
+    const handleDownload = (doc) => {
+        const url = `${API_ROOT}/${doc.filePath}`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', doc.originalName);
+        link.setAttribute('target', '_blank');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handlePreview = (doc) => {
+        const url = `${API_ROOT}/${doc.filePath}`;
+        window.open(url, '_blank');
+    };
+
     return (
         <div className="space-y-4">
             {caseData.documents && caseData.documents.length > 0 ? (
                 caseData.documents.map((doc) => (
-                    <div key={doc._id} className="bg-white rounded-2xl border-2 border-slate-200 p-6 flex items-center justify-between hover:shadow-lg transition-all">
+                    <div key={doc._id} className="bg-white rounded-2xl border-2 border-slate-200 p-6 flex items-center justify-between hover:shadow-lg transition-all group">
                         <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-100 rounded-xl">
-                                <FileText size={24} className="text-blue-600" />
+                            <div className="p-3 bg-blue-100 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                <FileText size={24} className="text-blue-600 group-hover:text-white" />
                             </div>
                             <div>
                                 <div className="font-bold text-slate-900">{doc.documentType?.replace(/_/g, ' ')}</div>
@@ -519,23 +535,37 @@ const DocumentsTab = ({ caseData, onRefresh }) => {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${doc.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
+                        <div className="flex items-center gap-3">
+                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${doc.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
                                 doc.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
-                                    'bg-slate-100 text-slate-700'
+                                    'bg-indigo-50 text-indigo-600'
                                 }`}>
                                 {doc.status}
                             </span>
-                            <button className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all">
-                                <Download size={18} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handlePreview(doc)}
+                                    className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                                    title="Preview Document"
+                                >
+                                    <Eye size={18} />
+                                </button>
+                                <button
+                                    onClick={() => handleDownload(doc)}
+                                    className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                                    title="Download Document"
+                                >
+                                    <Download size={18} />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ))
             ) : (
-                <div className="text-center py-12 text-slate-400">
-                    <FileText size={48} className="mx-auto mb-2 opacity-50" />
-                    <p>No documents uploaded yet</p>
+                <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                    <FileText size={64} className="mx-auto mb-4 text-slate-300" />
+                    <p className="font-bold text-slate-500 text-lg">No documents uploaded yet</p>
+                    <p className="text-sm text-slate-400 mt-1">Uploaded evidence will appear here</p>
                 </div>
             )}
         </div>

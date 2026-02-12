@@ -76,6 +76,7 @@ const NAV_GROUPS = [
     title: 'People',
     items: [
       { to: '/hr/employees', label: 'Employees', icon: ICONS.employees },
+
       { to: '/hr/departments', label: 'Departments', icon: ICONS.departments },
       { to: '/hr/org', label: 'Org Structure', icon: ICONS.org },
       { to: '/hr/users', label: 'User Management', icon: ICONS.users }
@@ -174,7 +175,8 @@ const NAV_GROUPS = [
         icon: ICONS.customization,
         children: [
           { to: '/hr/career-builder', label: 'Edit Career Page' },
-          { to: '/hr/apply-builder', label: 'Edit Apply Page' }
+          { to: '/hr/apply-builder', label: 'Edit Apply Page' },
+          { to: '/tenant/customization/vendor', label: 'Edit Vendor Forms' }
         ]
       },
       {

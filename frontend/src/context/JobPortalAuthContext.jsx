@@ -84,7 +84,7 @@ export function JobPortalAuthProvider({ children }) {
         let candidateInfo = {
           id: payload.id,
           tenantId: payload.tenantId,
-          role: userRole,
+          role: payload.role || 'candidate',
           email: payload.email
         };
 

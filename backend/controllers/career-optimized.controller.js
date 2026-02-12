@@ -3,6 +3,48 @@ const CareerSection = require('../models/CareerSection');
 const CareerSEO = require('../models/CareerSEO');
 const CareerLayout = require('../models/CareerLayout');
 const PublishedCareerPage = require('../models/PublishedCareerPage');
+const Tenant = require('../models/Tenant');
+const mongoose = require('mongoose');
+
+// Helper: Ensure CompanyProfile exists for the tenant
+const getCompanyProfile = async (tenantId) => {
+    const db = await getTenantDB(tenantId);
+
+    // Resolve tenantId to ObjectId if it's a code
+    let resolvedTenantId = tenantId;
+    if (db.tenantId) {
+        resolvedTenantId = db.tenantId;
+    } else if (!mongoose.Types.ObjectId.isValid(tenantId)) {
+        const t = await Tenant.findOne({ code: tenantId }).lean();
+        if (t) resolvedTenantId = t._id;
+    }
+
+    const CompanyProfile = db.model('CompanyProfile');
+    let company = await CompanyProfile.findOne({});
+
+    if (!company) {
+        console.log(`[Career] Auto-creating missing CompanyProfile for tenant: ${tenantId}`);
+        const t = await Tenant.findById(resolvedTenantId).lean();
+        if (!t) throw new Error('Tenant record not found in central database');
+
+        company = new CompanyProfile({
+            tenantId: t._id,
+            companyName: t.name,
+            address: {
+                line1: 'Company HQ',
+                city: 'Mumbai',
+                state: 'Maharashtra',
+                pincode: '400001'
+            },
+            signatory: {
+                name: 'HR Manager',
+                designation: 'HR Head'
+            }
+        });
+        await company.save();
+    }
+    return company;
+};
 
 // Helper: Escape HTML special characters for security
 function escapeHTML(str) {
@@ -68,11 +110,8 @@ exports.saveSEOSettings = async (req, res) => {
         // Allow ONLY lowercase letters, numbers, and hyphens in slug
         if (!/^[a-z0-9-]*$/.test(seoSlug)) return res.status(400).json({ error: 'Invalid slug format' });
 
-        // Get Company ID
-        const db = await getTenantDB(req.tenantId);
-        const CompanyProfile = db.model('CompanyProfile');
-        const company = await CompanyProfile.findOne({});
-        if (!company) return res.status(404).json({ error: 'Company profile not found' });
+        // Get Company ID (Ensures profile exists)
+        const company = await getCompanyProfile(req.tenantId);
         const companyId = company._id.toString();
 
         // Save to CareerSEO collection
@@ -111,10 +150,8 @@ exports.saveSections = async (req, res) => {
             return res.status(413).json({ error: 'Payload too large (>10MB)' });
         }
 
-        const db = await getTenantDB(req.tenantId);
-        const CompanyProfile = db.model('CompanyProfile');
-        const company = await CompanyProfile.findOne({});
-        if (!company) return res.status(404).json({ error: 'Company profile not found' });
+        // Get Company ID (Ensures profile exists)
+        const company = await getCompanyProfile(req.tenantId);
         const companyId = company._id.toString();
 
         // Save Layout first
@@ -138,7 +175,9 @@ exports.saveSections = async (req, res) => {
 
         // Save Sections individually
         const savedSections = [];
-        for (const section of sections) {
+        for (let i = 0; i < sections.length; i++) {
+            const section = sections[i];
+
             // Check individual section size
             if (!validatePayloadSize(section.content, 2)) {
                 return res.status(413).json({ error: `Section ${section.id} content > 2MB` });
@@ -151,7 +190,7 @@ exports.saveSections = async (req, res) => {
                     companyId,
                     sectionId: section.id,
                     sectionType: section.type,
-                    sectionOrder: section.order || 0,
+                    sectionOrder: i, // Use array index for absolute order
                     content: section.content,
                     theme: section.theme || {},
                     isDraft: true
@@ -182,13 +221,8 @@ exports.publishLive = async (req, res) => {
         console.log(`[Publish] Starting for tenant: ${req.tenantId}`);
         if (!req.tenantId) return res.status(400).json({ error: 'Tenant ID required' });
 
-        const db = await getTenantDB(req.tenantId);
-        const CompanyProfile = db.model('CompanyProfile');
-        const company = await CompanyProfile.findOne({});
-        if (!company) {
-            console.error(`[Publish] Company profile not found for tenant ${req.tenantId}`);
-            return res.status(404).json({ error: 'Company not found' });
-        }
+        // Get Company ID (Ensures profile exists)
+        const company = await getCompanyProfile(req.tenantId);
         const companyId = company._id.toString();
 
         // 1. Fetch Draft Data
@@ -243,7 +277,7 @@ exports.publishLive = async (req, res) => {
         console.log("[Publish] Saving to PublishedCareerPage...");
         const savedPub = await PublishedCareerPage.findOneAndUpdate(
             { tenantId: req.tenantId, companyId },
-            publishedDoc,
+            { $set: publishedDoc },
             { upsert: true, new: true }
         );
         console.log(`[Publish] Saved PublishedCareerPage ID: ${savedPub._id}`);
@@ -287,9 +321,18 @@ exports.publishLive = async (req, res) => {
 // ============= GET PUBLIC PAGE (Fast Read) =============
 exports.getPublicPage = async (req, res) => {
     try {
-        const { tenantId } = req.params;
-        if (!tenantId) {
+        const { tenantId: tenantIdentifier } = req.params;
+        if (!tenantIdentifier) {
             return res.status(400).json({ error: 'Tenant ID param required' });
+        }
+
+        // Resolve identifier (could be code or ID) to ID
+        let tenantId = tenantIdentifier;
+        if (!mongoose.Types.ObjectId.isValid(tenantIdentifier)) {
+            const t = await Tenant.findOne({ code: tenantIdentifier }).lean();
+            if (t) {
+                tenantId = t._id.toString();
+            }
         }
 
         const publishedPage = await PublishedCareerPage.findOne({ tenantId });
@@ -329,10 +372,9 @@ exports.getDraftData = async (req, res) => {
     try {
         if (!req.tenantId) return res.status(400).json({ error: 'Tenant ID required' });
 
-        const db = await getTenantDB(req.tenantId);
-        const CompanyProfile = db.model('CompanyProfile');
-        const company = await CompanyProfile.findOne({});
-        const companyId = company ? company._id.toString() : null;
+        // Get Company ID (Ensures profile exists)
+        const company = await getCompanyProfile(req.tenantId);
+        const companyId = company._id.toString();
 
         if (!companyId) return res.json(getDefaultConfig());
 
