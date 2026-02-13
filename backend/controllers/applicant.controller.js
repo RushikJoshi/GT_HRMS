@@ -115,8 +115,10 @@ exports.updateApplicantStatus = async (req, res) => {
         const autoMessages = {
             'Shortlisted': 'Candidate has been shortlisted for further rounds.',
             'Interview': 'Candidate moved to interview stage.',
+            'HR Round': 'Candidate has been moved to HR interview round.',
             'Selected': 'Candidate has been selected for the position.',
             'Rejected': 'Application has been rejected.',
+            'Finalized': 'Application has been finalized.',
             'Hired': 'Candidate has joined the company.'
         };
 

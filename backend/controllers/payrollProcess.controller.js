@@ -10,7 +10,11 @@ const getModels = (req) => {
         PayrollRun: req.tenantDB.model('PayrollRun'),
         PayrollRunItem: req.tenantDB.model('PayrollRunItem'),
         SalaryAssignment: req.tenantDB.model('SalaryAssignment'),
-        Applicant: req.tenantDB.model('Applicant')
+        Applicant: req.tenantDB.model('Applicant'),
+        EmployeeCompensation: req.tenantDB.model('EmployeeCompensation', require('../models/EmployeeCompensation')),
+        EmployeeSalarySnapshot: req.tenantDB.model('EmployeeSalarySnapshot'),
+        Payslip: req.tenantDB.model('Payslip'),
+        DeductionMaster: req.tenantDB.model('DeductionMaster', require('../models/DeductionMaster'))
     };
 };
 
@@ -203,7 +207,10 @@ exports.previewPreview = async (req, res) => {
                         if (!item.salaryTemplateId) {
                             results.push({
                                 employeeId: emp._id,
-                                error: 'CTC NOT SET - No compensation found and no fallback template provided'
+                                error: 'CTC NOT SET - No compensation found and no fallback template provided',
+                                compensationSource: 'NONE',
+                                isLegacyFallback: false,
+                                sourceInfo: { source: 'ERROR' }
                             });
                             continue;
                         }
@@ -239,9 +246,10 @@ exports.previewPreview = async (req, res) => {
                 });
 
             } catch (err) {
+                console.error(`❌ [PREVIEW_FATAL] Error for employee ${emp._id} (${emp.firstName}):`, err);
                 results.push({
                     employeeId: emp._id,
-                    error: err.message,
+                    error: err.message || 'Calculation failed',
                     compensationSource: 'ERROR',
                     isLegacyFallback: false,
                     sourceInfo: { source: 'ERROR' }

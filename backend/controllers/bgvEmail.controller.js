@@ -130,14 +130,41 @@ exports.getEmailHistory = async (req, res, next) => {
  */
 exports.getGlobalEmailHistory = async (req, res, next) => {
     try {
-        const { BGVEmailLog } = await getBGVModels(req);
+        const { BGVEmailLog, BGVTimeline } = await getBGVModels(req);
 
-        const emails = await BGVEmailLog.find({
+        // 1. Fetch from dedicated email logs first
+        let emails = await BGVEmailLog.find({
             tenant: req.tenantId
         })
             .sort({ createdAt: -1 })
             .limit(100)
             .lean();
+
+        // 2. Fallback: If logs are empty (e.g. legacy data), aggregate from Timeline
+        if (!emails || emails.length === 0) {
+            console.log('[DEBUG] Global Email Logs empty, falling back to Timeline aggregation...');
+            const timelineEvents = await BGVTimeline.find({
+                tenant: req.tenantId,
+                eventType: { $in: ['EMAIL_SENT', 'EMAIL_FAILED'] }
+            })
+                .sort({ timestamp: -1 })
+                .limit(100)
+                .lean();
+
+            emails = timelineEvents.map(ev => ({
+                _id: ev._id,
+                emailType: ev.metadata?.emailType || 'UKNOWN',
+                recipientType: ev.metadata?.recipientType || 'N/A',
+                recipientEmail: Array.isArray(ev.metadata?.to) ? ev.metadata.to.join(', ') : ev.metadata?.recipientEmail,
+                subject: ev.metadata?.subject || ev.title,
+                status: ev.eventType === 'EMAIL_FAILED' ? 'FAILED' : 'SENT',
+                sentAt: ev.timestamp || ev.createdAt,
+                failureReason: ev.metadata?.errorMessage,
+                messageId: ev.metadata?.messageId,
+                customMessage: ev.metadata?.customMessage,
+                isLegacy: true // Internal flag
+            }));
+        }
 
         res.json({
             success: true,
@@ -236,11 +263,12 @@ exports.createOrUpdateEmailTemplate = async (req, res, next) => {
     try {
         const { emailType, name, description, subject, htmlBody, supportedVariables } = req.body;
 
-        // Only admins can create/update templates
-        if (!['admin', 'company_admin'].includes(req.user?.role)) {
+        // Only admins and HR can create/update templates
+        const userRole = (req.user?.role || '').toLowerCase();
+        if (!['hr', 'admin', 'company_admin'].includes(userRole)) {
             return res.status(403).json({
                 success: false,
-                message: 'Only admins can create or update email templates'
+                message: 'Only HR or Admins can create or update email templates'
             });
         }
 
@@ -307,6 +335,38 @@ exports.createOrUpdateEmailTemplate = async (req, res, next) => {
 
     } catch (err) {
         console.error('[BGV_CREATE_EMAIL_TEMPLATE_ERROR]', err);
+        next(err);
+    }
+};
+
+/**
+ * Delete Email Template
+ * DELETE /api/bgv/email-template/:id
+ */
+exports.deleteEmailTemplate = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { BGVEmailTemplate } = await getBGVModels(req);
+
+        const result = await BGVEmailTemplate.findOneAndDelete({
+            _id: id,
+            tenant: req.tenantId
+        });
+
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                message: 'Template not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Template removed successfully'
+        });
+
+    } catch (err) {
+        console.error('[BGV_DELETE_EMAIL_TEMPLATE_ERROR]', err);
         next(err);
     }
 };
@@ -389,5 +449,6 @@ module.exports = {
     getEmailTemplates: exports.getEmailTemplates,
     getEmailTemplateByType: exports.getEmailTemplateByType,
     createOrUpdateEmailTemplate: exports.createOrUpdateEmailTemplate,
+    deleteEmailTemplate: exports.deleteEmailTemplate,
     initializeDefaultTemplates: exports.initializeDefaultTemplates
 };

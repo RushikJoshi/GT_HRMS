@@ -17,6 +17,7 @@ dayjs.extend(relativeTime);
 const BGVDashboard = () => {
     const [cases, setCases] = useState([]);
     const [stats, setStats] = useState(null);
+    const [riskStats, setRiskStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
@@ -29,8 +30,18 @@ const BGVDashboard = () => {
 
     useEffect(() => {
         fetchStats();
+        fetchRiskDashboard();
         fetchCases();
     }, [page, statusFilter, packageFilter, searchQuery]);
+
+    const fetchRiskDashboard = async () => {
+        try {
+            const res = await api.get('/bgv/risk-dashboard');
+            setRiskStats(res.data.data);
+        } catch (err) {
+            console.error('Failed to fetch risk dashboard:', err);
+        }
+    };
 
     const fetchStats = async () => {
         try {
@@ -53,7 +64,25 @@ const BGVDashboard = () => {
             };
 
             const res = await api.get('/bgv/cases', { params });
-            setCases(res.data.data || []);
+            const casesData = res.data.data || [];
+
+            // Fetch risk scores for each case
+            const casesWithRisk = await Promise.all(
+                casesData.map(async (caseItem) => {
+                    try {
+                        const riskRes = await api.get(`/bgv/case/${caseItem._id}/risk-score`);
+                        return {
+                            ...caseItem,
+                            riskScore: riskRes.data.data?.riskScore || null
+                        };
+                    } catch (err) {
+                        // If risk score not found, return case without it
+                        return { ...caseItem, riskScore: null };
+                    }
+                })
+            );
+
+            setCases(casesWithRisk);
             setTotalPages(res.data.pagination?.pages || 1);
         } catch (err) {
             console.error('Failed to fetch BGV cases:', err);
@@ -173,6 +202,95 @@ const BGVDashboard = () => {
                         />
                     </div>
                 )}
+
+                {/* 🔥 NEW: Risk Dashboard Section */}
+                {riskStats && (
+                    <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-gradient-to-br from-rose-500 to-orange-500 rounded-lg">
+                                    <AlertTriangle size={20} className="text-white" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-900">Risk Assessment Dashboard</h2>
+                                    <p className="text-sm text-slate-600">Real-time risk scoring across all BGV cases</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm text-slate-600">Average Risk Score</p>
+                                <p className="text-2xl font-bold text-slate-900">{riskStats.averageRiskScore?.toFixed(1) || '0.0'}</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                            <RiskCard
+                                level="CLEAR"
+                                count={riskStats.summary?.CLEAR || 0}
+                                color="emerald"
+                                icon={<CheckCircle size={24} />}
+                                description="No issues found"
+                            />
+                            <RiskCard
+                                level="LOW RISK"
+                                count={riskStats.summary?.LOW_RISK || 0}
+                                color="blue"
+                                icon={<Shield size={24} />}
+                                description="Minor discrepancies"
+                            />
+                            <RiskCard
+                                level="MODERATE"
+                                count={riskStats.summary?.MODERATE_RISK || 0}
+                                color="amber"
+                                icon={<AlertCircle size={24} />}
+                                description="Requires review"
+                            />
+                            <RiskCard
+                                level="HIGH RISK"
+                                count={riskStats.summary?.HIGH_RISK || 0}
+                                color="orange"
+                                icon={<AlertTriangle size={24} />}
+                                description="Significant issues"
+                            />
+                            <RiskCard
+                                level="CRITICAL"
+                                count={riskStats.summary?.CRITICAL || 0}
+                                color="rose"
+                                icon={<XCircle size={24} />}
+                                description="Severe concerns"
+                                urgent={true}
+                            />
+                        </div>
+
+                        {riskStats.highRiskCases && riskStats.highRiskCases.length > 0 && (
+                            <div className="mt-4 p-4 bg-rose-50 border-2 border-rose-200 rounded-xl">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <AlertTriangle size={18} className="text-rose-600" />
+                                    <h3 className="font-bold text-rose-900">High-Risk Cases Requiring Attention</h3>
+                                </div>
+                                <div className="space-y-2">
+                                    {riskStats.highRiskCases.slice(0, 3).map((riskCase) => (
+                                        <div key={riskCase.caseId} className="flex items-center justify-between bg-white p-3 rounded-lg">
+                                            <div>
+                                                <p className="font-semibold text-slate-900">{riskCase.caseId}</p>
+                                                <p className="text-sm text-slate-600">{riskCase.candidateName}</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="text-right">
+                                                    <p className="text-sm text-slate-600">Risk Score</p>
+                                                    <p className="text-lg font-bold text-rose-600">{riskCase.totalRiskScore}</p>
+                                                </div>
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${riskCase.riskLevel === 'CRITICAL' ? 'bg-rose-500 text-white' : 'bg-orange-500 text-white'
+                                                    }`}>
+                                                    {riskCase.riskLevel}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Filters */}
@@ -247,6 +365,7 @@ const BGVDashboard = () => {
                                         <th className="px-6 py-4 text-left text-xs font-black text-slate-700 uppercase tracking-wider">Candidate</th>
                                         <th className="px-6 py-4 text-left text-xs font-black text-slate-700 uppercase tracking-wider">Package</th>
                                         <th className="px-6 py-4 text-left text-xs font-black text-slate-700 uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-4 text-left text-xs font-black text-slate-700 uppercase tracking-wider">Risk Score</th>
                                         <th className="px-6 py-4 text-left text-xs font-black text-slate-700 uppercase tracking-wider">Progress</th>
                                         <th className="px-6 py-4 text-left text-xs font-black text-slate-700 uppercase tracking-wider">SLA</th>
                                         <th className="px-6 py-4 text-left text-xs font-black text-slate-700 uppercase tracking-wider">Initiated</th>
@@ -280,6 +399,26 @@ const BGVDashboard = () => {
                                                     {getStatusIcon(caseItem.overallStatus)}
                                                     {caseItem.overallStatus?.replace(/_/g, ' ')}
                                                 </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {caseItem.riskScore ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="text-right">
+                                                            <div className="text-lg font-black text-slate-900">{caseItem.riskScore.totalRiskScore || 0}</div>
+                                                            <div className="text-xs text-slate-500">points</div>
+                                                        </div>
+                                                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${caseItem.riskScore.riskLevel === 'CLEAR' ? 'bg-emerald-100 text-emerald-700' :
+                                                            caseItem.riskScore.riskLevel === 'LOW_RISK' ? 'bg-blue-100 text-blue-700' :
+                                                                caseItem.riskScore.riskLevel === 'MODERATE_RISK' ? 'bg-amber-100 text-amber-700' :
+                                                                    caseItem.riskScore.riskLevel === 'HIGH_RISK' ? 'bg-orange-100 text-orange-700' :
+                                                                        'bg-rose-100 text-rose-700'
+                                                            }`}>
+                                                            {caseItem.riskScore.riskLevel?.replace(/_/g, ' ')}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-400 text-sm">Not assessed</span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 {caseItem.checksProgress && (
@@ -389,8 +528,8 @@ const BGVDashboard = () => {
                         fetchCases();
                         fetchStats();
                     }}
-                    />
-                )}
+                />
+            )}
 
         </div>
     );
@@ -424,6 +563,38 @@ const StatCard = ({ title, value, icon, color, trend, onClick, urgent }) => {
             </div>
             <div className="text-3xl font-black text-slate-900 mb-1">{value}</div>
             <div className="text-sm font-bold text-slate-500 uppercase tracking-wide">{title}</div>
+        </div>
+    );
+};
+
+// 🔥 NEW: Risk Card Component
+const RiskCard = ({ level, count, color, icon, description, urgent = false }) => {
+    const colorStyles = {
+        emerald: 'from-emerald-500 to-teal-500',
+        blue: 'from-blue-500 to-indigo-500',
+        amber: 'from-amber-500 to-yellow-500',
+        orange: 'from-orange-500 to-red-500',
+        rose: 'from-rose-500 to-pink-500'
+    };
+
+    const bgStyles = {
+        emerald: 'bg-emerald-50 border-emerald-200',
+        blue: 'bg-blue-50 border-blue-200',
+        amber: 'bg-amber-50 border-amber-200',
+        orange: 'bg-orange-50 border-orange-200',
+        rose: 'bg-rose-50 border-rose-200'
+    };
+
+    return (
+        <div className={`${bgStyles[color]} border-2 rounded-xl p-4 ${urgent ? 'ring-2 ring-rose-500 animate-pulse' : ''} transition-all`}>
+            <div className="flex items-center justify-between mb-3">
+                <div className={`p-2 bg-gradient-to-br ${colorStyles[color]} rounded-lg shadow-lg`}>
+                    <div className="text-white">{icon}</div>
+                </div>
+                <div className="text-3xl font-black text-slate-900">{count}</div>
+            </div>
+            <div className="font-bold text-slate-900 mb-1">{level}</div>
+            <div className="text-xs text-slate-600">{description}</div>
         </div>
     );
 };

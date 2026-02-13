@@ -136,6 +136,7 @@ const payrollAdjustmentRoutes = require('./routes/payrollAdjustment.routes');
 // Company ID Configuration
 const companyIdConfigRoutes = require('./routes/companyIdConfig.routes');
 const positionRoutes = require('./routes/position.routes');
+const vendorRoutes = require('./routes/vendor.routes');
 
 // Career Page (Optimized for 16MB limit fix)
 const careerOptimizedRoutes = require('./routes/career-optimized.routes');
@@ -190,6 +191,7 @@ app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
 app.use('/api/bgv', require('./routes/bgv.routes'));
+app.use('/api/vendor', vendorRoutes);
 
 app.use('/api/career', careerOptimizedRoutes);
 app.use('/api/social-media', require('./routes/socialMedia.routes'));
@@ -217,6 +219,8 @@ app.use(hrmsPrefix + '/notifications', notificationRoutes);
 app.use(hrmsPrefix + '/comments', commentRoutes);
 app.use(hrmsPrefix + '/positions', positionRoutes);
 app.use(hrmsPrefix + '/employee', employeeRoutes);
+app.use(hrmsPrefix + '/bgv', require('./routes/bgv.routes'));
+app.use(hrmsPrefix + '/vendor', vendorRoutes);
 
 // Special case for letter_templates (plural vs singular)
 app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {

@@ -55,6 +55,10 @@ import LetterSettings from '../pages/HR/LetterSettings';
 import TemplatePreview from '../pages/HR/TemplatePreview';
 import SalaryStructure from '../pages/HR/SalaryStructure';
 import CreateRequirement from '../pages/HR/CreateRequirement';
+import VendorList from '../pages/HR/VendorList';
+import VendorFormStep1 from '../pages/HR/VendorFormStep1';
+import VendorFormStep2 from '../pages/HR/VendorFormStep2';
+import VendorDetails from '../pages/HR/VendorDetails';
 
 // Settings
 import CompanySettings from '../pages/settings/CompanySettings';
@@ -77,6 +81,9 @@ import PayrollDashboard from '../pages/HR/Payroll/PayrollDashboard';
 
 // Employee Self-Service
 import ESSPayslips from '../pages/ESS/Payslips';
+
+// 🔥 NEW: BGV Pages
+import MyTasks from '../pages/HR/BGV/MyTasks';
 
 
 // Employee
@@ -157,6 +164,12 @@ export default function HrmsRoutes() {
         <Route path="offer-templates" element={<OfferTemplates />} />
         <Route path="attendance-history" element={<AttendanceHistory />} />
 
+        {/* Vendor Management */}
+        <Route path="vendor/list" element={<VendorList />} />
+        <Route path="vendor/step1" element={<VendorFormStep1 />} />
+        <Route path="vendor/step2/:vendorId" element={<VendorFormStep2 />} />
+        <Route path="vendor/details/:id" element={<VendorDetails />} />
+
         {/* Letters */}
         <Route path="letter-templates" element={<LetterTemplates />} />
         <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
@@ -185,6 +198,9 @@ export default function HrmsRoutes() {
         {/* Career Builder */}
         <Route path="career-builder" element={<CareerBuilder />} />
         <Route path="apply-builder" element={<ApplyPageBuilder />} />
+
+        {/* 🔥 NEW: BGV Routes */}
+        <Route path="my-tasks" element={<MyTasks />} />
 
         {/* Global inside HR */}
         <Route path="details/:entityType/:entityId" element={<EntityDetail />} />

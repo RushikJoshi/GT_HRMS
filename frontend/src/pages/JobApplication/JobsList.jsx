@@ -86,11 +86,15 @@ export default function JobsList() {
                 try {
                     // Use new optimized endpoint (reads from PublishedCareerPage)
                     const custRes = await api.get(`/career/public/${tid}`);
-                    if (custRes.data) {
+                    if (custRes.data && custRes.data.success !== false) {
                         setCustomization(custRes.data);
+                    } else {
+                        console.log('No published career customization found, using defaults.');
+                        setCustomization(null);
                     }
                 } catch (custErr) {
                     console.warn('Failed to load career customization:', custErr.message);
+                    setCustomization(null);
                 }
 
                 if (candidate) {
@@ -237,7 +241,7 @@ export default function JobsList() {
             {/* Main Content: Driven by Career Builder */}
             <main className="pt-20">
                 <CareerPreview
-                    config={customization || {
+                    config={customization && customization.sections?.length > 0 ? customization : {
                         sections: [
                             {
                                 id: 'hero-default',

@@ -2,6 +2,11 @@ const { getBGVModels } = require('../utils/bgvModels');
 const path = require('path');
 const fs = require('fs');
 
+// OCR Services
+const BGVOCREngine = require('../services/BGVOCREngine');
+const BGVDocumentParser = require('../services/BGVDocumentParser');
+const BGVOCRValidator = require('../services/BGVOCRValidator');
+
 /**
  * BGV Package Definitions
  */
@@ -45,36 +50,39 @@ function addCaseLog(bgvCase, action, user, req, oldStatus = null, newStatus = nu
  */
 exports.initiateBGV = async (req, res, next) => {
     try {
-        let { applicationId, candidateId, package: selectedPackage, slaDays } = req.body;
+        let { applicationId, employeeId, candidateId, package: selectedPackage, slaDays } = req.body;
 
-        console.log('[BGV_INITIATE] Request:', { applicationId, candidateId, selectedPackage, slaDays });
+        console.log('[BGV_INITIATE] Request:', { applicationId, employeeId, candidateId, selectedPackage, slaDays });
 
-        const { BGVCase, BGVCheck, BGVTimeline, Applicant } = await getBGVModels(req);
+        const { BGVCase, BGVCheck, BGVTimeline, Applicant, Employee } = await getBGVModels(req);
 
         // Validate required fields
-        if (!applicationId) {
-            return res.status(400).json({ success: false, message: "applicationId is required" });
+        if (!applicationId && !employeeId) {
+            return res.status(400).json({ success: false, message: "applicationId or employeeId is required" });
         }
 
         if (!selectedPackage || !['BASIC', 'STANDARD', 'PREMIUM'].includes(selectedPackage)) {
             return res.status(400).json({ success: false, message: "Valid package (BASIC/STANDARD/PREMIUM) is required" });
         }
 
-        // Fetch candidateId from applicant if not provided
-        if (!candidateId) {
+        // Handle Applicant logic
+        if (applicationId && !candidateId) {
             const applicant = await Applicant.findById(applicationId).select('candidateId');
-            if (!applicant) {
-                return res.status(404).json({ success: false, message: "Applicant not found" });
+            if (applicant) {
+                candidateId = applicant.candidateId;
             }
-            candidateId = applicant.candidateId;
         }
 
         // Check if BGV already exists
-        const existingCase = await BGVCase.findOne({ applicationId, tenant: req.tenantId });
+        const query = { tenant: req.tenantId };
+        if (applicationId) query.applicationId = applicationId;
+        else if (employeeId) query.employeeId = employeeId;
+
+        const existingCase = await BGVCase.findOne(query);
         if (existingCase) {
             return res.status(400).json({
                 success: false,
-                message: "BGV already initiated for this application",
+                message: "BGV already initiated for this record",
                 caseId: existingCase.caseId
             });
         }
@@ -87,8 +95,9 @@ exports.initiateBGV = async (req, res, next) => {
         const newCase = await BGVCase.create({
             caseId,
             tenant: req.tenantId,
-            applicationId,
-            candidateId,
+            applicationId: applicationId || null,
+            employeeId: employeeId || null,
+            candidateId: candidateId || null,
             package: selectedPackage,
             initiatedBy: req.user?._id || req.user?.id,
             overallStatus: 'PENDING',
@@ -132,6 +141,18 @@ exports.initiateBGV = async (req, res, next) => {
             ipAddress: req.ip,
             userAgent: req.get('user-agent')
         });
+
+        // Initialize Risk Score for the case
+        const BGVRiskEngine = require('../services/BGVRiskEngine');
+        const { BGVRiskScore } = await getBGVModels(req);
+
+        try {
+            await BGVRiskEngine.initializeRiskScore(BGVRiskScore, newCase._id, req.tenantId);
+            console.log(`[BGV_RISK_INITIALIZED] Case: ${newCase.caseId}`);
+        } catch (riskError) {
+            console.error('[BGV_RISK_INIT_ERROR]', riskError);
+            // Don't fail BGV initiation if risk score init fails
+        }
 
         res.status(201).json({
             success: true,
@@ -181,6 +202,7 @@ exports.getAllCases = async (req, res, next) => {
                     select: 'jobOpeningId jobTitle'
                 }
             })
+            .populate('employeeId', 'firstName lastName email contactNo employeeId')
             .populate('candidateId', 'name email mobile')
             .populate('initiatedBy', 'name email')
             .sort({ createdAt: -1 })
@@ -198,9 +220,9 @@ exports.getAllCases = async (req, res, next) => {
 
             return {
                 ...c,
-                candidateName: c.candidateId?.name || c.applicationId?.name || "Unknown",
-                candidateEmail: c.candidateId?.email || c.applicationId?.email,
-                jobTitle: c.applicationId?.requirementId?.jobTitle || "N/A",
+                candidateName: c.candidateId?.name || (c.employeeId ? `${c.employeeId.firstName} ${c.employeeId.lastName}` : c.applicationId?.name) || "Unknown",
+                candidateEmail: c.candidateId?.email || c.employeeId?.email || c.applicationId?.email,
+                jobTitle: c.applicationId?.requirementId?.jobTitle || (c.employeeId ? "Existing Employee" : "N/A"),
                 checks,
                 checksProgress: {
                     total: checks.length,
@@ -246,6 +268,7 @@ exports.getCaseDetail = async (req, res, next) => {
                     select: 'jobOpeningId jobTitle'
                 }
             })
+            .populate('employeeId', 'firstName lastName email contactNo employeeId dob permAddress')
             .populate('candidateId', 'name email mobile dob address')
             .populate('initiatedBy', 'name email')
             .populate('closedBy', 'name email')
@@ -254,6 +277,10 @@ exports.getCaseDetail = async (req, res, next) => {
         if (!bgvCase) {
             return res.status(404).json({ success: false, message: "BGV Case not found" });
         }
+
+        const candidateName = bgvCase.candidateId?.name || (bgvCase.employeeId ? `${bgvCase.employeeId.firstName} ${bgvCase.employeeId.lastName}` : bgvCase.applicationId?.name) || "Unknown";
+        const candidateEmail = bgvCase.candidateId?.email || bgvCase.employeeId?.email || bgvCase.applicationId?.email;
+        const jobTitle = bgvCase.applicationId?.requirementId?.jobTitle || (bgvCase.employeeId ? "Existing Employee" : "N/A");
 
         // Get all checks
         const checks = await BGVCheck.find({ caseId: bgvCase._id })
@@ -275,9 +302,9 @@ exports.getCaseDetail = async (req, res, next) => {
             success: true,
             data: {
                 ...bgvCase,
-                candidateName: bgvCase.candidateId?.name || bgvCase.applicationId?.name || "Unknown",
-                candidateEmail: bgvCase.candidateId?.email || bgvCase.applicationId?.email,
-                jobTitle: bgvCase.applicationId?.requirementId?.jobTitle || "N/A",
+                candidateName: candidateName,
+                candidateEmail: candidateEmail,
+                jobTitle: jobTitle,
                 checks,
                 timeline,
                 documents
@@ -303,8 +330,8 @@ exports.uploadDocument = async (req, res, next) => {
             return res.status(400).json({ success: false, message: "No file uploaded" });
         }
 
-        // Verify case exists
-        const bgvCase = await BGVCase.findById(caseId);
+        // Verify case exists and populate candidate for OCR comparison
+        const bgvCase = await BGVCase.findById(caseId).populate('candidateId');
         if (!bgvCase) {
             return res.status(404).json({ success: false, message: "BGV Case not found" });
         }
@@ -383,6 +410,55 @@ exports.uploadDocument = async (req, res, next) => {
                 userRole: req.user?.role
             }
         });
+
+        // 🔍 STEP 2: Trigger Intelligent OCR Processing (Asynchronous)
+        // We'll run this in "background" so the upload doesn't feel slow
+        // but for this implementation we'll handle it and update the doc
+        const processOCR = async (docId, filePath, mime, type, candidateData) => {
+            try {
+                const { BGVDocument } = await getBGVModels(req);
+                await BGVDocument.findByIdAndUpdate(docId, {
+                    'evidenceMetadata.ocrStatus': 'PROCESSING'
+                });
+
+                // 1. Extract raw text
+                const absolutePath = path.join(__dirname, '..', filePath);
+                const extraction = await BGVOCREngine.extractText(absolutePath, mime);
+
+                // 2. Parse structured data
+                const extractedFields = BGVDocumentParser.parse(extraction.text, type);
+
+                // 3. Run validation against profile
+                const validation = BGVOCRValidator.validate(extractedFields, candidateData, type);
+
+                // 4. Update document with results
+                await BGVDocument.findByIdAndUpdate(docId, {
+                    'evidenceMetadata.extractedText': extraction.text,
+                    'evidenceMetadata.ocrConfidence': extraction.confidence,
+                    'evidenceMetadata.ocrStatus': 'COMPLETED',
+                    'evidenceMetadata.processedAt': new Date(),
+                    'evidenceMetadata.extractedFields': extractedFields,
+                    'evidenceMetadata.validation': {
+                        status: validation.status,
+                        score: validation.score,
+                        mismatchedFields: validation.mismatchedFields,
+                        lastValidatedAt: new Date()
+                    },
+                    'evidenceMetadata.validationFlags': validation.flags
+                });
+
+                console.log(`[BGV_OCR_COMPLETE] Document ${docId} processed with status: ${validation.status}`);
+            } catch (ocrError) {
+                console.error(`[BGV_OCR_FAILED] Document ${docId}:`, ocrError);
+                await BGVDocument.findByIdAndUpdate(docId, {
+                    'evidenceMetadata.ocrStatus': 'FAILED'
+                });
+            }
+        };
+
+        // Trigger OCR process
+        const candidateData = bgvCase.candidateId; // Populated in getBGVModels or earlier
+        processOCR(document._id, relativeUrl, req.file.mimetype, documentType, candidateData);
 
         // 🔐 Update check evidence status after document upload
         if (checkId) {
@@ -1065,5 +1141,63 @@ exports.downloadReportByCase = async (req, res, next) => {
     } catch (err) {
         console.error('[BGV_DOWNLOAD_ERROR]', err);
         res.status(500).json({ success: false, message: "Failed to download report", error: err.message });
+    }
+};
+
+/**
+ * 🔍 Manual OCR Reprocess
+ * POST /api/bgv/document/:documentId/reprocess-ocr
+ */
+exports.reprocessDocumentOCR = async (req, res, next) => {
+    try {
+        const { documentId } = req.params;
+        const { BGVCase, BGVDocument } = await getBGVModels(req);
+
+        const document = await BGVDocument.findById(documentId).populate('caseId');
+        if (!document) {
+            return res.status(404).json({ success: false, message: "Document not found" });
+        }
+
+        const bgvCase = await BGVCase.findById(document.caseId._id).populate('candidateId');
+
+        // Use the same background process logic
+        const processOCR = async (docId, filePath, mime, type, candidateData) => {
+            try {
+                const extraction = await BGVOCREngine.extractText(path.join(__dirname, '..', filePath), mime);
+                const extractedFields = BGVDocumentParser.parse(extraction.text, type);
+                const validation = BGVOCRValidator.validate(extractedFields, candidateData, type);
+
+                await BGVDocument.findByIdAndUpdate(docId, {
+                    'evidenceMetadata.extractedText': extraction.text,
+                    'evidenceMetadata.ocrConfidence': extraction.confidence,
+                    'evidenceMetadata.ocrStatus': 'COMPLETED',
+                    'evidenceMetadata.processedAt': new Date(),
+                    'evidenceMetadata.extractedFields': extractedFields,
+                    'evidenceMetadata.validation': {
+                        status: validation.status,
+                        score: validation.score,
+                        mismatchedFields: validation.mismatchedFields,
+                        lastValidatedAt: new Date()
+                    },
+                    'evidenceMetadata.validationFlags': validation.flags
+                });
+            } catch (err) {
+                console.error('[MANUAL_OCR_FAILED]', err);
+                await BGVDocument.findByIdAndUpdate(docId, { 'evidenceMetadata.ocrStatus': 'FAILED' });
+            }
+        };
+
+        // Trigger
+        processOCR(document._id, document.filePath, document.mimeType, document.documentType, bgvCase.candidateId);
+
+        res.json({
+            success: true,
+            message: "OCR reprocessing started in background",
+            documentId: document._id
+        });
+
+    } catch (err) {
+        console.error('[BGV_REPROCESS_OCR_ERROR]', err);
+        next(err);
     }
 };

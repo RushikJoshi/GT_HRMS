@@ -47,7 +47,7 @@ class BGVEmailService {
         try {
             // Get models
             const models = await getBGVModels(tenantId);
-            const { BGVCase, BGVEmailTemplate } = models;
+            const { BGVCase, BGVEmailTemplate, BGVEmailLog } = models;
 
             // 1. Get BGV Case
             const bgvCase = await BGVCase.findById(caseId)
@@ -144,6 +144,42 @@ class BGVEmailService {
                     htmlBody
                 );
 
+                // Create the master email log entry (CRITICAL for Global Email History)
+                let emailLogId = null;
+                try {
+                    const emailLog = await BGVEmailLog.create({
+                        tenant: tenantId,
+                        caseId: bgvCase._id,
+                        checkId,
+                        candidateId: bgvCase.candidateId?._id,
+                        emailType,
+                        recipientType: recipientInfo.type,
+                        recipientEmail: toHeader,
+                        recipientName: recipientInfo.name,
+                        recipientUserId: recipientInfo.userId,
+                        subject,
+                        htmlBody,
+                        templateId: template?._id || null,
+                        templateVersion: template?.version || 1,
+                        variablesInjected: variables,
+                        customMessage,
+                        sentBy: {
+                            userId: user?._id || user?.id,
+                            userName: user?.name || user?.email,
+                            userRole: user?.role
+                        },
+                        sentBySystem: !user,
+                        status: 'SENT',
+                        sentAt: new Date(),
+                        messageId: result.messageId,
+                        ipAddress,
+                        userAgent
+                    });
+                    emailLogId = emailLog._id;
+                } catch (logErr) {
+                    console.error('[BGV_EMAIL_LOG_CREATE_ERROR]', logErr);
+                }
+
                 // Create audit trail entries (best-effort; don't block a successful send)
                 try {
                     await this.createEmailTimelineEntry(models, {
@@ -206,13 +242,46 @@ class BGVEmailService {
 
                 return {
                     success: true,
-                    emailLogId: null,
+                    emailLogId: emailLogId,
                     messageId: result.messageId,
                     recipientEmail: toHeader
                 };
 
             } catch (sendError) {
-                // Best-effort logging for failed attempt
+                // Best-effort logging for failed attempt in master log
+                try {
+                    await BGVEmailLog.create({
+                        tenant: tenantId,
+                        caseId: bgvCase._id,
+                        checkId,
+                        candidateId: bgvCase.candidateId?._id,
+                        emailType,
+                        recipientType: recipientInfo.type,
+                        recipientEmail: toHeader,
+                        recipientName: recipientInfo.name,
+                        recipientUserId: recipientInfo.userId,
+                        subject,
+                        htmlBody,
+                        templateId: template?._id || null,
+                        templateVersion: template?.version || 1,
+                        variablesInjected: variables,
+                        customMessage,
+                        sentBy: {
+                            userId: user?._id || user?.id,
+                            userName: user?.name || user?.email,
+                            userRole: user?.role
+                        },
+                        sentBySystem: !user,
+                        status: 'FAILED',
+                        failureReason: sendError.message,
+                        ipAddress,
+                        userAgent
+                    });
+                } catch (logErr) {
+                    console.error('[BGV_EMAIL_LOG_CREATE_FAILED_ERROR]', logErr);
+                }
+
+                // Best-effort logging for failed attempt in timeline
                 try {
                     await this.createEmailTimelineEntry(models, {
                         tenantId,

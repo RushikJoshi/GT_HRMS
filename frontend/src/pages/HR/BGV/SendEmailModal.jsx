@@ -33,54 +33,15 @@ const SendEmailModal = ({ caseData, onClose, onEmailSent, initialEmailType = '' 
 
     const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-    // Email type options with descriptions
-    const emailTypes = [
-        {
-            value: 'DOCUMENT_PENDING',
-            label: 'Document Pending Reminder',
-            description: 'Remind candidate to upload pending documents',
-            recipientType: 'CANDIDATE',
-            icon: '📄',
-            allowedWhen: ['PENDING', 'IN_PROGRESS']
-        },
-        {
-            value: 'BGV_IN_PROGRESS',
-            label: 'BGV In Progress',
-            description: 'Notify candidate that verification has started',
-            recipientType: 'CANDIDATE',
-            icon: '🔍',
-            allowedWhen: ['IN_PROGRESS']
-        },
-        {
-            value: 'DISCREPANCY_RAISED',
-            label: 'Discrepancy Notification',
-            description: 'Inform candidate about discrepancy found',
-            recipientType: 'CANDIDATE',
-            icon: '⚠️',
-            allowedWhen: ['IN_PROGRESS', 'VERIFIED_WITH_DISCREPANCIES']
-        },
-        {
-            value: 'BGV_COMPLETED_VERIFIED',
-            label: 'BGV Completed - Verified',
-            description: 'Congratulate candidate on successful verification',
-            recipientType: 'CANDIDATE',
-            icon: '✅',
-            allowedWhen: ['VERIFIED', 'CLOSED']
-        },
-        {
-            value: 'BGV_COMPLETED_FAILED',
-            label: 'BGV Completed - Failed',
-            description: 'Notify candidate about failed verification',
-            recipientType: 'CANDIDATE',
-            icon: '❌',
-            allowedWhen: ['FAILED', 'CLOSED']
-        }
-    ];
-
-    // Filter email types based on current BGV status
-    const availableEmailTypes = emailTypes.filter(type =>
-        type.allowedWhen.includes(caseData.overallStatus)
-    );
+    // Filter available types from the fetched templates based on BGV status
+    const availableEmailTypes = templates.filter(t => {
+        const type = t.emailType;
+        if (caseData.overallStatus === 'PENDING') return ['DOCUMENT_PENDING', 'BGV_IN_PROGRESS'].includes(type);
+        if (caseData.overallStatus === 'IN_PROGRESS') return ['DOCUMENT_PENDING', 'BGV_IN_PROGRESS', 'DISCREPANCY_RAISED'].includes(type);
+        if (caseData.overallStatus === 'VERIFIED') return ['BGV_COMPLETED_VERIFIED'].includes(type);
+        if (caseData.overallStatus === 'FAILED') return ['BGV_COMPLETED_FAILED'].includes(type);
+        return true;
+    });
 
     useEffect(() => {
         fetchTemplates();
@@ -98,9 +59,9 @@ const SendEmailModal = ({ caseData, onClose, onEmailSent, initialEmailType = '' 
     useEffect(() => {
         if (selectedEmailType) {
             fetchTemplateByType(selectedEmailType);
-            const emailType = emailTypes.find(t => t.value === selectedEmailType);
-            if (emailType) {
-                setRecipientType(emailType.recipientType);
+            const template = templates.find(t => t.emailType === selectedEmailType);
+            if (template) {
+                setRecipientType(template.defaultRecipientType || 'CANDIDATE');
             }
             setSendToMode('CANDIDATE');
             setExternalEmails('');
@@ -188,7 +149,7 @@ const SendEmailModal = ({ caseData, onClose, onEmailSent, initialEmailType = '' 
         const variables = {
             candidate_name: caseData.candidateId?.name || 'Candidate Name',
             bgv_case_id: caseData.caseId || caseData._id,
-            job_title: caseData.applicationId?.jobTitle || 'Position',
+            job_title: caseData.jobTitle || 'Position',
             bgv_status: caseData.overallStatus || 'IN_PROGRESS',
             sla_date: caseData.slaDate ? new Date(caseData.slaDate).toLocaleDateString() : 'N/A',
             completion_date: caseData.completedAt ? new Date(caseData.completedAt).toLocaleDateString() : 'N/A',
@@ -261,8 +222,8 @@ const SendEmailModal = ({ caseData, onClose, onEmailSent, initialEmailType = '' 
                                     >
                                         <option value="">-- Choose Email Type --</option>
                                         {availableEmailTypes.map((type) => (
-                                            <option key={type.value} value={type.value}>
-                                                {type.label}
+                                            <option key={type._id} value={type.emailType}>
+                                                {type.name} (#{type.emailType})
                                             </option>
                                         ))}
                                     </select>
@@ -270,15 +231,13 @@ const SendEmailModal = ({ caseData, onClose, onEmailSent, initialEmailType = '' 
                                 {selectedEmailType && (
                                     <div className="mt-3 bg-slate-50 rounded-lg p-4 border border-slate-200">
                                         {(() => {
-                                            const selected = emailTypes.find(t => t.value === selectedEmailType);
+                                            const selected = templates.find(t => t.emailType === selectedEmailType);
                                             return selected ? (
                                                 <>
-                                                    <div className="font-semibold text-slate-900">{selected.label}</div>
-                                                    <div className="text-sm text-slate-600 mt-1">{selected.description}</div>
-                                                    <div className="mt-2">
-                                                        <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
-                                                            To: {selected.recipientType}
-                                                        </span>
+                                                    <div className="font-semibold text-slate-900">{selected.name}</div>
+                                                    <div className="text-sm text-slate-600 mt-1">{selected.description || selected.subject}</div>
+                                                    <div className="mt-2 text-[10px] font-black text-blue-500 uppercase tracking-widest">
+                                                        Template ID: #{selected.emailType}
                                                     </div>
                                                 </>
                                             ) : null;

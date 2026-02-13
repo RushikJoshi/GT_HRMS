@@ -66,6 +66,10 @@ import MyDocuments from '../pages/Employee/MyDocuments';
 import SalaryStructure from '../pages/HR/SalaryStructure';
 import CreateRequirement from '../pages/HR/CreateRequirement';
 import PositionMaster from '../pages/HR/PositionMaster';
+import VendorList from '../pages/HR/VendorList';
+import VendorFormStep1 from '../pages/HR/VendorFormStep1';
+import VendorFormStep2 from '../pages/HR/VendorFormStep2';
+import VendorDetails from '../pages/HR/VendorDetails';
 
 // Offers
 import OffersList from '../pages/HR/Offers/OffersList';
@@ -74,6 +78,7 @@ import OfferDetail from '../pages/HR/Offers/OfferDetail';
 // Career Builder
 import CareerBuilder from '../pages/HR/CareerBuilder/CareerBuilder';
 import ApplyPageBuilder from '../pages/HR/CareerBuilder/ApplyPageBuilder';
+import VendorCustomization from '../pages/HR/Customization/Vendor/VendorCustomization';
 
 // Settings
 import CompanySettings from '../pages/settings/CompanySettings';
@@ -236,6 +241,9 @@ export default function AppRoutes() {
                 <Route path="offers" element={<OffersList />} />
                 <Route path="offers/:id" element={<OfferDetail />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+
+
+
                 <Route path="bgv" element={<BGVManagement />} />
                 <Route path="bgv/emails" element={<BGVEmailManagement />} />
 
@@ -249,6 +257,7 @@ export default function AppRoutes() {
                 {/* Career Builder */}
                 <Route path="career-builder" element={<CareerBuilder />} />
                 <Route path="apply-builder" element={<ApplyPageBuilder />} />
+                <Route path="customization/vendor" element={<VendorCustomization />} />
 
                 {/* Payroll */}
                 <Route path="salary-structure/:candidateId" element={<SalaryStructure />} />
@@ -313,6 +322,9 @@ export default function AppRoutes() {
                 <Route path="offers" element={<OffersList />} />
                 <Route path="offers/:id" element={<OfferDetail />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+
+
+
                 <Route path="bgv" element={<BGVManagement />} />
                 <Route path="face-update-requests" element={<FaceUpdateRequest />} />
                 <Route path="bgv/emails" element={<BGVEmailManagement />} />
@@ -384,6 +396,12 @@ export default function AppRoutes() {
                 <Route path="my-requests" element={<MyRequests />} />
                 <Route path="my-documents" element={<MyDocuments />} />
                 <Route path="face-attendance" element={<FaceAttendance />} />
+
+                {/* Vendor Management (Moved from HR) */}
+                <Route path="vendor/list" element={<VendorList />} />
+                <Route path="vendor/step1" element={<VendorFormStep1 />} />
+                <Route path="vendor/step2/:vendorId?" element={<VendorFormStep2 />} />
+                <Route path="vendor/details/:id" element={<VendorDetails />} />
             </Route>
 
 

@@ -12,7 +12,8 @@ import {
     User,
     ChevronDown,
     Users,
-    Settings
+    Settings,
+    Building2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -27,7 +28,8 @@ const ICONS = {
     applications: <FileSignature size={20} />,
     profile: <User size={20} />,
     team: <Users size={20} />,
-    chevronDown: <ChevronDown size={14} />
+    chevronDown: <ChevronDown size={14} />,
+    vendor: <Building2 size={20} />
 };
 
 export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
@@ -42,6 +44,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
         Payroll: true,
         Team: true,
         Opportunities: true,
+        Vendor: true,
         Settings: true
     });
 
@@ -90,6 +93,13 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
             items: [
                 { id: 'internal-jobs', label: 'Internal Jobs', icon: ICONS.jobs },
                 { id: 'my-applications', label: 'My Applications', icon: ICONS.applications }
+            ]
+        },
+        {
+            title: 'Vendor Portal',
+            id: 'Vendor',
+            items: [
+                { id: 'vendor/list', label: 'Vendor Forms', icon: ICONS.vendor }
             ]
         },
         {

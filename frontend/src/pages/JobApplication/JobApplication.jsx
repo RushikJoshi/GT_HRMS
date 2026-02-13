@@ -14,7 +14,6 @@ import {
   ShieldCheck, UploadCloud, Building2, Briefcase, Zap,
   ChevronDown, Loader2
 } from 'lucide-react';
-import ReferenceSection from '../../components/ReferenceSection';
 
 export default function JobApplication() {
   const [searchParams] = useSearchParams();
@@ -45,18 +44,6 @@ export default function JobApplication() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
-  // Reference state
-  const [references, setReferences] = useState([{
-    name: '',
-    designation: '',
-    company: '',
-    relationship: '',
-    email: '',
-    phone: '',
-    yearsKnown: '',
-    consentToContact: true
-  }]);
-  const [isFresher, setIsFresher] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
@@ -207,36 +194,7 @@ export default function JobApplication() {
       return;
     }
 
-    // 3. Reference Validation
-    if (!isFresher) {
-      if (references.length === 0 || (!references[0].name && references.length === 1)) {
-        setError('Please provide at least 1 professional reference or check the fresher option.');
-        return;
-      }
-
-      // Validate all required fields
-      for (let i = 0; i < references.length; i++) {
-        const ref = references[i];
-        if (!ref.name || !ref.designation || !ref.company || !ref.relationship || !ref.email || !ref.phone) {
-          setError(`Reference ${i + 1}: All required fields must be filled`);
-          return;
-        }
-
-        // Email validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(ref.email)) {
-          setError(`Reference ${i + 1}: Invalid email format`);
-          return;
-        }
-
-        // Phone validation
-        const phoneRegex = /^[0-9+\-\s()]{10,15}$/;
-        if (!phoneRegex.test(ref.phone)) {
-          setError(`Reference ${i + 1}: Phone number must be 10-15 digits`);
-          return;
-        }
-      }
-    }
+    // 3. Removed Reference Validation as per user request
 
     setLoading(true);
     setError('');
@@ -260,12 +218,10 @@ export default function JobApplication() {
         }
       });
 
-      // Add references
-      submitData.append('references', JSON.stringify(references));
-      submitData.append('isFresher', isFresher);
-      if (isFresher) {
-        submitData.append('noReferenceReason', 'Fresher - No Work Experience');
-      }
+      // Add references (empty or fresher flags)
+      submitData.append('references', JSON.stringify([]));
+      submitData.append('isFresher', true);
+      submitData.append('noReferenceReason', 'References disabled');
 
       await api.post('/public/apply-job', submitData, {
         headers: { 'Content-Type': 'multipart/form-data', 'X-Tenant-ID': tenantId || requirement?.tenant }
@@ -339,20 +295,20 @@ export default function JobApplication() {
     if (!applyPage?.sections) return null;
 
     return (
-      <div className="space-y-12">
+      <div className="space-y-10">
         {applyPage.sections.map((section) => (
-          <div key={section.id} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="flex items-center gap-4">
-              <div className="w-1.5 h-8 bg-indigo-600 rounded-full shadow-sm"></div>
-              <h3 className="text-2xl font-black text-slate-800 tracking-tight">{section.title}</h3>
-            </div>
+          <div key={section.id} className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
+              {section.title}
+            </h3>
 
-            <div className="grid grid-cols-12 gap-8 lg:gap-10">
+            <div className="grid grid-cols-12 gap-6">
               {section.fields?.map((field) => (
                 <div key={field.id} className={getGridSpan(field.width)}>
-                  <div className="space-y-2.5">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4 flex items-center gap-2">
-                      {field.label} {field.required && <span className="text-rose-500 text-base leading-none">*</span>}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">
+                      {field.label} {field.required && <span className="text-red-500 ml-0.5">*</span>}
                     </label>
 
                     {field.type === 'textarea' ? (
@@ -362,7 +318,7 @@ export default function JobApplication() {
                         onChange={handleInputChange}
                         required={field.required}
                         rows={4}
-                        className="w-full px-6 py-4.5 bg-slate-50/50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white focus:border-indigo-200 transition-all font-medium text-slate-700 resize-none shadow-sm"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all resize-none"
                         placeholder={field.placeholder || `Enter ${field.label}`}
                       />
                     ) : field.type === 'select' ? (
@@ -372,20 +328,19 @@ export default function JobApplication() {
                           value={formData[field.id] || ''}
                           onChange={handleInputChange}
                           required={field.required}
-                          className="w-full px-6 py-4.5 bg-slate-50/50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white focus:border-indigo-200 transition-all font-medium text-slate-700 appearance-none shadow-sm h-[60px]"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all appearance-none text-gray-700 h-[48px]"
                         >
                           <option value="">Select {field.label}</option>
                           {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
-                        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-indigo-600 transition-colors">
-                          <ChevronDown size={20} />
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-blue-600 transition-colors">
+                          <ChevronDown size={18} />
                         </div>
                       </div>
                     ) : field.type === 'date' ? (
                       <div className="relative group">
-                        <Calendar size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors z-10 pointer-events-none" />
                         <DatePicker
-                          className="w-full pl-14 pr-6 py-4.5 bg-slate-50/50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white focus:border-indigo-200 transition-all font-medium text-slate-700 h-[60px] shadow-sm"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all h-[48px]"
                           format="DD/MM/YYYY"
                           placeholder={field.placeholder || `Select ${field.label}`}
                           onChange={(date, dateString) => setFormData(prev => ({ ...prev, [field.id]: dateString }))}
@@ -394,15 +349,15 @@ export default function JobApplication() {
                       </div>
                     ) : field.type === 'file' ? (
                       <div className="space-y-4">
-                        <label className="group relative block w-full border-2 border-dashed border-slate-200 rounded-[2.5rem] p-10 text-center hover:border-indigo-400 hover:bg-indigo-50/5 transition-all cursor-pointer bg-slate-50/30">
+                        <label className="group relative block w-full border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer bg-gray-50/50">
                           <input type="file" onChange={handleFileChange} className="hidden" accept=".pdf,.doc,.docx" />
-                          <div className="bg-white w-16 h-16 rounded-3xl shadow-md flex items-center justify-center mx-auto mb-4 group-hover:rotate-6 transition-transform border border-slate-100">
-                            <UploadCloud size={28} className="text-indigo-500" />
+                          <div className="bg-white w-12 h-12 rounded-full shadow-sm flex items-center justify-center mx-auto mb-3 group-hover:rotate-6 transition-transform border border-gray-100">
+                            <UploadCloud size={20} className="text-blue-500" />
                           </div>
-                          <span className="block text-base font-extrabold text-slate-800 mb-1">
+                          <span className="block text-sm font-bold text-gray-700 mb-1">
                             {formData.resume ? formData.resume.name : `Upload ${field.label}`}
                           </span>
-                          <span className="block text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+                          <span className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider">
                             {field.helpText || "PDF, DOCX up to 5MB"}
                           </span>
                         </label>
@@ -415,13 +370,13 @@ export default function JobApplication() {
                           value={formData[field.id] || ''}
                           onChange={handleInputChange}
                           required={field.required}
-                          className="w-full px-6 py-4.5 bg-slate-50/50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white focus:border-indigo-200 transition-all font-medium text-slate-700 shadow-sm h-[60px]"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all placeholder:text-gray-400 text-gray-700 h-[48px]"
                           placeholder={field.placeholder || `Enter ${field.label}`}
                         />
                       </div>
                     )}
                     {field.helpText && field.type !== 'file' && (
-                      <p className="text-[10px] font-bold text-slate-400 ml-4">{field.helpText}</p>
+                      <p className="text-[10px] font-bold text-gray-400 ml-1 mt-1">{field.helpText}</p>
                     )}
                   </div>
                 </div>
@@ -434,75 +389,57 @@ export default function JobApplication() {
   };
 
   const renderFallbackForm = () => (
-    <div className="space-y-10">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Full Name</label>
-          <div className="relative group">
-            <User size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
-            <input name="name" value={formData.name} onChange={handleInputChange} required className="w-full pl-14 pr-6 py-4.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 h-[60px]" placeholder="John Doe" />
-          </div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">Full Name</label>
+          <input name="name" value={formData.name} onChange={handleInputChange} required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all placeholder:text-gray-400 h-[48px]" placeholder="John Doe" />
         </div>
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Father Name</label>
-          <div className="relative group">
-            <User size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
-            <input name="fatherName" value={formData.fatherName} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 h-[60px]" placeholder="Guardian Name" />
-          </div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">Father Name</label>
+          <input name="fatherName" value={formData.fatherName} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all placeholder:text-gray-400 h-[48px]" placeholder="Guardian Name" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Email Address</label>
-          <div className="relative group">
-            <Mail size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
-            <input name="email" value={formData.email} onChange={handleInputChange} type="email" required className="w-full pl-14 pr-6 py-4.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 h-[60px]" placeholder="name@example.com" />
-          </div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">Email Address</label>
+          <input name="email" value={formData.email} onChange={handleInputChange} type="email" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all placeholder:text-gray-400 h-[48px]" placeholder="name@example.com" />
         </div>
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Contact Number</label>
-          <div className="relative group">
-            <Phone size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
-            <input name="mobile" value={formData.mobile} onChange={handleInputChange} type="tel" required className="w-full pl-14 pr-6 py-4.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 h-[60px]" placeholder="+1..." />
-          </div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">Contact Number</label>
+          <input name="mobile" value={formData.mobile} onChange={handleInputChange} type="tel" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all placeholder:text-gray-400 h-[48px]" placeholder="+1..." />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Date of Birth</label>
-          <div className="relative group">
-            <Calendar size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors z-10 pointer-events-none" />
-            <DatePicker
-              className="w-full pl-14 pr-6 py-4.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 h-[60px]"
-              format="DD/MM/YYYY"
-              placeholder="Select DOB"
-              onChange={(date, dateString) => setFormData(prev => ({ ...prev, dob: dateString }))}
-              value={formData.dob ? dayjs(formData.dob, 'DD/MM/YYYY') : null}
-            />
-          </div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">Date of Birth</label>
+          <DatePicker
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all h-[48px]"
+            format="DD/MM/YYYY"
+            placeholder="Select DOB"
+            onChange={(date, dateString) => setFormData(prev => ({ ...prev, dob: dateString }))}
+            value={formData.dob ? dayjs(formData.dob, 'DD/MM/YYYY') : null}
+          />
         </div>
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Current Location</label>
-          <div className="relative group">
-            <MapPin size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
-            <input name="address" value={formData.address} onChange={handleInputChange} required className="w-full pl-14 pr-6 py-4.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all font-medium text-slate-700 h-[60px]" placeholder="City, Country" />
-          </div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">Current Location</label>
+          <input name="address" value={formData.address} onChange={handleInputChange} required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all placeholder:text-gray-400 h-[48px]" placeholder="City, Country" />
         </div>
       </div>
 
       <div className="space-y-4">
-        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Professional Resume (PDF/Word)</label>
-        <label className="group relative block w-full border-2 border-dashed border-slate-200 rounded-[2.5rem] p-12 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-all cursor-pointer">
+        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">Professional Resume (PDF/Word)</label>
+        <label className="group relative block w-full border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer bg-gray-50/50">
           <input type="file" onChange={handleFileChange} className="hidden" accept=".pdf,.doc,.docx" />
-          <div className="bg-white w-20 h-20 rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6 group-hover:rotate-6 transition-transform">
-            <UploadCloud size={32} className="text-indigo-500" />
+          <div className="bg-white w-12 h-12 rounded-full shadow-sm flex items-center justify-center mx-auto mb-3 group-hover:rotate-6 transition-transform border border-gray-100">
+            <UploadCloud size={20} className="text-blue-500" />
           </div>
-          <span className="block text-lg font-bold text-slate-800 mb-2">
+          <span className="block text-sm font-bold text-gray-700 mb-1">
             {formData.resume ? formData.resume.name : 'Choose your file'}
           </span>
-          <span className="block text-slate-400 font-medium text-sm">
+          <span className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider">
             Max file size: 5MB
           </span>
         </label>
@@ -529,12 +466,12 @@ export default function JobApplication() {
 
       <div className="pt-28 pb-20 max-w-[1500px] mx-auto px-4 lg:px-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
         {/* Unified Card Container */}
-        <div className="bg-white rounded-[3.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.08)] overflow-hidden border border-white/50">
+        <div className="bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden border border-gray-100">
 
           {/* Top Banner Section (Inside Card) */}
           {customization?.applyPage && (
             <div
-              className={`h-80 w-full relative overflow-hidden flex flex-col justify-center px-12 lg:px-16 transition-all duration-700`}
+              className={`h-48 w-full relative overflow-hidden flex flex-col justify-end p-8 lg:p-12 transition-all duration-700`}
               style={customization.applyPage.banner?.bgType === 'image' ? {
                 backgroundImage: `url(${customization.applyPage.banner.bgImage})`,
                 backgroundSize: 'cover',
@@ -542,88 +479,67 @@ export default function JobApplication() {
               } : {}}
             >
               {customization.applyPage.banner?.bgType !== 'image' && (
-                <div className={`absolute inset-0 bg-gradient-to-r ${customization.applyPage.banner?.bgColor || customization.applyPage.theme?.bannerGradient || 'from-indigo-600 via-purple-600 to-pink-500'}`}></div>
+                <div className={`absolute inset-0 bg-gradient-to-r ${customization.applyPage.banner?.bgColor || 'from-blue-600 via-indigo-600 to-purple-600'}`}></div>
               )}
-              <div className="absolute inset-0 bg-black/10"></div>
+              <div className="absolute inset-0 bg-black/20"></div>
               <div className="relative z-10 flex flex-col gap-3">
-                <span className="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-lg text-[10px] font-black uppercase tracking-[0.2em] text-white inline-block w-fit shadow-sm">
-                  {requirement?.department || 'Department'}
+                <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-lg text-xs font-bold uppercase tracking-wider text-white inline-block w-fit shadow-sm">
+                  {requirement?.department || 'Engineering'}
                 </span>
 
-                <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter drop-shadow-sm leading-[1.1]">
+                <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight drop-shadow-sm leading-[1.1]">
                   {customization.applyPage.banner?.title || requirement?.jobTitle || 'Join Our Team'}
                 </h1>
 
-                {customization.applyPage.banner?.subtitle ? (
-                  <p className="text-white/80 font-medium text-lg lg:text-xl max-w-3xl line-clamp-2 drop-shadow-sm">
-                    {customization.applyPage.banner.subtitle}
-                  </p>
-                ) : (
-                  <div className="flex items-center gap-8 text-white/90 text-[10px] font-black uppercase tracking-[0.2em] mt-2">
-                    <span className="flex items-center gap-2.5">
-                      <MapPin size={16} className="text-white/60" /> {requirement?.workMode || 'Remote'}
-                    </span>
-
-                    <span className="flex items-center gap-2.5">
-                      <Briefcase size={16} className="text-white/60" /> {requirement?.jobType || 'Full Time'}
-                    </span>
-                  </div>
-                )}
+                <p className="text-white/90 font-medium text-base lg:text-lg max-w-3xl line-clamp-2 drop-shadow-sm">
+                  {customization.applyPage.banner?.subtitle || (requirement ? `${requirement.workMode} • ${requirement.jobType} • ${requirement.location}` : 'Join our growing team')}
+                </p>
               </div>
-
-              {/* Decorative shapes inside banner */}
-              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full -mr-48 -mt-48 blur-3xl"></div>
-              <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
             </div>
           )}
 
           {/* Form Content Section (Inside Card) */}
-          <div className="p-12 lg:p-20">
-            <form onSubmit={handleSubmit} className="space-y-16">
+          <div className="p-8 lg:p-12 bg-gray-50/30">
+            <form onSubmit={handleSubmit} className="space-y-10">
               {error && (
-                <div className="bg-rose-50 border border-rose-100 p-8 rounded-[2.5rem] text-rose-600 text-sm font-bold animate-in fade-in flex items-center gap-4 shadow-sm">
-                  <ShieldCheck size={28} className="shrink-0" /> {error}
+                <div className="bg-rose-50 border border-rose-100 p-6 rounded-2xl text-rose-600 text-sm font-bold animate-in fade-in flex items-center gap-4 shadow-sm">
+                  <ShieldCheck size={24} className="shrink-0" /> {error}
                 </div>
               )}
 
               {customization?.applyPage ? renderDynamicForm() : (
                 <>
-                  <h3 className="text-3xl font-black text-slate-800 tracking-tighter mb-12 flex items-center gap-4">
-                    <div className="w-1.5 h-8 bg-indigo-600 rounded-full shadow-sm"></div>
-                    Submit Application
-                  </h3>
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="w-1 h-8 bg-blue-500 rounded-full shadow-sm"></div>
+                    <h3 className="text-2xl font-black text-slate-800 tracking-tight">
+                      Submit Application
+                    </h3>
+                  </div>
                   {renderFallbackForm()}
                 </>
               )}
 
-              {/* Reference Section - Rendered for both form types */}
-              <ReferenceSection
-                references={references}
-                setReferences={setReferences}
-                isFresher={isFresher}
-                setIsFresher={setIsFresher}
-                errors={fieldErrors}
-              />
+              {/* Reference Section Removed */}
 
-              <div className="pt-10">
+              <div className="pt-6">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-slate-900 hover:bg-black text-white py-8 rounded-[2rem] font-black shadow-2xl shadow-indigo-100/20 active:scale-[0.99] transition-all flex items-center justify-center gap-4 disabled:opacity-70 text-sm uppercase tracking-[0.25em] group"
+                  className="w-full bg-gray-900 hover:bg-black text-white py-5 rounded-xl font-bold shadow-xl active:scale-[0.99] transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-sm uppercase tracking-widest group"
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="animate-spin" size={24} />
-                      Submitting Profile...
+                      <Loader2 className="animate-spin" size={20} />
+                      Processing...
                     </>
                   ) : (
                     <>
-                      Submit My Application <Send size={24} className="group-hover:translate-x-2 group-hover:-translate-y-2 transition-transform duration-500" />
+                      Submit Application <Send size={20} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                     </>
                   )}
                 </button>
-                <p className="text-center text-[11px] font-black text-slate-300 mt-10 uppercase tracking-[0.3em] flex items-center justify-center gap-3">
-                  <ShieldCheck size={14} className="text-emerald-500" /> 100% Encrypted & Secure Submission
+                <p className="text-center text-[10px] font-bold text-gray-400 mt-8 uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+                  <ShieldCheck size={14} className="text-emerald-500" /> Secure Job Application Submission
                 </p>
               </div>
             </form>

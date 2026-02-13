@@ -8,6 +8,25 @@ const router = express.Router();
 const candidateController = require('../controllers/candidate.controller');
 const { authenticateCandidate } = require('../middleware/jobPortalAuthMiddleware');
 const getTenantDB = require('../utils/tenantDB');
+const multer = require('multer');
+const path = require('path');
+
+// Multer Config for document uploads
+const upload = multer({
+  dest: 'uploads/temp/',
+  limits: { fileSize: 1024 * 1024 * 10 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only images, PDFs, and Word documents are allowed'));
+    }
+  }
+});
 
 /**
  * PUBLIC Job Portal Routes (No Auth Required)
@@ -21,6 +40,12 @@ router.post('/candidate/login', candidateController.loginCandidate);
 router.get('/candidate/dashboard', authenticateCandidate, candidateController.getCandidateDashboard);
 router.get('/candidate/check-status/:requirementId', authenticateCandidate, candidateController.checkApplicationStatus);
 router.get('/candidate/application/track/:applicationId', authenticateCandidate, candidateController.trackApplication);
+router.post('/candidate/application/accept-offer/:applicationId', authenticateCandidate, candidateController.acceptOffer);
+
+// BGV Documents
+router.get('/candidate/application/bgv-documents/:applicationId', authenticateCandidate, candidateController.getBGVDocuments);
+router.post('/candidate/application/bgv-documents/:applicationId/upload', authenticateCandidate, upload.single('document'), candidateController.uploadBGVDocument);
+
 
 /**
  * Job Listing (Public)
@@ -30,10 +55,10 @@ router.get('/jobs/:companyId', async (req, res) => {
     const { companyId } = req.params;
     const tenantDB = await getTenantDB(companyId);
     const Requirement = tenantDB.model("Requirement");
-    
+
     const jobs = await Requirement.find({ status: 'active' })
       .select('_id jobTitle department description location salary experience yearsOfExperience createdAt');
-    
+
     res.json({
       jobs,
       company: { id: companyId }
@@ -94,7 +119,7 @@ router.get('/candidate/profile', authenticateCandidate, async (req, res) => {
     const Candidate = tenantDB.model("Candidate");
 
     const candidate = await Candidate.findById(candidateId).select('-password');
-    
+
     if (!candidate) {
       return res.status(404).json({ error: 'Candidate not found' });
     }

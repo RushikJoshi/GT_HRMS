@@ -302,7 +302,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
             const extraStatuses = foundStatuses.filter(s =>
                 !baseParams.includes(s) &&
-                !['Selected', 'Rejected', 'Finalized', 'Offer Generated', 'Salary Assigned', 'Interview Scheduled', 'Interview Rescheduled', 'Interview Completed', 'New Round'].includes(s)
+                !['Selected', 'Rejected', 'Finalized', 'Offer Generated', 'Salary Assigned', 'Offer Issued', 'Offer Accepted', 'Hired', 'Joining Letter Issued', 'Offer Expired', 'Interview Scheduled', 'Interview Rescheduled', 'Interview Completed', 'New Round'].includes(s)
             );
 
             // Insert extra statuses before 'HR Round' if present, else before 'Finalized'
@@ -362,6 +362,15 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-100 rounded-full w-full justify-center">
                 <span className="text-blue-600">✅</span>
                 <span className="text-[10px] font-black text-blue-700 tracking-widest uppercase">Selected</span>
+                <CheckCircle size={14} className="text-blue-600" />
+                <span className="text-[10px] font-black text-blue-700 tracking-widest uppercase">Finalized</span>
+            </div>
+        );
+
+        if (app.status === 'Joining Letter Issued') return (
+            <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border border-purple-100 rounded-full w-full justify-center">
+                <CheckCircle size={14} className="text-purple-600" />
+                <span className="text-[10px] font-black text-purple-700 tracking-widest uppercase">Joining Letter Issued</span>
             </div>
         );
 
@@ -509,11 +518,11 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
         // Step 2: Handle Terminal/Special statuses
         if (normalizedTarget === 'Finalized') {
-            return applicantStatus === 'Finalized' || applicantStatus === 'Selected';
+            return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired'].includes(applicantStatus);
         }
 
         // Candidates who are Finalized or Selected have passed all steps
-        if (applicantStatus === 'Finalized' || applicantStatus === 'Selected') {
+        if (['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired'].includes(applicantStatus)) {
             return true; // Visible in all tabs
         }
 
@@ -586,6 +595,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             if (activeTab === 'Rejected') return baseFiltered.filter(a => a?.status === 'Rejected');
             // 'Applied' is the default bucket for everything else in Global View
             return baseFiltered.filter(a => a?.status !== 'Finalized' && a?.status !== 'Selected' && a?.status !== 'Rejected');
+            if (activeTab === 'Finalized') return filtered.filter(a => ['Finalized', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Offer Expired'].includes(a?.status));
+            if (activeTab === 'Rejected') return filtered.filter(a => a?.status === 'Rejected');
+            return filtered.filter(a => a?.status !== 'Finalized' && a?.status !== 'Rejected');
         }
 
         // Specific Job Workflow: CUMULATIVE LOGIC (Show all who reached this stage)
@@ -1035,11 +1047,33 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             case 'Applied': return 'bg-blue-100 text-blue-800';
             case 'Shortlisted': return 'bg-yellow-100 text-yellow-800';
             case 'Selected': return 'bg-green-100 text-green-800';
+            case 'Offer Issued': return 'bg-purple-100 text-purple-800';
+            case 'Offer Accepted': return 'bg-teal-100 text-teal-800';
+            case 'Joining Letter Issued': return 'bg-cyan-100 text-cyan-800';
+            case 'Hired': return 'bg-emerald-600 text-white';
             case 'Rejected': return 'bg-red-100 text-red-800';
             default: return 'bg-gray-100 text-gray-800';
         }
     };
 
+    const getStatusStyles = (status) => {
+        switch (status) {
+            case 'Applied': return 'bg-blue-50/50 text-blue-600 border-blue-100';
+            case 'Shortlisted': return 'bg-indigo-50/50 text-indigo-600 border-indigo-100';
+            case 'Interview Scheduled':
+            case 'Interview Rescheduled':
+            case 'New Round':
+                return 'bg-amber-50/50 text-amber-600 border-amber-100';
+            case 'Interview Completed': return 'bg-emerald-50/50 text-emerald-600 border-emerald-100';
+            case 'Selected': return 'bg-emerald-500 text-white border-emerald-600';
+            case 'Offer Issued': return 'bg-purple-50/50 text-purple-600 border-purple-100';
+            case 'Offer Accepted': return 'bg-teal-50/50 text-teal-600 border-teal-100';
+            case 'Joining Letter Issued': return 'bg-cyan-50/50 text-cyan-600 border-cyan-100';
+            case 'Hired': return 'bg-emerald-600 text-white border-emerald-700';
+            case 'Rejected': return 'bg-red-50/50 text-red-600 border-red-100';
+            default: return 'bg-slate-50/50 text-slate-600 border-slate-100';
+        }
+    };
 
 
 
@@ -1155,6 +1189,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 setShowPreview(false); // Close preview if open
                 loadApplicants(); // Refresh to show status change
                 notification.success({ message: 'Success', description: 'Offer Letter Generated Successfully', placement: 'topRight' });
+
+                // Automatically initiate BGV and send request to candidate
+                handleInitiateBGV(selectedApplicant);
             } else {
                 if (newWindow) newWindow.close();
                 notification.warning({ message: 'Warning', description: 'Offer generated but no download URL returned', placement: 'topRight' });
@@ -1859,6 +1896,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     if (a.status === 'Rejected' && tab !== 'Rejected') return false;
                                     if (selectedReqId === 'all') {
                                         if (tab === 'Finalized') return (a.status === 'Finalized' || a.status === 'Selected');
+                                        if (tab === 'Finalized') return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired'].includes(a.status);
                                         if (tab === 'Rejected') return (a.status === 'Rejected');
                                         return a.status !== 'Finalized' && a.status !== 'Selected' && a.status !== 'Rejected';
                                     }
@@ -2121,9 +2159,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Salary</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Offer</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Joining</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">BGV</th>
                                             {!showAllCandidates && <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Actions</th>}
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Joining</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-slate-50">
@@ -2259,6 +2298,31 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                 )
                                                             )}
                                                     </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <span className={`px-2 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-widest ${app.bgvStatus === 'CLEAR' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                                app.bgvStatus === 'FAILED' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                                                    app.bgvStatus === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                                        'bg-slate-50 text-slate-400 border-slate-100'
+                                                                }`}>
+                                                                {app.bgvStatus?.replace(/_/g, ' ') || 'NOT INITIATED'}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (app.bgvStatus && app.bgvStatus !== 'NOT_INITIATED') return navigate('/hr/bgv');
+                                                                    if (['Offer Accepted', 'Joining Letter Issued', 'Hired'].includes(app.status)) handleInitiateBGV(app);
+                                                                }}
+                                                                disabled={(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') && !['Offer Accepted', 'Joining Letter Issued', 'Hired'].includes(app.status)}
+                                                                className={`text-[9px] font-bold flex items-center gap-1 ${(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') && !['Offer Accepted', 'Joining Letter Issued', 'Hired'].includes(app.status)
+                                                                    ? 'text-slate-300 cursor-not-allowed'
+                                                                    : 'text-blue-600 hover:underline'
+                                                                    }`}
+                                                                title={(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') && !['Offer Accepted', 'Joining Letter Issued', 'Hired'].includes(app.status) ? "Candidate must accept offer first" : ""}
+                                                            >
+                                                                {(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') ? 'Initiate' : 'Manage'}
+                                                            </button>
+                                                        </div>
+                                                    </td>
                                                     <td className="px-6 py-4">
                                                         {app.joiningLetterPath ? (
                                                             <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
@@ -2321,6 +2385,24 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             )}
                                                         </td>
                                                     )}
+                                                    <td className="px-6 py-4">
+                                                        {app.isOnboarded ? (
+                                                            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
+                                                                <CheckCircle size={14} />
+                                                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Converted</span>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleOnboard(app)}
+                                                                disabled={!app.joiningLetterPath || ['FAILED', 'IN_PROGRESS', 'INITIATED'].includes(app.bgvStatus)}
+                                                                className={`w-full py-2 sm:py-3 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl transition shadow-lg uppercase tracking-widest ${(!app.joiningLetterPath || ['FAILED', 'IN_PROGRESS', 'INITIATED'].includes(app.bgvStatus)) ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'}`}
+                                                                title={app.bgvStatus === 'FAILED' ? 'BGV Failed' : app.bgvStatus === 'IN_PROGRESS' || app.bgvStatus === 'INITIATED' ? 'BGV In Progress' : ''}
+                                                            >
+                                                                {app.bgvStatus === 'FAILED' ? 'BGV FAILED' :
+                                                                    (['IN_PROGRESS', 'INITIATED'].includes(app.bgvStatus)) ? 'BGV PENDING' : 'Convert'}
+                                                            </button>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
                                     </tbody>

@@ -199,7 +199,7 @@ const ApplicantSchema = new mongoose.Schema({
   },
   noReferenceReason: {
     type: String,
-    enum: ['Fresher - No Work Experience', 'Other', null],
+    enum: ['Fresher - No Work Experience', 'References disabled', 'Other', null],
     default: null
   },
 

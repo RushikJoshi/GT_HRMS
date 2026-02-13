@@ -46,6 +46,7 @@ const BGVDocumentSchema = new mongoose.Schema({
             'ADDRESS_PROOF',
             'POLICE_VERIFICATION',
             'REFERENCE_LETTER',
+            'PASSPORT_PHOTO',
             'OTHER'
         ],
         required: true,
@@ -129,14 +130,57 @@ const BGVDocumentSchema = new mongoose.Schema({
         }
     },
 
-    // 🔐 EVIDENCE VALIDATION METADATA (NEW)
+    // 🔐 EVIDENCE VALIDATION METADATA (UPGRADED FOR OCR)
     evidenceMetadata: {
         documentDate: Date, // Extracted or manually entered document date
         expiryDate: Date, // For documents with expiry
         issuerName: String, // e.g., University name, Employer name
         documentNumber: String, // e.g., Aadhaar number, PAN number (encrypted)
-        extractedText: String, // OCR extracted text
-        ocrConfidence: Number, // 0-1
+        extractedText: String, // Raw OCR extracted text
+        ocrConfidence: Number, // 0-100
+        ocrStatus: {
+            type: String,
+            enum: ['NOT_STARTED', 'PROCESSING', 'COMPLETED', 'FAILED'],
+            default: 'NOT_STARTED'
+        },
+        processedAt: Date,
+
+        // Structured data extracted from OCR
+        extractedFields: {
+            name: String,
+            idNumber: String,
+            dob: Date,
+            employer: String,
+            month: String,
+            year: String,
+            salary: Number,
+            university: String,
+            degree: String,
+            issueDate: Date,
+            address: String
+        },
+
+        // Validation against profile/declaration
+        validation: {
+            status: {
+                type: String,
+                enum: ['NOT_VALIDATED', 'MATCHED', 'MISMATCH', 'REVIEW_REQUIRED'],
+                default: 'NOT_VALIDATED'
+            },
+            score: Number, // Similarity score (0-100)
+            mismatchedFields: [String],
+            lastValidatedAt: Date,
+            isManuallyOverridden: {
+                type: Boolean,
+                default: false
+            },
+            overrideBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User'
+            },
+            overrideRemarks: String
+        },
+
         validationFlags: [{
             flag: String,
             severity: {
@@ -207,5 +251,94 @@ BGVDocumentSchema.index({ isDeleted: 1, status: 1 });
 BGVDocumentSchema.pre('remove', function (next) {
     next(new Error('Hard delete not allowed. Use soft delete by setting isDeleted=true'));
 });
+
+// ============================================
+// 🔐 ENCRYPTION MIDDLEWARE
+// ============================================
+
+const encryptionService = require('../services/encryptionService');
+
+/**
+ * Pre-save middleware: Encrypt sensitive fields before saving
+ */
+BGVDocumentSchema.pre('save', function (next) {
+    try {
+        // Encrypt document number if present (Aadhaar, PAN, etc.)
+        if (this.evidenceMetadata && this.evidenceMetadata.documentNumber) {
+            // Check if already encrypted (hex string of specific length)
+            const isEncrypted = /^[0-9a-f]{192,}$/i.test(this.evidenceMetadata.documentNumber);
+
+            if (!isEncrypted) {
+                this.evidenceMetadata.documentNumber = encryptionService.encrypt(
+                    this.evidenceMetadata.documentNumber
+                );
+            }
+        }
+
+        // Encrypt extracted ID number
+        if (this.evidenceMetadata && this.evidenceMetadata.extractedFields && this.evidenceMetadata.extractedFields.idNumber) {
+            const isEncrypted = /^[0-9a-f]{192,}$/i.test(this.evidenceMetadata.extractedFields.idNumber);
+
+            if (!isEncrypted) {
+                this.evidenceMetadata.extractedFields.idNumber = encryptionService.encrypt(
+                    this.evidenceMetadata.extractedFields.idNumber
+                );
+            }
+        }
+
+        next();
+    } catch (error) {
+        console.error('[BGV_DOCUMENT_ENCRYPTION_ERROR]', error);
+        next(error);
+    }
+});
+
+/**
+ * Method: Decrypt sensitive fields for display
+ */
+BGVDocumentSchema.methods.decryptSensitiveFields = function () {
+    const doc = this.toObject();
+
+    try {
+        if (doc.evidenceMetadata && doc.evidenceMetadata.documentNumber) {
+            doc.evidenceMetadata.documentNumber = encryptionService.decrypt(
+                doc.evidenceMetadata.documentNumber
+            );
+        }
+
+        if (doc.evidenceMetadata && doc.evidenceMetadata.extractedFields && doc.evidenceMetadata.extractedFields.idNumber) {
+            doc.evidenceMetadata.extractedFields.idNumber = encryptionService.decrypt(
+                doc.evidenceMetadata.extractedFields.idNumber
+            );
+        }
+    } catch (error) {
+        console.error('[BGV_DOCUMENT_DECRYPTION_ERROR]', error);
+    }
+
+    return doc;
+};
+
+/**
+ * Method: Mask sensitive fields for display
+ */
+BGVDocumentSchema.methods.maskSensitiveFields = function () {
+    const doc = this.toObject();
+
+    try {
+        if (doc.evidenceMetadata && doc.evidenceMetadata.documentNumber) {
+            const decrypted = encryptionService.decrypt(doc.evidenceMetadata.documentNumber);
+            doc.evidenceMetadata.documentNumber = encryptionService.mask(decrypted, 4);
+        }
+
+        if (doc.evidenceMetadata && doc.evidenceMetadata.extractedFields && doc.evidenceMetadata.extractedFields.idNumber) {
+            const decrypted = encryptionService.decrypt(doc.evidenceMetadata.extractedFields.idNumber);
+            doc.evidenceMetadata.extractedFields.idNumber = encryptionService.mask(decrypted, 4);
+        }
+    } catch (error) {
+        console.error('[BGV_DOCUMENT_MASK_ERROR]', error);
+    }
+
+    return doc;
+};
 
 module.exports = BGVDocumentSchema;

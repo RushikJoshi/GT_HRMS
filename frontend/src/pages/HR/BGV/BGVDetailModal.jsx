@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SendEmailModal from './SendEmailModal';
+import ConsentFormModal from './ConsentFormModal';
+import AddDiscrepancyModal from './AddDiscrepancyModal';
+import TaskAssignmentModal from './TaskAssignmentModal';
 
-import api from '../../../utils/api';
+import api, { API_ROOT } from '../../../utils/api';
 import { showToast } from '../../../utils/uiNotifications';
 import {
     X, Shield, CheckCircle, XCircle, Clock, AlertCircle, FileText,
     Calendar, User, Package, Download, Eye, Upload, MessageSquare,
-    TrendingUp, AlertTriangle, CheckSquare, Edit, Save
+    TrendingUp, AlertTriangle, CheckSquare, Edit, Save, RefreshCw,
+    Search, FileSearch, ShieldCheck, Activity
 } from 'lucide-react';
-import { Mail, ChevronDown } from 'lucide-react';
+import { Mail, ChevronDown, Settings } from 'lucide-react';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+dayjs.extend(relativeTime);
 
 const EMAIL_TYPES = [
     {
@@ -53,10 +59,31 @@ const BGVDetailModal = ({ caseData, onClose, onUpdate }) => {
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedCase, setSelectedCase] = useState(caseData);
     const [loading, setLoading] = useState(false);
+    const [templates, setTemplates] = useState([]);
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [emailInitialType, setEmailInitialType] = useState('');
     const [emailMenuOpen, setEmailMenuOpen] = useState(false);
     const emailMenuRef = useRef(null);
+
+    // 🔥 NEW: Modal states for BGV features
+    const [showConsentModal, setShowConsentModal] = useState(false);
+    const [showDiscrepancyModal, setShowDiscrepancyModal] = useState(false);
+    const [showTaskAssignModal, setShowTaskAssignModal] = useState(false);
+    const [selectedCheck, setSelectedCheck] = useState(null);
+    const [riskScore, setRiskScore] = useState(null);
+
+    useEffect(() => {
+        fetchTemplates();
+    }, []);
+
+    const fetchTemplates = async () => {
+        try {
+            const res = await api.get('/bgv/email-templates');
+            setTemplates(res.data.data || []);
+        } catch (err) {
+            console.error('Failed to fetch templates:', err);
+        }
+    };
 
     useEffect(() => {
         const onDocMouseDown = (e) => {
@@ -75,10 +102,46 @@ const BGVDetailModal = ({ caseData, onClose, onUpdate }) => {
             const res = await api.get(`/bgv/case/${selectedCase._id}`);
             setSelectedCase(res.data.data);
             onUpdate();
+            // Fetch risk score when refreshing case
+            fetchRiskScore();
         } catch (err) {
             console.error('Failed to refresh case:', err);
         }
     };
+
+    // 🔥 NEW: Fetch risk score
+    const fetchRiskScore = async () => {
+        try {
+            const res = await api.get(`/bgv/case/${selectedCase._id}/risk-score`);
+            setRiskScore(res.data.data?.riskScore || null);
+        } catch (err) {
+            console.error('Failed to fetch risk score:', err);
+        }
+    };
+
+    // 🔥 NEW: Handler for consent captured
+    const handleConsentCaptured = (data) => {
+        showToast('success', 'Success', 'Consent captured successfully');
+        refreshCase();
+    };
+
+    // 🔥 NEW: Handler for discrepancy added
+    const handleDiscrepancyAdded = (data) => {
+        showToast('success', 'Success', `Risk score updated to ${data.totalRiskScore} points`);
+        refreshCase();
+    };
+
+    // 🔥 NEW: Handler for task assigned
+    const handleTaskAssigned = (data) => {
+        showToast('success', 'Success', 'Task assigned successfully');
+        refreshCase();
+    };
+
+    useEffect(() => {
+        if (selectedCase) {
+            fetchRiskScore();
+        }
+    }, [selectedCase]);
 
     const handleVerifyCheck = async (checkId, status, remarks) => {
         setLoading(true);
@@ -186,42 +249,76 @@ const BGVDetailModal = ({ caseData, onClose, onUpdate }) => {
 
                             {emailMenuOpen && (
                                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-20">
-                                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                                        <div className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                                            Choose Email Type
+                                    <div className="px-4 py-3 bg-slate-900 border-b border-white/10">
+                                        <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                                            Select Communication
                                         </div>
-                                        <div className="text-[11px] text-slate-600 mt-1">
+                                        <div className="text-[11px] text-white font-bold mt-1">
                                             Status: {selectedCase.overallStatus?.replace(/_/g, ' ')}
                                         </div>
                                     </div>
                                     <div className="max-h-80 overflow-y-auto">
-                                        {EMAIL_TYPES.filter(t => t.allowedWhen.includes(selectedCase.overallStatus)).length === 0 ? (
-                                            <div className="px-4 py-6 text-sm text-slate-600">
-                                                No email templates available for this status.
-                                            </div>
-                                        ) : (
-                                            EMAIL_TYPES
-                                                .filter(t => t.allowedWhen.includes(selectedCase.overallStatus))
-                                                .map((t) => (
+                                        {(() => {
+                                            const filtered = templates.filter(t => t.isActive !== false);
+
+                                            if (filtered.length === 0) {
+                                                return (
+                                                    <div className="px-6 py-10 text-center">
+                                                        <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                                            <Mail size={20} className="text-slate-300" />
+                                                        </div>
+                                                        <div className="text-xs font-black text-slate-400 uppercase tracking-widest">No Designs Found</div>
+                                                        <p className="text-[10px] text-slate-400 mt-1">Add templates in Email Management</p>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return filtered.map((t) => {
+                                                const type = t.emailType;
+                                                let isRecommended = false;
+                                                if (selectedCase.overallStatus === 'PENDING') isRecommended = ['DOCUMENT_PENDING', 'BGV_IN_PROGRESS'].includes(type);
+                                                if (selectedCase.overallStatus === 'IN_PROGRESS') isRecommended = ['BGV_IN_PROGRESS', 'DISCREPANCY_RAISED', 'DOCUMENT_PENDING'].includes(type);
+                                                if (selectedCase.overallStatus === 'VERIFIED') isRecommended = ['BGV_COMPLETED_VERIFIED'].includes(type);
+                                                if (selectedCase.overallStatus === 'FAILED') isRecommended = ['BGV_COMPLETED_FAILED'].includes(type);
+
+                                                return (
                                                     <button
-                                                        key={t.value}
+                                                        key={t._id}
                                                         onClick={() => {
-                                                            setEmailInitialType(t.value);
+                                                            setEmailInitialType(t.emailType);
                                                             setShowEmailModal(true);
                                                             setEmailMenuOpen(false);
                                                         }}
-                                                        className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors"
+                                                        className="w-full text-left px-5 py-4 hover:bg-slate-50 transition-all border-b border-slate-50 last:border-0 group relative"
                                                     >
-                                                        <div className="text-sm font-bold text-slate-900">{t.label}</div>
-                                                        <div className="text-xs text-slate-600 mt-0.5">{t.description}</div>
-                                                        <div className="mt-2">
-                                                            <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded">
-                                                                To: {t.recipientType}
-                                                            </span>
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter">#{type}</div>
+                                                                {isRecommended && (
+                                                                    <div className="text-[8px] font-black bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full uppercase tracking-widest">Recommended</div>
+                                                                )}
+                                                            </div>
+                                                            <div className="w-6 h-6 rounded-lg bg-slate-100 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center transition-all shadow-sm">
+                                                                <ChevronDown size={12} className="-rotate-90" />
+                                                            </div>
                                                         </div>
+                                                        <div className="text-sm font-black text-slate-900 leading-tight pr-4">{t.name}</div>
+                                                        <div className="text-[10px] text-slate-500 mt-1 line-clamp-2">{t.description || t.subject}</div>
                                                     </button>
-                                                ))
-                                        )}
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+                                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
+                                        <button
+                                            onClick={() => {
+                                                setEmailMenuOpen(false);
+                                                // Navigate to management (optional)
+                                            }}
+                                            className="text-[10px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <Settings size={12} /> Manage Library
+                                        </button>
                                     </div>
                                 </div>
                             )}
@@ -262,8 +359,33 @@ const BGVDetailModal = ({ caseData, onClose, onUpdate }) => {
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-8">
                     {activeTab === 'overview' && <OverviewTab caseData={selectedCase} />}
-                    {activeTab === 'checks' && <ChecksTab caseData={selectedCase} onVerify={handleVerifyCheck} loading={loading} />}
-                    {activeTab === 'documents' && <DocumentsTab caseData={selectedCase} onRefresh={refreshCase} />}
+                    {activeTab === 'checks' && <ChecksTab
+                        caseData={selectedCase}
+                        onVerify={handleVerifyCheck}
+                        loading={loading}
+                        onOpenConsentModal={() => setShowConsentModal(true)}
+                        onOpenDiscrepancyModal={(check) => {
+                            setSelectedCheck(check);
+                            setShowDiscrepancyModal(true);
+                        }}
+                        onOpenTaskModal={(check) => {
+                            setSelectedCheck(check);
+                            setShowTaskAssignModal(true);
+                        }}
+                    />}
+                    {activeTab === 'documents' && <DocumentsTab
+                        caseData={selectedCase}
+                        onRefresh={refreshCase}
+                        onReprocessOCR={async (docId) => {
+                            try {
+                                await api.post(`/bgv/document/${docId}/reprocess-ocr`);
+                                showToast('success', 'Success', 'OCR reprocessing started in background');
+                                refreshCase(); // Use refreshCase to update the UI
+                            } catch (err) {
+                                showToast('error', 'Error', 'Failed to start OCR reprocessing');
+                            }
+                        }}
+                    />}
                     {activeTab === 'timeline' && <TimelineTab caseData={selectedCase} />}
                     {activeTab === 'actions' && <ActionsTab caseData={selectedCase} onClose={handleCloseBGV} onGenerateReport={handleGenerateReport} loading={loading} />}
                 </div>
@@ -383,7 +505,7 @@ const OverviewTab = ({ caseData }) => {
 };
 
 // Checks Tab
-const ChecksTab = ({ caseData, onVerify, loading }) => {
+const ChecksTab = ({ caseData, onVerify, loading, onOpenConsentModal, onOpenDiscrepancyModal, onOpenTaskModal }) => {
     const [selectedCheck, setSelectedCheck] = useState(null);
     const [remarks, setRemarks] = useState('');
 
@@ -396,6 +518,25 @@ const ChecksTab = ({ caseData, onVerify, loading }) => {
 
     return (
         <div className="space-y-4">
+            {/* 🔥 NEW: Capture Consent Button at top */}
+            {!caseData.isClosed && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200 p-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h4 className="font-bold text-blue-900">Digital Consent</h4>
+                            <p className="text-sm text-blue-600">Capture candidate's consent for verification</p>
+                        </div>
+                        <button
+                            onClick={onOpenConsentModal}
+                            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2"
+                        >
+                            <FileText size={18} />
+                            Capture Consent
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {caseData.checks && caseData.checks.length > 0 ? (
                 caseData.checks.map((check) => (
                     <div key={check._id} className="bg-white rounded-2xl border-2 border-slate-200 p-6 hover:shadow-lg transition-all">
@@ -479,63 +620,236 @@ const ChecksTab = ({ caseData, onVerify, loading }) => {
                                         </div>
                                     </div>
                                 ) : (
-                                    <button
-                                        onClick={() => setSelectedCheck(check)}
-                                        className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all"
-                                    >
-                                        Update Status
-                                    </button>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => setSelectedCheck(check)}
+                                            className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all"
+                                        >
+                                            Update Status
+                                        </button>
+                                        {/* 🔥 NEW: Add Discrepancy Button */}
+                                        <button
+                                            onClick={() => onOpenDiscrepancyModal(check)}
+                                            className="px-6 py-2 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center gap-2"
+                                        >
+                                            <AlertTriangle size={16} />
+                                            Add Discrepancy
+                                        </button>
+                                        {/* 🔥 NEW: Assign Task Button */}
+                                        <button
+                                            onClick={() => onOpenTaskModal(check)}
+                                            className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2"
+                                        >
+                                            <User size={16} />
+                                            Assign Task
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         )}
                     </div>
                 ))
             ) : (
-                <div className="text-center py-12 text-slate-400">
-                    <CheckCircle size={48} className="mx-auto mb-2 opacity-50" />
-                    <p>No checks found</p>
+                <div className="bg-white rounded-2xl border-2 border-slate-200 p-12 text-center">
+                    <ShieldCheck size={64} className="mx-auto text-slate-300 mb-4" />
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">No Checks Found</h3>
+                    <p className="text-slate-600">No verification checks have been configured for this case.</p>
                 </div>
             )}
         </div>
     );
 };
 
-// Documents Tab
-const DocumentsTab = ({ caseData, onRefresh }) => {
+// Documents Tab (UPGRADED WITH OCR VIEW)
+const DocumentsTab = ({ caseData, onRefresh, onReprocessOCR }) => {
+    const [selectedDocId, setSelectedDocId] = useState(null);
+
+    const handleDownload = (doc) => {
+        const url = `${api.defaults.baseURL}${doc.filePath}`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', doc.originalName);
+        link.setAttribute('target', '_blank');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handlePreview = (doc) => {
+        const url = `${api.defaults.baseURL}${doc.filePath}`;
+        window.open(url, '_blank');
+    };
+
     return (
         <div className="space-y-4">
             {caseData.documents && caseData.documents.length > 0 ? (
                 caseData.documents.map((doc) => (
-                    <div key={doc._id} className="bg-white rounded-2xl border-2 border-slate-200 p-6 flex items-center justify-between hover:shadow-lg transition-all">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-100 rounded-xl">
-                                <FileText size={24} className="text-blue-600" />
-                            </div>
-                            <div>
-                                <div className="font-bold text-slate-900">{doc.documentType?.replace(/_/g, ' ')}</div>
-                                <div className="text-sm text-slate-500">{doc.originalName}</div>
-                                <div className="text-xs text-slate-400 mt-1">
-                                    Uploaded {dayjs(doc.uploadedAt).fromNow()} • Version {doc.version}
+                    <div key={doc._id} className="bg-white rounded-3xl border-2 border-slate-200 overflow-hidden hover:shadow-xl transition-all">
+                        <div className="p-6 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className={`p-4 rounded-2xl ${doc.documentType === 'AADHAAR' ? 'bg-orange-100 text-orange-600' :
+                                    doc.documentType === 'PAN' ? 'bg-blue-100 text-blue-600' :
+                                        doc.documentType === 'PAYSLIP' ? 'bg-emerald-100 text-emerald-600' :
+                                            'bg-indigo-100 text-indigo-600'
+                                    }`}>
+                                    <FileText size={24} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className="font-black text-slate-900 text-lg">{doc.documentType?.replace(/_/g, ' ')}</div>
+                                        {/* OCR Status Badge */}
+                                        {doc.evidenceMetadata?.ocrStatus && (
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${doc.evidenceMetadata.ocrStatus === 'COMPLETED' ? 'bg-emerald-100 text-emerald-600' :
+                                                doc.evidenceMetadata.ocrStatus === 'PROCESSING' ? 'bg-amber-100 text-amber-600 animate-pulse' :
+                                                    doc.evidenceMetadata.ocrStatus === 'FAILED' ? 'bg-rose-100 text-rose-600' :
+                                                        'bg-slate-100 text-slate-400'
+                                                }`}>
+                                                {doc.evidenceMetadata.ocrStatus === 'COMPLETED' ? 'OCR Validated' : doc.evidenceMetadata.ocrStatus}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-sm text-slate-500 font-medium">{doc.originalName}</div>
+                                    <div className="flex items-center gap-3 mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        <span>Uploaded {dayjs(doc.uploadedAt).fromNow()}</span>
+                                        <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
+                                        <span>Version {doc.version}</span>
+                                    </div>
                                 </div>
                             </div>
+                            <div className="flex items-center gap-3">
+                                {doc.evidenceMetadata?.ocrStatus === 'COMPLETED' && (
+                                    <button
+                                        onClick={() => setSelectedDocId(selectedDocId === doc._id ? null : doc._id)}
+                                        className={`px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 ${selectedDocId === doc._id ? 'bg-slate-900 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                            }`}
+                                    >
+                                        <Search size={14} />
+                                        {selectedDocId === doc._id ? 'Close OCR' : 'View OCR Data'}
+                                    </button>
+                                )}
+
+                                <button
+                                    onClick={() => onReprocessOCR(doc._id)}
+                                    title="Reprocess OCR"
+                                    className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-all"
+                                >
+                                    <RefreshCw size={18} />
+                                </button>
+
+                                <a
+                                    href={`${api.defaults.baseURL}${doc.filePath}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all"
+                                >
+                                    <Download size={18} />
+                                </a>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${doc.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
-                                doc.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
-                                    'bg-slate-100 text-slate-700'
-                                }`}>
-                                {doc.status}
-                            </span>
-                            <button className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all">
-                                <Download size={18} />
-                            </button>
-                        </div>
+                        {/* OCR DATA PANEL */}
+                        {selectedDocId === doc._id && doc.evidenceMetadata && (
+                            <div className="border-t-2 border-slate-100 bg-slate-50/50 p-6 animate-in slide-in-from-top duration-300">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* Extraction Summary */}
+                                    <div className="md:col-span-2 space-y-4">
+                                        <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                                            <div>
+                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">OCR Confidence</div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex-1 h-2 w-32 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full ${doc.evidenceMetadata.ocrConfidence > 80 ? 'bg-emerald-500' :
+                                                                doc.evidenceMetadata.ocrConfidence > 50 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                }`}
+                                                            style={{ width: `${doc.evidenceMetadata.ocrConfidence}%` }}
+                                                        />
+                                                    </div>
+                                                    <span className="text-sm font-black text-slate-900">{doc.evidenceMetadata.ocrConfidence}%</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Validation Score</div>
+                                                <div className={`text-xl font-black ${doc.evidenceMetadata.validation?.score > 80 ? 'text-emerald-600' :
+                                                    doc.evidenceMetadata.validation?.score > 50 ? 'text-amber-600' : 'text-rose-600'
+                                                    }`}>
+                                                    {doc.evidenceMetadata.validation?.score}%
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                                            <h5 className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                <ShieldCheck size={14} className="text-blue-600" />
+                                                Extracted Data Evidence
+                                            </h5>
+                                            <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                                                {Object.entries(doc.evidenceMetadata.extractedFields || {}).map(([key, value]) => {
+                                                    if (!value || key === 'fullText') return null;
+                                                    const isMismatch = doc.evidenceMetadata.validation?.mismatchedFields?.includes(key);
+                                                    return (
+                                                        <div key={key}>
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-0.5 underline decoration-slate-200 decoration-2">{key.replace(/([A-Z])/g, ' $1')}</div>
+                                                            <div className={`text-xs font-bold flex items-center gap-1.5 ${isMismatch ? 'text-rose-600' : 'text-slate-900'}`}>
+                                                                {isMismatch && <AlertCircle size={10} />}
+                                                                {typeof value === 'object' ? dayjs(value).format('DD MMM YYYY') : value}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Validation Status & Flags */}
+                                    <div className="space-y-4">
+                                        <div className={`p-5 rounded-2xl border ${doc.evidenceMetadata.validation?.status === 'MATCHED' ? 'bg-emerald-50 border-emerald-100' :
+                                            doc.evidenceMetadata.validation?.status === 'MISMATCH' ? 'bg-rose-50 border-rose-100' :
+                                                'bg-amber-50 border-amber-100'
+                                            }`}>
+                                            <div className="text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">Verdict</div>
+                                            <div className="flex items-center gap-2">
+                                                {doc.evidenceMetadata.validation?.status === 'MATCHED' && <CheckCircle size={20} className="text-emerald-600" />}
+                                                {doc.evidenceMetadata.validation?.status === 'MISMATCH' && <XCircle size={20} className="text-rose-600" />}
+                                                {doc.evidenceMetadata.validation?.status === 'REVIEW_REQUIRED' && <Clock size={20} className="text-amber-600" />}
+                                                <div className="text-lg font-black text-slate-900">{doc.evidenceMetadata.validation?.status?.replace(/_/g, ' ')}</div>
+                                            </div>
+                                        </div>
+
+                                        {doc.evidenceMetadata.validationFlags && doc.evidenceMetadata.validationFlags.length > 0 && (
+                                            <div className="space-y-2">
+                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Alerts & Observations</div>
+                                                {doc.evidenceMetadata.validationFlags.map((flag, fidx) => (
+                                                    <div key={fidx} className={`p-3 rounded-xl flex items-start gap-2 text-[11px] font-bold border ${flag.severity === 'ERROR' ? 'bg-rose-50 border-rose-100 text-rose-700' :
+                                                        flag.severity === 'WARNING' ? 'bg-amber-50 border-amber-100 text-amber-700' :
+                                                            'bg-blue-50 border-blue-100 text-blue-700'
+                                                        }`}>
+                                                        <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                                                        {flag.message}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="mt-6 pt-6 border-t border-slate-200">
+                                    <button
+                                        onClick={() => window.open(`${api.defaults.baseURL}${doc.filePath}`, '_blank')}
+                                        className="text-[10px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <Eye size={12} /> View Original Document Image
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ))
             ) : (
-                <div className="text-center py-12 text-slate-400">
-                    <FileText size={48} className="mx-auto mb-2 opacity-50" />
-                    <p>No documents uploaded yet</p>
+                <div className="text-center py-24 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <FileText size={32} className="text-slate-300" />
+                    </div>
+                    <p className="text-slate-500 font-bold">No evidence documents uploaded yet</p>
+                    <p className="text-xs text-slate-400 mt-1">Intelligent OCR verification will start automatically after upload</p>
                 </div>
             )}
         </div>
@@ -681,6 +995,42 @@ const ActionsTab = ({ caseData, onClose, onGenerateReport, loading }) => {
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* 🔥 NEW: Consent Form Modal */}
+            <ConsentFormModal
+                isOpen={showConsentModal}
+                onClose={() => setShowConsentModal(false)}
+                caseData={selectedCase}
+                onConsentCaptured={handleConsentCaptured}
+            />
+
+            {/* 🔥 NEW: Add Discrepancy Modal */}
+            {selectedCheck && (
+                <AddDiscrepancyModal
+                    isOpen={showDiscrepancyModal}
+                    onClose={() => {
+                        setShowDiscrepancyModal(false);
+                        setSelectedCheck(null);
+                    }}
+                    checkData={selectedCheck}
+                    caseId={selectedCase.caseId}
+                    onDiscrepancyAdded={handleDiscrepancyAdded}
+                />
+            )}
+
+            {/* 🔥 NEW: Task Assignment Modal */}
+            {selectedCheck && (
+                <TaskAssignmentModal
+                    isOpen={showTaskAssignModal}
+                    onClose={() => {
+                        setShowTaskAssignModal(false);
+                        setSelectedCheck(null);
+                    }}
+                    checkData={selectedCheck}
+                    caseId={selectedCase.caseId}
+                    onTaskAssigned={handleTaskAssigned}
+                />
             )}
         </div>
     );

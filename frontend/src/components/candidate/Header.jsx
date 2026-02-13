@@ -2,7 +2,8 @@ import React from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import { useJobPortalAuth } from '../../context/JobPortalAuthContext';
 import { getCompany } from '../../utils/auth';
-import { ArrowLeft, LogOut, User as UserIcon, Bell, LayoutDashboard, Briefcase, FileText, User } from 'lucide-react';
+import { ArrowLeft, LogOut, User as UserIcon, LayoutDashboard, Briefcase, FileText, User } from 'lucide-react';
+import CandidateNotificationDropdown from './CandidateNotificationDropdown';
 
 export default function Header() {
     const navigate = useNavigate();
@@ -72,9 +73,7 @@ export default function Header() {
             </div>
 
             <div className="flex items-center gap-6">
-                <button className="relative text-slate-400 hover:text-premium-blue transition-colors">
-                    <Bell className="w-5 h-5" />
-                </button>
+                <CandidateNotificationDropdown />
 
                 <div className="h-8 w-px bg-slate-100"></div>
 
