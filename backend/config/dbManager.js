@@ -85,6 +85,10 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const VendorRegistrationSchema = require("../models/vendor.model.js");
     const VendorBankDetailsSchema = require("../models/vendorBank.model.js");
     const VendorFormConfigSchema = require("../models/VendorFormConfig.model.js");
+    const DocumentAuditSchema = require("../models/DocumentAudit");
+    const DocumentAccessSchema = require("../models/DocumentAccess");
+    const LetterRevocationSchema = require("../models/LetterRevocation");
+    const DocumentViewConfigSchema = require("../models/DocumentViewConfig");
 
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
@@ -168,6 +172,10 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("VendorRegistration", VendorRegistrationSchema);
     register("VendorBankDetails", VendorBankDetailsSchema);
     register("VendorFormConfig", VendorFormConfigSchema);
+    register("DocumentAudit", DocumentAuditSchema);
+    register("DocumentAccess", DocumentAccessSchema);
+    register("LetterRevocation", LetterRevocationSchema);
+    register("DocumentViewConfig", DocumentViewConfigSchema);
 
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {

@@ -119,6 +119,7 @@ const holidayRoutes = require('./routes/holiday.routes');
 const attendanceRoutes = require('./routes/attendance.routes');
 const attendancePolicyRoutes = require('./routes/attendancePolicy.routes');
 const letterRoutes = require('./routes/letter.routes');
+const letterRevocationRoutes = require('./routes/letter.revocation.routes');
 const offerTemplateRoutes = require('./routes/offerTemplate.routes');
 const payslipTemplateRoutes = require('./routes/payslipTemplate.routes');
 
@@ -171,6 +172,7 @@ app.use('/api/salary', (req, res, next) => {
 // Force Restart Tracker: v9.2
 app.get('/api/salary/ping', (req, res) => res.json({ message: 'Salary Pong', time: new Date() }));
 
+app.use('/api/letters', letterRevocationRoutes);
 app.use('/api/letters', letterRoutes);
 app.use('/api/offer-templates', offerTemplateRoutes);
 app.use('/api/payslip-templates', payslipTemplateRoutes);
@@ -205,6 +207,7 @@ app.use('/api/positions', positionRoutes);
 const hrmsPrefix = '/api/hrms';
 app.use(hrmsPrefix + '/requirements', requirementRoutes);
 app.use(hrmsPrefix + '/holidays', holidayRoutes);
+app.use(hrmsPrefix + '/letters', letterRevocationRoutes);
 app.use(hrmsPrefix + '/letters', letterRoutes);
 app.use(hrmsPrefix + '/offer-templates', offerTemplateRoutes);
 app.use(hrmsPrefix + '/payslip-templates', payslipTemplateRoutes);
@@ -302,3 +305,4 @@ app.use((err, req, res, next) => {
 app.use(errorMiddleware);
 
 module.exports = app;
+
