@@ -312,41 +312,57 @@ export default function Employees() {
       </div>
 
       {/* Stats Section */}
+      {/* Stats Section */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-            <Users size={20} />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Employees</div>
-            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.total || 0}</div>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
-            <User size={20} />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active</div>
-            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.active || 0}</div>
+        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-5 rounded-xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="p-3 bg-white/20 backdrop-blur-sm text-white rounded-lg shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
+              <Users size={24} />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-blue-100 uppercase tracking-widest">Total Employees</div>
+              <div className="text-2xl font-black text-white mt-0.5 tracking-tight">{stats?.total || 0}</div>
+            </div>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
-            <Briefcase size={20} />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Departments</div>
-            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.depts || 0}</div>
+
+        <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-5 rounded-xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="p-3 bg-white/20 backdrop-blur-sm text-white rounded-lg shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
+              <User size={24} />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-emerald-100 uppercase tracking-widest">Active</div>
+              <div className="text-2xl font-black text-white mt-0.5 tracking-tight">{stats?.active || 0}</div>
+            </div>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
-            <CalendarIcon size={20} />
+
+        <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-5 rounded-xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="p-3 bg-white/20 backdrop-blur-sm text-white rounded-lg shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
+              <Briefcase size={24} />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-purple-100 uppercase tracking-widest">Departments</div>
+              <div className="text-2xl font-black text-white mt-0.5 tracking-tight">{stats?.depts || 0}</div>
+            </div>
           </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New Joiners</div>
-            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.newJoiners || 0}</div>
+        </div>
+
+        <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-5 rounded-xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="p-3 bg-white/20 backdrop-blur-sm text-white rounded-lg shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
+              <CalendarIcon size={24} />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-amber-100 uppercase tracking-widest">New Joiners</div>
+              <div className="text-2xl font-black text-white mt-0.5 tracking-tight">{stats?.newJoiners || 0}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -518,16 +534,16 @@ export default function Employees() {
               {viewMode === 'list' ? (
                 <>
                   {/* Desktop/Tablet Table View */}
-                  <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
-                    <table className="min-w-full text-left text-sm divide-y divide-slate-200">
+                  <div className="hidden md:block overflow-x-auto border border-slate-200 bg-white scrollbar-thin scrollbar-thumb-slate-200">
+                    <table className="min-w-[1000px] w-full text-left text-sm divide-y divide-slate-200">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Name</th>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Role</th>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Contact</th>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Department</th>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Manager</th>
-                          <th className="px-6 py-4 text-right font-semibold text-slate-700 whitespace-nowrap">Actions</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[25%]">Name</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[15%]">Role</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[25%]">Contact</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[10%]">Department</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[15%]">Manager</th>
+                          <th className="px-6 py-4 text-right font-semibold text-slate-700 whitespace-nowrap w-[10%]">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 bg-white">
@@ -893,32 +909,61 @@ export default function Employees() {
         }}
       />
 
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 sm:p-6">
-        <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-3">Employees by Department</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {DEPARTMENTS.map((dept) => (
-            <div key={dept} className="border border-slate-200 rounded-lg p-3">
-              <div className="font-semibold text-slate-800 mb-2">{dept}</div>
-              <div className="space-y-1 text-sm text-slate-600">
-                {employees.filter(e => e.department === dept).map(e => (
-                  <div key={e._id} className="flex justify-between">
-                    <span>{[e.firstName, e.lastName].filter(Boolean).join(' ') || e.email}</span>
-                    <span className="text-xs text-slate-500">{e.role || '-'}</span>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
+          Employees by Department
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { name: 'HR', gradient: 'from-blue-500 to-indigo-600', icon: Users },
+            { name: 'Tech', gradient: 'from-emerald-500 to-teal-600', icon: Briefcase },
+            { name: 'Accounts', gradient: 'from-purple-500 to-pink-600', icon: IndianRupee },
+            { name: 'Admin', gradient: 'from-amber-500 to-orange-600', icon: User }
+          ].map((dept) => {
+            const deptEmps = employees.filter(e => e.department === dept.name);
+            const DeptIcon = dept.icon;
+
+            return (
+              <div key={dept.name} className={`bg-gradient-to-br ${dept.gradient} rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all relative overflow-hidden group`}>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+
+                <div className="flex items-center justify-between mb-4 relative z-10">
+                  <div className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-lg border border-white/20">
+                    <DeptIcon size={18} />
                   </div>
-                ))}
-                {employees.filter(e => e.department === dept).length === 0 && (
-                  <div className="text-xs text-slate-400">No employees</div>
-                )}
+                  <span className="text-[10px] font-black text-white/80 uppercase tracking-widest bg-white/10 px-2 py-1 rounded-full border border-white/10">
+                    {deptEmps.length} Employees
+                  </span>
+                </div>
+
+                <div className="relative z-10">
+                  <h4 className="font-black text-white text-lg mb-3 tracking-tight">{dept.name}</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto no-scrollbar">
+                    {deptEmps.length > 0 ? (
+                      deptEmps.map(e => (
+                        <div key={e._id} className="flex justify-between items-center bg-white/10 backdrop-blur-sm p-2 rounded-lg border border-white/5 hover:bg-white/20 transition-colors">
+                          <span className="text-xs font-bold text-white truncate max-w-[100px]">
+                            {[e.firstName, e.lastName].filter(Boolean).join(' ') || e.email}
+                          </span>
+                          <span className="text-[9px] font-black text-white/60 uppercase tracking-tighter">
+                            {e.role || '-'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-white/50 italic py-2">No employees assigned</div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
-    </div >
+    </div>
   );
 }
-
-
 
 function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const [step, setStep] = useState((employee?.status === 'Draft' ? employee?.lastStep : 1) || 1);
@@ -1077,8 +1122,8 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
   const [employeeCode, setEmployeeCode] = useState('');
 
-  const phoneRe = /^\d{10,15}$/;
-  const pinRe = useMemo(() => /^\d{5,10}$/, []);
+  const phoneRe = /^\d{10, 15}$/;
+  const pinRe = useMemo(() => /^\d{5, 10}$/, []);
   const ifscRe = useMemo(() => /^[A-Z]{4}0[0-9A-Z]{6}$/, []);
 
   const handlePincodeLookup = useCallback(async (pin, target = 'temp') => {
@@ -1375,7 +1420,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
     if (stepNum === 4) {
       if (!employee) {
         if (!bankName) e.bankName = 'Bank name required';
-        if (!accountNumber || !/^[0-9]{9,18}$/.test(accountNumber)) e.accountNumber = 'Account Number must be 9-18 digits';
+        if (!accountNumber || !/^[0-9]{9, 18}$/.test(accountNumber)) e.accountNumber = 'Account Number must be 9-18 digits';
         if (!ifsc || !ifscRe.test(ifsc)) e.ifsc = 'IFSC invalid';
         if (!branchName) e.branchName = 'Branch name required';
         // Bank Proof Mandatory Validation
@@ -2878,5 +2923,6 @@ const FileLink = ({ url, label }) => {
       <span className="text-sm font-medium truncate flex-1">{label || 'View Document'}</span>
       <svg className="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
     </a>
+
   );
 };

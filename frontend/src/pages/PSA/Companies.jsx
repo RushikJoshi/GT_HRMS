@@ -5,6 +5,25 @@ import api from "../../utils/api";
 import CompanyForm from "./CompanyForm";
 import ModuleConfig from "./ModuleConfig";
 import CompanyView from "./CompanyView";
+import {
+  Building2,
+  MapPin,
+  Mail,
+  Phone,
+  Search,
+  Plus,
+  Filter,
+  ArrowRight,
+  MoreVertical,
+  Shield,
+  Zap,
+  CheckCircle2,
+  X,
+  Eye,
+  EyeOff,
+  Edit2,
+  Settings
+} from 'lucide-react';
 
 export default function Companies() {
   const [companies, setCompanies] = useState([]);
@@ -22,7 +41,6 @@ export default function Companies() {
   async function load() {
     try {
       const res = await api.get("/tenants");
-      // setCompanies(res.data || []);
       setCompanies(Array.isArray(res.data) ? res.data : (res.data?.tenants || res.data?.data || []));
 
     } catch (err) {
@@ -44,8 +62,6 @@ export default function Companies() {
 
   async function toggleActive(company) {
     try {
-      // Backend tenant status enum uses 'active' | 'suspended' | 'deleted'
-      // use 'suspended' for the inactive state to avoid mismatches/typos
       const newStatus = company.status === 'active' ? 'suspended' : 'active';
       await api.put(`/tenants/${company._id}`, { status: newStatus });
       load();
@@ -60,177 +76,171 @@ export default function Companies() {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Companies</h1>
-        <button
-          onClick={() => {
-            setSelected(null);
-            setOpenForm(true);
-          }}
-          className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700"
-        >
-          + Add Company
-        </button>
-      </div>
-      <div className="bg-white rounded-lg shadow-sm border">
-        {/* Desktop / Tablet Table */}
-        <div className="hidden md:block overflow-auto">
-          <table className="w-full min-w-[800px]">
-            <thead className="bg-gray-100 border-b">
-              <tr>
-                <th className="p-3 text-left">ID</th>
-                <th className="p-3 text-left">Logo</th>
-                <th className="p-3 text-left">Company</th>
-                <th className="p-3 text-left">Email</th>
-                <th className="p-3 text-left">Password</th>
-                <th className="p-3 text-left">Modules</th>
-                <th className="p-3 text-left">Status</th>
-                <th className="p-3 text-left">Actions</th>
-              </tr>
-            </thead>
+    <div className="min-h-screen bg-[#F0F2F5] p-6 lg:p-12 font-sans text-slate-900">
+      <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-700">
 
-            <tbody>
-              {paged.map((c) => (
-                <tr key={c._id} className="border-b hover:bg-gray-50">
-                  <td className="p-3 font-mono text-sm">{c.code || c._id}</td>
-                  <td className="p-3">
-                    {c.meta?.logo ? (
-                      <img src={(c.meta.logo || '').startsWith('http') ? c.meta.logo : `${API_ORIGIN}${c.meta.logo || ''}`} alt="logo" className="h-10 w-10 object-contain rounded" />
-                    ) : (
-                      <div className="h-10 w-10 bg-slate-100 rounded flex items-center justify-center text-sm text-slate-400">No</div>
-                    )}
-                  </td>
-                  <td className="p-3 font-medium">{c.name}</td>
-                  <td className="p-3">{c.meta?.primaryEmail || c.meta?.email || '-'}</td>
-                  <td className="p-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono">{revealMap[c._id] ? (c.meta?.adminPassword || '-') : (c.meta?.adminPassword ? '••••••' : '-')}</span>
-                      {c.meta?.adminPassword && (
-                        <button type="button" onClick={() => toggleReveal(c._id)} className="p-1 rounded hover:bg-slate-100" aria-label={revealMap[c._id] ? 'Hide password' : 'Reveal password'}>
-                          {/* Eye icon */}
-                          {revealMap[c._id] ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-5.523 0-10-4.477-10-10a9.97 9.97 0 012.175-5.675M3 3l18 18" />
-                            </svg>
-                          ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <div className="flex flex-wrap gap-2">
-                      {(c.modules || []).length === 0 ? <span className="text-sm text-slate-500">-</span> : (c.modules || []).map(m => (
-                        <span key={m} className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-100 capitalize">{m}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <span className={`px-2 py-1 rounded text-sm ${c.status === 'active' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
-                      {c.status === 'active' ? 'Active' : 'Deactive'}
-                    </span>
-                  </td>
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-10 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-full bg-gradient-to-l from-emerald-50 to-transparent"></div>
 
-                  <td className="p-3 flex gap-3 items-center">
-                    <button onClick={() => { setSelected(c); setOpenView(true); }} className="p-1 rounded hover:bg-slate-100" title="View" aria-label="View company">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => { setSelected(c); setOpenForm(true); }} className="p-1 rounded hover:bg-slate-100" title="Edit" aria-label="Edit company">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => toggleActive(c)} className={`px-2 py-1 text-sm rounded ${c.status === 'active' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-green-50 text-green-600 border border-green-100'}`}>{c.status === 'active' ? 'Deactive' : 'Activate'}</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile / Small: stacked cards */}
-        <div className="md:hidden p-3 space-y-3">
-          {paged.map((c) => (
-            <div key={c._id} className="bg-white border rounded-lg p-3 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div>
-                  {c.meta?.logo ? (
-                    <img src={(c.meta.logo || '').startsWith('http') ? c.meta.logo : `${API_ORIGIN}${c.meta.logo || ''}`} alt="logo" className="h-12 w-12 object-contain rounded" />
-                  ) : (
-                    <div className="h-12 w-12 bg-slate-100 rounded flex items-center justify-center text-sm text-slate-400">No</div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-semibold text-slate-800">{c.name}</div>
-                      <div className="text-sm text-slate-500">ID: <span className="font-mono">{c.code || c._id}</span></div>
-                      <div className="text-sm text-slate-500">Email: <span className="font-medium">{c.meta?.primaryEmail || c.meta?.email || '-'}</span></div>
-                      <div className="text-sm text-slate-500">Password: <span className="font-medium font-mono">{revealMap[c._id] ? (c.meta?.adminPassword || '-') : (c.meta?.adminPassword ? '••••••' : '-')}</span> {c.meta?.adminPassword && (<button type="button" onClick={() => toggleReveal(c._id)} className="ml-2 text-xs text-slate-500 hover:text-slate-700">{revealMap[c._id] ? 'Hide' : 'Reveal'}</button>)}</div>
-                    </div>
-                    <div>
-                      <span className={`px-2 py-1 rounded text-sm ${c.status === 'active' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>{c.status === 'active' ? 'Active' : 'Deactive'}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-2">
-                    <div className="text-sm text-slate-600">Modules:</div>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {(c.modules || []).length === 0 ? (
-                        <span className="text-sm text-slate-500">-</span>
-                      ) : (
-                        (c.modules || []).map(m => (
-                          <span key={m} className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-100 capitalize">{m}</span>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex gap-2 items-center">
-                    <button onClick={() => { setSelected(c); setOpenView(true); }} className="p-1 rounded hover:bg-slate-100" aria-label="View company">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => { setSelected(c); setOpenForm(true); }} className="p-1 rounded hover:bg-slate-100" aria-label="Edit company">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => toggleActive(c)} className={`text-sm px-2 py-1 rounded ${c.status === 'active' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-green-50 text-green-600 border border-green-100'}`}>{c.status === 'active' ? 'Deactive' : 'Activate'}</button>
-                  </div>
-                </div>
+          <div className="space-y-2 relative z-10">
+            <div className="flex items-center gap-4 mb-2">
+              <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center text-white shadow-2xl shadow-emerald-200 ring-8 ring-emerald-50">
+                <Building2 size={28} />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold text-slate-800 tracking-tight">Companies</h1>
+                <p className="text-slate-500 font-bold text-lg">Manage tenant organizations.</p>
               </div>
             </div>
-          ))}
+          </div>
+
+          <div className="flex items-center gap-4 relative z-10">
+            <button
+              onClick={() => {
+                setSelected(null);
+                setOpenForm(true);
+              }}
+              className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm uppercase tracking-widest shadow-xl shadow-emerald-200 transition-all hover:-translate-y-1 active:scale-95"
+            >
+              <Plus size={18} /> Add Company
+            </button>
+          </div>
         </div>
 
-        {companies.length === 0 && (
-          <div className="p-4 text-center text-gray-500">No companies found</div>
-        )}
+        {/* Content Card */}
+        <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
 
-        {companies.length > pageSize && (
-          <div className="flex justify-end p-4 border-t">
-            <Pagination
-              current={currentPage}
-              pageSize={pageSize}
-              total={companies.length}
-              onChange={(page) => setCurrentPage(page)}
-              showSizeChanger={false}
-            />
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50/50">
+                <tr>
+                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">ID</th>
+                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Logo</th>
+                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Company</th>
+                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Contact</th>
+                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Access Key</th>
+                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Capabilities</th>
+                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Status</th>
+                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Actions</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-50">
+                {paged.map((c) => (
+                  <tr key={c._id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-8 py-6 text-xs font-bold text-slate-400 font-mono">{c.code || c._id.slice(-6)}</td>
+                    <td className="px-8 py-6">
+                      <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm">
+                        {c.meta?.logo ? (
+                          <img src={(c.meta.logo || '').startsWith('http') ? c.meta.logo : `${API_ORIGIN}${c.meta.logo || ''}`} alt="logo" className="w-full h-full object-contain p-2" />
+                        ) : (
+                          <span className="text-lg font-black text-slate-300">{c.name.charAt(0)}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className="text-sm font-bold text-slate-700">{c.name}</span>
+                    </td>
+                    <td className="px-8 py-6 text-xs font-bold text-slate-500">{c.meta?.primaryEmail || c.meta?.email || '-'}</td>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">
+                          {revealMap[c._id] ? (c.meta?.adminPassword || '-') : (c.meta?.adminPassword ? '••••••' : '-')}
+                        </span>
+                        {c.meta?.adminPassword && (
+                          <button type="button" onClick={() => toggleReveal(c._id)} className="p-1.5 text-slate-400 hover:text-emerald-600 transition-colors">
+                            {revealMap[c._id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex flex-wrap gap-1">
+                        {(c.modules || []).length === 0 ? <span className="text-xs text-slate-400 font-bold">-</span> : (c.modules || []).slice(0, 3).map(m => (
+                          <span key={m} className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white" title={m}></span>
+                        ))}
+                        {(c.modules || []).length > 3 && <span className="text-[10px] font-bold text-slate-400">+{c.modules.length - 3}</span>}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${c.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                        {c.status === 'active' ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+
+                    <td className="px-8 py-6 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => { setSelected(c); setOpenView(true); }} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all" title="View">
+                          <Search size={16} />
+                        </button>
+                        <button onClick={() => { setSelected(c); setOpenForm(true); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" title="Edit">
+                          <Edit2 size={16} />
+                        </button>
+                        <button onClick={() => { setSelected(c); setOpenModules(true); }} className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all" title="Modules">
+                          <Settings size={16} />
+                        </button>
+                        <button onClick={() => toggleActive(c)} className={`p-2 rounded-xl transition-all ${c.status === 'active' ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`} title={c.status === 'active' ? 'Deactivate' : 'Activate'}>
+                          {c.status === 'active' ? <X size={16} /> : <CheckCircle2 size={16} />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
+
+          {/* Mobile / Small: stacked cards */}
+          <div className="md:hidden p-6 space-y-6">
+            {paged.map((c) => (
+              <div key={c._id} className="bg-white border text-center border-slate-100 rounded-xl p-6 shadow-sm relative overflow-hidden">
+                <div className={`absolute top-0 left-0 w-full h-1 ${c.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden">
+                    {c.meta?.logo ? (
+                      <img src={(c.meta.logo || '').startsWith('http') ? c.meta.logo : `${API_ORIGIN}${c.meta.logo || ''}`} alt="logo" className="w-full h-full object-contain p-2" />
+                    ) : (
+                      <span className="text-lg font-black text-slate-300">{c.name.charAt(0)}</span>
+                    )}
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${c.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    {c.status === 'active' ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+
+                <h3 className="text-xl font-bold text-slate-800 mb-1">{c.name}</h3>
+                <p className="text-xs font-bold text-slate-400">{c.meta?.primaryEmail || '-'}</p>
+
+                <div className="grid grid-cols-4 gap-2 mt-6 border-t border-slate-50 pt-6">
+                  <button onClick={() => { setSelected(c); setOpenView(true); }} className="flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-600"><Search size={18} /><span className="text-[10px] font-bold">View</span></button>
+                  <button onClick={() => { setSelected(c); setOpenForm(true); }} className="flex flex-col items-center gap-1 text-slate-400 hover:text-blue-600"><Edit2 size={18} /><span className="text-[10px] font-bold">Edit</span></button>
+                  <button onClick={() => { setSelected(c); setOpenModules(true); }} className="flex flex-col items-center gap-1 text-slate-400 hover:text-purple-600"><Settings size={18} /><span className="text-[10px] font-bold">Config</span></button>
+                  <button onClick={() => toggleActive(c)} className={`flex flex-col items-center gap-1 ${c.status === 'active' ? 'text-slate-400 hover:text-rose-600' : 'text-slate-400 hover:text-emerald-600'}`}>
+                    {c.status === 'active' ? <X size={18} /> : <CheckCircle2 size={18} />}
+                    <span className="text-[10px] font-bold">{c.status === 'active' ? 'Block' : 'Active'}</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {companies.length > pageSize && (
+            <div className="flex justify-center p-8 border-t border-slate-50 bg-slate-50/30">
+              <Pagination
+                current={currentPage}
+                pageSize={pageSize}
+                total={companies.length}
+                onChange={(page) => setCurrentPage(page)}
+                showSizeChanger={false}
+                className="font-bold"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {openForm && (

@@ -80,7 +80,7 @@ export default function LetterDashboard() {
     };
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-500">
+        <div className="space-y-6 w-full mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-500">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -122,7 +122,7 @@ export default function LetterDashboard() {
             </div>
 
             {/* Main Content Area */}
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Recent Letters</h2>
                     <div className="relative w-full sm:max-w-xs">
@@ -240,11 +240,11 @@ export default function LetterDashboard() {
             {selectedLetterId && selectedLetter && (
                 <div className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-start justify-end overflow-y-auto pt-4">
                     {/* Close on background click */}
-                    <div 
+                    <div
                         className="absolute inset-0 cursor-pointer"
                         onClick={handleCloseManagement}
                     />
-                    
+
                     {/* Side Panel */}
                     <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-l-3xl shadow-2xl ml-4 mr-0 my-4 overflow-y-auto max-h-[calc(100vh-2rem)]">
                         {/* Close Button */}
@@ -262,7 +262,7 @@ export default function LetterDashboard() {
 
                         {/* Document Management Panel */}
                         <div className="p-6">
-                            <DocumentManagementPanel 
+                            <DocumentManagementPanel
                                 letter={selectedLetter}
                                 userRole={userRole}
                                 onLetterUpdated={handleLetterUpdated}
