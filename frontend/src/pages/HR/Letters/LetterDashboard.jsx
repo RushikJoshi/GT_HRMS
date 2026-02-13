@@ -9,7 +9,6 @@ import {
 import { formatDateDDMMYYYY } from '../../../utils/dateUtils';
 import { showToast } from '../../../utils/uiNotifications';
 import DocumentManagementPanel from '../../../components/DocumentManagementPanel';
-import { useDocumentManagement } from '../../../hooks/useDocumentManagement';
 
 export default function LetterDashboard() {
     const navigate = useNavigate();
@@ -53,6 +52,10 @@ export default function LetterDashboard() {
     };
 
     const handleLetterUpdated = (updatedLetter) => {
+        if (!updatedLetter?._id) {
+            fetchDashboardData();
+            return;
+        }
         setRecentLetters(recentLetters.map(l => l._id === updatedLetter._id ? updatedLetter : l));
         setSelectedLetter(updatedLetter);
         showToast('success', 'Success', 'Letter updated successfully');

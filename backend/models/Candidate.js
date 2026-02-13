@@ -15,6 +15,13 @@ const CandidateSchema = new mongoose.Schema({
     profilePic: { type: String }, // Path to profile picture
     professionalTier: { type: String, default: 'Technical Leader' }, // New field for profile customization
 
+    // 🔐 Identity Verification Fields (Required for OCR Validation)
+    aadhaarNumber: { type: String, trim: true },
+    panNumber: { type: String, trim: true, uppercase: true },
+
+    // Additional data
+    metadata: { type: Object, default: {} },
+
     // Meta
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }

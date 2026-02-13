@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const bgvController = require('../controllers/bgv.controller');
+const bgvConsentController = require('../controllers/bgvConsent.controller');
+const bgvRiskController = require('../controllers/bgvRisk.controller');
+const bgvTaskController = require('../controllers/bgvTask.controller');
 const { authenticate, authorize } = require('../middleware/auth.jwt');
+const BGVStatusValidator = require('../middleware/bgvStatusValidator');
 const multer = require('multer');
 const path = require('path');
 
@@ -53,12 +57,14 @@ router.get('/case/:id',
 
 router.post('/case/:id/close',
     authorize('hr', 'admin', 'company_admin'),
+    BGVStatusValidator.validateCaseClosureMiddleware,
     bgvController.closeBGV
 );
 
-// Check Verification
+// Check Verification (with status validation)
 router.post('/check/:checkId/verify',
     authorize('hr', 'admin', 'user', 'company_admin'),
+    BGVStatusValidator.validateStatusChangeMiddleware,
     bgvController.verifyCheck
 );
 
@@ -137,10 +143,15 @@ router.post('/check/:checkId/approve-verification',
     bgvEvidenceController.approveVerification
 );
 
-// Document Review
+// Document Review & OCR
 router.post('/document/:documentId/review',
     authorize('hr', 'admin', 'user', 'company_admin'),
     bgvEvidenceController.reviewDocument
+);
+
+router.post('/document/:documentId/reprocess-ocr',
+    authorize('hr', 'admin', 'company_admin'),
+    bgvController.reprocessDocumentOCR
 );
 
 // ============================================
@@ -179,16 +190,138 @@ router.get('/email-template/:emailType',
     bgvEmailController.getEmailTemplateByType
 );
 
-// Create/Update Email Template (Admin only)
+// Create/Update Email Template (Admin/HR)
 router.post('/email-template',
-    authorize('admin', 'company_admin'),
+    authorize('hr', 'admin', 'company_admin'),
     bgvEmailController.createOrUpdateEmailTemplate
+);
+
+// Delete Email Template
+router.delete('/email-template/:id',
+    authorize('hr', 'admin', 'company_admin'),
+    bgvEmailController.deleteEmailTemplate
 );
 
 // Initialize Default Email Templates (Admin/HR - run once)
 router.post('/email-templates/initialize',
     authorize('hr', 'admin', 'company_admin'),
     bgvEmailController.initializeDefaultTemplates
+);
+
+// ============================================
+// 🔐 CONSENT MANAGEMENT ROUTES
+// ============================================
+
+// Capture consent
+router.post('/case/:caseId/consent',
+    bgvConsentController.captureConsent
+);
+
+// Get consent
+router.get('/case/:caseId/consent',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvConsentController.getConsent
+);
+
+// Withdraw consent
+router.post('/case/:caseId/consent/withdraw',
+    bgvConsentController.withdrawConsent
+);
+
+// Validate consent
+router.get('/case/:caseId/consent/validate',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvConsentController.validateConsent
+);
+
+// ============================================
+// 📊 RISK SCORING ROUTES
+// ============================================
+
+// Get risk score
+router.get('/case/:caseId/risk-score',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvRiskController.getRiskScore
+);
+
+// Get risk assessment
+router.get('/case/:caseId/risk-assessment',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvRiskController.getRiskAssessment
+);
+
+// Add discrepancy
+router.post('/check/:checkId/add-discrepancy',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvRiskController.addDiscrepancy
+);
+
+// Add red flag
+router.post('/case/:caseId/add-red-flag',
+    authorize('hr', 'admin', 'company_admin'),
+    bgvRiskController.addRedFlag
+);
+
+// Add green flag
+router.post('/case/:caseId/add-green-flag',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvRiskController.addGreenFlag
+);
+
+// Recalculate risk
+router.post('/case/:caseId/recalculate-risk',
+    authorize('hr', 'admin', 'company_admin'),
+    bgvRiskController.recalculateRisk
+);
+
+// Risk dashboard
+router.get('/risk-dashboard',
+    authorize('hr', 'admin', 'company_admin'),
+    bgvRiskController.getRiskDashboard
+);
+
+// Get discrepancy types
+router.get('/discrepancy-types',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvRiskController.getDiscrepancyTypes
+);
+
+// ============================================
+// 📋 TASK ASSIGNMENT ROUTES
+// ============================================
+
+// Assign task
+router.post('/check/:checkId/assign-task',
+    authorize('hr', 'admin', 'company_admin'),
+    bgvTaskController.assignTask
+);
+
+// Get my tasks
+router.get('/tasks/my-tasks',
+    bgvTaskController.getMyTasks
+);
+
+// Complete task (Maker)
+router.post('/task/:taskId/complete',
+    bgvTaskController.completeTask
+);
+
+// Approve task (Checker)
+router.post('/task/:taskId/approve',
+    authorize('hr', 'admin', 'company_admin'),
+    bgvTaskController.approveTask
+);
+
+// Escalate task
+router.post('/task/:taskId/escalate',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvTaskController.escalateTask
+);
+
+// Get case tasks
+router.get('/case/:caseId/tasks',
+    authorize('hr', 'admin', 'user', 'company_admin'),
+    bgvTaskController.getCaseTasks
 );
 
 module.exports = router;

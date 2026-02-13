@@ -1,8 +1,3 @@
-/**
- * Document Management Panel
- * Complete UI for managing, viewing, and revoking documents
- */
-
 import React, { useState, useCallback } from 'react';
 import LetterStatusBadge from './LetterStatusBadge';
 import RevokeLetterModal from './RevokeLetterModal';
@@ -20,7 +15,6 @@ function DocumentManagementPanel({
     const [showAuditTab, setShowAuditTab] = useState(false);
     const [showRevocationHistory, setShowRevocationHistory] = useState(false);
 
-    // Use the custom hook
     const {
         status,
         auditTrail,
@@ -28,7 +22,6 @@ function DocumentManagementPanel({
         loading,
         error,
         hasAccess,
-        fetchStatus,
         fetchAuditTrail,
         fetchRevocationHistory,
         revoke,
@@ -37,89 +30,70 @@ function DocumentManagementPanel({
         canRevoke,
         canReinstate,
         clearError
-    } = useDocumentManagement(letter._id);
+    } = useDocumentManagement(letter?._id);
 
-    // Handle revocation
-    const handleRevoke = useCallback(async (reason, details) => {
-        try {
-            await revoke(reason, details);
-            setShowRevokeModal(false);
-            if (onLetterUpdated) {
-                onLetterUpdated(letter._id);
-            }
-        } catch (err) {
-            console.error('Revocation error:', err);
-        }
-    }, [letter._id, revoke, onLetterUpdated]);
+    const handleRevoke = useCallback(async ({ reason, reasonDetails }) => {
+        const result = await revoke(reason, reasonDetails || '');
+        setShowRevokeModal(false);
+        if (onLetterUpdated) onLetterUpdated(letter);
+        return result;
+    }, [letter, onLetterUpdated, revoke]);
 
-    // Handle audit trail fetch
     const handleFetchAuditTrail = useCallback(async () => {
-        try {
-            await fetchAuditTrail();
-        } catch (err) {
-            console.error('Error fetching audit trail:', err);
-        }
+        await fetchAuditTrail();
     }, [fetchAuditTrail]);
 
-    // Handle revocation history fetch
     const handleFetchRevocationHistory = useCallback(async () => {
-        try {
-            await fetchRevocationHistory();
-        } catch (err) {
-            console.error('Error fetching revocation history:', err);
-        }
+        await fetchRevocationHistory();
     }, [fetchRevocationHistory]);
 
-    // Check if user can perform actions
-    const canPerformActions = ['hr', 'admin', 'super-admin'].includes(userRole?.toLowerCase());
-    const canPerformReinstate = userRole?.toLowerCase() === 'super-admin';
+    const normalizedRole = (userRole || '').toLowerCase().replace('-', '_');
+    const canPerformActions = ['hr', 'admin', 'super_admin'].includes(normalizedRole);
+    const canPerformReinstate = normalizedRole === 'super_admin';
 
     if (!hasAccess) {
         return (
             <div className="document-panel access-denied">
-                <div className="access-denied-icon">🚫</div>
+                <div className="access-denied-icon">Access Denied</div>
                 <h3>Access Denied</h3>
                 <p>{error || 'You do not have permission to view this document.'}</p>
             </div>
         );
     }
 
+    const revokedByLabel =
+        status?.revokedBy?.name ||
+        status?.revokedBy?.email ||
+        status?.revokedBy ||
+        'N/A';
+
     return (
         <div className="document-management-panel">
-            {/* Header with Status */}
             <div className="document-header">
                 <div className="document-info">
-                    <h2>{letter.letterType || 'Letter'}</h2>
-                    <p className="document-reference">{letter.refNo || 'N/A'}</p>
+                    <h2>{letter?.letterType || 'Letter'}</h2>
+                    <p className="document-reference">{letter?.refNo || 'N/A'}</p>
                 </div>
 
                 <div className="document-status">
                     {status && (
                         <LetterStatusBadge
                             status={status.status}
-                            revokedReason={status.revokedReason}
-                            onStatusClick={() => setShowAuditTab(true)}
+                            isRevoked={status.isRevoked}
+                            revokedReason={status.revocationReason}
+                            onClick={() => setShowAuditTab(true)}
                         />
                     )}
                 </div>
             </div>
 
-            {/* Error Message */}
             {error && (
                 <div className="error-banner">
-                    <span className="error-icon">⚠️</span>
                     <span>{error}</span>
-                    <button
-                        className="error-close"
-                        onClick={clearError}
-                        aria-label="Close error"
-                    >
-                        ✕
-                    </button>
+                    <button className="error-close" onClick={clearError} aria-label="Close error">X</button>
                 </div>
             )}
 
-            {/* Actions */}
             {canPerformActions && (
                 <div className="document-actions">
                     {canRevoke && (
@@ -129,26 +103,23 @@ function DocumentManagementPanel({
                             disabled={loading || !status}
                             title="Revoke this letter"
                         >
-                            {loading ? '⏳ Processing...' : '🚫 Revoke Letter'}
+                            {loading ? 'Processing...' : 'Revoke Letter'}
                         </button>
                     )}
 
-                    {canReinstate && isRevoked && (
+                    {canPerformReinstate && isRevoked && canReinstate && (
                         <button
                             className="btn btn-reinstate"
                             onClick={() => {
-                                // Show reinstatement confirmation
-                                const reason = window.prompt('Reason for reinstatement:');
-                                if (reason !== null) {
-                                    reinstate(status._id, reason).catch(err => {
-                                        alert('Reinstatement failed: ' + err.message);
-                                    });
+                                const reinstatedReason = window.prompt('Reason for reinstatement:');
+                                if (reinstatedReason !== null) {
+                                    reinstate(status.revocationId, reinstatedReason).catch(() => null);
                                 }
                             }}
                             disabled={loading}
                             title="Reinstate this letter (Super-Admin only)"
                         >
-                            {loading ? '⏳ Processing...' : '✅ Reinstate Letter'}
+                            {loading ? 'Processing...' : 'Reinstate Letter'}
                         </button>
                     )}
 
@@ -156,15 +127,14 @@ function DocumentManagementPanel({
                         <button
                             className="btn btn-audit"
                             onClick={() => {
-                                setShowAuditTab(!showAuditTab);
-                                if (!showAuditTab && auditTrail.length === 0) {
-                                    handleFetchAuditTrail();
-                                }
+                                const nextOpen = !showAuditTab;
+                                setShowAuditTab(nextOpen);
+                                if (nextOpen && auditTrail.length === 0) handleFetchAuditTrail();
                             }}
                             disabled={loading}
                             title="View audit trail"
                         >
-                            {loading ? '⏳ Loading...' : '📋 Audit Trail'}
+                            {loading ? 'Loading...' : 'Audit Trail'}
                         </button>
                     )}
 
@@ -172,40 +142,40 @@ function DocumentManagementPanel({
                         <button
                             className="btn btn-history"
                             onClick={() => {
-                                setShowRevocationHistory(!showRevocationHistory);
-                                if (!showRevocationHistory && revocationHistory.length === 0) {
-                                    handleFetchRevocationHistory();
-                                }
+                                const nextOpen = !showRevocationHistory;
+                                setShowRevocationHistory(nextOpen);
+                                if (nextOpen && revocationHistory.length === 0) handleFetchRevocationHistory();
                             }}
                             disabled={loading}
                             title="View revocation history"
                         >
-                            {loading ? '⏳ Loading...' : '⏰ Revocation History'}
+                            {loading ? 'Loading...' : 'Revocation History'}
                         </button>
                     )}
                 </div>
             )}
 
-            {/* Letter Details */}
             <div className="letter-details">
                 <div className="detail-row">
                     <span className="detail-label">Candidate Name:</span>
-                    <span className="detail-value">{letter.candidateName || 'N/A'}</span>
+                    <span className="detail-value">{letter?.candidateName || 'N/A'}</span>
                 </div>
 
                 <div className="detail-row">
                     <span className="detail-label">Position:</span>
-                    <span className="detail-value">{letter.position || 'N/A'}</span>
+                    <span className="detail-value">{letter?.position || 'N/A'}</span>
                 </div>
 
                 <div className="detail-row">
                     <span className="detail-label">Department:</span>
-                    <span className="detail-value">{letter.department || 'N/A'}</span>
+                    <span className="detail-value">{letter?.department || 'N/A'}</span>
                 </div>
 
                 <div className="detail-row">
                     <span className="detail-label">Salary:</span>
-                    <span className="detail-value">{letter.salary ? `₹${parseInt(letter.salary).toLocaleString('en-IN')}` : 'N/A'}</span>
+                    <span className="detail-value">
+                        {letter?.salary ? `INR ${parseInt(letter.salary, 10).toLocaleString('en-IN')}` : 'N/A'}
+                    </span>
                 </div>
 
                 {status?.revokedAt && (
@@ -225,40 +195,38 @@ function DocumentManagementPanel({
 
                         <div className="detail-row revoked-info">
                             <span className="detail-label">Revoked By:</span>
-                            <span className="detail-value">{status.revokedBy || 'N/A'}</span>
+                            <span className="detail-value">{revokedByLabel}</span>
                         </div>
 
-                        {status.revokedReason && (
+                        {status.revocationReason && (
                             <div className="detail-row revoked-info">
                                 <span className="detail-label">Reason:</span>
-                                <span className="detail-value">{status.revokedReason}</span>
+                                <span className="detail-value">{status.revocationReason}</span>
                             </div>
                         )}
 
-                        {status.revokedDetails && (
+                        {status.revocationDetails && (
                             <div className="detail-row revoked-info">
                                 <span className="detail-label">Details:</span>
-                                <span className="detail-value">{status.revokedDetails}</span>
+                                <span className="detail-value">{status.revocationDetails}</span>
                             </div>
                         )}
                     </>
                 )}
             </div>
 
-            {/* Audit Trail Section */}
             {showAuditTab && showAuditTrail && (
                 <DocumentAuditTrail
-                    documentId={letter._id}
+                    documentId={letter?._id}
                     auditTrail={auditTrail}
                     loading={loading}
                     onRefresh={handleFetchAuditTrail}
                 />
             )}
 
-            {/* Revocation History Section */}
             {showRevocationHistory && isRevoked && (
                 <div className="revocation-history-container">
-                    <h3>⏰ Revocation History</h3>
+                    <h3>Revocation History</h3>
                     {loading ? (
                         <div className="loading">Loading...</div>
                     ) : revocationHistory.length === 0 ? (
@@ -269,8 +237,14 @@ function DocumentManagementPanel({
                                 <div key={event._id || index} className="history-item">
                                     <div className="history-status">{event.status}</div>
                                     <div className="history-details">
-                                        <p><strong>By:</strong> {event.revokedBy || event.reinstatedBy || 'N/A'}</p>
-                                        <p><strong>Date:</strong> {new Date(event.createdAt).toLocaleDateString('en-IN')}</p>
+                                        <p>
+                                            <strong>By:</strong>{' '}
+                                            {event.revokedBy?.name || event.reinstatedBy?.name || event.revokedBy || event.reinstatedBy || 'N/A'}
+                                        </p>
+                                        <p>
+                                            <strong>Date:</strong>{' '}
+                                            {new Date(event.createdAt || event.revokedAt).toLocaleDateString('en-IN')}
+                                        </p>
                                         {event.reason && <p><strong>Reason:</strong> {event.reason}</p>}
                                     </div>
                                 </div>
@@ -280,13 +254,14 @@ function DocumentManagementPanel({
                 </div>
             )}
 
-            {/* Revoke Modal */}
             {showRevokeModal && (
                 <RevokeLetterModal
-                    isOpen={true}
-                    letterId={letter._id}
-                    letterType={letter.letterType}
-                    candidateName={letter.candidateName}
+                    isOpen
+                    letterData={{
+                        recipientName: letter?.candidateName || letter?.employeeId?.firstName || 'N/A',
+                        position: letter?.position,
+                        letterType: letter?.letterType
+                    }}
                     onConfirm={handleRevoke}
                     onClose={() => setShowRevokeModal(false)}
                 />

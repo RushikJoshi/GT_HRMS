@@ -29,9 +29,11 @@ const BGV_PACKAGES = {
     }
 };
 
-const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) => {
+const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null, preselectedEmployee = null }) => {
     const [applicants, setApplicants] = useState([]);
-    const [selectedApplicant, setSelectedApplicant] = useState(preselectedApplicant?.id || '');
+    const [employees, setEmployees] = useState([]);
+    const [mode, setMode] = useState(preselectedEmployee ? 'EMPLOYEE' : 'APPLICANT');
+    const [selectedId, setSelectedId] = useState(preselectedEmployee?._id || preselectedApplicant?.id || '');
     const [selectedPackage, setSelectedPackage] = useState('STANDARD');
     const [slaDays, setSlaDays] = useState(7);
     const [loading, setLoading] = useState(false);
@@ -39,39 +41,51 @@ const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) =
 
     useEffect(() => {
         fetchApplicants();
+        fetchEmployees();
     }, []);
 
     const fetchApplicants = async () => {
         try {
-            // Fetch applicants who don't have BGV initiated yet
-            const res = await api.get('/applicants', {
-                params: {
-                    status: 'Selected', // Or appropriate status
-                    limit: 100
-                }
-            });
-            setApplicants(res.data.data || []);
+            const res = await api.get('/requirements/applicants');
+            const data = Array.isArray(res.data) ? res.data : (res.data.data || []);
+            setApplicants(data);
         } catch (err) {
             console.error('Failed to fetch applicants:', err);
-            showToast('error', 'Error', 'Failed to load applicants');
+        }
+    };
+
+    const fetchEmployees = async () => {
+        try {
+            const res = await api.get('/hr/employees');
+            const data = Array.isArray(res.data) ? res.data : (res.data.data || []);
+            setEmployees(data);
+        } catch (err) {
+            console.error('Failed to fetch employees:', err);
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!selectedApplicant) {
-            showToast('error', 'Error', 'Please select an applicant');
+        if (!selectedId) {
+            showToast('error', 'Error', `Please select an ${mode.toLowerCase()}`);
             return;
         }
 
         setLoading(true);
         try {
-            await api.post('/bgv/initiate', {
-                applicationId: selectedApplicant,
+            const payload = {
                 package: selectedPackage,
                 slaDays
-            });
+            };
+
+            if (mode === 'APPLICANT') {
+                payload.applicationId = selectedId;
+            } else {
+                payload.employeeId = selectedId;
+            }
+
+            await api.post('/bgv/initiate', payload);
 
             showToast('success', 'Success', 'BGV initiated successfully');
             onSuccess();
@@ -83,10 +97,23 @@ const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) =
         }
     };
 
-    const filteredApplicants = applicants.filter(app =>
-        app.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredList = (mode === 'APPLICANT' ? applicants : employees)
+        .filter(item => {
+            const name = mode === 'APPLICANT' ? item.name : `${item.firstName} ${item.lastName}`;
+            const email = item.email;
+            return name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                email?.toLowerCase().includes(searchQuery.toLowerCase());
+        })
+        .filter(item => item.bgvStatus === 'NOT_INITIATED' || !item.bgvStatus);
+
+    const alreadyInitiated = (mode === 'APPLICANT' ? applicants : employees)
+        .filter(item => {
+            const name = mode === 'APPLICANT' ? item.name : `${item.firstName} ${item.lastName}`;
+            const email = item.email;
+            return name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                email?.toLowerCase().includes(searchQuery.toLowerCase());
+        })
+        .filter(item => item.bgvStatus && item.bgvStatus !== 'NOT_INITIATED');
 
     const getPackageColor = (color) => {
         const colors = {
@@ -107,8 +134,8 @@ const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) =
                             <Shield size={28} className="text-white" />
                         </div>
                         <div>
-                            <h2 className="text-2xl font-black text-white">Initiate Background Verification</h2>
-                            <p className="text-blue-100 text-sm mt-1">Select candidate and verification mode</p>
+                            <h2 className="text-2xl font-black text-white">Initiate BGV</h2>
+                            <p className="text-blue-100 text-sm mt-1">Select {mode.toLowerCase()} and verification mode</p>
                         </div>
                     </div>
                     <button
@@ -121,56 +148,117 @@ const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) =
 
                 {/* Content */}
                 <form onSubmit={handleSubmit} className="p-8 overflow-y-auto max-h-[calc(90vh-120px)]">
-                    {/* Step 1: Select Applicant */}
+                    {/* Mode Toggle */}
+                    <div className="flex p-1 bg-slate-100 rounded-xl mb-6">
+                        <button
+                            type="button"
+                            onClick={() => { setMode('APPLICANT'); setSelectedId(''); }}
+                            className={`flex-1 py-2.5 rounded-lg font-black text-sm transition-all ${mode === 'APPLICANT' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Applicants
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setMode('EMPLOYEE'); setSelectedId(''); }}
+                            className={`flex-1 py-2.5 rounded-lg font-black text-sm transition-all ${mode === 'EMPLOYEE' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Existing Employees
+                        </button>
+                    </div>
+
+                    {/* Step 1: Selection */}
                     <div className="mb-8">
-                        <label className="block text-sm font-black text-slate-700 uppercase tracking-wide mb-3">
-                            <User size={16} className="inline mr-2" />
-                            Step 1: Select Candidate
+                        <label className="block text-sm font-black text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">1</div>
+                            Step 1: Select {mode === 'APPLICANT' ? 'Candidate' : 'Employee'}
                         </label>
 
-                        {/* Search */}
-                        <input
-                            type="text"
-                            placeholder="Search by name or email..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl mb-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
-                        />
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <User className="h-5 w-5 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
+                            </div>
+                            <input
+                                type="text"
+                                placeholder={`Search ${mode.toLowerCase()} by name or email...`}
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    if (selectedId) setSelectedId('');
+                                }}
+                                className="w-full pl-11 pr-4 py-4 border-2 border-slate-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none text-lg font-medium shadow-sm hover:border-slate-300"
+                            />
 
-                        {/* Applicants List */}
-                        <div className="border-2 border-slate-200 rounded-xl max-h-60 overflow-y-auto">
-                            {filteredApplicants.length === 0 ? (
-                                <div className="p-8 text-center text-slate-400">
-                                    <User size={48} className="mx-auto mb-2 opacity-50" />
-                                    <p>No applicants found</p>
+                            {selectedId && (
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-1.5 rounded-full border border-emerald-200 animate-in fade-in zoom-in duration-300">
+                                    <CheckCircle size={16} />
+                                    <span className="text-sm font-bold uppercase tracking-tight">Selected</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* List */}
+                        <div className="mt-2 border-2 border-slate-100 rounded-2xl max-h-72 overflow-y-auto shadow-inner bg-slate-50/30">
+                            {filteredList.length === 0 && alreadyInitiated.length === 0 ? (
+                                <div className="p-12 text-center text-slate-400 animate-pulse">
+                                    <User size={48} className="mx-auto mb-3 opacity-30" />
+                                    <p className="font-medium">No results found</p>
                                 </div>
                             ) : (
-                                filteredApplicants.map((app) => (
-                                    <label
-                                        key={app._id}
-                                        className={`flex items-center gap-4 p-4 border-b border-slate-100 cursor-pointer hover:bg-blue-50 transition-all ${selectedApplicant === app._id ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''
-                                            }`}
-                                    >
-                                        <input
-                                            type="radio"
-                                            name="applicant"
-                                            value={app._id}
-                                            checked={selectedApplicant === app._id}
-                                            onChange={(e) => setSelectedApplicant(e.target.value)}
-                                            className="w-5 h-5 text-blue-600"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="font-bold text-slate-900">{app.name}</div>
-                                            <div className="text-sm text-slate-500">{app.email}</div>
-                                            {app.requirementId?.jobTitle && (
-                                                <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                                                    <Briefcase size={12} />
-                                                    {app.requirementId.jobTitle}
+                                <div className="p-2 space-y-1">
+                                    {filteredList.map((item) => {
+                                        const name = mode === 'APPLICANT' ? item.name : `${item.firstName} ${item.lastName}`;
+                                        return (
+                                            <div
+                                                key={item._id}
+                                                onClick={() => {
+                                                    setSelectedId(item._id);
+                                                    setSearchQuery(name);
+                                                }}
+                                                className={`flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all border-2 ${selectedId === item._id
+                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200 translate-x-1'
+                                                    : 'bg-white border-transparent hover:border-blue-200 hover:bg-blue-50/50 hover:translate-x-1'
+                                                    }`}
+                                            >
+                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-xl shadow-sm ${selectedId === item._id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {name?.[0]?.toUpperCase()}
                                                 </div>
-                                            )}
-                                        </div>
-                                    </label>
-                                ))
+                                                <div className="flex-1">
+                                                    <div className="font-black text-lg leading-tight">{name}</div>
+                                                    <div className={`text-sm ${selectedId === item._id ? 'text-blue-100' : 'text-slate-500'}`}>
+                                                        {item.email}
+                                                    </div>
+                                                    {mode === 'EMPLOYEE' && item.employeeId && (
+                                                        <div className={`text-[10px] font-black uppercase tracking-widest mt-1 ${selectedId === item._id ? 'text-blue-200' : 'text-blue-600'}`}>ID: {item.employeeId}</div>
+                                                    )}
+                                                </div>
+                                                {selectedId === item._id && (
+                                                    <CheckCircle size={28} className="text-white animate-in zoom-in duration-300" />
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+
+                                    {alreadyInitiated.map((item) => {
+                                        const name = mode === 'APPLICANT' ? item.name : `${item.firstName} ${item.lastName}`;
+                                        return (
+                                            <div
+                                                key={item._id}
+                                                className="flex items-center gap-4 p-4 rounded-xl opacity-60 bg-slate-100 border-2 border-transparent grayscale select-none"
+                                            >
+                                                <div className="w-12 h-12 rounded-full flex items-center justify-center font-black text-xl bg-slate-200 text-slate-400">
+                                                    {name?.[0]?.toUpperCase()}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="font-black text-lg leading-tight text-slate-500">{name}</div>
+                                                    <div className="text-sm text-slate-400">{item.email}</div>
+                                                </div>
+                                                <div className="bg-slate-300 text-slate-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">
+                                                    Already Started
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -314,7 +402,7 @@ const InitiateBGVModal = ({ onClose, onSuccess, preselectedApplicant = null }) =
                         </button>
                         <button
                             type="submit"
-                            disabled={loading || !selectedApplicant}
+                            disabled={loading || !selectedId}
                             className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                         >
                             {loading ? (

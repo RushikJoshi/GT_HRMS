@@ -78,9 +78,17 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const BGVEmailTemplateSchema = require("../models/BGVEmailTemplate");
     const BGVReportSchema = require("../models/BGVReport");
     const BGVTimelineSchema = require("../models/BGVTimeline");
+    const BGVDocumentSchema = require("../models/BGVDocument");
+    const BGVConsentSchema = require("../models/BGVConsent");
+    const BGVRiskScoreSchema = require("../models/BGVRiskScore");
+    const BGVTaskAssignmentSchema = require("../models/BGVTaskAssignment");
     const VendorRegistrationSchema = require("../models/vendor.model.js");
     const VendorBankDetailsSchema = require("../models/vendorBank.model.js");
     const VendorFormConfigSchema = require("../models/VendorFormConfig.model.js");
+    const DocumentAuditSchema = require("../models/DocumentAudit");
+    const DocumentAccessSchema = require("../models/DocumentAccess");
+    const LetterRevocationSchema = require("../models/LetterRevocation");
+    const DocumentViewConfigSchema = require("../models/DocumentViewConfig");
 
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
@@ -148,17 +156,26 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("CompanyIdConfig", CompanyIdConfigSchema);
 
     // BGV Models
+    register("BGVDocument", BGVDocumentSchema);
     register("BGVCase", BGVCaseSchema);
     register("BGVCheck", BGVCheckSchema);
     register("BGVEmailLog", BGVEmailLogSchema);
     register("BGVEmailTemplate", BGVEmailTemplateSchema);
     register("BGVReport", BGVReportSchema);
     register("BGVTimeline", BGVTimelineSchema);
+    register("BGVEvidenceConfig", require("../models/BGVEvidenceConfig"));
+    register("BGVConsent", BGVConsentSchema);
+    register("BGVRiskScore", BGVRiskScoreSchema);
+    register("BGVTaskAssignment", BGVTaskAssignmentSchema);
 
     // Vendor Models
     register("VendorRegistration", VendorRegistrationSchema);
     register("VendorBankDetails", VendorBankDetailsSchema);
     register("VendorFormConfig", VendorFormConfigSchema);
+    register("DocumentAudit", DocumentAuditSchema);
+    register("DocumentAccess", DocumentAccessSchema);
+    register("LetterRevocation", LetterRevocationSchema);
+    register("DocumentViewConfig", DocumentViewConfigSchema);
 
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {
