@@ -78,6 +78,7 @@ import VendorCustomization from '../pages/HR/Customization/Vendor/VendorCustomiz
 
 // Settings
 import CompanySettings from '../pages/settings/CompanySettings';
+import SocialMediaPage from '../pages/settings/SocialMediaPage';
 
 // Payroll
 import SalaryComponents from '../pages/HR/Payroll/SalaryComponents';
@@ -274,6 +275,7 @@ export default function AppRoutes() {
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
+                <Route path="settings/social-media" element={<SocialMediaPage />} />
 
                 {/* Global inside Tenant */}
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
@@ -354,6 +356,7 @@ export default function AppRoutes() {
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
+                <Route path="settings/social-media" element={<SocialMediaPage />} />
 
                 {/* Global inside HR */}
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
