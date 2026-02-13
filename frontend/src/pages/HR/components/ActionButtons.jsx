@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, XCircle, Clock, Calendar, ArrowRight, ShieldCheck, UserCheck, Play } from 'lucide-react';
+import { Clock, Calendar, ArrowRight } from 'lucide-react';
 import MoveToRoundDropdown from '../CandidateStatusTracker/MoveToRoundDropdown';
 import { normalizeStatus, DEFAULT_PIPELINE } from '../PipelineStatusManager';
 
@@ -34,7 +34,7 @@ export default function ActionButtons({
   if (hasMovedPast(stage)) {
     return (
       <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center gap-2 text-blue-700 text-[10px] font-black uppercase tracking-widest animate-in fade-in zoom-in duration-300">
-        <UserCheck size={16} />
+        <span className="text-sm">✅</span>
         {applicant.status === 'Selected' ? 'SELECTED' : applicant.status.toUpperCase()}
       </div>
     );
@@ -48,14 +48,14 @@ export default function ActionButtons({
           onClick={() => onReject(applicant)}
           className="flex-1 py-3 px-4 bg-white border border-rose-100 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:border-rose-200 shadow-sm hover:shadow-rose-100 transition-all active:scale-95 flex items-center justify-center gap-2"
         >
-          <XCircle size={16} />
+          <span className="text-sm">❌</span>
           Reject
         </button>
         <button
           onClick={() => onShortlist(applicant)}
           className="flex-1 py-3 px-4 bg-blue-600 border border-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 hover:shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2"
         >
-          <CheckCircle size={16} />
+          <span className="text-sm">✅</span>
           Shortlist
         </button>
       </div>
@@ -90,7 +90,7 @@ export default function ActionButtons({
           onClick={() => onProceed(applicant)}
           className="py-3 px-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 hover:shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-2"
         >
-          <Play size={14} fill="currentColor" />
+          <span className="text-sm">▶</span>
           Proceed
         </button>
 
@@ -98,7 +98,7 @@ export default function ActionButtons({
           onClick={() => onReject(applicant)}
           className="py-3 px-4 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 hover:border-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2"
         >
-          <XCircle size={14} />
+          <span className="text-sm">❌</span>
           Reject
         </button>
 
@@ -115,7 +115,7 @@ export default function ActionButtons({
   if (stage === 'Finalized') {
     return (
       <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center gap-2 text-emerald-700 text-[10px] font-black uppercase tracking-widest">
-        <ShieldCheck size={16} />
+        <span className="text-sm">✅</span>
         {applicant.status === 'Selected' ? 'SELECTED' : 'FINALIZED'}
       </div>
     );

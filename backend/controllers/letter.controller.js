@@ -1485,9 +1485,16 @@ exports.generateJoiningLetter = async (req, res) => {
             generatedRefNo = appointmentIdResult.id;
             console.log('✅ [JOINING LETTER] Generated Reference Number:', generatedRefNo);
         } catch (idErr) {
-            console.warn("⚠️ [JOINING LETTER] Could not generate reference number:", idErr.message);
-            console.error("⚠️ [JOINING LETTER] ID Generation Error Stack:", idErr.stack);
-            generatedRefNo = `APPT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(5, '0')}`;
+            console.error("❌ [JOINING LETTER] CRITICAL: ID Generation Failed:", idErr.message);
+            console.error("❌ [JOINING LETTER] Stack:", idErr.stack);
+
+            // If explicit refNo was provided by user, we can proceed, otherwise we MUST fail
+            // so the user knows configuration is broken instead of getting a random ID.
+            if (!refNo) {
+                console.error("❌ [JOINING LETTER] Aborting generation because no sequence could be generated and no manual Ref No was provided.");
+                throw new Error(`Reference Number Generation Failed: ${idErr.message}. Please check Document Sequence settings for APPT.`);
+            }
+            generatedRefNo = refNo;
         }
 
         // A. Basic Placeholders
@@ -1748,142 +1755,145 @@ exports.generateOfferLetter = async (req, res) => {
         let templateType = template.templateType;
         let pdfFileName; // Store filename for database
 
+        // --- UNIFIED DATA PREPARATION (v4.0) ---
+        // 3. Prepare Data - FETCH FROM EmployeeSalarySnapshot (Single Source of Truth)
+        const EmployeeSalarySnapshot = req.tenantDB.model('EmployeeSalarySnapshot');
+
+        console.log('🔍 [OFFER LETTER] Fetching snapshot from database...');
+        const query = { applicant: applicantId };
+        let snapshot = await EmployeeSalarySnapshot.findOne(query).sort({ createdAt: -1 }).lean();
+
+        if (snapshot) {
+            console.log('✅ [OFFER LETTER] Found DB Snapshot:', { id: snapshot._id, locked: snapshot.locked, ctc: snapshot.ctc });
+        } else {
+            console.warn('⚠️ [OFFER LETTER] No salary snapshot found for applicant:', applicantId);
+        }
+
+        const safeString = (val) => (val !== undefined && val !== null ? String(val) : '');
+        const finalFatherName = safeString(fatherName || applicant.fatherName);
+        const validIssueDate = issueDate ? new Date(issueDate) : new Date();
+        const issuedDate = formatCustomDate(validIssueDate, dateFormat);
+        const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)}`;
+        const finalDearName = `${salutation ? salutation + ' ' : ''}${safeString(dearName || name || applicant.name)}`;
+
+        // Generate Ref No if not provided
+        let finalRefNo = refNo;
+        if (!finalRefNo) {
+            try {
+                const companyIdConfig = require('./companyIdConfig.controller');
+                const { CompanyProfile } = getModels(req);
+                const companyProfile = await CompanyProfile.findOne({ tenantId: req.user.tenantId });
+                const companyCode = companyProfile?.companyCode || 'GTPL';
+                const branchCode = companyProfile?.branchCode || 'AHM';
+                const deptName = applicant.requirementId?.department?.name || 'GEN';
+                const deptCode = deptName.substring(0, 3).toUpperCase();
+
+                const idResult = await companyIdConfig.generateIdInternal({
+                    tenantId: req.user.tenantId,
+                    entityType: 'OFFER',
+                    increment: false,
+                    extraReplacements: { '{{COMPANY}}': companyCode, '{{BRANCH}}': branchCode, '{{DEPT}}': deptCode }
+                });
+                finalRefNo = idResult.id;
+                console.log('✅ [OFFER LETTER] Auto-generated ref for letter:', finalRefNo);
+            } catch (err) { console.warn('⚠️ [OFFER LETTER] ID Gen failed:', err.message); }
+        }
+
+        const initialOfferData = {
+            employee_name: fullName,
+            candidate_name: fullName,
+            name: fullName,
+            father_name: finalFatherName,
+            fatherName: finalFatherName,
+            designation: safeString(applicant.requirementId?.jobTitle || applicant.currentDesignation),
+            position: safeString(applicant.requirementId?.jobTitle || applicant.currentDesignation),
+            joining_date: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
+            joiningDate: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
+            location: safeString(location || applicant.location || applicant.workLocation),
+            work_location: safeString(location || applicant.location || applicant.workLocation),
+            address: safeString(address || applicant.address),
+            candidate_address: safeString(address || applicant.address),
+            offer_ref_no: safeString(finalRefNo),
+            refNo: safeString(finalRefNo),
+            ref_no: safeString(finalRefNo),
+            reference_number: safeString(finalRefNo),
+            refNumber: safeString(finalRefNo),
+            ref_number: safeString(finalRefNo),
+            offerRefCode: safeString(finalRefNo),
+            offer_ref_code: safeString(finalRefNo),
+            offer_id: safeString(finalRefNo),
+            reference: safeString(finalRefNo),
+            ref: safeString(finalRefNo),
+            letter_ref: safeString(finalRefNo),
+            issued_date: issuedDate,
+            issuedDate: issuedDate,
+            current_date: issuedDate,
+            issue_date: issuedDate,
+            Date: issuedDate,
+            dear_name: finalDearName,
+            DearName: finalDearName,
+            dear_name_only: safeString(dearName || name || applicant.name)
+        };
+
+        // Calculate salary totals for patches
+        let salaryTotals = {};
+        if (snapshot) {
+            const earnings = (snapshot.earnings || []).map(e => ({
+                ...e,
+                monthly: e.monthlyAmount || e.monthly || 0,
+                yearly: e.yearlyAmount || e.yearly || (e.monthlyAmount * 12) || 0
+            }));
+            const deducons = (snapshot.employeeDeductions || snapshot.deductions || []).map(d => ({
+                ...d,
+                monthly: d.monthlyAmount || d.monthly || 0,
+                yearly: d.yearlyAmount || d.yearly || (d.monthlyAmount * 12) || 0
+            }));
+            const benefits = (snapshot.benefits || []).map(b => ({
+                ...b,
+                monthly: b.monthlyAmount || b.monthly || 0,
+                yearly: b.yearlyAmount || b.yearly || (b.monthlyAmount * 12) || 0
+            }));
+
+            const grossAAnnual = snapshot.summary?.grossEarnings || earnings.reduce((sum, e) => sum + e.yearly, 0);
+            const totalBenefitsAnnual = snapshot.summary?.totalBenefits || benefits.reduce((sum, b) => sum + b.yearly, 0);
+            const totalDeductionsAnnual = snapshot.summary?.totalDeductions || deducons.reduce((sum, d) => sum + d.yearly, 0);
+            const totalCTCAnnual = snapshot.ctc || (grossAAnnual + totalBenefitsAnnual);
+            const netAnnual = snapshot.summary?.netPay || (grossAAnnual - totalDeductionsAnnual);
+
+            salaryTotals = {
+                grossA: { monthly: Math.round(grossAAnnual / 12), yearly: Math.round(grossAAnnual) },
+                computedCTC: { monthly: Math.round(totalCTCAnnual / 12), yearly: Math.round(totalCTCAnnual) },
+                netSalary: { monthly: Math.round(netAnnual / 12), yearly: Math.round(netAnnual) }
+            };
+        }
+
+        const offerData = applyUniversalSalaryPatches(initialOfferData, snapshot, salaryTotals);
+        // ----------------------------------------
+
         if (template.templateType === 'WORD') {
-            // Handle Word template processing
-            console.log('🔥 [OFFER LETTER] Processing Word template (Sync using LibreOffice)');
+            console.log('🔥 [OFFER LETTER] Processing Word template');
 
             if (!template.filePath) {
-                console.error('❌ [OFFER LETTER] Template filePath is missing in database');
-                return res.status(400).json({
-                    message: "Template file path is missing. Please re-upload the template.",
-                    code: "FILE_PATH_MISSING"
-                });
+                return res.status(400).json({ message: "Template filePath missing" });
             }
 
-            // Normalize file path
             const normalizedFilePath = normalizeFilePath(template.filePath);
-            console.log('🔥 [OFFER LETTER] Original filePath:', template.filePath);
-            console.log('🔥 [OFFER LETTER] Normalized filePath:', normalizedFilePath);
-
             if (!fs.existsSync(normalizedFilePath)) {
-                console.error('❌ [OFFER LETTER] Template file NOT FOUND at path:', normalizedFilePath);
-                return res.status(404).json({
-                    message: "Word template file not found on server. Please re-upload the template.",
-                    code: "FILE_NOT_FOUND"
-                });
+                return res.status(404).json({ message: "Template file not found" });
             }
 
-            console.log('✅ [OFFER LETTER] Template file found, reading...');
             const content = await fsPromises.readFile(normalizedFilePath);
-
-            // Initialize Docxtemplater
             const zip = new PizZip(content);
             const doc = new Docxtemplater(zip, {
                 paragraphLoop: true,
                 linebreaks: true,
-                nullGetter: function (tag) { return ''; },
+                nullGetter: () => '',
                 delimiters: { start: '{{', end: '}}' }
             });
 
-            // Prepare data using inputs from Modal + Applicant DB
-            const safeString = (val) => (val !== undefined && val !== null ? String(val) : '');
-
-            // Get father name with priority: Modal Input -> DB
-            const finalFatherName = safeString(fatherName || applicant.fatherName);
-            console.log('🔥 [OFFER LETTER] Father name source:', {
-                fromModal: fatherName,
-                fromDB: applicant.fatherName,
-                final: finalFatherName
-            });
-
-            // Extract placeholders for debugging
-            const docPlaceholders = await extractPlaceholders(normalizedFilePath);
-            console.log('🔍 [OFFER LETTER] Placeholders found in template:', docPlaceholders);
-
-            // Get issued date - From Modal or TODAY's date
-            // Format: Do MMM. YYYY (e.g., "16th Jan. 2026")
-            // Format: Based on user selection
-            const validIssueDate = issueDate ? new Date(issueDate) : new Date();
-            const issuedDate = formatCustomDate(validIssueDate, dateFormat);
-            console.log('📅 [OFFER LETTER] Issued Date set to:', issuedDate, 'Format:', dateFormat);
-
-            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)}`;
-            // Construct Dear Name: "Ms. Rima" if user entered "Rima"
-            const finalDearName = `${salutation ? salutation + ' ' : ''}${safeString(dearName || name || applicant.name)}`;
-
-            console.log('👤 [OFFER LETTER] Full Name constructed:', fullName);
-            console.log('👤 [OFFER LETTER] Dear Name constructed:', finalDearName);
-
-            const offerData = {
-                employee_name: fullName,
-                candidate_name: fullName,
-                name: fullName,
-                Name: fullName,
-                NAME: fullName,
-                ApplicantName: fullName,
-                CandidateName: fullName,
-
-                // Father name - support multiple placeholder variations
-                father_name: finalFatherName,
-                father_names: finalFatherName,
-                fatherName: finalFatherName,
-                fatherNames: finalFatherName,
-                FATHER_NAME: finalFatherName,
-                FATHER_NAMES: finalFatherName,
-
-                designation: safeString(applicant.requirementId?.jobTitle || applicant.currentDesignation),
-                // Joining Date: HR Input (Modal) -> Applicant DB (Fallback)
-                // Joining Date: Force format even if DB has ISO string
-                joining_date: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
-                joiningDate: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
-                JOINING_DATE: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
-
-                // Location: HR Input (Modal) -> Applicant DB (Fallback)
-                location: safeString(location || applicant.location || applicant.workLocation),
-
-                // Address: Priority -> Modal Input (address) -> Database (applicant.address)
-                address: safeString(address || applicant.address),
-                candidate_address: safeString(address || applicant.address),
-                // Ref No: HR Input (Modal) ONLY
-                offer_ref_no: safeString(refNo),
-                refNo: safeString(refNo),
-
-                // Issued Date - support multiple placeholder variations
-                issued_date: issuedDate,
-                issuedDate: issuedDate, // CamelCase alias
-                ISSUED_DATE: issuedDate, // Uppercase alias
-                Date: issuedDate,
-                DATE: issuedDate,
-                today: issuedDate,
-                Today: issuedDate,
-                current_date: issuedDate,
-                issue_date: issuedDate,
-                ISSUE_DATE: issuedDate,
-
-                // Specific "Dear X" placeholder
-                dear_name: finalDearName,
-                DearName: finalDearName,
-                dear_name_only: safeString(dearName || name || applicant.name) // Without Ms./Mr.
-            };
-
-            const issuedDateStr = issuedDate;
-            const finalSalutation = salutation;
-            const candidateNameWithSalutation = fullName;
-
-            console.log('🔥 [OFFER LETTER] Word template data:', offerData);
-            console.log('📅 [OFFER LETTER] Issue Date:', issuedDateStr);
-            console.log('👤 [OFFER LETTER] Salutation:', finalSalutation);
-            console.log('👤 [OFFER LETTER] Candidate Name (with salutation):', candidateNameWithSalutation);
-            console.log('📋 [OFFER LETTER] All Date Placeholders:', {
-                issued_date: issuedDateStr,
-                Date_odt: issuedDateStr,
-                Date: issuedDateStr
-            });
-
-            // Render the document
+            console.log('🔥 [OFFER LETTER] Rendering Word with data:', Object.keys(offerData).length, 'keys');
             doc.render(offerData);
 
-            // Generate DOCX output
             const buf = doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
             const fileName = `Offer_Letter_${applicantId}_${Date.now()}`;
             const outputDir = path.join(__dirname, '../uploads/offers');
@@ -1892,84 +1902,34 @@ exports.generateOfferLetter = async (req, res) => {
             const docxPath = path.join(outputDir, `${fileName}.docx`);
             await fsPromises.writeFile(docxPath, buf);
 
-            // --- SYNCHRONOUS PDF CONVERSION ---
             try {
-                console.log('🔄 [OFFER LETTER] Starting Synchronous PDF Conversion...');
                 const libreOfficeService = require('../services/LibreOfficeService');
-
                 const pdfAbsolutePath = libreOfficeService.convertToPdfSync(docxPath, outputDir);
                 pdfFileName = path.basename(pdfAbsolutePath);
-
                 relativePath = `offers/${pdfFileName}`;
                 downloadUrl = `/uploads/${relativePath}`;
-
-                console.log('✅ [OFFER LETTER] PDF Conversion Successful:', downloadUrl);
-
             } catch (pdfError) {
-                console.error('⚠️ [OFFER LETTER] PDF Conversion Failed:', pdfError.message);
-                return res.status(500).json({
-                    message: "PDF Generation Failed. Please ensure LibreOffice is installed.",
-                    error: pdfError.message
-                });
+                return res.status(500).json({ message: "PDF Generation Failed", error: pdfError.message });
             }
 
         } else {
-            // Handle HTML template processing (Now using LibreOffice)
-            console.log('🔥 [OFFER LETTER] Processing HTML template (Sync using LibreOffice)');
-
-            const safeString = (val) => (val !== undefined && val !== null ? String(val) : '');
-            const finalFatherName = safeString(fatherName || applicant.fatherName);
-
-            // Get issued date - From Modal or TODAY
-            const validIssueDate = issueDate ? new Date(issueDate) : new Date();
-            const issuedDate = formatCustomDate(validIssueDate, dateFormat);
-            const issuedDateStr = issuedDate;
-
-            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)}`;
-
-            const replacements = {
-                '{{employee_name}}': fullName,
-                '{{candidate_name}}': fullName,
-                '{{father_name}}': finalFatherName,
-                '{{father_names}}': finalFatherName,
-                '{{designation}}': safeString(applicant.requirementId?.jobTitle || applicant.currentDesignation),
-                '{{joining_date}}': safeString(joiningDate ? formatCustomDate(joiningDate, dateFormat) : (applicant.joiningDate ? formatCustomDate(applicant.joiningDate, dateFormat) : '')),
-                '{{location}}': safeString(location || applicant.location || applicant.workLocation),
-                '{{address}}': safeString(address || applicant.address),
-                '{{offer_ref_no}}': safeString(refNo),
-                '{{issued_date}}': issuedDateStr,
-                '{{issuedDate}}': issuedDateStr,
-                '{{ISSUED_DATE}}': issuedDateStr,
-                '{{current_date}}': issuedDateStr,
-                '{{Date}}': issuedDateStr,
-                '{{DATE}}': issuedDateStr,
-                '{{Date_odt}}': issuedDateStr,
-                '{{date_odt}}': issuedDateStr,
-                '{{DATE_ODT}}': issuedDateStr
-            };
+            // Handle HTML template processing
+            console.log('🔥 [OFFER LETTER] Processing HTML template');
 
             let htmlContent = template.bodyContent || '';
-            Object.keys(replacements).forEach(key => {
-                const regex = new RegExp(key, 'g');
-                htmlContent = htmlContent.replace(regex, replacements[key]);
+
+            // Unify replacements using offerData
+            Object.keys(offerData).forEach(key => {
+                const val = offerData[key];
+                if (typeof val === 'string' || typeof val === 'number') {
+                    // Replace both {{key}} and {{KEY}}
+                    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+                    htmlContent = htmlContent.replace(regex, val);
+                }
             });
 
             if (!htmlContent.includes('<html')) {
-                htmlContent = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <style>
-                        body { font-family: 'Arial', sans-serif; line-height: 1.6; padding: 40px; }
-                        .header { text-align: center; margin-bottom: 30px; }
-                        .content { margin-bottom: 30px; }
-                    </style>
-                </head>
-                <body>
-                    ${htmlContent}
-                </body>
-                </html>`;
+                htmlContent = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body { font-family: 'Arial', sans-serif; line-height: 1.6; padding: 40px; }</style></head><body>${htmlContent}</body></html>`;
             }
 
             const fileName = `Offer_Letter_${applicantId}_${Date.now()}`;
@@ -1985,12 +1945,11 @@ exports.generateOfferLetter = async (req, res) => {
                 pdfFileName = path.basename(pdfAbsolutePath);
                 relativePath = `offers/${pdfFileName}`;
                 downloadUrl = `/uploads/${relativePath}`;
-                console.log('✅ [OFFER LETTER] HTML-to-PDF Conversion Successful:', downloadUrl);
             } catch (pdfError) {
-                console.error('⚠️ [OFFER LETTER] HTML-to-PDF Conversion Failed:', pdfError.message);
                 return res.status(500).json({ message: "PDF Generation Failed", error: pdfError.message });
             }
         }
+
 
         if (!preview) {
             console.log('📝 [OFFER LETTER] Non-preview mode: Saving GeneratedLetter document...');
@@ -2031,7 +1990,7 @@ exports.generateOfferLetter = async (req, res) => {
             const storedFileName = pdfFileName || (relativePath ? path.basename(relativePath) : '');
             const updateData = {
                 offerLetterPath: storedFileName,
-                offerRefCode: refNo,
+                offerRefCode: finalRefNo,
                 status: 'Selected'
             };
 
@@ -2058,7 +2017,7 @@ exports.generateOfferLetter = async (req, res) => {
             if (!updatedApplicant.timeline) updatedApplicant.timeline = [];
             updatedApplicant.timeline.push({
                 status: 'Offer Letter Generated',
-                message: `Offer letter ref: ${refNo} has been generated. Joining date: ${joiningDate ? new Date(joiningDate).toLocaleDateString('en-IN') : 'TBD'}.`,
+                message: `Offer letter ref: ${finalRefNo} has been generated. Joining date: ${joiningDate ? new Date(joiningDate).toLocaleDateString('en-IN') : 'TBD'}.`,
                 updatedBy: req.user?.name || "HR",
                 timestamp: new Date()
             });
@@ -3075,10 +3034,10 @@ exports.generateGenericLetter = async (req, res) => {
                 console.log(`📄 [generateGenericLetter] Converting DOCX to PDF using LibreOffice...`);
                 console.log(`📄 [generateGenericLetter] DOCX Path: ${tempDocxPath}`);
                 console.log(`📄 [generateGenericLetter] Output Dir: ${outputDir}`);
-                
+
                 const libreOfficeService = require('../services/LibreOfficeService');
                 libreOfficeService.convertToPdfSync(tempDocxPath, outputDir);
-                
+
                 // Verify PDF was created with the expected name
                 if (!fs.existsSync(outputPath)) {
                     console.error(`❌ [generateGenericLetter] Expected PDF not found at: ${outputPath}`);
@@ -3087,9 +3046,9 @@ exports.generateGenericLetter = async (req, res) => {
                     console.log(`📋 [generateGenericLetter] Files in ${outputDir}:`, files);
                     throw new Error(`PDF file was not created at expected path: ${outputPath}`);
                 }
-                
+
                 console.log(`✅ [generateGenericLetter] PDF conversion successful: ${outputPath}`);
-                
+
                 // Cleanup temporary docx
                 try {
                     fs.unlinkSync(tempDocxPath);

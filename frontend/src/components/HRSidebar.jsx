@@ -30,7 +30,8 @@ import {
   ExternalLink,
   Shield,
   Share2,
-  X
+  X,
+  ChevronDown
 } from 'lucide-react';
 /* ================= ICONS ================= */
 const ICON_SIZE = 20;
@@ -270,6 +271,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                     </button>
                   );
                 }
+
                 if (item.children) {
                   const isExpanded = expanded[item.label];
                   const hasActiveChild = item.children.some(child => location.pathname === child.to);
@@ -277,8 +279,10 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                     <div key={item.label}>
                       <button
                         onClick={() => toggleGroup(item.label)}
+                        aria-label={item.label}
+                        title={item.label}
                         className={`w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                          ${hasActiveChild ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`}
+                        ${hasActiveChild ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'hover:bg-indigo-500/10 hover:text-indigo-300'}`}
                       >
                         {item.icon}
                         {!collapsed && (
@@ -291,7 +295,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                         )}
                       </button>
                       {!collapsed && isExpanded && (
-                        <div className="ml-8 mt-1 space-y-1 border-l border-slate-700 pl-2">
+                        <div className="ml-8 mt-1 space-y-1">
                           {item.children.map(child => (
                             <NavLink
                               key={child.label}
@@ -299,7 +303,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                               onClick={() => onNavigate && onNavigate()}
                               className={({ isActive }) =>
                                 `block py-1.5 px-3 rounded-md text-sm transition
-                                 ${isActive ? 'text-blue-400 font-bold' : 'text-slate-400 hover:text-white'}`
+                                ${isActive ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`
                               }
                             >
                               {child.label}
@@ -310,91 +314,34 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
                     </div>
                   );
                 }
+
                 return (
                   <NavLink
                     key={item.label}
-                    onClick={() => handleExternalNav(item)}
+                    to={item.to}
+                    end={item.end}
                     aria-label={item.label}
                     title={item.label}
-                    className="w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition hover:bg-slate-800/50 text-blue-400 font-bold"
+                    onClick={() => onNavigate && onNavigate()}
+                    className={({ isActive }) => {
+                      // Custom active check for links with query parameters
+                      let active = isActive;
+                      if (item.to?.includes('?')) {
+                        const [path, query] = item.to.split('?');
+                        const currentPath = location.pathname;
+                        const currentQuery = location.search.substring(1);
+                        active = currentPath === path && currentQuery === query;
+                      }
+                      return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
+                      ${active ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`;
+                    }}
                   >
                     {item.icon}
                     {!collapsed && <span>{item.label}</span>}
                   </NavLink>
                 );
-              }
-              if (item.children) {
-                const isExpanded = expanded[item.label];
-                const hasActiveChild = item.children.some(child => location.pathname === child.to);
-                return (
-                  <div key={item.label}>
-                    <button
-                      onClick={() => toggleGroup(item.label)}
-                      aria-label={item.label}
-                      title={item.label}
-                      className={`w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                        ${hasActiveChild ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'hover:bg-indigo-500/10 hover:text-indigo-300'}`}
-                    >
-                      {item.icon}
-                      {!collapsed && (
-                        <>
-                          <span className="flex-1 text-left">{item.label}</span>
-                          <span className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                            ▼
-                          </span>
-                        </>
-                      )}
-                    </button>
-                    {!collapsed && isExpanded && (
-                      <div className="ml-8 mt-1 space-y-1">
-                        {item.children.map(child => (
-                          <NavLink
-                            key={child.label}
-                            to={child.to}
-                            onClick={() => onNavigate && onNavigate()}
-                            className={({ isActive }) =>
-                              `block py-1.5 px-3 rounded-md text-sm transition
-                               ${isActive ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`
-                            }
-                          >
-                            {child.label}
-                          </NavLink>
-                        ))}
-                      </div>
-                    )
-                    }
-                  </div>
-                );
-              }
-              return (
-                <NavLink
-                  key={item.label}
-                  to={item.to}
-                  end={item.end}
-                  aria-label={item.label}
-                  title={item.label}
-                  onClick={() => onNavigate && onNavigate()}
-
-
-                  className={({ isActive }) => {
-                    // Custom active check for links with query parameters
-                    let active = isActive;
-                    if (item.to.includes('?')) {
-                      const [path, query] = item.to.split('?');
-                      const currentPath = location.pathname;
-                      const currentQuery = location.search.substring(1);
-                      active = currentPath === path && currentQuery === query;
-                    }
-                    return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                     ${active ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`;
-                  }}
-
-                >
-                  {item.icon}
-                  {!collapsed && <span>{item.label}</span>}
-                </NavLink>
-              );
-            })}
+              })}
+            </div>
           </div>
         ))}
       </div>
@@ -413,6 +360,6 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
           )}
         </div>
       </div>
-    </aside >
+    </aside>
   );
 }

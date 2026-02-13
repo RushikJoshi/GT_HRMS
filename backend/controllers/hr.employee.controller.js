@@ -69,6 +69,8 @@ async function generateEmployeeId({ req, tenantId, department, firstName, lastNa
   try {
     const companyIdConfig = require('./companyIdConfig.controller');
 
+    console.log(`[GENERATE_EMP_ID] Generating for tenant: ${tenantId}, dept: ${department}`);
+
     // 1. Get next ID via centralized utility
     const result = await companyIdConfig.generateIdInternal({
       tenantId: tenantId,
@@ -81,12 +83,16 @@ async function generateEmployeeId({ req, tenantId, department, firstName, lastNa
       }
     });
 
+    console.log(`[GENERATE_EMP_ID] Success: ${result.id}`);
     return result.id;
 
   } catch (error) {
-    console.error("Error generating employee ID:", error);
-    // Emergency Fallback
-    return `EMP-${Date.now()}`;
+    console.error("CRITICAL: Error generating employee ID:", error.message);
+    console.error("Error stack:", error.stack);
+
+    // Fallback to a clear error indicator rather than a random number
+    // This helps the user know something is wrong with the configuration
+    throw new Error(`ID Generation Failed: ${error.message}. Please check Document Sequence settings for Employee ID.`);
   }
 }
 
@@ -117,58 +123,28 @@ async function initializeBalances(req, employeeId, policyId) {
 --------------------------------------------- */
 exports.preview = async (req, res) => {
   try {
-    console.log("!!! PREVIEW ENDPOINT CALLED - NEW LOGIC !!!");
     const tenantId = req.tenantId;
-    const { department } = req.body;
+    const { department, firstName, lastName } = req.body;
 
-    // 1. Get Configuration
-    let config = await CompanyIdConfig.findOne({ companyId: tenantId, entityType: 'EMPLOYEE' });
+    const companyIdConfig = require('./companyIdConfig.controller');
 
-    // Mock default if missing
-    if (!config) {
-      config = {
-        prefix: 'EMP',
-        separator: '', // Default from schema is usually empty or dash, aligning with defaults
-        includeYear: false,
-        includeMonth: false,
-        includeDepartment: false,
-        padding: 4,
-        startFrom: 1000,
-        currentSeq: 1000
-      };
-    }
+    // Use unified engine for preview (increment: false)
+    const result = await companyIdConfig.generateIdInternal({
+      tenantId: tenantId,
+      entityType: 'EMPLOYEE',
+      increment: false,
+      extraReplacements: {
+        '{{DEPT}}': (department || 'GEN').substring(0, 3).toUpperCase(),
+        '{{FIRSTNAME}}': (firstName || '').toUpperCase(),
+        '{{LASTNAME}}': (lastName || '').toUpperCase()
+      }
+    });
 
-    // 2. Determine Parts
-    const now = new Date();
-    const parts = [];
-
-    if (config.prefix) parts.push(config.prefix);
-    if (config.includeYear) parts.push(now.getFullYear());
-    if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
-    if (config.includeDepartment) {
-      const depCode = (department || "GEN").substring(0, 3).toUpperCase();
-      parts.push(depCode);
-    }
-
-    // 3. Get Next Sequence (Preview only, do not increment)
-    const seq = config.currentSeq !== undefined ? config.currentSeq : (config.startFrom || 1);
-    const seqStr = String(seq).padStart(config.padding || 4, '0');
-
-    // 4. Join
-    const separator = config.separator === undefined ? '-' : config.separator;
-    let preview = parts.join(separator);
-
-    if (preview) {
-      preview = `${preview}${separator}${seqStr}`;
-    } else {
-      preview = seqStr;
-    }
-
-    res.json({ preview });
+    res.json({ preview: result.id });
 
   } catch (err) {
     console.error("Preview error:", err);
-    res.status(500).json({ error: "preview_failed" });
+    res.status(500).json({ error: "preview_failed", message: err.message });
   }
 };
 
@@ -559,37 +535,43 @@ exports.create = async (req, res) => {
       console.error('[AUTO_POLICY_ASSIGN] Error while auto-assigning policy:', autoErr);
     }
 
-    // --- NEW: Link Applicant if exists (Mark Onboarded) ---
+    // --- NEW: Link Applicant if exists (Mark Onboarded) & Handle Vacancy logic ---
     if (applicantId && emp) {
       try {
         const Applicant = req.tenantDB.model('Applicant');
         const Requirement = req.tenantDB.model('Requirement');
 
-        const updatedApplicant = await Applicant.findByIdAndUpdate(applicantId, {
-          isOnboarded: true,
-          employeeId: emp._id
-        }, { new: true });
+        const applicant = await Applicant.findById(applicantId);
+        if (applicant && applicant.requirementId) {
+          // 1. Mark Onboarded
+          const updatedApplicant = await Applicant.findByIdAndUpdate(applicantId, {
+            isOnboarded: true,
+            employeeId: emp._id
+          }, { new: true });
 
-        console.log(`[ONBOARDING] Linked Applicant ${applicantId} to Employee ${emp._id} (Marked Onboarded)`);
+          console.log(`[ONBOARDING] Linked Applicant ${applicantId} to Employee ${emp._id} (Marked Onboarded)`);
 
-        // Check if all vacancies filled - Auto Close Job
-        if (updatedApplicant && updatedApplicant.requirementId) {
-          const requirement = await Requirement.findById(updatedApplicant.requirementId);
+          // 2. Handle Vacancy & Automatic Closure
+          const requirement = await Requirement.findById(applicant.requirementId);
           if (requirement) {
-            const totalOnboarded = await Applicant.countDocuments({
-              requirementId: updatedApplicant.requirementId,
+            const hiredCount = await Applicant.countDocuments({
+              requirementId: requirement._id,
               isOnboarded: true
             });
 
-            const totalLimit = requirement.vacancy || 1;
-            if (totalOnboarded >= totalLimit) {
-              await Requirement.findByIdAndUpdate(updatedApplicant.requirementId, { status: 'Closed' });
-              console.log(`[ONBOARDING] Job '${requirement.jobTitle}' CLOSED automatically (Vacancies filled).`);
+            // Auto-close if limit reached
+            if (requirement.vacancy && hiredCount >= requirement.vacancy) {
+              await Requirement.findByIdAndUpdate(requirement._id, {
+                status: 'Closed',
+                closedAt: new Date(),
+                closedBy: req.user?.id || 'System'
+              });
+              console.log(`[ONBOARDING] Job ${requirement.jobTitle} automatically CLOSED (Vacancies full: ${hiredCount}/${requirement.vacancy})`);
             }
           }
         }
       } catch (linkErr) {
-        console.error("Failed to link applicant or auto-close job:", linkErr);
+        console.error("Failed to link applicant or handle vacancy:", linkErr);
       }
     }
 

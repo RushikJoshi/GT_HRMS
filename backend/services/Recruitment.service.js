@@ -72,7 +72,7 @@ class RecruitmentService {
     }
 
     async getRequirements(tenantId, query) {
-        const { Requirement } = await this.getModels(tenantId);
+        const { Requirement, Applicant } = await this.getModels(tenantId);
         const filter = { tenant: tenantId };
 
         // Enhance safe filtering logic...
@@ -92,20 +92,32 @@ class RecruitmentService {
         const requirements = await Requirement.find(filter)
             .sort({ updatedAt: -1 }) // Sort by last updated, newest first
             .skip(skip)
-            .limit(limit);
+            .limit(limit)
+            .lean();
 
-        // Auto-patch missing Job IDs for legacy data
-        const updates = requirements.map(async (req) => {
+        // Calculate hiredCount for each requirement and backfill IDs
+        const enhancedRequirements = await Promise.all(requirements.map(async (req) => {
+            // 1. Count Onboarded Applicants
+            const hiredCount = await Applicant.countDocuments({
+                requirementId: req._id,
+                isOnboarded: true
+            });
+
+            // 2. Auto-patch missing Job IDs for legacy data
             if (!req.jobOpeningId) {
                 console.log(`[Backfill] Generating ID for Requirement ${req._id}`);
-                req.jobOpeningId = await this.generateJobId(tenantId);
-                await req.save();
+                req.jobOpeningId = await this.generateJobId(tenantId, req);
+                await Requirement.findByIdAndUpdate(req._id, { jobOpeningId: req.jobOpeningId });
             }
-        });
-        await Promise.all(updates);
+
+            return {
+                ...req,
+                hiredCount
+            };
+        }));
 
         return {
-            requirements,
+            requirements: enhancedRequirements,
             pagination: {
                 total,
                 page,
@@ -209,18 +221,32 @@ class RecruitmentService {
 
         // Need to populate correctly
         const applicants = await Applicant.find({ tenant: tenantId })
-            .populate('requirementId', 'jobTitle jobOpeningId')
+            .populate('requirementId', 'jobTitle jobOpeningId vacancy')
             .populate('candidateId', 'name email mobile')
             .populate('salarySnapshotId')
             .sort({ createdAt: -1 })
             .lean();
 
-        // Attach BGV Status to each applicant
+        // Attach BGV Status and calculate hiredCount for requirements
         const { BGVCase } = await getBGVModels(tenantId);
         const bgvCases = await BGVCase.find({ tenant: tenantId });
 
-        const applicantsWithBGV = applicants.map(app => {
+        // Optimization: Get hired counts for all requirements involved
+        const reqIds = [...new Set(applicants.map(a => a.requirementId?._id).filter(id => id))];
+        const hiredCounts = await Promise.all(reqIds.map(async (id) => {
+            const count = await Applicant.countDocuments({ requirementId: id, isOnboarded: true });
+            return { id: id.toString(), count };
+        }));
+
+        const applicantsWithExtras = applicants.map(app => {
             const bgv = bgvCases.find(b => b.applicationId.toString() === app._id.toString());
+
+            // Attach hiredCount to the requirementId object if it exists
+            if (app.requirementId && typeof app.requirementId === 'object') {
+                const hc = hiredCounts.find(h => h.id === app.requirementId._id.toString());
+                app.requirementId.hiredCount = hc ? hc.count : 0;
+            }
+
             return {
                 ...app,
                 bgvStatus: bgv ? bgv.overallStatus : 'NOT_INITIATED',
@@ -228,7 +254,7 @@ class RecruitmentService {
             };
         });
 
-        return applicantsWithBGV;
+        return applicantsWithExtras;
     }
 
     async applyForJob(jobId, candidateId, data) {

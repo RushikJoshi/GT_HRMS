@@ -9,6 +9,7 @@ import { Briefcase } from 'lucide-react';
 import api from '../utils/api';
 import CandidateProfileMenu from '../components/jobs/CandidateProfileMenu';
 import { useJobPortalAuth } from '../context/JobPortalAuthContext';
+import { getTenantId, getCompany, setCompany } from '../utils/auth';
 
 const Jobs = () => {
   const params = useParams();

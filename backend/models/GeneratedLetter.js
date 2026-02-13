@@ -56,7 +56,7 @@ const generatedLetterSchema = new mongoose.Schema({
     // Status Flow
     status: {
         type: String,
-        enum: ['draft', 'pending', 'approved', 'rejected', 'sent', 'viewed', 'accepted', 'rejected_by_candidate', 'expired'],
+        enum: ['draft', 'pending', 'approved', 'rejected', 'sent', 'viewed', 'accepted', 'rejected_by_candidate', 'expired', 'generated'],
         default: 'draft'
     },
 

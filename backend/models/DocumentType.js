@@ -45,6 +45,16 @@ const DocumentTypeSchema = new Schema({
     },
     updatedBy: {
         type: String
+    },
+    refNumber: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    customTokens: {
+        type: Map,
+        of: String,
+        default: {}
     }
 }, {
     timestamps: true
