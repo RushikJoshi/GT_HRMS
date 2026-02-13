@@ -864,20 +864,24 @@ const SocialMediaDashboard = () => {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${post.status === 'published' ? 'bg-green-100 text-green-700' :
-                                                post.status === 'publishing' ? 'bg-blue-100 text-blue-700' :
-                                                    post.status === 'edited' ? 'bg-orange-100 text-orange-700' :
-                                                        post.status === 'deleted' ? 'bg-gray-100 text-gray-700' :
-                                                            post.status === 'scheduled' ? 'bg-purple-100 text-purple-700' :
-                                                                post.status === 'failed' ? 'bg-red-100 text-red-700' :
-                                                                    'bg-gray-100 text-gray-700'
+                                                post.status === 'partial_success' ? 'bg-yellow-100 text-yellow-700' :
+                                                    post.status === 'partially_deleted' ? 'bg-orange-100 text-orange-700' :
+                                                        post.status === 'publishing' ? 'bg-blue-100 text-blue-700' :
+                                                            post.status === 'edited' ? 'bg-orange-100 text-orange-700' :
+                                                                post.status === 'deleted' ? 'bg-gray-100 text-gray-700' :
+                                                                    post.status === 'scheduled' ? 'bg-purple-100 text-purple-700' :
+                                                                        post.status === 'failed' ? 'bg-red-100 text-red-700' :
+                                                                            'bg-gray-100 text-gray-700'
                                                 }`}>
                                                 {post.status === 'published' && '✅'}
+                                                {post.status === 'partial_success' && '⚠️'}
+                                                {post.status === 'partially_deleted' && '⏳'}
                                                 {post.status === 'publishing' && <FaSpinner className="animate-spin" />}
                                                 {post.status === 'edited' && '✏️'}
                                                 {post.status === 'deleted' && '🗑️'}
                                                 {post.status === 'scheduled' && '📅'}
                                                 {post.status === 'failed' && '❌'}
-                                                {post.status ? (post.status.charAt(0).toUpperCase() + post.status.slice(1)) : 'Unknown'}
+                                                {post.status ? (post.status.replace('_', ' ').charAt(0).toUpperCase() + post.status.replace('_', ' ').slice(1)) : 'Unknown'}
                                             </span>
                                         </div>
                                     </div>
