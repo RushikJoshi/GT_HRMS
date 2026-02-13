@@ -260,10 +260,10 @@ const ProcessPayroll = () => {
                     );
                 }
                 if (prev.error) return (
-                    <Tooltip title={prev.error}>
-                        <div className="flex items-center gap-1">
+                    <Tooltip title={prev.error || "Calculation failed"}>
+                        <div className="flex items-center gap-1 cursor-help hover:bg-red-50 p-1 rounded transition-colors">
                             <AlertCircle className="w-4 h-4 text-red-500" />
-                            <span className="text-xs text-red-600">Error</span>
+                            <span className="text-xs text-red-600 font-medium">Error</span>
                         </div>
                     </Tooltip>
                 );

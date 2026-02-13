@@ -73,6 +73,9 @@ function getModels(req) {
         if (!db.models.Employee) {
             try { db.model('Employee', require('../models/Employee')); } catch (e) { }
         }
+        if (!db.models.LetterRevocation) {
+            try { db.model('LetterRevocation', require('../models/LetterRevocation')); } catch (e) { }
+        }
 
         return {
             CompanyProfile: db.model("CompanyProfile"),
@@ -81,6 +84,7 @@ function getModels(req) {
             LetterApproval: db.model("LetterApproval"),
             Applicant: db.model("Applicant"),
             Employee: db.model("Employee"),
+            LetterRevocation: db.model("LetterRevocation"),
             EmployeeSalarySnapshot: db.model("EmployeeSalarySnapshot"),
             BGVCase: db.models.BGVCase || null,
             Notification: db.models.Notification || null
@@ -3331,7 +3335,7 @@ exports.revokeLetter = async (req, res) => {
         const docService = new DocumentManagementService(req.tenantDB);
         const emailService = new EmailNotificationService(process.env);
 
-        const { GeneratedLetter, Applicant, Employee } = getModels(req);
+        const { GeneratedLetter, Applicant, Employee, LetterRevocation } = getModels(req);
 
         // Get document
         const letter = await GeneratedLetter.findById(documentId);
@@ -3423,7 +3427,7 @@ exports.revokeLetter = async (req, res) => {
                 documentId,
                 revokedAt: revocation.revokedAt,
                 reason,
-                notificationSent: !!recipient
+                notificationSent: !!(recipient && recipient.email)
             }
         });
 

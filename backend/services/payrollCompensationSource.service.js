@@ -47,17 +47,17 @@ async function getEmployeeCompensation(db, tenantId, employeeId) {
                         grossEarnings: mainComp.grossA || 0,
                         totalDeductions: 0, // Simplified for preview
                         totalBenefits: mainComp.grossB || 0,
-                        earnings: mainComp.components?.filter(c => c.type === 'EARNING').map(e => ({
+                        earnings: mainComp.components?.filter(c => c && (c.type || '').toUpperCase() === 'EARNING').map(e => ({
                             name: e.name,
                             monthlyAmount: e.monthlyAmount,
                             yearlyAmount: e.annualAmount
                         })) || [],
-                        employeeDeductions: mainComp.components?.filter(c => c.type === 'DEDUCTION').map(d => ({
+                        employeeDeductions: mainComp.components?.filter(c => c && (c.type || '').toUpperCase() === 'DEDUCTION').map(d => ({
                             name: d.name,
                             monthlyAmount: d.monthlyAmount,
                             yearlyAmount: d.annualAmount
                         })) || [],
-                        benefits: mainComp.components?.filter(c => c.type === 'BENEFIT').map(b => ({
+                        benefits: mainComp.components?.filter(c => c && (c.type || '').toUpperCase() === 'BENEFIT').map(b => ({
                             name: b.name,
                             monthlyAmount: b.monthlyAmount,
                             yearlyAmount: b.annualAmount
