@@ -87,9 +87,26 @@ const SocialMediaDashboard = () => {
         }
     }, []);
 
-    const loadData = async () => {
+    // POLLING: Check for status updates if any post is 'publishing'
+    useEffect(() => {
+        const hasPublishingPosts = posts.some(p => p.status === 'publishing');
+
+        let intervalId;
+        if (hasPublishingPosts) {
+            console.log('🔄 Polling for status updates...');
+            intervalId = setInterval(() => {
+                loadData(true); // pass true to indicate silent reload (optional, to avoid full spinner)
+            }, 5000); // Check every 5 seconds
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [posts]);
+
+    const loadData = async (silent = false) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
 
             // Call APIs with error handling
             const [accountsRes, postsRes] = await Promise.allSettled([
@@ -122,7 +139,7 @@ const SocialMediaDashboard = () => {
             setAccounts([]);
             setPosts([]);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
@@ -358,23 +375,52 @@ const SocialMediaDashboard = () => {
 
                     console.log('✅ Delete response:', response.data);
 
-                    if (response.data.success) {
-                        // Optimistic update: Remove from state immediately
-                        setPosts(prevPosts => prevPosts.filter(p => p._id !== postId));
+                    if (response.data.success && response.data.results) {
+                        const { results, isFullyDeleted } = response.data;
 
-                        notification.success({
-                            message: 'Post Deleted',
-                            description: 'Post has been deleted successfully'
+                        // Show notifications for each platform
+                        Object.entries(results).forEach(([platform, result]) => {
+                            const platformName = platformConfig[platform]?.name || platform;
+
+                            if (result.success) {
+                                notification.success({
+                                    message: `${platformName} Post Deleted`,
+                                    description: result.message || `Successfully deleted post from ${platformName}`,
+                                    duration: 3
+                                });
+                            } else {
+                                notification.error({
+                                    message: `${platformName} Deletion Failed`,
+                                    description: result.message || `Failed to delete from ${platformName}`,
+                                    duration: 5
+                                });
+                            }
                         });
 
-                        // Still verify with server, but UI is already updated
-                        loadData();
+                        // Optimistic update
+                        if (isFullyDeleted) {
+                            setPosts(prevPosts => prevPosts.filter(p => p._id !== postId));
+                        } else {
+                            // Partial delete: update the post in state with new data if returned, 
+                            // or just wait for loadData()
+                            // For now, let's just trigger loadData to be safe
+                        }
+
+                        // Refresh data to get updated platform lists or remove deleted post
+                        loadData(true);
+                    } else {
+                        // Unexpected response format or server error
+                        notification.error({
+                            message: 'Delete Failed',
+                            description: response.data?.message || 'Failed to delete post',
+                            duration: 4
+                        });
                     }
                 } catch (error) {
                     console.error('❌ Failed to delete post:', error);
                     notification.error({
                         message: 'Delete Failed',
-                        description: error.response?.data?.message || 'Failed to delete post'
+                        description: error.response?.data?.message || 'An unexpected error occurred during deletion'
                     });
                 }
             }
@@ -424,8 +470,8 @@ const SocialMediaDashboard = () => {
                 setPosts(prev => prev.map(p => p._id === savedPost._id ? savedPost : p));
 
                 notification.success({
-                    message: 'Post Updated',
-                    description: 'Post has been updated successfully!',
+                    message: 'Post Update Scheduled',
+                    description: 'Your changes are being applied in the background.',
                     duration: 3
                 });
             } else {
@@ -437,8 +483,8 @@ const SocialMediaDashboard = () => {
                 setPosts(prev => [savedPost, ...prev]);
 
                 notification.success({
-                    message: 'Post Published',
-                    description: 'Post created successfully!',
+                    message: 'Post Scheduled for Publishing',
+                    description: 'Your post is being published in the background. It will be live shortly.',
                     duration: 3
                 });
             }
@@ -636,7 +682,27 @@ const SocialMediaDashboard = () => {
                                 />
                                 {/* Image Upload Section */}
                                 <div className="space-y-3">
-                                    <label className="block text-sm font-medium text-gray-700">Image (optional)</label>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Images {newPost.platforms.includes('instagram') && '(Required for Instagram)'}
+                                    </label>
+
+                                    {/* Instagram Warning */}
+                                    {newPost.platforms.includes('instagram') && (
+                                        <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+                                            <div className="flex items-start gap-2">
+                                                <span className="text-lg">📸</span>
+                                                <div className="text-sm text-purple-900">
+                                                    <p className="font-semibold mb-1">Instagram Requirements:</p>
+                                                    <ul className="list-disc list-inside space-y-1 text-xs">
+                                                        <li>Images must be publicly accessible via HTTPS</li>
+                                                        <li>Localhost URLs will not work</li>
+                                                        <li>Supports 1-10 images (carousel)</li>
+                                                        <li>For local dev, use ngrok or deploy to public server</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Upload Button */}
                                     <div className="flex gap-3">
@@ -657,8 +723,12 @@ const SocialMediaDashboard = () => {
                                                     </div>
                                                 ) : (
                                                     <div className="text-gray-600">
-                                                        <span className="font-medium">📁 Upload Image</span>
-                                                        <p className="text-xs mt-1">JPG, PNG, WEBP (Max 5MB)</p>
+                                                        <span className="font-medium">📁 Upload Images</span>
+                                                        <p className="text-xs mt-1">
+                                                            JPG, PNG, WEBP (Max 5MB each)
+                                                            {imagePreviews.length > 0 && ` • ${imagePreviews.length} selected`}
+                                                            {newPost.platforms.includes('instagram') && imagePreviews.length > 10 && ' • Max 10 for Instagram'}
+                                                        </p>
                                                     </div>
                                                 )}
                                             </div>
@@ -682,6 +752,11 @@ const SocialMediaDashboard = () => {
                                                     >
                                                         ×
                                                     </button>
+                                                    {index >= 10 && newPost.platforms.includes('instagram') && (
+                                                        <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
+                                                            <span className="text-white text-xs font-semibold">Exceeds IG limit</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -709,15 +784,15 @@ const SocialMediaDashboard = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-3">Select Platforms</label>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="flex gap-4 items-center flex-nowrap overflow-x-auto max-[480px]:flex-wrap">
                                     {Object.entries(platformConfig).map(([platform, config]) => {
                                         const connected = isConnected(platform);
                                         const Icon = config.icon;
                                         return (
                                             <label
                                                 key={platform}
-                                                className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${newPost.platforms.includes(platform)
-                                                    ? `${config.borderColor} bg-opacity-5`
+                                                className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-all whitespace-nowrap min-w-fit ${newPost.platforms.includes(platform)
+                                                    ? `${config.borderColor} bg-opacity-5 bg-blue-50`
                                                     : 'border-gray-200 hover:border-gray-300'
                                                     } ${!connected ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
@@ -734,7 +809,7 @@ const SocialMediaDashboard = () => {
                                                     disabled={!connected}
                                                     className="w-4 h-4"
                                                 />
-                                                <Icon className={`text-xl ${config.textColor}`} />
+                                                <Icon className={`text-lg ${config.textColor}`} />
                                                 <span className="font-medium text-gray-700">{config.name}</span>
                                             </label>
                                         );
@@ -743,7 +818,12 @@ const SocialMediaDashboard = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Schedule (optional)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Schedule (optional)
+                                    {newPost.platforms.includes('instagram') && (
+                                        <span className="ml-2 text-xs text-purple-600">✓ Supported for Instagram</span>
+                                    )}
+                                </label>
                                 <input
                                     type="datetime-local"
                                     value={newPost.scheduledAt}
@@ -784,25 +864,54 @@ const SocialMediaDashboard = () => {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${post.status === 'published' ? 'bg-green-100 text-green-700' :
-                                                post.status === 'edited' ? 'bg-orange-100 text-orange-700' :
-                                                    post.status === 'deleted' ? 'bg-gray-100 text-gray-700' :
-                                                        post.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
-                                                            post.status === 'failed' ? 'bg-red-100 text-red-700' :
-                                                                'bg-gray-100 text-gray-700'
+                                                post.status === 'publishing' ? 'bg-blue-100 text-blue-700' :
+                                                    post.status === 'edited' ? 'bg-orange-100 text-orange-700' :
+                                                        post.status === 'deleted' ? 'bg-gray-100 text-gray-700' :
+                                                            post.status === 'scheduled' ? 'bg-purple-100 text-purple-700' :
+                                                                post.status === 'failed' ? 'bg-red-100 text-red-700' :
+                                                                    'bg-gray-100 text-gray-700'
                                                 }`}>
                                                 {post.status === 'published' && '✅'}
+                                                {post.status === 'publishing' && <FaSpinner className="animate-spin" />}
                                                 {post.status === 'edited' && '✏️'}
                                                 {post.status === 'deleted' && '🗑️'}
                                                 {post.status === 'scheduled' && '📅'}
                                                 {post.status === 'failed' && '❌'}
-                                                {post.status.charAt(0).toUpperCase() + post.status.slice(1)}
+                                                {post.status ? (post.status.charAt(0).toUpperCase() + post.status.slice(1)) : 'Unknown'}
                                             </span>
                                         </div>
                                     </div>
                                     <p className="text-gray-800 mb-4">{post.content}</p>
-                                    {post.imageUrl && (
+
+                                    {/* Display Images (Carousel or Single) */}
+                                    {(post.imageUrls && post.imageUrls.length > 0) ? (
+                                        <div className="mb-4">
+                                            {post.imageUrls.length > 1 ? (
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-1 rounded">
+                                                            📸 Carousel ({post.imageUrls.length} images)
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {post.imageUrls.slice(0, 6).map((imgUrl, idx) => (
+                                                            <img key={idx} src={imgUrl} alt={`Image ${idx + 1}`} className="rounded-lg h-24 w-full object-cover" />
+                                                        ))}
+                                                        {post.imageUrls.length > 6 && (
+                                                            <div className="rounded-lg h-24 w-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold">
+                                                                +{post.imageUrls.length - 6} more
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <img src={post.imageUrls[0]} alt="Post" className="rounded-lg max-h-64 object-cover" />
+                                            )}
+                                        </div>
+                                    ) : post.imageUrl ? (
                                         <img src={post.imageUrl} alt="Post" className="rounded-lg mb-4 max-h-64 object-cover" />
-                                    )}
+                                    ) : null}
+
                                     <div className="flex items-center justify-between">
                                         <div className="text-sm text-gray-500">
                                             {post.status === 'edited' && post.editedAt ? (
@@ -817,12 +926,28 @@ const SocialMediaDashboard = () => {
                                             )}
                                         </div>
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleEditPost(post)}
-                                                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
-                                            >
-                                                ✏️ Edit
-                                            </button>
+                                            {/* Platform-specific Edit Button Logic */}
+                                            {post.platforms.includes('instagram') && post.status === 'published' ? (
+                                                <div className="relative group">
+                                                    <button
+                                                        disabled
+                                                        className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm font-medium"
+                                                    >
+                                                        ✏️ Edit
+                                                    </button>
+                                                    <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap">
+                                                        Instagram posts cannot be edited (API limitation)
+                                                        <br />Use Delete + Repost instead
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleEditPost(post)}
+                                                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                                                >
+                                                    ✏️ Edit
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => handleDeletePost(post._id)}
                                                 className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
