@@ -979,7 +979,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         setShowBGVModal(true);
     };
 
-    const   handleBGVSuccess = () => {
+    const handleBGVSuccess = () => {
         setShowBGVModal(false);
         setBgvCandidate(null);
         loadApplicants(); // Refresh to show updated BGV status
@@ -1633,6 +1633,16 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const openJoiningModal = async (applicant) => {
         if (!applicant.offerLetterPath) {
             notification.warning({ message: 'Warning', description: "Please generate an Offer Letter first.", placement: 'topRight' });
+            return;
+        }
+
+        // BGV must be clear to proceed with Joining Letter
+        if (applicant.bgvStatus !== 'CLEAR') {
+            notification.error({
+                message: 'BGV Pending',
+                description: 'Background Verification must be CLEAR before generating a Joining Letter.',
+                placement: 'topRight'
+            });
             return;
         }
         // Check if salary is assigned (either via snapshot or flat ctc field)
@@ -2310,17 +2320,17 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                             </div>
                         ) : (
                             /* TABLE VIEW (Finalized) */
-                            <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                                <table className="w-full text-left">
+                            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 rounded-2xl border border-slate-200">
+                                <table className="w-full text-left min-w-[1000px]">
                                     <thead className="bg-slate-50">
                                         <tr>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Candidate</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Salary</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Offer</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">BGV</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Joining</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Actions</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[20%]">Candidate</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center w-[12%]">Status</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[15%]">Salary</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[15%]">Offer</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center w-[12%]">BGV</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[14%]">Joining</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[12%] text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-slate-50">
@@ -2408,10 +2418,20 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                 </button>
                                                             </div>
                                                         ) : (
-                                                            <button onClick={() => openJoiningModal(app)} className="w-full py-2 sm:py-3 bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 uppercase tracking-widest">GENERATE</button>
+                                                            <button
+                                                                onClick={() => openJoiningModal(app)}
+                                                                disabled={app.bgvStatus !== 'CLEAR'}
+                                                                className={`w-full py-2 sm:py-3 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl transition shadow-lg uppercase tracking-widest ${app.bgvStatus === 'CLEAR'
+                                                                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-100'
+                                                                    : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                                                                    }`}
+                                                                title={app.bgvStatus !== 'CLEAR' ? "BGV must be CLEAR to generate joining letter" : ""}
+                                                            >
+                                                                {app.bgvStatus === 'CLEAR' ? 'GENERATE' : 'LOCKED'}
+                                                            </button>
                                                         )}
                                                     </td>
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-6 py-4 text-right">
                                                         {app.isOnboarded ? (
                                                             <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
                                                                 <CheckCircle size={14} />

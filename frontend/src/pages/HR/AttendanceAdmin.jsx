@@ -205,17 +205,17 @@ export default function AttendanceAdmin() {
                         </div>
 
                         {/* Table */}
-                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full text-left text-sm divide-y divide-slate-100">
+                        <div className="bg-white border border-slate-200 overflow-hidden">
+                            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
+                                <table className="min-w-[900px] w-full text-left text-sm divide-y divide-slate-100">
                                     <thead className="bg-slate-50/50">
                                         <tr>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Employee</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Check In / Out</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Hours</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Note</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Action</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[25%]">Employee</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[15%]">Status</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[20%]">Check In / Out</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[10%]">Hours</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[15%]">Note</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[15%] text-right">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 bg-white">

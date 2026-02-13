@@ -292,7 +292,7 @@ export default function SalaryComponents() {
             </div>
 
             {/* CONTENT */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+            <div className="w-full px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-200 rounded-lg shadow-sm">
                         <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-4" />

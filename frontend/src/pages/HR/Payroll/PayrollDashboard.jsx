@@ -183,7 +183,7 @@ export default function PayrollDashboard() {
                         )}
 
                         {/* Recent Runs Table */}
-                        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                        <div className="bg-white border border-slate-200 overflow-hidden">
                             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                                 <h3 className="font-semibold text-slate-900 flex items-center gap-2 text-sm">
                                     <div className="p-2 bg-cyan-100 rounded-lg">

@@ -11,32 +11,28 @@ import { formatDateDDMMYYYY } from '../utils/dateUtils';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://hrms.gitakshmi.com';
 
 const InfoGroup = ({ title, children, icon: Icon }) => (
-    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-lg overflow-hidden mb-8 transition-all hover:shadow-xl group">
-        <div className="px-8 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm overflow-hidden mb-6 transition-all hover:shadow-md group">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50">
             <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform">
+                <div className="p-2 rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
                     {Icon && <Icon size={18} />}
                 </div>
-                <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-[0.2em]">{title}</h3>
+                <h3 className="text-base font-semibold text-slate-800 dark:text-white">{title}</h3>
             </div>
-            <div className="w-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700"></div>
         </div>
-        <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {children}
         </div>
-    </div>
+    </div >
 );
 
 const DetailItem = ({ label, value, icon: Icon }) => (
-    <div className="flex flex-col gap-2 group/item">
+    <div className="flex flex-col gap-1 group/item">
         <div className="flex items-center gap-2">
-            <div className="p-1 rounded bg-slate-50 dark:bg-slate-800 text-slate-400 group-hover/item:text-indigo-500 transition-colors">
-                {Icon ? <Icon size={10} /> : <div className="w-2.5 h-2.5 rounded-full border border-current opacity-30"></div>}
-            </div>
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</span>
         </div>
-        <div className="text-sm font-bold text-slate-700 dark:text-slate-200 tracking-tight pl-0.5">
-            {value || <span className="text-slate-300 dark:text-slate-700 font-medium italic">Pending Verification</span>}
+        <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 pl-0.5">
+            {value || <span className="text-slate-400 dark:text-slate-600 font-normal italic">Pending Verification</span>}
         </div>
     </div>
 );
@@ -52,11 +48,11 @@ const FileDownloadLink = ({ url, label }) => {
             href={`${BACKEND_URL}${url}`}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-between gap-3 text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20 px-4 py-3 rounded-xl transition-all border border-indigo-100 dark:border-indigo-800/50 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 group"
+            className="flex items-center justify-between gap-3 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20 px-4 py-3 rounded-xl transition-all border border-blue-100 dark:border-blue-800/50 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 dark:hover:bg-blue-900/40 group"
         >
             <div className="flex items-center gap-3 overflow-hidden">
-                <FileText size={16} className="group-hover:text-white shrink-0" />
-                <span className="text-[10px] font-black uppercase tracking-widest truncate">{label}</span>
+                <FileText size={16} className="shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-widest truncate">{label}</span>
             </div>
             <div className="shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
@@ -265,8 +261,8 @@ export default function EmployeeProfileView({ employee, profile }) {
             <style>{`
                 .ant-tabs-nav-wrap { padding: 0 1rem; }
                 .ant-tabs-tab { padding: 12px 0 !important; margin: 0 16px !important; }
-                .ant-tabs-tab-active .ant-tabs-tab-btn { color: #2563eb !important; font-weight: 800 !important; }
-                .ant-tabs-ink-bar { background: #2563eb !important; height: 3px !important; border-radius: 3px 3px 0 0; }
+                .ant-tabs-tab-active .ant-tabs-tab-btn { color: #10b981 !important; font-weight: 600 !important; }
+                .ant-tabs-ink-bar { background: #10b981 !important; height: 3px !important; border-radius: 3px 3px 0 0; }
                 
                 @media print {
                     .no-print { display: none !important; }
@@ -281,85 +277,82 @@ export default function EmployeeProfileView({ employee, profile }) {
                 .print-only { display: none; }
             `}</style>
 
-            {/* 1. PREMIUM HEADER */}
-            <div className="relative overflow-hidden bg-slate-900 rounded-[2rem] shadow-2xl shadow-blue-900/10 p-1 group">
+            {/* 1. PREMIUM HEADER BANNER */}
+            <div className="relative overflow-hidden bg-emerald-600 rounded-[2.5rem] shadow-xl p-8 sm:p-12 text-white mb-8">
                 {/* Decorative Elements */}
-                <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-600/10 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2"></div>
+                <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl -mr-24 -mt-24 pointer-events-none animate-pulse"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/5 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
 
-                <div className="relative bg-white dark:bg-slate-900 rounded-[1.8rem] p-6 sm:p-8 flex flex-col md:flex-row gap-8 items-center md:items-start transition-all duration-500">
+                <div className="relative flex flex-col lg:flex-row gap-10 items-center lg:items-start z-10">
                     {/* Avatar Section */}
                     <div className="relative shrink-0">
-                        <div className="w-36 h-36 rounded-3xl overflow-hidden bg-slate-100 border-4 border-white dark:border-slate-800 shadow-xl relative group">
+                        <div className="w-40 h-40 rounded-full overflow-hidden bg-white/20 backdrop-blur-md border-4 border-white/40 shadow-2xl relative group">
                             {emp.profilePic ? (
                                 <img src={`${BACKEND_URL}${emp.profilePic}`} alt="Profile" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center text-5xl font-black text-slate-300 bg-slate-50 uppercase tracking-tighter">
+                                <div className="w-full h-full flex items-center justify-center text-5xl font-black text-white/40 bg-white/10 uppercase">
                                     {emp.firstName?.[0]}{emp.lastName?.[0]}
                                 </div>
                             )}
                         </div>
-                        <div className="absolute -bottom-2 -right-2 bg-emerald-500 border-4 border-white dark:border-slate-800 w-8 h-8 rounded-full shadow-lg" title="Active Account"></div>
+                        <div className={`absolute bottom-3 right-3 w-8 h-8 rounded-full border-4 border-emerald-600 shadow-lg ${emp.status === 'Active' ? 'bg-emerald-400' : 'bg-rose-400'}`} title={emp.status}></div>
                     </div>
 
                     {/* Meta Section */}
-                    <div className="flex-1 w-full text-center md:text-left">
-                        <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-6">
-                            <div>
-                                <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-2">
+                    <div className="flex-1 w-full text-center lg:text-left pt-2">
+                        <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-8">
+                            <div className="space-y-2">
+                                <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-sm">
                                     {emp.firstName} {emp.lastName}
                                 </h1>
-                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                                    <span className="text-blue-600 font-black uppercase tracking-widest text-[10px] bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
+                                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                                    <span className="px-4 py-1.5 rounded-xl bg-white/20 text-white text-xs font-black uppercase tracking-widest backdrop-blur-sm border border-white/20 ring-4 ring-white/5">
                                         {emp.role}
                                     </span>
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                    <span className="text-slate-500 font-bold text-sm">
+                                    <span className="text-emerald-100 text-sm font-bold uppercase tracking-[0.2em] flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></div>
                                         {emp.department} Unit
                                     </span>
                                 </div>
                             </div>
-                            <div className="flex gap-2 mx-auto md:mx-0">
-                                <Tag color={emp.status === 'Active' ? 'success' : 'warning'} className="font-black uppercase tracking-widest text-[10px] m-0 px-4 py-1.5 rounded-full shadow-sm">
-                                    {emp.status}
-                                </Tag>
+                            <div className="flex gap-3 mx-auto lg:mx-0">
                                 <Button
-                                    icon={<Printer size={14} />}
+                                    icon={<Printer size={18} />}
                                     onClick={() => window.print()}
-                                    className="no-print rounded-full font-black uppercase tracking-widest text-[10px] h-9 border-slate-200"
+                                    className="no-print rounded-xl font-black uppercase tracking-widest text-[10px] h-11 px-6 border-white/30 bg-white/20 text-white hover:bg-white/30 hover:border-white/50 hover:text-white transition-all backdrop-blur-sm"
                                 >
-                                    Print
+                                    Print Dossier
                                 </Button>
                             </div>
                         </div>
 
                         {/* Quick Stats Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-slate-100 dark:border-slate-800 pt-6">
-                            <div className="flex items-center gap-3 px-2">
-                                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 border-t border-white/10 pt-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-lg bg-white/10 backdrop-blur-sm text-white">
                                     <Mail size={18} />
                                 </div>
                                 <div className="text-left overflow-hidden">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email Address</p>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate" title={emp.email}>{emp.email}</p>
+                                    <p className="text-xs font-medium text-emerald-100 uppercase tracking-widest">Email Address</p>
+                                    <p className="text-sm font-semibold text-white truncate" title={emp.email}>{emp.email}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 px-2">
-                                <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-lg bg-white/10 backdrop-blur-sm text-white">
                                     <Phone size={18} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contact No</p>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{emp.contactNo || emp.phone || 'N/A'}</p>
+                                    <p className="text-xs font-medium text-emerald-100 uppercase tracking-widest">Contact No</p>
+                                    <p className="text-sm font-semibold text-white">{emp.contactNo || emp.phone || 'N/A'}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 px-2">
-                                <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-600">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-lg bg-white/10 backdrop-blur-sm text-white">
                                     <Shield size={18} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Code</p>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{emp.employeeId}</p>
+                                    <p className="text-xs font-medium text-emerald-100 uppercase tracking-widest">System Code</p>
+                                    <p className="text-sm font-semibold text-white">{emp.employeeId}</p>
                                 </div>
                             </div>
                         </div>

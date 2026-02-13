@@ -73,8 +73,13 @@ export default function OrgStructure() {
         setRoots(newRoots);
     };
 
-    const EmployeeNode = ({ employee, isRoot = false }) => {
+    const EmployeeNode = ({ employee, isHead = false }) => {
         const isExpanded = employee.isExpanded;
+
+        // Dynamic Theme based on Head vs Employee
+        const theme = isHead
+            ? { border: 'border-indigo-500', bg: 'bg-indigo-600', text: 'text-indigo-600', light: 'bg-indigo-50', shadow: 'shadow-indigo-200', hex: '#4f46e5' }
+            : { border: 'border-emerald-500', bg: 'bg-emerald-600', text: 'text-emerald-600', light: 'bg-emerald-50', shadow: 'shadow-emerald-200', hex: '#10b981' };
 
         return (
             <div className="inline-block p-4 group select-none animate-in fade-in zoom-in duration-500">
@@ -83,10 +88,10 @@ export default function OrgStructure() {
                     <div
                         className={`
                             w-64 bg-white dark:bg-slate-900 rounded-[3rem] border-2 transition-all duration-700
-                            ${isExpanded ? 'border-indigo-500 shadow-2xl scale-105' : 'border-slate-50 dark:border-slate-800 shadow-xl shadow-slate-200/40 hover:border-indigo-200'}
+                            ${isExpanded ? `${theme.border} shadow-2xl scale-105` : `border-slate-50 dark:border-slate-800 shadow-xl shadow-slate-200/40 hover:${theme.border}`}
                             flex flex-col items-center pt-8 pb-6 px-4
                         `}
-                        style={{ borderTopWidth: '8px' }}
+                        style={{ borderTop: `8px solid ${theme.hex}` }}
                     >
                         {/* Avatar Section */}
                         <div className="relative mb-4">
@@ -110,14 +115,14 @@ export default function OrgStructure() {
                             <h3 className="text-base font-black text-slate-800 dark:text-white tracking-tight">
                                 {employee.firstName} {employee.lastName}
                             </h3>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            <p className={`text-[9px] font-black uppercase tracking-widest ${theme.text}`}>
                                 {employee.role || 'Team Member'}
                             </p>
                         </div>
 
                         {/* Metadata Pill */}
                         <div className="mt-4">
-                            <Tag className="m-0 text-[8px] font-black uppercase tracking-widest border-none bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 px-4 py-1 rounded-full">
+                            <Tag className={`m-0 text-[8px] font-black uppercase tracking-widest border-none ${theme.light} dark:${theme.light.replace('bg-', 'bg-opacity-20 bg-')} ${theme.text} px-4 py-1 rounded-full`}>
                                 {employee.department || 'GLOBAL'}
                             </Tag>
                         </div>
@@ -138,7 +143,7 @@ export default function OrgStructure() {
                                 onClick={() => toggleNode(employee._id, roots)}
                                 className={`
                                     w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500
-                                    ${isExpanded ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-100 dark:border-slate-700'}
+                                    ${isExpanded ? `${theme.bg} text-white shadow-lg ${theme.shadow}` : 'bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-100 dark:border-slate-700'}
                                 `}
                             >
                                 {isExpanded ? <CaretUpOutlined style={{ fontSize: '12px' }} /> : <CaretDownOutlined style={{ fontSize: '12px' }} />}
@@ -150,10 +155,10 @@ export default function OrgStructure() {
         );
     };
 
-    const renderRecursive = (nodes) => {
+    const renderRecursive = (nodes, isHead = false) => {
         return nodes.map((node) => (
-            <TreeNode key={node._id} label={<EmployeeNode employee={node} />}>
-                {node.isExpanded && node.children && node.children.length > 0 && renderRecursive(node.children)}
+            <TreeNode key={node._id} label={<EmployeeNode employee={node} isHead={isHead} />}>
+                {node.isExpanded && node.children && node.children.length > 0 && renderRecursive(node.children, false)}
                 {node.isExpanded && node.loaded && node.children.length === 0 && (
                     <TreeNode label={<div className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em] mt-8 py-3 border-2 border-dashed border-slate-100 rounded-[2rem] mx-auto w-40">Leaf Node / No Reports</div>} />
                 )}
@@ -224,7 +229,7 @@ export default function OrgStructure() {
                                 </div>
                             }
                         >
-                            {renderRecursive(roots)}
+                            {renderRecursive(roots, true)}
                         </Tree>
                     </div>
                 )}
