@@ -10,14 +10,14 @@ import { formatCalculationLabel } from '../../../utils/payrollFormat';
 export default function SalaryComponents() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const initialTab = searchParams.get('tab') || 'templates';
+    const initialTab = searchParams.get('tab') || 'earnings';
     const [activeTab, setActiveTab] = useState(initialTab);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [earnings, setEarnings] = useState([]);
     const [deductions, setDeductions] = useState([]);
     const [benefits, setBenefits] = useState([]);
-    const [templates, setTemplates] = useState([]);
+
 
     useEffect(() => {
         if (activeTab === 'earnings') {
@@ -26,34 +26,11 @@ export default function SalaryComponents() {
             fetchDeductions();
         } else if (activeTab === 'benefits') {
             fetchBenefits();
-        } else if (activeTab === 'templates') {
-            fetchTemplates();
+
         }
     }, [activeTab]);
 
-    const fetchTemplates = async () => {
-        try {
-            setLoading(true);
-            const res = await api.get('/payroll/salary-templates');
-            if (res.data.success) {
-                const formatted = res.data.data.map(item => ({
-                    id: item._id,
-                    name: item.templateName,
-                    type: 'Template',
-                    description: item.description,
-                    annualCTC: item.annualCTC,
-                    monthlyCTC: item.monthlyCTC,
-                    status: item.isActive ? 'Active' : 'Inactive',
-                    category: 'Template'
-                }));
-                setTemplates(formatted);
-            }
-        } catch (err) {
-            console.error('Failed to fetch templates', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+
 
     const fetchBenefits = async () => {
         try {
@@ -135,7 +112,7 @@ export default function SalaryComponents() {
             case 'deductions': return deductions;
             case 'corrections': return [];
             case 'benefits': return benefits;
-            case 'templates': return templates;
+
             default: return [];
         }
     };
@@ -150,8 +127,7 @@ export default function SalaryComponents() {
             navigate(`/hr/payroll/deductions/edit/${item.id}`);
         } else if (item.category === 'Benefit') {
             navigate(`/hr/payroll/benefits/edit/${item.id}`);
-        } else if (item.category === 'Template') {
-            navigate(`/hr/payroll/salary-templates/edit/${item.id}`);
+
         }
     };
 
@@ -166,9 +142,7 @@ export default function SalaryComponents() {
             } else if (item.category === 'Benefit') {
                 await api.patch(`/payroll/benefits/${item.id}/status`, { isActive: item.status !== 'Active' });
                 fetchBenefits();
-            } else if (item.category === 'Template') {
-                await api.put(`/payroll/salary-templates/${item.id}`, { isActive: item.status !== 'Active' });
-                fetchTemplates();
+
             }
             showToast('success', 'Success', 'Status updated successfully');
         } catch (err) {
@@ -256,9 +230,7 @@ export default function SalaryComponents() {
                                         <button onClick={() => handleAdd('Benefit')} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600 font-medium transition-colors">
                                             Add Benefit
                                         </button>
-                                        <button onClick={() => navigate('/hr/payroll/salary-templates/new')} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600 font-medium transition-colors border-t border-slate-100 mt-2 pt-2">
-                                            Add Template
-                                        </button>
+
                                     </div>
                                 </>
                             )}
@@ -267,7 +239,7 @@ export default function SalaryComponents() {
 
                     {/* TABS */}
                     <div className="flex items-center gap-8 overflow-x-auto no-scrollbar">
-                        {['Templates', 'Earnings', 'Deductions', 'Corrections', 'Benefits'].map((tab) => {
+                        {['Earnings', 'Deductions', 'Corrections', 'Benefits'].map((tab) => {
                             const key = tab.toLowerCase();
                             const isActive = activeTab === key;
                             return (
