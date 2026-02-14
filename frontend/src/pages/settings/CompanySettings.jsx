@@ -14,7 +14,6 @@ import { notification } from 'antd';
 import api from '../../utils/api';
 // Import CSS from Admin if needed, or rely on Tailwind
 import '../Admin/IdConfiguration.css';
-import SocialMediaDashboard from '../../modules/social-media/SocialMediaDashboard';
 
 const CompanySettings = () => {
     const [loading, setLoading] = useState(true);
@@ -36,38 +35,6 @@ const CompanySettings = () => {
 
     useEffect(() => {
         loadConfiguration();
-
-        // Handle OAuth callback
-        const urlParams = new URLSearchParams(window.location.search);
-        const oauthStatus = urlParams.get('oauth');
-        const platform = urlParams.get('platform');
-        const errorMessage = urlParams.get('message');
-
-        if (oauthStatus === 'success' && platform) {
-            // Activate Social Media tab
-            setActiveTab('social');
-
-            // Show success notification
-            const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
-            notification.success({
-                message: 'OAuth Success',
-                description: `${platformName} connected successfully! ✓`,
-                duration: 4
-            });
-
-            // Clean URL
-            window.history.replaceState({}, '', window.location.pathname);
-        } else if (oauthStatus === 'error') {
-            // Show error notification
-            notification.error({
-                message: 'OAuth Failed',
-                description: errorMessage || 'OAuth connection failed',
-                duration: 5
-            });
-
-            // Clean URL
-            window.history.replaceState({}, '', window.location.pathname);
-        }
     }, []);
 
     const loadConfiguration = async () => {
@@ -146,12 +113,6 @@ const CompanySettings = () => {
                     onClick={() => setActiveTab('docs')}
                 >
                     Document Sequences
-                </button>
-                <button
-                    className={`pb-3 px-4 font-medium transition-colors ${activeTab === 'social' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
-                    onClick={() => setActiveTab('social')}
-                >
-                    Social Media
                 </button>
             </div>
 
@@ -302,12 +263,6 @@ const CompanySettings = () => {
                             {saving ? 'Saving...' : 'Save All Sequences'}
                         </button>
                     </div>
-                </div>
-            )}
-
-            {activeTab === 'social' && (
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                    <SocialMediaDashboard />
                 </div>
             )}
         </div>

@@ -1004,11 +1004,10 @@ export default function AttendanceSettings() {
                                                     }
                                                 });
                                             }}
-                                            className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition ${
-                                                active
+                                            className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition ${active
                                                     ? 'bg-purple-600 text-white border-purple-600'
                                                     : 'bg-slate-50 dark:bg-slate-950 text-slate-500 border-slate-200 dark:border-slate-800'
-                                            }`}
+                                                }`}
                                         >
                                             {source === 'biometric' && 'Biometric'}
                                             {source === 'mobile' && 'Mobile App'}

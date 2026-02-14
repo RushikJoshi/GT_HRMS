@@ -100,7 +100,7 @@ export default function CandidateStatusTracker() {
     );
 
     return (
-        <div className="p-8 space-y-8 max-w-7xl mx-auto min-h-screen">
+        <div className="p-8 space-y-8 w-full mx-auto min-h-screen">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
@@ -153,7 +153,7 @@ export default function CandidateStatusTracker() {
             </div>
 
             {/* Main Content Area */}
-            <div className="bg-white rounded-3xl border border-slate-200/60 shadow-xl shadow-slate-200/40 overflow-hidden">
+            <div className="bg-white border border-slate-200/60 overflow-hidden">
                 {/* Toolbar */}
                 <div className="p-5 border-b border-slate-100 bg-white flex flex-col md:flex-row gap-4 justify-between items-center sticky top-0 z-10">
                     <div className="relative w-full md:w-96 group">
@@ -182,12 +182,12 @@ export default function CandidateStatusTracker() {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50/80 border-b border-slate-100">
-                                <th className="px-8 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest first:rounded-tl-2xl">Candidate</th>
+                                <th className="px-8 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">Candidate</th>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">Role Applied</th>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">Stage</th>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">Applied On</th>
-                                <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center last:rounded-tr-2xl">Timeline</th>
+                                <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Timeline</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">

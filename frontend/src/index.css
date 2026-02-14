@@ -1,8 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap');
+
 /** @format */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply text-slate-800 antialiased;
+    background-color: #f8fafc;
+    font-family: 'Open Sans', sans-serif;
+  }
+}
 
 @layer utilities {
   .table-responsive {
@@ -69,13 +79,6 @@ input[type="number"] {
 
 .animate-in.fade-in {
   animation: fadeIn 0.3s ease-out forwards;
-}
-
-@layer base {
-  body {
-    @apply text-slate-800 antialiased;
-    background-color: #f8fafc;
-  }
 }
 
 /* Premium Color Utilities */

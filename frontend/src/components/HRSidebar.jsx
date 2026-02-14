@@ -164,7 +164,8 @@ const NAV_GROUPS = [
         ]
       },
       { to: '/hr/access', label: 'Access Control', icon: ICONS.access },
-      { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings }
+      { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings, end: true },
+      { to: '/hr/settings/social-media', label: 'Social Media', icon: ICONS.social }
     ]
   },
   {
@@ -316,14 +317,19 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
 
 
                   className={({ isActive }) => {
-                    // Custom active check for links with query parameters
+                    // Custom active check for strict matching
                     let active = isActive;
-                    if (item.to.includes('?')) {
-                      const [path, query] = item.to.split('?');
-                      const currentPath = location.pathname;
-                      const currentQuery = location.search.substring(1);
+                    const [path, query] = item.to.split('?');
+                    const currentPath = location.pathname;
+                    const currentQuery = location.search.substring(1);
+
+                    if (query) {
                       active = currentPath === path && currentQuery === query;
+                    } else if (currentQuery && currentPath === path) {
+                      // If URL has query but this item doesn't, don't highlight (strict match)
+                      active = false;
                     }
+
                     return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
                      ${active ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`;
                   }}

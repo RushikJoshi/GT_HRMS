@@ -1,8 +1,8 @@
-const PRESET_DEPARTMENTS = ['HR', 'Tech', 'Accounts', 'Admin'];
 import React, { useEffect, useState } from 'react';
 import { Pagination } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications';
 import api from '../../utils/api';
+import { Building2, Plus, Users, Briefcase, IndianRupee, User, Edit2, Trash2, Eye, FileText, Shield } from 'lucide-react';
 
 export default function Departments() {
   const [depts, setDepts] = useState([]);
@@ -53,60 +53,132 @@ export default function Departments() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Departments</h1>
-        <button onClick={openNew} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md">+ Add Dept</button>
+    <div className="space-y-8 pb-12">
+      {/* 1. PREMIUM HEADER BANNER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-emerald-600 p-10 rounded-xl shadow-sm relative overflow-hidden mb-8">
+        <div className="relative z-10">
+          <h1 className="text-4xl font-bold text-white tracking-tight mb-2">Departments</h1>
+          <p className="text-emerald-100 font-medium text-lg">Manage your organization's departmental structure and roles.</p>
+        </div>
+        <button
+          onClick={openNew}
+          className="relative z-10 flex items-center gap-2 px-6 py-3 bg-white text-emerald-700 rounded-xl font-bold hover:bg-emerald-50 transition-all shadow-lg hover:shadow-emerald-900/20 group"
+        >
+          <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+          Add Department
+        </button>
+        {/* Decorative BG element */}
+        <div className="absolute top-0 right-0 w-64 h-full bg-white/10 blur-3xl rounded-full pointer-events-none -mr-16 -mt-10"></div>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-slate-500">Loading departments...</div>
-        ) : depts.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">No departments yet. Create one to get started!</div>
-        ) : (
-          <div className="divide-y divide-slate-200">
-            {depts.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(d => (
-              <div key={d._id} className="p-4 hover:bg-slate-50 transition flex justify-between items-center">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-900">{d.name}</span>
-                    {d.code && <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded border">{d.code}</span>}
-                    {d.status === 'Inactive' && <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded border">Inactive</span>}
+      {/* 2. DEPARTMENTS GRID */}
+      {loading ? (
+        <div className="p-20 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-100 shadow-sm">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mb-4"></div>
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Loading Departments...</p>
+        </div>
+      ) : depts.length === 0 ? (
+        <div className="p-20 text-center flex flex-col items-center justify-center bg-white rounded-2xl border-2 border-dashed border-slate-200">
+          <Building2 size={48} className="text-slate-200 mb-4" />
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs mb-4">No departments found</p>
+          <button onClick={openNew} className="text-emerald-600 font-black text-xs uppercase tracking-widest hover:underline">Create your first department</button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {depts.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(d => {
+            // Determine colors and icon based on name
+            let borderColor = 'border-slate-200';
+            let iconBg = 'bg-slate-100';
+            let iconColor = 'text-slate-600';
+            let accentColor = 'bg-slate-600';
+            let Icon = Building2;
+            const name = d.name?.toLowerCase() || '';
+
+            if (name.includes('hr')) {
+              borderColor = 'border-blue-200';
+              iconBg = 'bg-blue-50';
+              iconColor = 'text-blue-600';
+              accentColor = 'bg-blue-600';
+              Icon = Users;
+            } else if (name.includes('tech') || name.includes('it')) {
+              borderColor = 'border-emerald-200';
+              iconBg = 'bg-emerald-50';
+              iconColor = 'text-emerald-600';
+              accentColor = 'bg-emerald-600';
+              Icon = Briefcase;
+            } else if (name.includes('account') || name.includes('finance')) {
+              borderColor = 'border-purple-200';
+              iconBg = 'bg-purple-50';
+              iconColor = 'text-purple-600';
+              accentColor = 'bg-purple-600';
+              Icon = IndianRupee;
+            } else if (name.includes('admin')) {
+              borderColor = 'border-amber-200';
+              iconBg = 'bg-amber-50';
+              iconColor = 'text-amber-600';
+              accentColor = 'bg-amber-600';
+              Icon = User;
+            }
+
+            return (
+              <div key={d._id} className={`bg-white p-6 rounded-2xl border-2 ${borderColor} shadow-sm hover:shadow-md transition-all relative overflow-hidden group`}>
+                <div className="flex items-center justify-between mb-6 relative z-10">
+                  <div className={`w-12 h-12 ${iconBg} ${iconColor} rounded-xl flex items-center justify-center border border-transparent group-hover:scale-110 transition-transform`}>
+                    <Icon size={24} />
                   </div>
-                  {d.description && <div className="text-sm text-slate-600 mt-1">{d.description}</div>}
+                  <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => openView(d)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-all" title="View">
+                      <Eye size={16} />
+                    </button>
+                    <button onClick={() => openEdit(d)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-all" title="Edit">
+                      <Edit2 size={16} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-3">
-                  <button onClick={() => openView(d)} className="p-1 rounded hover:bg-sky-50" title="View" aria-label="View department">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
+
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">{d.name}</h3>
+                    {d.status === 'Inactive' && (
+                      <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">Inactive</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className={`text-[10px] font-black ${iconColor} uppercase tracking-widest ${iconBg} px-2 py-0.5 rounded border border-transparent`}>{d.code || 'NO-CODE'}</span>
+                  </div>
+                  <p className="text-slate-600 text-sm font-medium line-clamp-2 min-h-[40px] leading-relaxed">
+                    {d.description || 'No description provided for this department unit.'}
+                  </p>
+                </div>
+
+                <div className="mt-6 pt-5 border-t border-slate-100 flex justify-between items-center relative z-10">
+                  <button
+                    onClick={() => remove(d._id)}
+                    className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-rose-600 transition-colors"
+                  >
+                    Remove Dept
                   </button>
-                  <button onClick={() => openEdit(d)} className="p-1 rounded hover:bg-blue-50" title="Edit" aria-label="Edit department">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </button>
-                  <button onClick={() => remove(d._id)} className="px-3 py-1 text-red-600 hover:bg-red-50 rounded transition">Delete</button>
+                  <div className={`w-2 h-2 rounded-full ${accentColor}`}></div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-        {depts.length > pageSize && (
-          <div className="px-6 py-4 border-t border-slate-200 flex justify-end">
-            <Pagination
-              current={currentPage}
-              pageSize={pageSize}
-              total={depts.length}
-              onChange={(page) => setCurrentPage(page)}
-              showSizeChanger={false}
-            />
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 3. PAGINATION */}
+      {depts.length > pageSize && (
+        <div className="mt-8 flex justify-center bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+          <Pagination
+            current={currentPage}
+            pageSize={pageSize}
+            total={depts.length}
+            onChange={(page) => setCurrentPage(page)}
+            showSizeChanger={false}
+            className="ant-pagination-modern"
+          />
+        </div>
+      )}
 
       {openForm && <DeptForm dept={editing} depts={depts} onClose={() => { setOpenForm(false); load(); }} />}
       {viewing && <DeptView dept={viewing} onClose={() => setViewing(null)} />}
@@ -175,81 +247,138 @@ function DeptForm({ dept, depts = [], onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/30 p-4">
-      <form onSubmit={submit} className="bg-white p-6 rounded w-full max-w-2xl">
-        <h3 className="font-bold mb-4">{dept ? 'Edit' : 'Add'} Department</h3>
-
-        <div className="mb-3">
-          <label className="text-sm font-medium">Department Name <span className="text-red-500">*</span></label>
-          <input required value={name} onChange={e => { const v = e.target.value; setName(v.charAt(0).toUpperCase() + v.slice(1)); }} className={`w-full border px-2 py-2 rounded ${errors.name ? 'border-red-500' : ''}`} placeholder="Enter Department Name" />
-          {errors.name && <div className="text-xs text-red-600 mt-1">{errors.name}</div>}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
+        <div className="bg-slate-900 px-8 py-6 text-white relative">
+          <h3 className="text-xl font-black uppercase tracking-widest">{dept ? 'Modify' : 'New'} Department</h3>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-tighter mt-1">Fill in the departmental details below.</p>
+          <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
+            <Plus size={24} className="rotate-45" />
+          </button>
         </div>
 
-        <div className="mb-3">
-          <label className="text-sm font-medium">Department Code <span className="text-red-500">*</span></label>
-          <input required value={code} onChange={e => setCode(e.target.value)} className={`w-full border px-2 py-2 rounded ${errors.code ? 'border-red-500' : ''}`} placeholder="e.g. IT-01" />
-          {errors.code && <div className="text-xs text-red-600 mt-1">{errors.code}</div>}
-        </div>
+        <form onSubmit={submit} className="p-8 space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Department Name <span className="text-red-500">*</span></label>
+              <div className="relative group">
+                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                <input
+                  required
+                  value={name}
+                  onChange={e => { const v = e.target.value; setName(v.charAt(0).toUpperCase() + v.slice(1)); }}
+                  className={`w-full pl-11 pr-4 py-3 bg-slate-50 border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:border-emerald-500 transition-all ${errors.name ? 'border-red-200 ring-red-500/10' : 'border-slate-100 ring-emerald-500/10'}`}
+                  placeholder="e.g. Human Resources"
+                />
+              </div>
+              {errors.name && <p className="text-[10px] text-red-500 font-bold uppercase mt-1.5 ml-1">{errors.name}</p>}
+            </div>
 
-        <div className="mb-3">
-          <label className="text-sm font-medium">Status</label>
-          <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border px-2 py-2 rounded">
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
-        </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Department Code <span className="text-red-500">*</span></label>
+              <div className="relative group">
+                <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                <input
+                  required
+                  value={code}
+                  onChange={e => setCode(e.target.value)}
+                  className={`w-full pl-11 pr-4 py-3 bg-slate-50 border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:border-emerald-500 transition-all ${errors.code ? 'border-red-200 ring-red-500/10' : 'border-slate-100 ring-emerald-500/10'}`}
+                  placeholder="e.g. HR01"
+                />
+              </div>
+              {errors.code && <p className="text-[10px] text-red-500 font-bold uppercase mt-1.5 ml-1">{errors.code}</p>}
+            </div>
 
-        <div className="mb-4">
-          <label className="text-sm font-medium">Description</label>
-          <textarea value={description} onChange={e => setDescription(e.target.value)} className={`w-full border px-2 py-2 rounded ${errors.description ? 'border-red-500' : ''}`} maxLength={250} placeholder="Brief description..." />
-          {errors.description && <div className="text-xs text-red-600 mt-1">{errors.description}</div>}
-        </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Status</label>
+              <select value={status} onChange={e => setStatus(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all">
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
 
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded hover:bg-slate-50 transition">Cancel</button>
-          <button disabled={saving} className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition shadow">{saving ? 'Saving...' : 'Save'}</button>
-        </div>
-      </form>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Description</label>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                className={`w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all h-24 resize-none ${errors.description ? 'border-red-200 ring-red-500/10' : ''}`}
+                placeholder="Describe this department unit..."
+              />
+              {errors.description && <p className="text-[10px] text-red-500 font-bold uppercase mt-1.5 ml-1">{errors.description}</p>}
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3.5 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all"
+            >
+              Discard
+            </button>
+            <button
+              disabled={saving}
+              className="flex-1 px-4 py-3.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-50"
+            >
+              {saving ? 'Processing...' : 'Save Department'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
 
 function DeptView({ dept, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/30 p-4">
-      <div className="bg-white p-6 rounded w-full max-w-2xl">
-        <h3 className="font-bold text-lg mb-4">Department Details</h3>
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs text-slate-500 uppercase tracking-wide">Name</label>
-            <p className="text-slate-900 font-semibold text-lg">{dept.name}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
+        <div className="bg-slate-900 px-8 py-8 text-white relative">
+          <div className="w-16 h-16 bg-blue-500/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 mb-4">
+            <Building2 size={32} className="text-blue-400" />
           </div>
-
-          <div>
-            <label className="text-xs text-slate-500 uppercase tracking-wide">Code</label>
-            <p className="text-slate-900 font-mono bg-slate-100 rounded px-2 py-1 inline-block mt-1">{dept.code || 'N/A'}</p>
-          </div>
-
-          <div>
-            <label className="text-xs text-slate-500 uppercase tracking-wide">Status</label>
-            <div className="mt-1">
-              <span className={`px-2 py-1 rounded text-xs font-semibold ${dept.status === 'Inactive' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                {dept.status || 'Active'}
-              </span>
-            </div>
-          </div>
-
-          {dept.description && (
-            <div>
-              <label className="text-xs text-slate-500 uppercase tracking-wide">Description</label>
-              <p className="text-slate-700">{dept.description}</p>
-            </div>
-          )}
+          <h3 className="text-2xl font-black uppercase tracking-tighter">{dept.name}</h3>
+          <p className="text-blue-400 text-[10px] font-black uppercase tracking-widest mt-1">Department Unit Profile</p>
+          <button onClick={onClose} className="absolute top-8 right-8 text-slate-400 hover:text-white transition-colors">
+            <Plus size={24} className="rotate-45" />
+          </button>
         </div>
 
-        <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-900 rounded hover:bg-slate-200 transition">Close</button>
+        <div className="p-8 space-y-8">
+          <div className="grid grid-cols-2 gap-8">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unit Code</label>
+              <div className="flex items-center gap-2">
+                <Shield size={14} className="text-blue-500" />
+                <p className="text-sm font-bold text-slate-900">{dept.code || 'N/A'}</p>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Operation Status</label>
+              <div>
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${dept.status === 'Inactive' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                  {dept.status || 'Active'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</label>
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <p className="text-slate-600 text-sm font-medium leading-relaxed italic">
+                "{dept.description || 'No description provided for this department unit.'}"
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-4 flex gap-3">
+            <button onClick={onClose} className="flex-1 px-4 py-3.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
+              Dismiss View
+            </button>
+          </div>
         </div>
       </div>
     </div>

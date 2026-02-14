@@ -344,7 +344,7 @@ const BGVDashboard = () => {
             </div>
 
             {/* Cases Table */}
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div className="bg-white border border-slate-200 overflow-hidden">
                 {loading ? (
                     <div className="flex items-center justify-center py-20">
                         <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
