@@ -50,20 +50,55 @@ async function getEmployeeCompensation(db, tenantId, employeeId) {
                         earnings: mainComp.components?.filter(c => c && (c.type || '').toUpperCase() === 'EARNING').map(e => ({
                             name: e.name,
                             monthlyAmount: e.monthlyAmount,
-                            yearlyAmount: e.annualAmount
+                            yearlyAmount: e.annualAmount,
+                            isProRata: e.isProRata,
+                            isTaxable: e.isTaxable
                         })) || [],
                         employeeDeductions: mainComp.components?.filter(c => c && (c.type || '').toUpperCase() === 'DEDUCTION').map(d => ({
                             name: d.name,
                             monthlyAmount: d.monthlyAmount,
-                            yearlyAmount: d.annualAmount
+                            yearlyAmount: d.annualAmount,
+                            isProRata: d.isProRata,
+                            isTaxable: d.isTaxable
                         })) || [],
                         benefits: mainComp.components?.filter(c => c && (c.type || '').toUpperCase() === 'BENEFIT').map(b => ({
                             name: b.name,
                             monthlyAmount: b.monthlyAmount,
-                            yearlyAmount: b.annualAmount
+                            yearlyAmount: b.annualAmount,
+                            isProRata: b.isProRata,
+                            isTaxable: b.isTaxable
                         })) || [],
                         effectiveFrom: mainComp.effectiveFrom,
                         reason: 'ACTIVE_STRUCTURE'
+                    }
+                };
+            }
+
+            // Priority 1.5: Check Employee's own direct snapshot link
+            // Try both commonly used field names: currentSalarySnapshotId, currentSnapshotId
+            const empWithSnap = await Employee.findById(employee._id)
+                .populate('currentSalarySnapshotId')
+                .populate('currentSnapshotId')
+                .lean();
+
+            const directSnapshot = empWithSnap?.currentSalarySnapshotId || empWithSnap?.currentSnapshotId;
+
+            if (directSnapshot) {
+                return {
+                    found: true,
+                    source: 'EMPLOYEE_SNAPSHOT',
+                    employeeId,
+                    compensation: {
+                        annualCTC: directSnapshot.ctc || 0,
+                        monthlyCTC: directSnapshot.monthlyCTC || 0,
+                        grossEarnings: directSnapshot.summary?.grossEarnings || directSnapshot.breakdown?.totalEarnings || 0,
+                        totalDeductions: directSnapshot.summary?.totalDeductions || directSnapshot.breakdown?.totalDeductions || 0,
+                        totalBenefits: directSnapshot.summary?.totalBenefits || directSnapshot.breakdown?.totalBenefits || 0,
+                        earnings: directSnapshot.earnings || [],
+                        employeeDeductions: directSnapshot.employeeDeductions || [],
+                        benefits: directSnapshot.benefits || [],
+                        effectiveFrom: directSnapshot.effectiveFrom,
+                        reason: directSnapshot.reason || 'ASSIGNED_SNAPSHOT'
                     }
                 };
             }
@@ -141,8 +176,8 @@ function convertCompensationToTemplate(compensation) {
             name: e.name,
             monthlyAmount: e.monthlyAmount || 0,
             annualAmount: e.yearlyAmount || 0,
-            proRata: false, // Snapshot doesn't track proRata, assume false
-            taxable: true // Conservative assumption
+            proRata: e.isProRata !== undefined ? e.isProRata : (e.name?.toLowerCase().includes('basic')), // Use flag or default for Basic
+            taxable: e.isTaxable !== undefined ? e.isTaxable : true // Use flag or default to true
         })),
 
         // Convert deductions to template format

@@ -24,7 +24,12 @@ const EmployeeCompensationSchema = new mongoose.Schema({
         required: true,
         index: true
     },
-    
+    salarySnapshotId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'EmployeeSalarySnapshot',
+        default: null
+    },
+
     // CTC Structure
     grossA: {
         type: Number,
@@ -43,7 +48,7 @@ const EmployeeCompensationSchema = new mongoose.Schema({
         required: true,
         default: 0
     },
-    
+
     // Salary Components
     components: [{
         name: String,
@@ -70,7 +75,7 @@ const EmployeeCompensationSchema = new mongoose.Schema({
             default: true
         }
     }],
-    
+
     // Status & Validity
     isActive: {
         type: Boolean,
@@ -84,7 +89,7 @@ const EmployeeCompensationSchema = new mongoose.Schema({
         uppercase: true,
         index: true
     },
-    
+
     // Effective Period
     effectiveFrom: {
         type: Date,
@@ -94,7 +99,7 @@ const EmployeeCompensationSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
-    
+
     // Audit Trail
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -110,7 +115,7 @@ const EmployeeCompensationSchema = new mongoose.Schema({
 });
 
 // Pre-save hook to normalize status to uppercase
-EmployeeCompensationSchema.pre('save', function(next) {
+EmployeeCompensationSchema.pre('save', function (next) {
     if (this.status) {
         this.status = this.status.toUpperCase();
     }
