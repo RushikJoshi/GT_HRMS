@@ -968,7 +968,7 @@ export default function AttendanceHistory() {
       </div>
 
       {/* Attendance History Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-[32px] shadow-xl border-2 border-slate-200/60 dark:border-slate-800 overflow-hidden">
         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
           <div className="flex items-center justify-between">
             <div>
@@ -983,16 +983,16 @@ export default function AttendanceHistory() {
           </div>
         </div>
         <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-          <table className="w-full min-w-[1000px]">
-            <thead className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800">
+          <table className="w-full min-w-[1000px] border-separate border-spacing-0">
+            <thead className="bg-slate-50/50 dark:bg-slate-950/50">
               <tr>
-                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest w-[20%]">Employee</th>
-                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest w-[12%]">Present Days</th>
-                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest w-[10%]">Absent</th>
-                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest w-[12%]">Late Arrivals</th>
-                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest w-[12%]">Total Hours</th>
-                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest w-[18%]">Face Registration</th>
-                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest w-[16%] text-right">Actions</th>
+                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[20%] border-b border-slate-100 dark:border-slate-800 rounded-tl-[32px]">Employee</th>
+                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%] border-b border-slate-100 dark:border-slate-800">Present Days</th>
+                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%] border-b border-slate-100 dark:border-slate-800">Absent</th>
+                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%] border-b border-slate-100 dark:border-slate-800">Late Arrivals</th>
+                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%] border-b border-slate-100 dark:border-slate-800">Total Hours</th>
+                <th className="px-6 py-5 text-left text-[10px) font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[18%] border-b border-slate-100 dark:border-slate-800">Face Registration</th>
+                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[16%] text-right border-b border-slate-100 dark:border-slate-800 rounded-tr-[32px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
