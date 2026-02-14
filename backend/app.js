@@ -88,6 +88,7 @@ try {
     mongoose.model('TrackerCandidate', require('./models/TrackerCandidate'));
     mongoose.model('CandidateStatusLog', require('./models/CandidateStatusLog'));
     mongoose.model('PayrollAdjustment', require('./models/PayrollAdjustment'));
+    mongoose.model('SalaryStructure', require('./models/SalaryStructure'));
 
     // BGV Models
     mongoose.model('BGVCase', require('./models/BGVCase'));

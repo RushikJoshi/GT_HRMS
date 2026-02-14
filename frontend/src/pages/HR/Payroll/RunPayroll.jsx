@@ -130,6 +130,42 @@ export default function RunPayroll() {
         }
     }
 
+    async function handleApprove(runId) {
+        if (!window.confirm("Are you sure you want to approve this payroll run? Once approved, payslips will be generated and finalizing the payroll will be locked.")) return;
+
+        setLoading(true);
+        setError('');
+        setSuccess('');
+        try {
+            await api.post(`/payroll/runs/${runId}/approve`);
+            setSuccess("Payroll run approved successfully!");
+            loadRuns();
+        } catch (err) {
+            console.error(err);
+            setError(err.response?.data?.message || err.response?.data?.error || "Failed to approve payroll");
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function handleMarkPaid(runId) {
+        if (!window.confirm("Mark this payroll as PAID? This will record the payment date and notify employees.")) return;
+
+        setLoading(true);
+        setError('');
+        setSuccess('');
+        try {
+            await api.post(`/payroll/runs/${runId}/mark-paid`);
+            setSuccess("Payroll marked as paid successfully!");
+            loadRuns();
+        } catch (err) {
+            console.error(err);
+            setError(err.response?.data?.message || err.response?.data?.error || "Failed to mark as paid");
+        } finally {
+            setLoading(false);
+        }
+    }
+
     const clearFilters = () => {
         setFilters({
             employeeType: [],
@@ -292,7 +328,15 @@ export default function RunPayroll() {
                                                 </Tooltip>
                                             )}
                                             {run.status === 'APPROVED' && (
-                                                <span className="text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider inline-block">Ready to Pay</span>
+                                                <button
+                                                    onClick={() => handleMarkPaid(run._id)}
+                                                    className="text-blue-600 hover:text-blue-800 font-bold px-3 py-1.5 rounded-lg hover:bg-blue-50 mr-2 text-xs transition-colors"
+                                                >
+                                                    Mark Paid
+                                                </button>
+                                            )}
+                                            {run.status === 'PAID' && (
+                                                <span className="text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider inline-block">Paid & Verified</span>
                                             )}
                                         </td>
                                     </tr>
