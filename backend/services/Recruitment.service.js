@@ -217,12 +217,30 @@ class RecruitmentService {
             .sort({ createdAt: -1 })
             .lean();
 
-        // Attach BGV Status to each applicant
-        const { BGVCase } = await getBGVModels(tenantId);
-        const bgvCases = await BGVCase.find({ tenant: tenantId });
+        // Attach BGV status to each applicant.
+        // Some BGV cases are employee-linked only and may have null applicationId.
+        let bgvByApplicationId = new Map();
+        try {
+            const { BGVCase } = await getBGVModels(tenantId);
+            const bgvCases = await BGVCase.find({
+                tenant: tenantId,
+                applicationId: { $exists: true, $ne: null }
+            })
+                .select('_id applicationId overallStatus')
+                .lean();
 
-        const applicantsWithBGV = applicants.map(app => {
-            const bgv = bgvCases.find(b => b.applicationId.toString() === app._id.toString());
+            bgvByApplicationId = new Map(
+                bgvCases
+                    .filter((b) => b && b.applicationId)
+                    .map((b) => [String(b.applicationId), b])
+            );
+        } catch (e) {
+            // Do not fail applicant listing due to optional BGV linkage issues.
+            console.warn('[RecruitmentService.getTenantApplications] BGV lookup skipped:', e.message);
+        }
+
+        const applicantsWithBGV = applicants.map((app) => {
+            const bgv = bgvByApplicationId.get(String(app._id));
             return {
                 ...app,
                 bgvStatus: bgv ? bgv.overallStatus : 'NOT_INITIATED',

@@ -211,11 +211,17 @@ app.use('/api/holidays', attendanceCheck, holidayRoutes);
 
 // --- HR MODULE ---
 const hrCheck = checkModuleAccess('hr');
-app.use('/api/letters', hrCheck, letterRoutes);
+const leaveCheck = checkModuleAccess('leave');
+const bgvCheck = checkModuleAccess('backgroundVerification');
+const documentMgmtCheck = checkModuleAccess('documentManagement');
+app.use('/api/letters', hrCheck, documentMgmtCheck, letterRoutes);
+// Primary mount keeps hrRoutes paths like /hr/employees accessible at /api/hr/employees
+app.use('/api', hrCheck, hrRoutes);
+// Backward-compat alias for older frontend calls that used /api/hr/hr/*
 app.use('/api/hr', hrCheck, hrRoutes);
 app.use('/api/psa', hrCheck, psaHrRoutes);
 app.use('/api/employee', hrCheck, employeeRoutes);
-app.use('/api/bgv', hrCheck, require('./routes/bgv.routes'));
+app.use('/api/bgv', hrCheck, bgvCheck, require('./routes/bgv.routes'));
 app.use('/api/entities', hrCheck, entityRoutes);
 app.use('/api/positions', hrCheck, positionRoutes);
 

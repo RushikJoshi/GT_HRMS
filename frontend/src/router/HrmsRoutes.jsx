@@ -6,7 +6,6 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 
 // Layouts
 import PsaLayout from '../layouts/PsaLayout';
@@ -148,9 +147,9 @@ export default function HrmsRoutes() {
           <Route path="users" element={<UserManagement />} />
           <Route path="departments" element={<Departments />} />
           <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
-          <Route path="leave-approvals" element={<LeaveApprovals />} />
-          <Route path="leave-approvals/regularization" element={<RegularizationApprovals category="Leave" />} />
-          <Route path="leave-policies" element={<LeavePolicies />} />
+          <Route path="leave-approvals" element={<ProtectedModule module="leave"><LeaveApprovals /></ProtectedModule>} />
+          <Route path="leave-approvals/regularization" element={<ProtectedModule module="leave"><RegularizationApprovals category="Leave" /></ProtectedModule>} />
+          <Route path="leave-policies" element={<ProtectedModule module="leave"><LeavePolicies /></ProtectedModule>} />
           <Route path="org" element={<OrgStructure />} />
           <Route path="org-tree" element={<CeoOrg />} />
           <Route path="access" element={<AccessControl />} />
@@ -161,7 +160,7 @@ export default function HrmsRoutes() {
           <Route path="letter-settings" element={<LetterSettings />} />
 
           {/* BGV */}
-          <Route path="my-tasks" element={<MyTasks />} />
+          <Route path="my-tasks" element={<ProtectedModule module="backgroundVerification"><MyTasks /></ProtectedModule>} />
         </Route>
 
         {/* --- ATTENDANCE MODULE --- */}

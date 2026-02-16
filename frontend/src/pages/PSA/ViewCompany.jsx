@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import companiesService from '../../services/companiesService';
 import { API_ROOT } from '../../utils/api';
+import { enabledModulesToArray, normalizeEnabledModules } from '../../utils/moduleConfig';
 
 export default function ViewCompany() {
     const { id } = useParams();
@@ -77,6 +78,8 @@ export default function ViewCompany() {
         </div>
     );
 
+    const activeModules = enabledModulesToArray(normalizeEnabledModules(company.enabledModules, company.modules));
+
     return (
         <div className="min-h-screen bg-[#F0F2F5] font-sans pb-12 sm:pb-20">
             {/* Immersive Header Backdrop */}
@@ -97,7 +100,7 @@ export default function ViewCompany() {
                                 <img src={getLogoUrl(company.meta.logo)} alt="Logo" className="w-full h-full object-contain p-4" />
                             ) : (
                                 <span className="text-sm font-black text-slate-800">
-                                    {(company.modules || []).filter(m => ['hr', 'payroll', 'attendance', 'ess', 'recruitment', 'analytics'].includes(m)).length || 0}
+                                    {activeModules.length}
                                 </span>
                             )}
                         </div>
@@ -221,23 +224,21 @@ export default function ViewCompany() {
                                 </div>
                                 <div>
                                     <span className="px-3 py-1 bg-white border border-slate-200 text-slate-500 rounded-lg text-[9px] font-bold uppercase tracking-widest whitespace-nowrap">
-                                        {(company.modules || []).filter(m => ['hr', 'payroll', 'attendance', 'ess', 'recruitment', 'analytics'].includes(m)).length || 0} Modules Active
+                                        {activeModules.length} Modules Active
                                     </span>
                                 </div>
                             </div>
 
                             <div className="p-6 sm:p-10 flex-1">
-                                {company.modules && company.modules.length > 0 ? (
+                                {activeModules.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                                        {(company.modules || [])
-                                            .filter(m => ['hr', 'payroll', 'attendance', 'ess', 'recruitment', 'analytics'].includes(m))
-                                            .map((mod) => (
+                                        {activeModules.map((mod) => (
                                                 <div key={mod} className="group relative p-5 sm:p-6 rounded-2xl border border-slate-100 bg-white hover:border-emerald-200 hover:shadow-md transition-all duration-300 flex items-center gap-4 sm:gap-5">
                                                     <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-slate-50 text-emerald-500 flex items-center justify-center group-hover:bg-gradient-to-br group-hover:from-emerald-500 group-hover:to-teal-500 group-hover:text-white transition-all duration-500 shadow-inner shrink-0">
                                                         <CheckCircle2 size={22} />
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <h4 className="text-sm sm:text-lg font-bold text-slate-900 capitalize tracking-tight truncate">{mod === 'ess' ? 'Employee Portal' : mod === 'hr' ? 'HR Management' : mod.replace('-', ' ')}</h4>
+                                                        <h4 className="text-sm sm:text-lg font-bold text-slate-900 capitalize tracking-tight truncate">{mod === 'employeePortal' ? 'Employee Portal' : mod === 'hr' ? 'HR Management' : mod.replace('-', ' ')}</h4>
                                                         <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
                                                             <Activity size={10} /> Permission Active
                                                         </p>

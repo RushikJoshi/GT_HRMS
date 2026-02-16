@@ -24,6 +24,93 @@ const AttendanceSchema = require('../models/Attendance');
 const ActivitySchema = require('../models/Activity');
 const UserSchema = require('../models/User');
 
+const MODULE_KEY_MAP = {
+  hr: 'hr',
+  payroll: 'payroll',
+  attendance: 'attendance',
+  leave: 'leave',
+  recruitment: 'recruitment',
+  backgroundverification: 'backgroundVerification',
+  backgroundVerification: 'backgroundVerification',
+  documentmanagement: 'documentManagement',
+  documentManagement: 'documentManagement',
+  socialmediaintegration: 'socialMediaIntegration',
+  socialMediaIntegration: 'socialMediaIntegration',
+  socialmedia: 'socialMediaIntegration',
+  socialMedia: 'socialMediaIntegration',
+  employeeportal: 'employeePortal',
+  employeePortal: 'employeePortal',
+  ess: 'employeePortal'
+};
+
+const MODULE_DEPENDENCIES = {
+  leave: ['hr'],
+  backgroundVerification: ['hr'],
+  documentManagement: ['hr'],
+  employeePortal: ['hr']
+};
+
+function defaultEnabledModules() {
+  return {
+    hr: false,
+    payroll: false,
+    attendance: false,
+    leave: false,
+    recruitment: false,
+    backgroundVerification: false,
+    documentManagement: false,
+    socialMediaIntegration: false,
+    employeePortal: false
+  };
+}
+
+function normalizeModuleKey(key) {
+  return MODULE_KEY_MAP[String(key || '').trim()] || MODULE_KEY_MAP[String(key || '').trim().toLowerCase()] || null;
+}
+
+function normalizeEnabledModulesObject(input, base = defaultEnabledModules()) {
+  const out = { ...base };
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return out;
+
+  Object.entries(input).forEach(([key, value]) => {
+    const normalizedKey = normalizeModuleKey(key);
+    if (normalizedKey) out[normalizedKey] = value === true;
+  });
+  return applyModuleDependencies(out);
+}
+
+function enabledModulesFromArray(modules = []) {
+  const out = defaultEnabledModules();
+  if (!Array.isArray(modules)) return out;
+
+  modules.forEach((m) => {
+    const normalizedKey = normalizeModuleKey(m);
+    if (normalizedKey) out[normalizedKey] = true;
+  });
+  return applyModuleDependencies(out);
+}
+
+function applyModuleDependencies(enabledModules = {}) {
+  const out = { ...defaultEnabledModules(), ...enabledModules };
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    Object.entries(MODULE_DEPENDENCIES).forEach(([moduleKey, deps]) => {
+      if (out[moduleKey] === true) {
+        deps.forEach((dep) => {
+          if (out[dep] !== true) {
+            out[dep] = true;
+            changed = true;
+          }
+        });
+      }
+    });
+  }
+
+  return out;
+}
+
 
 // ======================================================
 // CREATE TENANT (COMPANY)
@@ -84,20 +171,18 @@ exports.createTenant = async (req, res, next) => {
     // Generate verification token
     const token = crypto.randomBytes(24).toString('hex');
 
+    const normalizedEnabledModules =
+      req.body.enabledModules && typeof req.body.enabledModules === 'object' && !Array.isArray(req.body.enabledModules)
+        ? normalizeEnabledModulesObject(req.body.enabledModules)
+        : (Array.isArray(modules) ? enabledModulesFromArray(modules) : defaultEnabledModules());
+
     const t = new Tenant({
       name: name.trim(),
       code,
       domain: domain?.trim() || null,
       emailDomain: emailDomain?.trim() || null,
       plan: plan || 'free',
-      enabledModules: req.body.enabledModules || {
-        hr: false,
-        payroll: false,
-        attendance: false,
-        recruitment: false,
-        employeePortal: false,
-        reports: false
-      },
+      enabledModules: normalizedEnabledModules,
       status: 'pending',
       isVerified: false,
       verificationToken: token,
@@ -282,7 +367,10 @@ exports.getMyTenant = async (req, res, next) => {
 
 exports.updateTenant = async (req, res, next) => {
   try {
-    const { name, domain, emailDomain, plan, status, meta, modules } = req.body;
+    const { name, domain, emailDomain, plan, status, meta, modules, enabledModules } = req.body;
+
+    const existing = await Tenant.findById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'not_found' });
 
     const updates = {};
     if (name !== undefined) updates.name = name.trim();
@@ -290,12 +378,17 @@ exports.updateTenant = async (req, res, next) => {
     if (emailDomain !== undefined) updates.emailDomain = emailDomain?.trim() || null;
     if (plan !== undefined) updates.plan = plan;
     if (status !== undefined) updates.status = status;
-    if (Array.isArray(modules)) updates.modules = modules;
+    if (Array.isArray(modules)) {
+      updates.enabledModules = enabledModulesFromArray(modules);
+    } else if (enabledModules && typeof enabledModules === 'object' && !Array.isArray(enabledModules)) {
+      updates.enabledModules = normalizeEnabledModulesObject(
+        enabledModules,
+        normalizeEnabledModulesObject(existing.enabledModules)
+      );
+    }
 
     if (meta !== undefined && typeof meta === 'object') {
-      const t = await Tenant.findById(req.params.id);
-      if (t) updates.meta = { ...(t.meta || {}), ...meta };
-      else updates.meta = meta;
+      updates.meta = { ...(existing.meta || {}), ...meta };
     }
 
     const t = await Tenant.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true });
@@ -322,16 +415,21 @@ exports.updateModules = async (req, res, next) => {
     const before = await Tenant.findById(req.params.id).lean();
     if (!before) return res.status(404).json({ error: 'not_found' });
 
+    const normalizedEnabledModules = normalizeEnabledModulesObject(
+      enabledModules,
+      normalizeEnabledModulesObject(before.enabledModules)
+    );
+
     const t = await Tenant.findByIdAndUpdate(
       req.params.id,
-      { $set: { enabledModules } },
+      { $set: { enabledModules: normalizedEnabledModules } },
       { new: true }
     );
     if (!t) return res.status(404).json({ error: 'not_found' });
 
     try {
       const beforeModules = before.enabledModules || {};
-      const afterModules = enabledModules || {};
+      const afterModules = normalizedEnabledModules || {};
 
       const enabled = [];
       const disabled = [];

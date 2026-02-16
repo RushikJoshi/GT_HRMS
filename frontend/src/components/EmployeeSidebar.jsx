@@ -68,7 +68,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
         {
             title: 'Leave & Time',
             id: 'Leave',
-            module: 'hr',
+            module: 'leave',
             items: [
                 { id: 'leaves', label: 'My Leaves', icon: ICONS.leaves }
             ]

@@ -96,7 +96,7 @@ const NAV_GROUPS = [
   },
   {
     title: 'Leave',
-    module: 'hr',
+    module: 'leave',
     items: [
       { to: '/hr/leave-approvals', label: 'Leave Requests', icon: ICONS.leaveRequests },
       { to: '/hr/leave-policies', label: 'Leave Policies', icon: ICONS.leavePolicies }
@@ -138,20 +138,20 @@ const NAV_GROUPS = [
           { to: '/hr/internal-applicants', label: 'Internal' }
         ]
       },
-      {
-        label: 'BGV Management',
-        icon: ICONS.bgv,
-        children: [
-          { to: '/hr/bgv', label: 'Case Master' },
-          { to: '/hr/bgv/emails', label: 'Email Management' }
-        ]
-      },
       { to: '/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
     ]
   },
   {
+    title: 'BGV',
+    module: 'backgroundVerification',
+    items: [
+      { to: '/hr/bgv', label: 'Case Master', icon: ICONS.bgv },
+      { to: '/hr/bgv/emails', label: 'Email Management', icon: ICONS.bgv }
+    ]
+  },
+  {
     title: 'Document Management',
-    module: 'hr',
+    module: 'documentManagement',
     items: [
       { to: '/hr/letters', label: 'Dashboard', icon: ICONS.dashboard },
       { to: '/hr/letters/issue', label: 'Issue New Letter', icon: ICONS.applicants },
@@ -171,6 +171,12 @@ const NAV_GROUPS = [
       },
       { to: '/hr/access', label: 'Access Control', icon: ICONS.access },
       { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings, end: true },
+    ]
+  },
+  {
+    title: 'Social Media',
+    module: 'socialMediaIntegration',
+    items: [
       { to: '/hr/settings/social-media', label: 'Social Media', icon: ICONS.social }
     ]
   },

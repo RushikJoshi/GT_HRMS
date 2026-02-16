@@ -1,48 +1,46 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
-import { useNavigate } from 'react-router-dom';
 import api from "../../utils/api";
+import { applyModuleDependencies, createDefaultEnabledModules, normalizeEnabledModules } from "../../utils/moduleConfig";
 import {
   Save,
   Settings,
   Check,
-  X,
-  Layers,
   LayoutGrid,
   Building2,
-  Zap,
-  ArrowRight,
-  ShieldCheck,
   CircleDollarSign,
   Users,
   Clock,
   Briefcase,
-  Activity,
-  Cpu,
-  BarChart3,
   UserCircle2,
-  Plus
+  Plus,
+  CircleFadingPlus
 } from "lucide-react";
 
 const AVAILABLE_MODULES = [
   { code: "hr", label: "HR Management", description: "Employee records, roles & hierarchy", icon: Users, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
   { code: "payroll", label: "Payroll System", description: "Salaries, taxes & disbursements", icon: CircleDollarSign, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
   { code: "attendance", label: "Attendance & Time", description: "Shifts, biometrics & tracking", icon: Clock, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "leave", label: "Leave Management", description: "Leave apply, tracking & approval", icon: Clock, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
   { code: "employeePortal", label: "Employee Portal", description: "Self-service dashboard", icon: UserCircle2, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
   { code: "recruitment", label: "Recruitment", description: "Hiring, jobs & applicants", icon: Briefcase, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
-  { code: "reports", label: "Reports & Analytics", description: "Data insights & reporting", icon: BarChart3, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "backgroundVerification", label: "BGV", description: "Background Verification", icon: Briefcase, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "documentManagement", label: "Document Management", description: "Managing and Sending Documents and Offers", icon: CircleFadingPlus, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "socialMediaIntegration", label: "Social Media Integration", description: "Social Media Integration and Automation", icon: CircleFadingPlus, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
 ];
 
 export default function ModuleConfig({ company, onClose }) {
-  const [enabledModules, setEnabledModules] = useState({});
+  const [enabledModules, setEnabledModules] = useState(
+    createDefaultEnabledModules(false, AVAILABLE_MODULES.map((m) => m.code))
+  );
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState(company || null);
-  const navigate = useNavigate();
 
   const activeCount = useMemo(() => {
-    return Object.values(enabledModules).filter(v => v === true).length;
+    return AVAILABLE_MODULES.reduce((count, mod) => {
+      return count + (enabledModules?.[mod.code] === true ? 1 : 0);
+    }, 0);
   }, [enabledModules]);
 
   const allSelected = activeCount === AVAILABLE_MODULES.length;
@@ -59,13 +57,16 @@ export default function ModuleConfig({ company, onClose }) {
     if (allSelected) {
       setEnabledModules(Object.fromEntries(AVAILABLE_MODULES.map(m => [m.code, false])));
     } else {
-      setEnabledModules(Object.fromEntries(AVAILABLE_MODULES.map(m => [m.code, true])));
+      setEnabledModules(applyModuleDependencies(Object.fromEntries(AVAILABLE_MODULES.map(m => [m.code, true]))));
     }
   }
 
   useEffect(() => {
-    setEnabledModules(company?.enabledModules || {});
-    setError(null);
+    const normalized = normalizeEnabledModules(company?.enabledModules, company?.modules);
+    const filtered = Object.fromEntries(
+      AVAILABLE_MODULES.map((m) => [m.code, normalized[m.code] === true])
+    );
+    setEnabledModules(filtered);
     if (!company) {
       loadCompanies();
     } else {
@@ -84,64 +85,27 @@ export default function ModuleConfig({ company, onClose }) {
   }
 
   function toggle(code) {
-    setEnabledModules((prev) => ({
-      ...prev,
-      [code]: !prev[code]
-    }));
+    setEnabledModules((prev) => {
+      const next = { ...prev, [code]: !prev[code] };
+      return applyModuleDependencies(next);
+    });
   }
 
   async function handleSave() {
     const target = selectedCompany || company;
     if (!target?._id) return alert("Please select a company first.");
     setSaving(true);
-    setError(null);
     try {
-      await api.put(`/tenants/company/${target._id}/modules`, { enabledModules });
+      const payloadModules = applyModuleDependencies({ ...enabledModules });
+      await api.put(`/tenants/company/${target._id}/modules`, { enabledModules: payloadModules });
       alert("Configuration updated successfully!");
       if (typeof onClose === 'function') onClose();
     } catch (err) {
       console.error(err);
-      setError("Failed to save. Please try again.");
+      alert("Failed to save. Please try again.");
     } finally {
       setSaving(false);
     }
-  }
-
-  const renderModuleCard = (m) => {
-    const active = !!enabledModules[m.code];
-    const Icon = m.icon;
-    return (
-      <div
-        key={m.code}
-        onClick={() => !saving && toggle(m.code)}
-        className={`group relative p-10 rounded-xl border-2 transition-all duration-300 cursor-pointer ${active
-          ? 'border-emerald-500 bg-white shadow-md scale-[1.01]'
-          : `border-slate-100 bg-white hover:border-slate-300 hover:shadow-md`
-          }`}
-      >
-        <div className="flex items-start justify-between mb-8">
-          <div className={`p-5 rounded-lg transition-all duration-500 ${active ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-sm ring-8 ring-emerald-50' : `${m.color} group-hover:scale-110 shadow-sm`}`}>
-            <Icon size={28} />
-          </div>
-          <div className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all duration-500 ${active ? 'bg-emerald-600 border-emerald-600 scale-110' : 'bg-transparent border-slate-200'
-            }`}>
-            {active ? <Check size={20} className="text-white" /> : <Plus size={20} className="text-slate-300 group-hover:text-slate-500" />}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className={`text-xl font-bold tracking-tight ${active ? 'text-slate-900' : 'text-slate-800'}`}>{m.label}</h3>
-          <p className={`text-sm font-semibold leading-relaxed ${active ? 'text-slate-600' : 'text-slate-400'}`}>{m.description}</p>
-        </div>
-
-        {active && (
-          <div className="absolute bottom-6 right-10 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Active</span>
-          </div>
-        )}
-      </div>
-    );
   }
 
   return (
@@ -190,7 +154,10 @@ export default function ModuleConfig({ company, onClose }) {
                     const id = e.target.value;
                     const c = companies.find((x) => x._id === id) || null;
                     setSelectedCompany(c);
-                    setEnabledModules(c?.enabledModules || {});
+                    const normalized = normalizeEnabledModules(c?.enabledModules, c?.modules);
+                    setEnabledModules(Object.fromEntries(
+                      AVAILABLE_MODULES.map((m) => [m.code, normalized[m.code] === true])
+                    ));
                   }}
                 >
                   <option value="">-- Choose Organization --</option>
@@ -307,6 +274,7 @@ ModuleConfig.propTypes = {
     _id: PropTypes.string,
     name: PropTypes.string,
     modules: PropTypes.arrayOf(PropTypes.string),
+    enabledModules: PropTypes.object,
   }),
   onClose: PropTypes.func,
 };
