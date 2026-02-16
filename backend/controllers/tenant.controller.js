@@ -90,7 +90,14 @@ exports.createTenant = async (req, res, next) => {
       domain: domain?.trim() || null,
       emailDomain: emailDomain?.trim() || null,
       plan: plan || 'free',
-      modules: Array.isArray(modules) ? modules : [],
+      enabledModules: req.body.enabledModules || {
+        hr: false,
+        payroll: false,
+        attendance: false,
+        recruitment: false,
+        employeePortal: false,
+        reports: false
+      },
       status: 'pending',
       isVerified: false,
       verificationToken: token,
@@ -307,28 +314,36 @@ exports.deleteTenant = async (req, res, next) => {
 
 exports.updateModules = async (req, res, next) => {
   try {
-    const { modules } = req.body;
-    if (!Array.isArray(modules)) return res.status(400).json({ error: 'invalid_modules' });
+    const { enabledModules } = req.body;
+    if (!enabledModules || typeof enabledModules !== 'object') {
+      return res.status(400).json({ error: 'invalid_enabledModules_object' });
+    }
 
     const before = await Tenant.findById(req.params.id).lean();
     if (!before) return res.status(404).json({ error: 'not_found' });
 
-    const t = await Tenant.findByIdAndUpdate(req.params.id, { $set: { modules } }, { new: true });
+    const t = await Tenant.findByIdAndUpdate(
+      req.params.id,
+      { $set: { enabledModules } },
+      { new: true }
+    );
     if (!t) return res.status(404).json({ error: 'not_found' });
 
     try {
-      const beforeModules = before.modules || [];
-      const afterModules = modules || [];
-      const enabled = afterModules.filter(m => !beforeModules.includes(m));
-      const disabled = beforeModules.filter(m => !afterModules.includes(m));
+      const beforeModules = before.enabledModules || {};
+      const afterModules = enabledModules || {};
 
-      let actionText = 'Modules updated';
-      if (enabled.length > 0 && disabled.length > 0) {
-        actionText = `Modules enabled: ${enabled.join(', ')}; disabled: ${disabled.join(', ')}`;
-      } else if (enabled.length > 0) {
-        actionText = `Modules enabled: ${enabled.join(', ')}`;
-      } else if (disabled.length > 0) {
-        actionText = `Modules disabled: ${disabled.join(', ')}`;
+      const enabled = [];
+      const disabled = [];
+
+      Object.keys(afterModules).forEach(key => {
+        if (afterModules[key] && !beforeModules[key]) enabled.push(key);
+        if (!afterModules[key] && beforeModules[key]) disabled.push(key);
+      });
+
+      let actionText = 'Module configuration updated';
+      if (enabled.length > 0 || disabled.length > 0) {
+        actionText = `Modules updated. Enabled: ${enabled.join(', ') || 'none'}, Disabled: ${disabled.join(', ') || 'none'}`;
       }
 
       const db = await getTenantDB(t._id);
@@ -431,10 +446,13 @@ exports.activateTenant = async (req, res, next) => {
 
 exports.psaStats = async (req, res, next) => {
   try {
-    const total = await Tenant.countDocuments();
+    const total = await Tenant.countDocuments({ status: { $ne: 'deleted' } });
     const activeTenants = await Tenant.countDocuments({ status: 'active' });
-    const tenants = await Tenant.find({}, 'modules');
-    const activeModules = tenants.reduce((acc, t) => acc + (t.modules?.length || 0), 0);
+    const tenants = await Tenant.find({ status: { $ne: 'deleted' } }, 'enabledModules');
+    const activeModules = tenants.reduce((acc, t) => {
+      const modules = t.enabledModules || {};
+      return acc + Object.values(modules).filter(v => v === true).length;
+    }, 0);
     const deactiveTenants = await Tenant.countDocuments({ status: { $ne: 'active' } });
 
     // Ensure we always return numeric totals for PSA dashboard

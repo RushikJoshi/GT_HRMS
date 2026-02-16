@@ -16,6 +16,14 @@ export const useAuth = () => {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [enabledModules, setEnabledModules] = useState(() => {
+    try {
+      const stored = localStorage.getItem('enabledModules');
+      return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+      return {};
+    }
+  });
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -40,7 +48,9 @@ export function AuthProvider({ children }) {
           removeToken();
           localStorage.removeItem('candidate');
           localStorage.removeItem('companyName');
+          localStorage.removeItem('enabledModules');
           setUser(null);
+          setEnabledModules({});
           delete api.defaults.headers.common["Authorization"];
           setIsInitialized(true);
           return;
@@ -85,7 +95,9 @@ export function AuthProvider({ children }) {
         removeToken();
         localStorage.removeItem('candidate');
         localStorage.removeItem('companyName');
+        localStorage.removeItem('enabledModules');
         setUser(null);
+        setEnabledModules({});
         delete api.defaults.headers.common["Authorization"];
       } finally {
         setIsInitialized(true);
@@ -109,7 +121,9 @@ export function AuthProvider({ children }) {
         sessionStorage.removeItem('tenantId');
         localStorage.removeItem("candidate");
         localStorage.removeItem("companyName");
+        localStorage.removeItem("enabledModules");
         setUser(null);
+        setEnabledModules({});
         delete api.defaults.headers.common["Authorization"];
       } catch (e) {
         console.error('Error while handling unauthorized event:', e);
@@ -127,7 +141,7 @@ export function AuthProvider({ children }) {
     setIsLoading(true);
     try {
       const res = await api.post("/auth/login", { email, password });
-      const { token, user: userData } = res.data;
+      const { token, user: userData, enabledModules: modules } = res.data;
 
       setToken(token);
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -147,6 +161,10 @@ export function AuthProvider({ children }) {
         } catch (e) { /* ignore */ }
       }
 
+      const freshModules = modules || {};
+      setEnabledModules(freshModules);
+      localStorage.setItem('enabledModules', JSON.stringify(freshModules));
+
       setUser(userData);
       return { success: true };
     } catch (error) {
@@ -162,10 +180,15 @@ export function AuthProvider({ children }) {
     setIsLoading(true);
     try {
       const res = await api.post('/auth/login-hr', { companyCode, email, password });
-      const { token, user: userData } = res.data;
+      const { token, user: userData, enabledModules: modules } = res.data;
 
       setToken(token);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      const freshModules = modules || {};
+      setEnabledModules(freshModules);
+      localStorage.setItem('enabledModules', JSON.stringify(freshModules));
+
       setUser(userData);
 
       try {
@@ -192,10 +215,15 @@ export function AuthProvider({ children }) {
     setIsLoading(true);
     try {
       const res = await api.post('/auth/login-employee', { companyCode, employeeId, password });
-      const { token, user: userData } = res.data;
+      const { token, user: userData, enabledModules: modules } = res.data;
 
       setToken(token);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      const freshModules = modules || {};
+      setEnabledModules(freshModules);
+      localStorage.setItem('enabledModules', JSON.stringify(freshModules));
+
       setUser(userData);
 
       try {
@@ -258,7 +286,9 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem('tenantId');
     localStorage.removeItem("candidate");
     localStorage.removeItem("companyName");
+    localStorage.removeItem("enabledModules");
     setUser(null);
+    setEnabledModules({});
     delete api.defaults.headers.common["Authorization"];
   }, []);
 
@@ -284,6 +314,8 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user,
+      enabledModules,
+      setEnabledModules,
       isInitialized,
       isLoading,
       login,

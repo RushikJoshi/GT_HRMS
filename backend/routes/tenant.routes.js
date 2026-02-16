@@ -30,7 +30,8 @@ router.put('/:id', ctrl.updateTenant);
 
 router.delete('/:id', ctrl.deleteTenant);
 
-// modules
-router.put('/:id/modules', ctrl.updateModules);
+// Update company modules - Super Admin Only
+router.put('/company/:id/modules', auth.authenticate, auth.requirePsa, ctrl.updateModules);
+router.put('/:id/modules', auth.authenticate, auth.requirePsa, ctrl.updateModules); // Keep legacy for compatibility
 
 module.exports = router;
