@@ -137,6 +137,8 @@ async function startServer() {
             try {
                 if (process.env.NGROK_AUTHTOKEN) await ngrok.authtoken(process.env.NGROK_AUTHTOKEN);
                 const url = await ngrok.connect({ addr: PORT });
+                // Make the dynamic URL available to app.js (via process.env)
+                process.env.NGROK_URL = url;
                 console.log('🌍 NGROK URL:', url);
             } catch (e) {
                 console.warn('ngrok failed:', e.message);

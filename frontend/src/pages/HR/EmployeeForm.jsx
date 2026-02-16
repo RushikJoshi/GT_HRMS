@@ -52,6 +52,7 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const [manager, setManager] = useState(employee?.manager?._id || employee?.manager || '');
   const [joiningDate, setJoiningDate] = useState(employee?.joiningDate ? new Date(employee.joiningDate).toISOString().split('T')[0] : '');
   const [departments, setDepartments] = useState([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
   const [managers, setManagers] = useState([]);
   const [_departmentHead, _setDepartmentHead] = useState(employee?.departmentHead || false);
   const [saving, setSaving] = useState(false);
@@ -159,13 +160,24 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
   // Fetch departments for dropdown
   const loadDepartments = useCallback(async () => {
+    setDepartmentsLoading(true);
     try {
       const res = await api.get('/hr/departments');
       const deptList = res.data?.data || res.data || [];
       setDepartments(Array.isArray(deptList) ? deptList : []);
     } catch (err) {
       console.error('Failed to load departments', err);
-      setDepartments([]);
+      // Keep existing departments (if any) and show a visible error
+      const errorMsg =
+        err?.hrms?.message ||
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to load departments';
+      notification.error({ message: 'Departments', description: errorMsg, placement: 'topRight' });
+    }
+    finally {
+      setDepartmentsLoading(false);
     }
   }, []);
 
@@ -448,18 +460,20 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const validateStep = (stepNum) => {
     const e = {};
     if (stepNum === 1) {
-      if (!firstName || firstName.length < 3 || !/^[A-Za-z]+$/.test(firstName)) e.firstName = 'First name required (min 3 chars, letters only)';
+      if (!firstName || firstName.length < 3 || !/^[A-Za-z\s.]+$/.test(firstName)) e.firstName = 'First name required (min 3 chars, letters, spaces, dots allowed)';
       if (!middleName || middleName.length < 3) e.middleName = 'Middle name is required (min 3 chars)';
       if (!lastName || lastName.length < 3) e.lastName = 'Last name is required (min 3 chars)';
       if (!gender) e.gender = 'Gender is required';
-      // Department and Manager are optional now
+      if (!departmentId) e.department = 'Department is required';
       if (!joiningDate) e.joiningDate = 'Joining Date is required';
       if (!dob) e.dob = 'Date of birth required';
       else {
         const birth = new Date(dob); const age = Math.floor((Date.now() - birth.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
         if (age < 18) e.dob = 'Employee must be at least 18 years old';
       }
-      if (!contactNo || !phoneRe.test(contactNo)) e.contactNo = 'Phone must be 10-15 digits';
+      const getDigitCount = (str) => String(str || '').replace(/\D/g, '').length;
+      const indianPhoneRe = /^[6-9]\d{9}$/;
+      if (!contactNo || !indianPhoneRe.test(contactNo)) e.contactNo = 'Valid 10-digit Indian phone required (starts with 6-9)';
       // Email and Password validation removed
 
       if (!maritalStatus) e.maritalStatus = 'Marital Status is required';
@@ -475,7 +489,7 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
       if (motherName && motherName.length < 3) e.motherName = 'Mother name must be at least 3 chars';
 
       if (!emergencyContactName || emergencyContactName.length < 3) e.emergencyContactName = 'Emergency contact name required (min 3 chars)';
-      if (!emergencyContactNumber || !phoneRe.test(emergencyContactNumber)) e.emergencyContactNumber = 'Emergency contact number invalid';
+      if (!emergencyContactNumber || !indianPhoneRe.test(emergencyContactNumber)) e.emergencyContactNumber = 'Valid 10-digit Indian emergency contact required (6-9)';
     }
 
     if (stepNum === 2) {
@@ -744,10 +758,10 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
       }
 
       // If employee is marked as "Dep Head", update the department's head field
-      if (role === 'Dep Head' && department) {
+      if (role === 'Dep Head' && departmentId) {
         const empId = empResult?.data?.data?._id || empResult?.data?._id || employee?._id;
         if (empId) {
-          await api.put(`/hr/departments/${department}`, { head: empId })
+          await api.put(`/hr/departments/${departmentId}`, { head: empId })
             .catch(err => console.error('Failed to update department head', err?.response?.data?.message || err.message));
         }
       }
@@ -1018,8 +1032,9 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                     }}
                     className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.department ? 'border-red-500' : 'border-slate-300'}`}
                     required
+                    disabled={departmentsLoading}
                   >
-                    <option value="">-- Select Department --</option>
+                    <option value="">{departmentsLoading ? 'Loading departments...' : '-- Select Department --'}</option>
                     {departments.map((d) => (
                       <option key={d._id || d} value={d._id || d}>{typeof d === 'string' ? d : d.name}</option>
                     ))}
@@ -1035,7 +1050,13 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                   >
                     <option value="">-- No Manager (Top Level) --</option>
                     {managers
-                      .filter(m => !departmentId || m.departmentId === departmentId || m.department === department)
+                      .filter(m => {
+                        if (!departmentId && !department) return true;
+                        const mgrDeptId = m?.departmentId?._id || m?.departmentId;
+                        if (departmentId && mgrDeptId && String(mgrDeptId) === String(departmentId)) return true;
+                        if (department && m?.department && String(m.department) === String(department)) return true;
+                        return false;
+                      })
                       .map((m) => (
                         <option key={m._id} value={m._id}>
                           {[m.firstName, m.lastName].filter(Boolean).join(' ')} ({m.employeeId}) - {m.role || 'Employee'}
@@ -1159,7 +1180,15 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-semibold text-slate-700">Phone Number</label>
-                  <input value={contactNo} onChange={e => setContactNo(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.contactNo ? 'border-red-500' : 'border-slate-300'}`} />
+                  <input
+                    type="tel"
+                    maxLength="10"
+                    onInput={e => e.target.value = e.target.value.replace(/\D/g, '')}
+                    value={contactNo}
+                    onChange={e => setContactNo(e.target.value)}
+                    className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.contactNo ? 'border-red-500' : 'border-slate-300'}`}
+                    placeholder="10-digit mobile number"
+                  />
                   {errors.contactNo && <div className="text-xs text-red-600 mt-1">{errors.contactNo}</div>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1170,7 +1199,15 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                   </div>
                   <div>
                     <label className="text-sm font-semibold text-slate-700">Emergency Contact #</label>
-                    <input value={emergencyContactNumber} onChange={e => setEmergencyContactNumber(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactNumber ? 'border-red-500' : 'border-slate-300'}`} />
+                    <input
+                      type="tel"
+                      maxLength="10"
+                      onInput={e => e.target.value = e.target.value.replace(/\D/g, '')}
+                      value={emergencyContactNumber}
+                      onChange={e => setEmergencyContactNumber(e.target.value)}
+                      className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactNumber ? 'border-red-500' : 'border-slate-300'}`}
+                      placeholder="10-digit mobile number"
+                    />
                     {errors.emergencyContactNumber && <div className="text-xs text-red-600 mt-1">{errors.emergencyContactNumber}</div>}
                   </div>
                 </div>
@@ -1539,8 +1576,9 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                       setDepartment(selectedDept?.name || '');
                     }}
                     className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
+                    disabled={departmentsLoading}
                   >
-                    <option value="">-- Select Department --</option>
+                    <option value="">{departmentsLoading ? 'Loading departments...' : '-- Select Department --'}</option>
                     {departments.map(dept => (
                       <option key={dept._id} value={dept._id}>{dept.name}</option>
                     ))}
@@ -1555,7 +1593,13 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                   >
                     <option value="">-- No Manager (Top Level) --</option>
                     {managers
-                      .filter(m => !departmentId || m.departmentId === departmentId || m.department === department)
+                      .filter(m => {
+                        if (!departmentId && !department) return true;
+                        const mgrDeptId = m?.departmentId?._id || m?.departmentId;
+                        if (departmentId && mgrDeptId && String(mgrDeptId) === String(departmentId)) return true;
+                        if (department && m?.department && String(m.department) === String(department)) return true;
+                        return false;
+                      })
                       .map((m) => (
                         <option key={m._id} value={m._id}>
                           {[m.firstName, m.lastName].filter(Boolean).join(' ')} ({m.employeeId})
