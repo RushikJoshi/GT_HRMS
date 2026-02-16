@@ -20,6 +20,19 @@ import {
     Zap
 } from 'lucide-react';
 import companiesService from '../../services/companiesService';
+import { createDefaultEnabledModules } from '../../utils/moduleConfig';
+
+const DEFAULT_MODULE_CODES = [
+    'hr',
+    'payroll',
+    'attendance',
+    'leave',
+    'employeePortal',
+    'recruitment',
+    'backgroundVerification',
+    'documentManagement',
+    'socialMediaIntegration'
+];
 
 export default function AddCompany() {
     const navigate = useNavigate();
@@ -41,7 +54,7 @@ export default function AddCompany() {
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
 
-    const defaultModules = ['hr', 'payroll', 'attendance', 'ess', 'recruitment', 'analytics'];
+    const defaultEnabledModules = createDefaultEnabledModules(false, DEFAULT_MODULE_CODES);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -79,14 +92,14 @@ export default function AddCompany() {
                 try {
                     const upRes = await companiesService.uploadLogo(formData.logo);
                     logoUrl = upRes.url || upRes.path || '';
-                } catch (e) { console.warn('Logo upload skipped'); }
+                } catch { console.warn('Logo upload skipped'); }
             }
 
             const payload = {
                 name: formData.name,
                 code: formData.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10),
                 status: 'active',
-                modules: defaultModules,
+                enabledModules: defaultEnabledModules,
                 meta: {
                     primaryEmail: formData.email,
                     email: formData.email,
@@ -270,7 +283,7 @@ export default function AddCompany() {
                             </div>
                             <div>
                                 <h4 className="text-[11px] sm:text-sm font-bold text-emerald-800 uppercase tracking-widest mb-1">Provisioning Protocol</h4>
-                                <p className="text-[9px] sm:text-[11px] font-bold text-emerald-600 leading-relaxed uppercase tracking-wider">Entity will be instantiated with {defaultModules.length} core capability modules enabled by default.</p>
+                                <p className="text-[9px] sm:text-[11px] font-bold text-emerald-600 leading-relaxed uppercase tracking-wider">Entity will be instantiated with {Object.values(defaultEnabledModules).filter(Boolean).length} core capability modules enabled by default.</p>
                             </div>
                         </div>
                     </div>

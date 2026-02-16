@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import companiesService from '../../services/companiesService';
 import { API_ROOT } from '../../utils/api';
+import { normalizeEnabledModules } from '../../utils/moduleConfig';
 
 export default function EditCompany() {
     const { id } = useParams();
@@ -38,7 +39,7 @@ export default function EditCompany() {
         code: '',
         name: '',
         email: '',
-        modules: [],
+        enabledModules: {},
         status: 'active'
     });
     const [logoFile, setLogoFile] = useState(null);
@@ -52,9 +53,12 @@ export default function EditCompany() {
         { id: 'hr', name: 'HR Core', icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { id: 'payroll', name: 'Payroll', icon: BarChart3, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         { id: 'attendance', name: 'Attendance', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+        { id: 'leave', name: 'Leave', icon: Clock, color: 'text-green-600', bg: 'bg-green-50' },
         { id: 'recruitment', name: 'Recruitment', icon: Briefcase, color: 'text-rose-600', bg: 'bg-rose-50' },
-        { id: 'ess', name: 'Employee Portal', icon: UserCircle2, color: 'text-sky-600', bg: 'bg-sky-50' },
-        { id: 'analytics', name: 'Analytics', icon: Activity, color: 'text-purple-600', bg: 'bg-purple-50' },
+        { id: 'backgroundVerification', name: 'BGV', icon: Shield, color: 'text-violet-600', bg: 'bg-violet-50' },
+        { id: 'documentManagement', name: 'Documents', icon: Settings, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+        { id: 'socialMediaIntegration', name: 'Social Media', icon: Globe, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { id: 'employeePortal', name: 'Employee Portal', icon: UserCircle2, color: 'text-sky-600', bg: 'bg-sky-50' },
     ];
 
     const getLogoUrl = (url) => {
@@ -62,11 +66,7 @@ export default function EditCompany() {
         return url.startsWith('http') ? url : `${API_ROOT}${url}`;
     };
 
-    useEffect(() => {
-        loadCompany();
-    }, [id]);
-
-    const loadCompany = async () => {
+    const loadCompany = useCallback(async () => {
         try {
             setLoading(true);
             const data = await companiesService.getCompanyById(id);
@@ -74,7 +74,7 @@ export default function EditCompany() {
                 code: data.code || '',
                 name: data.name || '',
                 email: data.meta?.email || '',
-                modules: data.modules || [],
+                enabledModules: normalizeEnabledModules(data.enabledModules, data.modules),
                 status: data.status || 'active'
             });
             if (data.meta?.logo) {
@@ -85,7 +85,11 @@ export default function EditCompany() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [id]);
+
+    useEffect(() => {
+        loadCompany();
+    }, [loadCompany]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -104,10 +108,13 @@ export default function EditCompany() {
 
     const handleModuleToggle = (modId) => {
         setFormData(prev => {
-            const newModules = prev.modules.includes(modId)
-                ? prev.modules.filter(m => m !== modId)
-                : [...prev.modules, modId];
-            return { ...prev, modules: newModules };
+            return {
+                ...prev,
+                enabledModules: {
+                    ...(prev.enabledModules || {}),
+                    [modId]: !(prev.enabledModules || {})[modId]
+                }
+            };
         });
     };
 
@@ -131,14 +138,14 @@ export default function EditCompany() {
                 try {
                     const upRes = await companiesService.uploadLogo(logoFile);
                     logoUrl = upRes.url || upRes.path || '';
-                } catch (e) { console.warn('Logo upload excluded'); }
+                } catch { console.warn('Logo upload excluded'); }
             }
 
             const payload = {
                 code: formData.code,
                 name: formData.name,
                 status: formData.status,
-                modules: formData.modules,
+                enabledModules: formData.enabledModules,
                 meta: {
                     ...formData.meta,
                     primaryEmail: formData.email,
@@ -319,18 +326,18 @@ export default function EditCompany() {
                                     <div
                                         key={mod.id}
                                         onClick={() => handleModuleToggle(mod.id)}
-                                        className={`group flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all duration-300 ${formData.modules.includes(mod.id)
+                                        className={`group flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all duration-300 ${formData.enabledModules?.[mod.id]
                                             ? 'bg-emerald-50 border-emerald-200 shadow-sm'
                                             : 'bg-white border-slate-50 hover:border-slate-200'
                                             }`}
                                     >
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0 ${formData.modules.includes(mod.id) ? `${mod.bg} ${mod.color}` : 'bg-slate-50 text-slate-300 group-hover:bg-slate-100'}`}>
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0 ${formData.enabledModules?.[mod.id] ? `${mod.bg} ${mod.color}` : 'bg-slate-50 text-slate-300 group-hover:bg-slate-100'}`}>
                                             <mod.icon size={18} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className={`text-[11px] font-black uppercase tracking-widest transition-colors truncate ${formData.modules.includes(mod.id) ? 'text-slate-900' : 'text-slate-400'}`}>{mod.name}</span>
-                                                {formData.modules.includes(mod.id) && <Zap className="text-emerald-500 shrink-0" size={12} />}
+                                                <span className={`text-[11px] font-black uppercase tracking-widest transition-colors truncate ${formData.enabledModules?.[mod.id] ? 'text-slate-900' : 'text-slate-400'}`}>{mod.name}</span>
+                                                {formData.enabledModules?.[mod.id] && <Zap className="text-emerald-500 shrink-0" size={12} />}
                                             </div>
                                         </div>
                                     </div>

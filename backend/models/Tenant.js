@@ -11,7 +11,11 @@ const TenantSchema = new mongoose.Schema({
     hr: { type: Boolean, default: false },
     payroll: { type: Boolean, default: false },
     attendance: { type: Boolean, default: false },
+    leave: { type: Boolean, default: false },
     recruitment: { type: Boolean, default: false },
+    backgroundVerification: { type: Boolean, default: false },
+    documentManagement: { type: Boolean, default: false },
+    socialMediaIntegration: { type: Boolean, default: false },
     employeePortal: { type: Boolean, default: false },
     reports: { type: Boolean, default: false }
   },

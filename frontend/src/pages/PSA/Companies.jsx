@@ -24,6 +24,7 @@ import {
   Edit2,
   Settings
 } from 'lucide-react';
+import { enabledModulesToArray, normalizeEnabledModules } from "../../utils/moduleConfig";
 
 export default function Companies() {
   const [companies, setCompanies] = useState([]);
@@ -157,12 +158,17 @@ export default function Companies() {
                       </div>
                     </td>
                     <td className="px-8 py-6">
+                      {(() => {
+                        const activeModules = enabledModulesToArray(normalizeEnabledModules(c.enabledModules, c.modules));
+                        return (
                       <div className="flex flex-wrap gap-1">
-                        {(c.modules || []).length === 0 ? <span className="text-xs text-slate-400 font-bold">-</span> : (c.modules || []).slice(0, 3).map(m => (
+                        {activeModules.length === 0 ? <span className="text-xs text-slate-400 font-bold">-</span> : activeModules.slice(0, 3).map(m => (
                           <span key={m} className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white" title={m}></span>
                         ))}
-                        {(c.modules || []).length > 3 && <span className="text-[10px] font-bold text-slate-400">+{c.modules.length - 3}</span>}
+                        {activeModules.length > 3 && <span className="text-[10px] font-bold text-slate-400">+{activeModules.length - 3}</span>}
                       </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-8 py-6">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${c.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>

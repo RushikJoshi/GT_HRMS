@@ -7,6 +7,7 @@ import {
   Shield, LayoutGrid, Cpu, Briefcase, Building2, ExternalLink, EyeOff
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { normalizeEnabledModules } from "../../utils/moduleConfig";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -25,8 +26,7 @@ export default function Dashboard() {
       try {
         setLoading(true);
         // Fetch Stats
-        const statsRes = await api.get("/tenants/psa/stats");
-        const s = statsRes.data || {};
+        await api.get("/tenants/psa/stats");
 
         // Fetch Companies List
         const compRes = await api.get('/tenants');
@@ -37,7 +37,7 @@ export default function Dashboard() {
           total: list.length,
           active: list.filter(c => c.status === 'active').length,
           inactive: list.filter(c => c.status !== 'active').length,
-          totalModules: 6, // Total available in system
+          totalModules: 9, // Total available in module configuration
           systemUptime: '99.9%'
         });
       } catch (err) {
@@ -51,13 +51,22 @@ export default function Dashboard() {
 
   // Calculate Real-time Module Distribution
   const moduleDistribution = useMemo(() => {
-    const counts = { hr: 0, payroll: 0, attendance: 0, recruitment: 0, ess: 0, analytics: 0 };
+    const counts = {
+      hr: 0,
+      payroll: 0,
+      attendance: 0,
+      leave: 0,
+      employeePortal: 0,
+      recruitment: 0,
+      backgroundVerification: 0,
+      documentManagement: 0,
+      socialMediaIntegration: 0
+    };
     companies.forEach(c => {
-      if (Array.isArray(c.modules)) {
-        c.modules.forEach(m => {
-          if (counts[m] !== undefined) counts[m]++;
-        });
-      }
+      const enabled = normalizeEnabledModules(c.enabledModules, c.modules);
+      Object.keys(counts).forEach((key) => {
+        if (enabled[key] === true) counts[key]++;
+      });
     });
 
     return [
@@ -65,8 +74,11 @@ export default function Dashboard() {
       { name: 'Payroll', value: counts.payroll, color: '#10B981' },
       { name: 'Attendance', value: counts.attendance, color: '#F59E0B' },
       { name: 'Recruitment', value: counts.recruitment, color: '#EF4444' },
-      { name: 'Reports', value: counts.analytics, color: '#8B5CF6' },
-      { name: 'ESS Portal', value: counts.ess, color: '#06B6D4' },
+      { name: 'Leave', value: counts.leave, color: '#22C55E' },
+      { name: 'BGV', value: counts.backgroundVerification, color: '#8B5CF6' },
+      { name: 'Documents', value: counts.documentManagement, color: '#6366F1' },
+      { name: 'Social Media', value: counts.socialMediaIntegration, color: '#0EA5E9' },
+      { name: 'Employee Portal', value: counts.employeePortal, color: '#06B6D4' },
     ].filter(m => m.value > 0);
   }, [companies]);
 

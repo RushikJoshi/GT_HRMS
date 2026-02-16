@@ -12,9 +12,11 @@ import {
   User,
   Package
 } from 'lucide-react';
+import { countEnabledModules, normalizeEnabledModules } from '../../utils/moduleConfig';
 
 export default function CompanyView({ company, onClose }) {
   if (!company) return null;
+  const activeModuleCount = countEnabledModules(normalizeEnabledModules(company.enabledModules, company.modules));
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
 
@@ -83,7 +85,7 @@ export default function CompanyView({ company, onClose }) {
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Modules Active</span>
               </div>
               <span className="text-sm font-black text-slate-800">
-                {company.modules?.filter(m => ['hr', 'payroll', 'attendance', 'ess', 'recruitment', 'analytics'].includes(m)).length || 0}
+                {activeModuleCount}
               </span>
             </div>
 
