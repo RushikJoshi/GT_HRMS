@@ -28,13 +28,13 @@ const AVAILABLE_MODULES = [
   { code: "hr", label: "HR Management", description: "Employee records, roles & hierarchy", icon: Users, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
   { code: "payroll", label: "Payroll System", description: "Salaries, taxes & disbursements", icon: CircleDollarSign, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
   { code: "attendance", label: "Attendance & Time", description: "Shifts, biometrics & tracking", icon: Clock, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
-  { code: "ess", label: "Employee Portal", description: "Self-service dashboard", icon: UserCircle2, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "employeePortal", label: "Employee Portal", description: "Self-service dashboard", icon: UserCircle2, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
   { code: "recruitment", label: "Recruitment", description: "Hiring, jobs & applicants", icon: Briefcase, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
-  { code: "analytics", label: "Reports & Analytics", description: "Data insights & reporting", icon: BarChart3, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "reports", label: "Reports & Analytics", description: "Data insights & reporting", icon: BarChart3, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
 ];
 
 export default function ModuleConfig({ company, onClose }) {
-  const [modules, setModules] = useState([]);
+  const [enabledModules, setEnabledModules] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [companies, setCompanies] = useState([]);
@@ -42,8 +42,8 @@ export default function ModuleConfig({ company, onClose }) {
   const navigate = useNavigate();
 
   const activeCount = useMemo(() => {
-    return modules.filter(m => AVAILABLE_MODULES.some(avail => avail.code === m)).length;
-  }, [modules]);
+    return Object.values(enabledModules).filter(v => v === true).length;
+  }, [enabledModules]);
 
   const allSelected = activeCount === AVAILABLE_MODULES.length;
   const isIndeterminate = activeCount > 0 && activeCount < AVAILABLE_MODULES.length;
@@ -57,14 +57,14 @@ export default function ModuleConfig({ company, onClose }) {
 
   function handleSelectAll() {
     if (allSelected) {
-      setModules([]);
+      setEnabledModules(Object.fromEntries(AVAILABLE_MODULES.map(m => [m.code, false])));
     } else {
-      setModules(AVAILABLE_MODULES.map(m => m.code));
+      setEnabledModules(Object.fromEntries(AVAILABLE_MODULES.map(m => [m.code, true])));
     }
   }
 
   useEffect(() => {
-    setModules(company?.modules ? [...company.modules] : []);
+    setEnabledModules(company?.enabledModules || {});
     setError(null);
     if (!company) {
       loadCompanies();
@@ -84,9 +84,10 @@ export default function ModuleConfig({ company, onClose }) {
   }
 
   function toggle(code) {
-    setModules((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
-    );
+    setEnabledModules((prev) => ({
+      ...prev,
+      [code]: !prev[code]
+    }));
   }
 
   async function handleSave() {
@@ -95,7 +96,7 @@ export default function ModuleConfig({ company, onClose }) {
     setSaving(true);
     setError(null);
     try {
-      await api.put(`/tenants/${target._id}/modules`, { modules });
+      await api.put(`/tenants/company/${target._id}/modules`, { enabledModules });
       alert("Configuration updated successfully!");
       if (typeof onClose === 'function') onClose();
     } catch (err) {
@@ -107,7 +108,7 @@ export default function ModuleConfig({ company, onClose }) {
   }
 
   const renderModuleCard = (m) => {
-    const active = modules.includes(m.code);
+    const active = !!enabledModules[m.code];
     const Icon = m.icon;
     return (
       <div
@@ -189,7 +190,7 @@ export default function ModuleConfig({ company, onClose }) {
                     const id = e.target.value;
                     const c = companies.find((x) => x._id === id) || null;
                     setSelectedCompany(c);
-                    setModules(c?.modules ? [...c.modules] : []);
+                    setEnabledModules(c?.enabledModules || {});
                   }}
                 >
                   <option value="">-- Choose Organization --</option>
@@ -233,7 +234,7 @@ export default function ModuleConfig({ company, onClose }) {
         {selectedCompany ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-10 pb-20">
             {AVAILABLE_MODULES.map((m) => {
-              const active = modules.includes(m.code);
+              const active = !!enabledModules[m.code];
               const Icon = m.icon;
               return (
                 <div

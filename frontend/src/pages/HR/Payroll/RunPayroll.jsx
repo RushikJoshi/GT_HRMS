@@ -294,12 +294,22 @@ export default function RunPayroll() {
                                             <StatusBadge status={run.status} />
                                         </td>
                                         <td className="px-5 py-4 whitespace-nowrap text-slate-600 text-sm">
-                                            <span className="font-bold text-slate-800">{run.processedEmployees}</span>
-                                            <span className="mx-1 text-slate-300">/</span>
-                                            <span className="text-xs text-slate-400">
-                                                {run.isFiltered ? `${run.totalEmployees} (Match)` : run.totalEmployees}
-                                                {run.totalTenantEmployees > 0 && ` of ${run.totalTenantEmployees}`}
-                                            </span>
+                                            <div className="flex flex-col">
+                                                <span>
+                                                    <span className="font-bold text-slate-800">{run.processedEmployees}</span>
+                                                    <span className="mx-1 text-slate-300">/</span>
+                                                    <span className="text-xs text-slate-400">
+                                                        {run.isFiltered ? `${run.totalEmployees} (Match)` : run.totalEmployees}
+                                                        {run.totalTenantEmployees > 0 && ` of ${run.totalTenantEmployees}`}
+                                                    </span>
+                                                </span>
+                                                {run.failedEmployees > 0 && (
+                                                    <span className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-0.5">
+                                                        <AlertTriangle className="h-2.5 w-2.5" />
+                                                        {run.failedEmployees} Failed
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-5 py-4 whitespace-nowrap font-bold text-blue-700 text-sm">
                                             ₹{run.totalNetPay?.toLocaleString()}
