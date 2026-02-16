@@ -133,14 +133,16 @@ async function runPayroll(db, tenantId, month, year, initiatedBy) {
             );
 
             payrollRun.processedEmployees++;
-            payrollRun.totalGross += payslip.grossEarnings;
-            payrollRun.totalDeductions += (payslip.preTaxDeductionsTotal + payslip.postTaxDeductionsTotal + payslip.incomeTax);
-            payrollRun.totalNetPay += payslip.netPay;
+            payrollRun.totalGross += (payslip.grossEarnings || 0);
+            payrollRun.totalDeductions += ((payslip.preTaxDeductionsTotal || 0) + (payslip.postTaxDeductionsTotal || 0) + (payslip.incomeTax || 0));
+            payrollRun.totalNetPay += (payslip.netPay || 0);
 
         } catch (error) {
             console.error(`[PAYROLL] Error processing employee ${employee._id}:`, error);
             payrollRun.failedEmployees++;
-            payrollRun.errors.push({
+
+            if (!payrollRun.executionErrors) payrollRun.executionErrors = [];
+            payrollRun.executionErrors.push({
                 employeeId: employee._id,
                 message: error.message,
                 stack: error.stack
