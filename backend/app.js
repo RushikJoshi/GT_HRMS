@@ -33,6 +33,15 @@ app.use(cors({
         // Allow explicit origins
         if (allowedOrigins.includes(origin)) return callback(null, true);
 
+        // Allow dynamic origins from env (Frontend, Ngrok, Backend)
+        const envOrigins = [
+            process.env.FRONTEND_URL,
+            process.env.NGROK_URL,
+            process.env.BACKEND_URL
+        ].filter(Boolean); // Remove undefined/null/empty strings
+
+        if (envOrigins.includes(origin)) return callback(null, true);
+
         // Allow any localhost origin during development (different dev ports)
         try {
             const u = new URL(origin);
@@ -42,7 +51,10 @@ app.use(cors({
         }
 
         // Otherwise block
-        return callback(new Error('Not allowed by CORS'));
+        // Otherwise block (TEMPORARILY CHANGED TO ALLOW AND LOG)
+        console.warn('⚠️ CORS DEBUG - WOULD BLOCK Origin:', origin);
+        // return callback(new Error('Not allowed by CORS')); // DISABLED FOR DEBUGGING
+        return callback(null, true); // ALLOW TEMPORARILY
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Tenant-ID"],
@@ -54,11 +66,24 @@ app.options('*', cors({
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) return callback(null, true);
+
+        // Allow dynamic origins from env (Frontend, Ngrok, Backend)
+        const envOrigins = [
+            process.env.FRONTEND_URL,
+            process.env.NGROK_URL,
+            process.env.BACKEND_URL
+        ].filter(Boolean);
+
+        if (envOrigins.includes(origin)) return callback(null, true);
+
         try {
             const u = new URL(origin);
             if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return callback(null, true);
         } catch (e) { }
-        return callback(new Error('Not allowed by CORS'));
+        // Otherwise block (TEMPORARILY CHANGED TO ALLOW AND LOG)
+        console.warn('⚠️ CORS DEBUG - WOULD BLOCK Origin (OPTIONS):', origin);
+        // return callback(new Error('Not allowed by CORS')); // DISABLED FOR DEBUGGING
+        return callback(null, true); // ALLOW TEMPORARILY
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Tenant-ID"],

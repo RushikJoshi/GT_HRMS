@@ -1122,8 +1122,8 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
   const [employeeCode, setEmployeeCode] = useState('');
 
-  const phoneRe = /^\d{10, 15}$/;
-  const pinRe = useMemo(() => /^\d{5, 10}$/, []);
+  const phoneRe = /^\d{10,15}$/;
+  const pinRe = useMemo(() => /^[1-9][0-9]{5}$/, []);
   const ifscRe = useMemo(() => /^[A-Z]{4}0[0-9A-Z]{6}$/, []);
 
   const handlePincodeLookup = useCallback(async (pin, target = 'temp') => {
@@ -1159,17 +1159,24 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
         countryVal = (po && po.Country) || '';
       }
       if (city || stateVal || countryVal) {
-        if (ignoreAutoFill.current) return; // Prevent overwriting city if triggered by city lookup
+        if (ignoreAutoFill.current) return;
 
         const v = { city, stateVal, countryVal, ts: Date.now() };
         cache[pin] = v;
         try { sessionStorage.setItem(key, JSON.stringify(cache)); } catch { /* ignore sessionStorage errors */ }
+
         if (target === 'temp') setTempAddress(p => {
-          const next = { ...p, city: city || p.city, state: stateVal || p.state, country: countryVal || p.country };
+          const next = { ...p };
+          if (city) next.city = city;
+          if (stateVal) next.state = stateVal;
+          if (countryVal) next.country = countryVal;
           return (next.city === p.city && next.state === p.state && next.country === p.country) ? p : next;
         });
         else setPermAddress(p => {
-          const next = { ...p, city: city || p.city, state: stateVal || p.state, country: countryVal || p.country };
+          const next = { ...p };
+          if (city) next.city = city;
+          if (stateVal) next.state = stateVal;
+          if (countryVal) next.country = countryVal;
           return (next.city === p.city && next.state === p.state && next.country === p.country) ? p : next;
         });
       }
@@ -1252,12 +1259,24 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
           if (target === 'temp') {
             ignoreAutoFill.current = true;
-            setTempAddress(p => ({ ...p, state: stateVal || p.state, country: countryVal || p.country, pinCode: pinVal }));
-            setTimeout(() => { ignoreAutoFill.current = false; }, 2000);
+            setTempAddress(p => {
+              const next = { ...p };
+              if (stateVal) next.state = stateVal;
+              if (countryVal) next.country = countryVal;
+              if (pinVal && !p.pinCode) next.pinCode = pinVal;
+              return next;
+            });
+            setTimeout(() => { ignoreAutoFill.current = false; }, 500);
           } else {
             ignoreAutoFill.current = true;
-            setPermAddress(p => ({ ...p, state: stateVal || p.state, country: countryVal || p.country, pinCode: pinVal }));
-            setTimeout(() => { ignoreAutoFill.current = false; }, 2000);
+            setPermAddress(p => {
+              const next = { ...p };
+              if (stateVal) next.state = stateVal;
+              if (countryVal) next.country = countryVal;
+              if (pinVal && !p.pinCode) next.pinCode = pinVal;
+              return next;
+            });
+            setTimeout(() => { ignoreAutoFill.current = false; }, 500);
           }
         } else {
           // Fallback to Global Search (Nominatim)
@@ -1271,8 +1290,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
       console.log("Indian API missed, trying global...", e);
 
       // Clear stale data immediately to prevent wrong info persistence
-      if (target === 'temp') setTempAddress(p => ({ ...p, state: '', country: '', pinCode: '' }));
-      else setPermAddress(p => ({ ...p, state: '', country: '', pinCode: '' }));
+      // Don't clear user input automatically if lookup fails, let them correct it
 
       try {
         const globalRes = await fetch(`https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}&format=json&addressdetails=1&limit=1`, {
@@ -1288,12 +1306,24 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
             if (target === 'temp') {
               ignoreAutoFill.current = true;
-              setTempAddress(p => ({ ...p, state: stateVal || p.state, country: countryVal || p.country, pinCode: pinVal }));
-              setTimeout(() => { ignoreAutoFill.current = false; }, 2000);
+              setTempAddress(p => {
+                const next = { ...p };
+                if (stateVal) next.state = stateVal;
+                if (countryVal) next.country = countryVal;
+                if (pinVal && !p.pinCode) next.pinCode = pinVal;
+                return next;
+              });
+              setTimeout(() => { ignoreAutoFill.current = false; }, 500);
             } else {
               ignoreAutoFill.current = true;
-              setPermAddress(p => ({ ...p, state: stateVal || p.state, country: countryVal || p.country, pinCode: pinVal }));
-              setTimeout(() => { ignoreAutoFill.current = false; }, 2000);
+              setPermAddress(p => {
+                const next = { ...p };
+                if (stateVal) next.state = stateVal;
+                if (countryVal) next.country = countryVal;
+                if (pinVal && !p.pinCode) next.pinCode = pinVal;
+                return next;
+              });
+              setTimeout(() => { ignoreAutoFill.current = false; }, 500);
             }
           }
         }
@@ -1358,7 +1388,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const validateStep = (stepNum) => {
     const e = {};
     if (stepNum === 1) {
-      if (!firstName || firstName.length < 3 || !/^[A-Za-z]+$/.test(firstName)) e.firstName = 'First name required (min 3 chars, letters only)';
+      if (!firstName || firstName.length < 3 || !/^[A-Za-z\s.]+$/.test(firstName)) e.firstName = 'First name required (min 3 chars, letters, spaces, dots allowed)';
       if (!middleName || middleName.length < 3) e.middleName = 'Middle name is required (min 3 chars)';
       if (!lastName || lastName.length < 3) e.lastName = 'Last name is required (min 3 chars)';
       if (!gender) e.gender = 'Gender is required';
@@ -1369,7 +1399,8 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
         const birth = new Date(dob); const age = Math.floor((Date.now() - birth.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
         if (age < 18) e.dob = 'Employee must be at least 18 years old';
       }
-      if (!contactNo || !phoneRe.test(contactNo)) e.contactNo = 'Phone must be 10-15 digits';
+      const indianPhoneRe = /^[6-9]\d{9}$/;
+      if (!contactNo || !indianPhoneRe.test(contactNo)) e.contactNo = 'Valid 10-digit Indian phone required (starts with 6-9)';
       // Email and Password validation removed
 
       if (!maritalStatus) e.maritalStatus = 'Marital Status is required';
@@ -1385,7 +1416,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
       if (motherName && motherName.length < 3) e.motherName = 'Mother name must be at least 3 chars';
 
       if (!emergencyContactName || emergencyContactName.length < 3) e.emergencyContactName = 'Emergency contact name required (min 3 chars)';
-      if (!emergencyContactNumber || !phoneRe.test(emergencyContactNumber)) e.emergencyContactNumber = 'Emergency contact number invalid';
+      if (!emergencyContactNumber || !indianPhoneRe.test(emergencyContactNumber)) e.emergencyContactNumber = 'Valid 10-digit Indian emergency contact required (6-9)';
     }
 
     if (stepNum === 2) {
@@ -1420,7 +1451,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
     if (stepNum === 4) {
       if (!employee) {
         if (!bankName) e.bankName = 'Bank name required';
-        if (!accountNumber || !/^[0-9]{9, 18}$/.test(accountNumber)) e.accountNumber = 'Account Number must be 9-18 digits';
+        if (!accountNumber || !/^[0-9]{9,18}$/.test(accountNumber)) e.accountNumber = 'Account Number must be 9-18 digits';
         if (!ifsc || !ifscRe.test(ifsc)) e.ifsc = 'IFSC invalid';
         if (!branchName) e.branchName = 'Branch name required';
         // Bank Proof Mandatory Validation
@@ -2072,7 +2103,15 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-semibold text-slate-700">Phone Number</label>
-                  <input value={contactNo} onChange={e => setContactNo(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.contactNo ? 'border-red-500' : 'border-slate-300'}`} />
+                  <input
+                    type="tel"
+                    maxLength="10"
+                    onInput={e => e.target.value = e.target.value.replace(/\D/g, '')}
+                    value={contactNo}
+                    onChange={e => setContactNo(e.target.value)}
+                    className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.contactNo ? 'border-red-500' : 'border-slate-300'}`}
+                    placeholder="10-digit mobile number"
+                  />
                   {errors.contactNo && <div className="text-xs text-red-600 mt-1">{errors.contactNo}</div>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -2083,7 +2122,15 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
                   </div>
                   <div>
                     <label className="text-sm font-semibold text-slate-700">Emergency Contact #</label>
-                    <input value={emergencyContactNumber} onChange={e => setEmergencyContactNumber(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactNumber ? 'border-red-500' : 'border-slate-300'}`} />
+                    <input
+                      type="tel"
+                      maxLength="10"
+                      onInput={e => e.target.value = e.target.value.replace(/\D/g, '')}
+                      value={emergencyContactNumber}
+                      onChange={e => setEmergencyContactNumber(e.target.value)}
+                      className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactNumber ? 'border-red-500' : 'border-slate-300'}`}
+                      placeholder="10-digit mobile number"
+                    />
                     {errors.emergencyContactNumber && <div className="text-xs text-red-600 mt-1">{errors.emergencyContactNumber}</div>}
                   </div>
                 </div>
