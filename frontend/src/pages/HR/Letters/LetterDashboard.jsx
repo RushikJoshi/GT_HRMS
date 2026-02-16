@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../../utils/api';
+import api, { API_ROOT } from '../../../utils/api';
 import {
     FileText, Plus, Search, Filter, Mail, Eye, Download,
     CheckCircle, Clock, AlertCircle, FilePlus, ChevronRight, X,
@@ -9,6 +9,8 @@ import {
 import { formatDateDDMMYYYY } from '../../../utils/dateUtils';
 import { showToast } from '../../../utils/uiNotifications';
 import DocumentManagementPanel from '../../../components/DocumentManagementPanel';
+
+
 
 export default function LetterDashboard() {
     const navigate = useNavigate();
@@ -82,6 +84,30 @@ export default function LetterDashboard() {
         }
     };
 
+    const resolveLetterPdfUrl = (pdfUrl) => {
+        if (!pdfUrl) return null;
+        if (/^https?:\/\//i.test(pdfUrl)) return pdfUrl;
+        return `${API_ROOT}${pdfUrl.startsWith('/') ? '' : '/'}${pdfUrl}`;
+    };
+
+    const handleDownloadLetter = (letter) => {
+        const url = resolveLetterPdfUrl(letter?.pdfUrl);
+        if (!url) {
+            showToast('error', 'Error', 'Letter URL not available');
+            return;
+        }
+
+        const fileName = `${letter?.letterType || 'letter'}_${letter?._id || Date.now()}.pdf`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div className="space-y-6 w-full mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-500">
             {/* Header */}
@@ -92,7 +118,7 @@ export default function LetterDashboard() {
                 </div>
                 <div className="flex gap-3 w-full sm:w-auto">
                     <button
-                        onClick={() => navigate('/hr/letters/templates')}
+                        onClick={() => navigate('/hr/letter-templates')}
                         className="px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl font-black text-sm uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-2"
                     >
                         <FileText size={18} /> Manage Templates
@@ -161,17 +187,17 @@ export default function LetterDashboard() {
                                     <td colSpan="5" className="px-6 py-12 text-center text-slate-400 font-bold">No letters issued yet.</td>
                                 </tr>
                             ) : recentLetters.filter(l =>
-                                (l.employeeId?.firstName + ' ' + l.employeeId?.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                (l.employeeId?.firstName + ' ' + l.employeeId?.lastName + ' ' + l.employeeId?.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
                                 l.templateId?.name.toLowerCase().includes(searchTerm.toLowerCase())
                             ).map((letter) => (
                                 <tr key={letter._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition group">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center font-black text-blue-600 dark:text-blue-400 text-xs shadow-inner">
-                                                {letter.employeeId?.firstName?.[0]}{letter.employeeId?.lastName?.[0]}
+                                                {/* {letter.applicantId?.firstName?.[0]}{letter.applicantId?.lastName?.[0]} */}
                                             </div>
                                             <div>
-                                                <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{letter.employeeId?.firstName} {letter.employeeId?.lastName}</p>
+                                                <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{letter.employeeId? `${letter.employeeId.firstName} ${letter.employeeId.lastName}` : letter.applicantId?.name}</p>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{letter.employeeId?.employeeId || 'NO ID'}</p>
                                             </div>
                                         </div>
@@ -192,21 +218,26 @@ export default function LetterDashboard() {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition">
-                                            <button
+                                            {/* <button
                                                 onClick={() => handleOpenManagement(letter)}
                                                 className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-purple-500 hover:text-white transition"
                                                 title="Manage"
                                             >
                                                 <History size={16} />
-                                            </button>
+                                            </button> */}
                                             <button
-                                                onClick={() => window.open(letter.pdfUrl, '_blank')}
+                                                onClick={() => {
+                                                    const url = resolveLetterPdfUrl(letter.pdfUrl);
+                                                    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                                                    else showToast('error', 'Error', 'Letter URL not available');
+                                                }}
                                                 className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-blue-500 hover:text-white transition"
                                                 title="View"
                                             >
                                                 <Eye size={16} />
                                             </button>
                                             <button
+                                                onClick={() => handleDownloadLetter(letter)}
                                                 className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-emerald-500 hover:text-white transition"
                                                 title="Download"
                                             >

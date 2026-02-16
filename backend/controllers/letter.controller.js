@@ -17,15 +17,34 @@ async function extractPlaceholders(filePath) {
     try {
         const buffer = await fsPromises.readFile(filePath);
         const zip = new PizZip(buffer);
-        const docXml = zip.file("word/document.xml");
-        if (!docXml) return [];
+        const xmlParts = zip.file(/word\/(document|header\d*|footer\d*)\.xml/);
+        if (!Array.isArray(xmlParts) || xmlParts.length === 0) return [];
 
-        const text = docXml.asText();
         const placeholderRegex = /\{\{([^}]+)\}\}/g;
         const placeholders = new Set();
-        let match;
-        while ((match = placeholderRegex.exec(text)) !== null) {
-            placeholders.add(match[1].trim());
+
+        const decodeXmlEntities = (value) => value
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, "'");
+
+        for (const xmlEntry of xmlParts) {
+            const xmlText = decodeXmlEntities(
+                xmlEntry
+                    .asText()
+                    .replace(/<w:tab\/>/g, '\t')
+                    .replace(/<w:br\/>/g, '\n')
+                    .replace(/<w:p\b[^>]*>/g, '\n')
+                    .replace(/<[^>]+>/g, '')
+            );
+
+            let match;
+            while ((match = placeholderRegex.exec(xmlText)) !== null) {
+                const cleaned = sanitizePlaceholderToken(match[1]);
+                if (cleaned) placeholders.add(cleaned);
+            }
         }
 
         return Array.from(placeholders);
@@ -33,6 +52,73 @@ async function extractPlaceholders(filePath) {
         console.warn('⚠️ Error extracting placeholders (non-critical):', error.message);
         return [];
     }
+}
+
+function sanitizePlaceholderToken(raw) {
+    const cleaned = String(raw || '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!cleaned) return null;
+    if (cleaned.length > 120) return null;
+    if (/mergefield/i.test(cleaned)) return null;
+    if (/^w:/i.test(cleaned)) return null;
+    if (!/[a-z0-9]/i.test(cleaned)) return null;
+
+    return cleaned;
+}
+
+function sanitizePlaceholderList(placeholders = []) {
+    if (!Array.isArray(placeholders)) return [];
+    const seen = new Set();
+    const result = [];
+
+    for (const token of placeholders) {
+        const cleaned = sanitizePlaceholderToken(token);
+        if (!cleaned || seen.has(cleaned)) continue;
+        seen.add(cleaned);
+        result.push(cleaned);
+    }
+
+    return result;
+}
+
+function sanitizeDocxTemplateDelimiters(zip) {
+    try {
+        const files = zip.file(/word\/(document|header\d*|footer\d*)\.xml/);
+        if (!Array.isArray(files) || files.length === 0) return;
+
+        files.forEach((entry) => {
+            const xml = entry.asText();
+            const sanitized = xml
+                // Convert triple/quadruple brace runs to standard docxtemplater delimiters.
+                .replace(/\{{3,}/g, '{{')
+                .replace(/\}{3,}/g, '}}');
+
+            if (sanitized !== xml) {
+                zip.file(entry.name, sanitized);
+            }
+        });
+    } catch (e) {
+        console.warn('⚠️ [DOCX SANITIZE] Failed to sanitize template delimiters:', e.message);
+    }
+}
+
+function buildTemplateCompileError(error) {
+    const issues = Array.isArray(error?.properties?.errors) ? error.properties.errors : [];
+    const details = issues.map((item) => ({
+        id: item?.properties?.id || item?.id || 'template_error',
+        file: item?.properties?.file || 'word/document.xml',
+        context: item?.properties?.context || item?.properties?.xtag || item?.message || 'Invalid template tag'
+    }));
+
+    return {
+        success: false,
+        code: 'INVALID_TEMPLATE_SYNTAX',
+        message: 'Template contains invalid placeholder syntax. Use {{placeholder}} format with exactly two braces.',
+        details
+    };
 }
 
 // Helper to get models from tenant database
@@ -377,7 +463,7 @@ exports.getTemplates = async (req, res) => {
         const templates = await LetterTemplate.find(query).sort('-createdAt');
 
         // Transform response based on type
-        const responseData = templates.map(template => {
+        const responseData = await Promise.all(templates.map(async (template) => {
             const base = {
                 _id: template._id,
                 name: template.name,
@@ -386,12 +472,20 @@ exports.getTemplates = async (req, res) => {
                 createdAt: template.createdAt
             };
 
+            let resolvedPlaceholders = sanitizePlaceholderList(template.placeholders || []);
+            if (template.templateType === 'WORD' && resolvedPlaceholders.length === 0 && template.filePath) {
+                const normalizedPath = normalizeFilePath(template.filePath);
+                if (normalizedPath && fs.existsSync(normalizedPath)) {
+                    resolvedPlaceholders = await extractPlaceholders(normalizedPath);
+                }
+            }
+
             if (template.templateType === 'WORD') {
                 // Word templates (both offer and joining)
                 return {
                     ...base,
                     filePath: template.filePath,
-                    placeholders: template.placeholders || [],
+                    placeholders: resolvedPlaceholders,
                     status: template.status,
                     version: template.version,
                     templateType: 'WORD'
@@ -414,14 +508,14 @@ exports.getTemplates = async (req, res) => {
                 return {
                     ...base,
                     filePath: template.filePath,
-                    placeholders: template.placeholders || [],
+                    placeholders: resolvedPlaceholders,
                     status: template.status,
                     version: template.version,
                     templateType: 'WORD'
                 };
             }
             return base;
-        });
+        }));
 
         res.json(responseData);
     } catch (error) {
@@ -546,7 +640,7 @@ exports.getTemplateById = async (req, res) => {
         // Handle WORD templates - validate filePath exists
         if (template.templateType === 'WORD') {
             responseData.templateType = 'WORD';
-            responseData.placeholders = template.placeholders || [];
+            responseData.placeholders = sanitizePlaceholderList(template.placeholders || []);
             responseData.version = template.version;
             responseData.status = template.status;
 
@@ -557,6 +651,9 @@ exports.getTemplateById = async (req, res) => {
                     const normalizedPath = normalizeFilePath(template.filePath);
                     const fileExists = fs.existsSync(normalizedPath);
                     if (fileExists) {
+                        if (responseData.placeholders.length === 0) {
+                            responseData.placeholders = await extractPlaceholders(normalizedPath);
+                        }
                         // Return normalized filePath for WORD templates (needed for preview)
                         responseData.filePath = normalizedPath;
                         responseData.hasFile = true;
@@ -2713,7 +2810,7 @@ exports.previewJoiningLetter = async (req, res) => {
             const pdfFileName = path.basename(pdfAbsolutePath);
 
             finalRelativePath = `previews/${pdfFileName}`;
-            finalPdfUrl = `/uploads/${finalRelativePath}`;
+            finalPdfUrl = `${process.env.BACKEND_URL}/uploads/${finalRelativePath}`;
 
             console.log('✅ [PREVIEW JOINING LETTER] PDF Preview Ready:', finalPdfUrl);
 
@@ -3043,14 +3140,35 @@ exports.generateGenericLetter = async (req, res) => {
         if (template.templateType === 'WORD') {
             if (!template.filePath) throw new Error('Template file path missing');
 
-            const buffer = fs.readFileSync(template.filePath);
-            const zip = new PizZip(buffer);
-            const doc = new Docxtemplater(zip, {
-                paragraphLoop: true,
-                linebreaks: true,
-            });
+            const normalizedTemplatePath = normalizeFilePath(template.filePath);
+            if (!fs.existsSync(normalizedTemplatePath)) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Template file not found on server. Please re-upload the template.'
+                });
+            }
 
-            doc.render(placeholderData);
+            const buffer = fs.readFileSync(normalizedTemplatePath);
+            const zip = new PizZip(buffer);
+            sanitizeDocxTemplateDelimiters(zip);
+            let doc;
+            try {
+                doc = new Docxtemplater(zip, {
+                    paragraphLoop: true,
+                    linebreaks: true,
+                    delimiters: { start: '{{', end: '}}' }
+                });
+            } catch (compileErr) {
+                console.error('❌ [generateGenericLetter] Template compile error:', compileErr);
+                return res.status(400).json(buildTemplateCompileError(compileErr));
+            }
+
+            try {
+                doc.render(placeholderData);
+            } catch (renderErr) {
+                console.error('❌ [generateGenericLetter] Template render error:', renderErr);
+                return res.status(400).json(buildTemplateCompileError(renderErr));
+            }
             const generatedBuffer = doc.getZip().generate({ type: 'nodebuffer' });
 
             // Save temporary docx file for conversion with proper naming
@@ -3176,6 +3294,7 @@ exports.getGeneratedLetters = async (req, res) => {
 
         const letters = await GeneratedLetter.find(filter)
             .populate('employeeId', 'firstName lastName employeeId')
+            .populate('applicantId', 'name')
             .populate('templateId', 'name type')
             .sort('-createdAt');
 
