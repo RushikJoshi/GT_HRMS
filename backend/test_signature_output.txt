@@ -1,0 +1,99 @@
+﻿≡ƒöì Starting Signature Save Diagnostic...
+
+1∩╕ÅΓâú Connecting to MongoDB...
+Γ£à Connected to MongoDB
+
+2∩╕ÅΓâú Testing letter.controller.js...
+[2026-02-16 08:55:05] DEBUG Creating transport: nodemailer (7.0.13; +https://nodemailer.com/; SMTP/7.0.13[client:7.0.13])
+≡ƒôí [EmailService] Connecting as: mediamarek2025@gmail.com
+≡ƒôí [EmailService] Password Length: 16 characters (No spaces)
+≡ƒÜÇ LETTER CONTROLLER VERSION: 3.1 (LibreOffice PDF conversion)
+Γ£à letter.controller loaded successfully
+   - regenerateSignedLetter: function
+
+3∩╕ÅΓâú Testing signature.controller.js...
+Γ£à signature.controller loaded successfully
+   - saveSignatureAndSign: function
+
+4∩╕ÅΓâú Checking Applicant model schema...
+Γ£à Applicant schema loaded
+   - Has signature field: true
+   - Signature field type: String
+
+5∩╕ÅΓâú Testing tenant DB connection...
+node : Γ¥î Tenant DB test 
+failed: The 2nd parameter 
+to `mongoose.model()` 
+should be a schema or a POJO
+At line:1 char:1
++ node 
+test_signature_save.js 2>&1 
+| Out-File -FilePath 
+test_signature_ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (Γ¥î T  
+  enant DB t...chema or a   
+  POJO:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+   Stack: MongooseError: 
+The 2nd parameter to 
+`mongoose.model()` should 
+be a schema or a POJO
+
+    at Mongoose.model (C:\Us
+ers\DELL\OneDrive\Documents\
+GitHub\GT_HRMS\backend\node_
+modules\mongoose\lib\mongoos
+e.js:586:11)
+6∩╕ÅΓâú Checking uploads directory...
+    at testSignatureSave (C:
+\Users\DELL\OneDrive\Documen
+ts\GitHub\GT_HRMS\backend\te
+st_signature_save.js:62:37)
+    at process.processTicksA
+ndRejections (node:internal/
+process/task_queues:105:5)
+   - Uploads dir exists: true
+   - Signatures dir exists: true
+
+Γ£à All diagnostic checks completed!
+
+≡ƒôï SUMMARY:
+   If all checks passed, the signature save should work.
+   If any checks failed, review the error messages above.
+
+≡ƒöî Disconnected from MongoDB
+[2026-02-16 08:55:05] DEBUG [SMmOZDVLM] Resolved smtp.gmail.com as 192.178.211.109 [cache miss]
+[2026-02-16 08:55:05] INFO  [SMmOZDVLM] Secure connection established to 192.178.211.109:465
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 220 smtp.gmail.com ESMTP 98e67ed59e1d1-3567eba96d0sm14901300a91.11 - gsmtp
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] C: EHLO [127.0.0.1]
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 250-smtp.gmail.com at your service, [122.170.31.63]
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 250-SIZE 35882577
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 250-8BITMIME
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 250-AUTH LOGIN PLAIN XOAUTH2 PLAIN-CLIENTTOKEN OAUTHBEARER XOAUTH
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 250-ENHANCEDSTATUSCODES
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 250-PIPELINING
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 250-CHUNKING
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 250 SMTPUTF8
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] SMTP handshake finished
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] C: AUTH PLAIN AG1lZGlhbWFyZWsyMDI1QGdtYWlsLmNvbQAvKiBzZWNyZXQgKi8=
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 535-5.7.8 Username and Password not accepted. For more information, go to
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] S: 535 5.7.8  https://support.google.com/mail/?p=BadCredentials 98e67ed59e1d1-3567eba96d0sm14901300a91.11 - gsmtp
+[2026-02-16 08:55:06] INFO  [SMmOZDVLM] User "mediamarek2025@gmail.com" failed to authenticate
+[2026-02-16 08:55:06] DEBUG [SMmOZDVLM] Closing connection to the server using "end"
+Γ¥î [EmailService] SMTP 
+Connection Error: Invalid 
+login: 535-5.7.8 Username 
+and Password not accepted. 
+For more information, go to
+535 5.7.8  https://support.g
+oogle.com/mail/?p=BadCredent
+ials 98e67ed59e1d1-3567eba96
+d0sm14901300a91.11 - gsmtp
+≡ƒÆí HINT: Go to https://accounts.google.com/DisplayUnlockCaptcha and click Continue.
+[2026-02-16 08:55:07] INFO  [SMmOZDVLM] Connection closed

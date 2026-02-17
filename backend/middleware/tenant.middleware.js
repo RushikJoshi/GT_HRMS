@@ -6,8 +6,18 @@ const getTenantDB = require('../utils/tenantDB');
 
 module.exports = async function tenantResolver(req, res, next) {
   try {
-    // Defensive logging for debugging
-    console.error(`[TENANT_MIDDLEWARE] ${req.method} ${req.path}`);
+    const fs = require('fs');
+    const path = require('path');
+    const logMsg = `[${new Date().toISOString()}] ${req.method} ${req.path} | Query: ${JSON.stringify(req.query)}\n`;
+    fs.appendFileSync(path.join(process.cwd(), 'debug.log'), logMsg);
+
+    // Core Logger for Critical Flows
+    if (req.path.includes('/pdf')) {
+      const pdfLog = `🔍 [PDF_REQUEST] Letter: ${req.params.id || 'N/A'} | Tenant: ${req.query.tenantId} | Token: ${req.query.token?.slice(0, 10)}...\n`;
+      fs.appendFileSync(path.join(process.cwd(), 'debug.log'), pdfLog);
+      console.log(`🔍 [TENANT_RESOLVER] Hitting PDF route: ${req.method} ${req.path}`);
+      console.log(`   Query Params: tenantId=${req.query.tenantId}, hasToken=${!!req.query.token}`);
+    }
 
     // Skip tenant resolution for OPTIONS requests (CORS preflight) and Health Check
     if (req.method === 'OPTIONS' || req.path === '/api/health' || req.path === '/health') {
@@ -33,26 +43,38 @@ module.exports = async function tenantResolver(req, res, next) {
       }
     }
 
-    // Try to read tenantId from already-populated req.user or from header
-    let tenantId = req.user?.tenantId || req.user?.tenant || req.headers["x-tenant-id"];
+    // Try to read tenantId from already-populated req.user or from header or query (for iframes)
+    let tenantId = req.user?.tenantId || req.user?.tenant || req.headers["x-tenant-id"] || req.query.tenantId;
 
     // If no req.user yet (middleware may run before auth middleware), try to extract tenantId from JWT
-    if (!tenantId) {
+    if (!tenantId || (!req.user && !req.candidate)) {
       const authHeader = req.headers.authorization || req.headers.Authorization;
-      if (authHeader) {
-        const parts = authHeader.split(' ');
-        if (parts.length === 2 && /^Bearer$/i.test(parts[0])) {
-          const token = parts[1];
-          try {
-            const payload = jwt.verify(token, process.env.JWT_SECRET || "hrms_secret_key_123");
-            tenantId = payload.tenantId || payload.tenant || tenantId;
-            console.log(`[TENANT_MIDDLEWARE] Extracted tenantId from token: ${tenantId}`);
-          } catch (e) {
-            console.log(`[TENANT_MIDDLEWARE] Failed to verify token: ${e.message}`);
-            // ignore invalid token here; auth middleware will handle auth failures
+      const queryToken = req.query.token;
+      const token = (authHeader && authHeader.split(' ')[1]) || queryToken;
+
+      if (token) {
+        try {
+          const payload = jwt.verify(token, process.env.JWT_SECRET || "hrms_secret_key_123");
+          tenantId = payload.tenantId || payload.tenant || tenantId;
+
+          if (!req.user && !req.candidate) {
+            if (payload.role === 'candidate') {
+              req.candidate = { id: payload.id, tenantId: payload.tenantId, role: 'candidate' };
+            } else {
+              req.user = payload;
+            }
           }
+          console.log(`[TENANT_MIDDLEWARE] Authenticated via ${queryToken ? 'query' : 'header'} token. Tenant: ${tenantId}`);
+        } catch (e) {
+          console.log(`[TENANT_MIDDLEWARE] Token verification failed: ${e.message}`);
         }
       }
+    }
+
+    // If it's a 25-char ID but looks like it should be 24 (ObjectId), sanitize it
+    // This handles a known issue where some IDs were generated with an extra character
+    if (tenantId && tenantId.length === 25) {
+      console.warn(`⚠️ [TENANT_RESOLVER] Malformed 25-char tenantId detected: ${tenantId}. Attempting to use as is.`);
     }
 
     req.tenantId = tenantId;

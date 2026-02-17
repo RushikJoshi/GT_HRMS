@@ -20,7 +20,8 @@ const PositionSchema = new Schema({
     },
     department: {
         type: String,
-        required: true
+        required: true,
+        trim: true
     },
     departmentId: {
         type: Schema.Types.ObjectId,
@@ -30,23 +31,23 @@ const PositionSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: 'Employee'
     },
-    designation: {
-        type: String,
-        trim: true
-    },
     baseSalaryRange: {
         min: { type: Number, default: 0 },
         max: { type: Number, default: 0 }
     },
-    headCount: {
+    budgetedCount: {
         type: Number,
         default: 1,
-        min: 1
+        min: 0
     },
-    filledCount: {
+    currentCount: {
         type: Number,
         default: 0,
         min: 0
+    },
+    level: {
+        type: String,
+        trim: true
     },
     status: {
         type: String,

@@ -1,42 +1,24 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
-const getTenantDB = require('./utils/tenantDB');
-const { checkEntityAccess } = require('./utils/accessControl');
 
-async function test() {
+async function run() {
     try {
         await mongoose.connect(process.env.MONGO_URI);
-        const tenantId = "69413321fe81e30719940dfc"; // The one with leaves
-        const entityId = "6942ae0402c656caf0e63951";
-        const entityType = "LeaveRequest";
+        const Tenant = mongoose.model('Tenant', require('./models/Tenant'));
+        const tenant = await Tenant.findOne({ code: 'tes001' });
+        if (!tenant) throw new Error('Tenant tes001 not found');
 
-        const tenantDB = await getTenantDB(tenantId);
+        const { getTenantDB } = require('./config/dbManager');
+        const db = getTenantDB(tenant._id.toString());
 
-        console.log("Testing model access...");
-        let Model;
-        try {
-            Model = tenantDB.model(entityType);
-            console.log("Model found directly");
-        } catch (e) {
-            console.log("Model not found directly, trying normalization...");
-            const normalizedType = entityType.charAt(0).toUpperCase() + entityType.slice(1);
-            Model = tenantDB.model(normalizedType);
-            console.log("Model found via normalization");
-        }
-
-        console.log("Testing populate...");
-        const entity = await Model.findById(entityId)
-            .populate('employee', 'firstName lastName email profilePic')
-            .populate('user', 'name email');
-
-        console.log("Entity found:", !!entity);
-        if (entity) console.log("Employee populated:", !!entity.employee);
-
+        const Position = db.model('Position');
+        console.log('Fetching positions...');
+        const positions = await Position.find({ tenant: tenant._id });
+        console.log('Positions found:', positions.length);
         process.exit(0);
     } catch (err) {
-        console.error("TEST FAILED:", err);
+        console.error('ERROR:', err);
         process.exit(1);
     }
 }
-
-test();
+run();

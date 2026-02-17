@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { Pagination } from 'antd';
 import api from '../../utils/api';
 import {
   History,
@@ -7,16 +6,17 @@ import {
   RefreshCw,
   Search,
   Filter,
-  CheckCircle2,
-  AlertCircle,
-  Info
+  ArrowLeft
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Activities() {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
+  const [searchTerm, setSearchTerm] = useState('');
+  const pageSize = 10;
+  const navigate = useNavigate();
 
   async function load() {
     try {
@@ -51,7 +51,17 @@ export default function Activities() {
     }
   }
 
-  const pagedActivities = activities.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const filtered = activities.filter(log => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (log.action || '').toLowerCase().includes(term) ||
+      (log.company || log.tenantInfo?.name || '').toLowerCase().includes(term)
+    );
+  });
+
+  const start = (currentPage - 1) * pageSize;
+  const paged = filtered.slice(start, start + pageSize);
+  const totalPages = Math.ceil(filtered.length / pageSize);
 
   const getActionColor = (action) => {
     const act = action?.toLowerCase() || '';
@@ -62,132 +72,111 @@ export default function Activities() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F0F2F5] p-4 sm:p-6 lg:p-10 font-sans text-slate-900">
-      <div className="w-full mx-auto space-y-6 sm:space-y-8 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-slate-50/50 p-6 lg:p-8 font-sans text-slate-900 overflow-x-hidden">
+      <div className="w-full mx-auto space-y-8 animate-in fade-in duration-700">
 
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-emerald-600 p-6 sm:p-10 rounded-2xl shadow-sm relative overflow-hidden">
-          <div className="space-y-2 relative z-10 w-full">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-500/50 rounded-xl flex items-center justify-center text-white ring-4 ring-emerald-500/20 shrink-0">
-                <History size={24} className="sm:hidden" />
-                <History size={28} className="hidden sm:block" />
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-4xl font-bold text-white tracking-tight">Audit Logs</h1>
-                <p className="text-emerald-100 font-bold text-sm sm:text-lg">Track system events and administrative actions.</p>
-              </div>
+        {/* Top Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 px-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+              <History size={24} />
+            </div>
+            <div className="space-y-0.5">
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Recent Activities</h1>
+              <p className="text-[12px] font-medium text-slate-400 tracking-tight">Track system events and administrative actions across the ecosystem.</p>
             </div>
           </div>
-
-          <div className="relative z-10 w-full md:w-auto">
-            <button
-              onClick={load}
-              disabled={loading}
-              className="w-full sm:w-auto flex items-center justify-center gap-3 px-6 sm:px-8 py-3 sm:py-4 bg-emerald-700/50 border border-emerald-500/30 rounded-xl font-bold text-xs uppercase tracking-widest text-emerald-100 hover:text-white hover:bg-emerald-700 transition-all shadow-sm active:scale-95 disabled:opacity-50"
-            >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-              Refresh Data
-            </button>
-          </div>
+          <button
+            onClick={load}
+            disabled={loading}
+            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-sm transition-all hover:bg-slate-50 active:scale-95 disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh Logs
+          </button>
         </div>
 
-        {/* Main Table Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden relative">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
-
-          {/* Table Toolbar */}
-          <div className="px-6 sm:px-10 py-6 sm:py-8 border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between bg-white gap-4">
-            <div className="flex items-center gap-3 text-sm text-slate-600">
-              <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                <History size={16} />
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-bold text-slate-900 text-lg sm:text-xl">{activities.length}</span>
-                <span className="font-semibold text-slate-400 uppercase tracking-wide text-[10px] sm:text-xs">Entries Recorded</span>
-              </div>
-            </div>
-
-            <div className="w-full md:w-auto">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-                <input
-                  type="text"
-                  placeholder="Search logs..."
-                  className="w-full md:w-64 pl-10 pr-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-xs font-bold text-slate-700 placeholder:text-slate-400 transition-all font-sans"
-                />
-              </div>
-            </div>
+        {/* Search & Filter Bar */}
+        <div className="flex flex-col md:flex-row gap-4 px-4">
+          <div className="flex-1 relative group">
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              placeholder="Search logs by action or organization..."
+              className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200/60 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 transition-all text-sm font-medium text-slate-600 placeholder:text-slate-300 shadow-sm"
+            />
           </div>
+          <button className="flex items-center justify-center gap-2 px-8 py-4 bg-white border border-slate-200/60 text-slate-500 rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm">
+            <Filter size={14} /> Filter
+          </button>
+        </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-            <table className="w-full text-left border-collapse min-w-[900px]">
-              <thead className="bg-slate-50/50">
-                <tr>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap w-[25%]">Timestamp</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap w-[25%]">Action Type</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap w-[35%]">Target Entity</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right whitespace-nowrap w-[15%]">Controls</th>
+        {/* Content Table Card (Full Width) */}
+        <div className="bg-white border-y md:border border-slate-200/60 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[900px]">
+              <thead>
+                <tr className="bg-slate-50/50">
+                  <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] border-b border-slate-100">Timestamp</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] border-b border-slate-100">Action Performed</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] border-b border-slate-100">Target Entity</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] border-b border-slate-100 text-right">Controls</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {loading ? (
                   <tr>
-                    <td colSpan="4" className="px-6 sm:px-10 py-16 sm:py-20 text-center">
+                    <td colSpan="4" className="px-8 py-20 text-center">
                       <div className="flex flex-col items-center gap-4">
-                        <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-500 rounded-full animate-spin"></div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Retrieving Audit Trail...</p>
+                        <div className="w-10 h-10 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">Synchronizing Logs...</p>
                       </div>
                     </td>
                   </tr>
-                ) : pagedActivities.length === 0 ? (
+                ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="px-6 sm:px-10 py-16 sm:py-20 text-center">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                        <History size={32} />
-                      </div>
-                      <p className="text-slate-500 font-bold text-base sm:text-lg">No Activity Patterns Detected</p>
-                      <p className="text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1">System logs appear to be empty for this period.</p>
+                    <td colSpan="4" className="px-8 py-20 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                      No activity records found
                     </td>
                   </tr>
                 ) : (
-                  pagedActivities.map((log, index) => (
-                    <tr key={log._id || index} className="group hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 sm:px-10 py-4 sm:py-6 whitespace-nowrap">
+                  paged.map((log, idx) => (
+                    <tr key={log._id || idx} className="hover:bg-slate-50/30 transition-colors group">
+                      <td className="px-8 py-6">
                         <div className="flex items-center gap-3">
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-indigo-400 transition-colors"></div>
-                          <span className="text-xs sm:text-sm font-bold text-slate-700">
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-indigo-500 transition-colors"></div>
+                          <span className="text-[12px] font-bold text-slate-600">
                             {new Date(log.time || log.createdAt).toLocaleString('en-US', {
-                              year: 'numeric',
                               month: 'short',
                               day: 'numeric',
+                              year: 'numeric',
                               hour: '2-digit',
                               minute: '2-digit'
                             })}
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 sm:px-10 py-4 sm:py-6">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest border break-words pointer-events-none ${getActionColor(log.action)}`}>
+                      <td className="px-8 py-6">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-lg text-[9px] font-extrabold uppercase tracking-widest border ${getActionColor(log.action)}`}>
                           {log.action || 'System Action'}
                         </span>
                       </td>
-                      <td className="px-6 sm:px-10 py-4 sm:py-6">
-                        <div className="flex items-center gap-2 max-w-[250px] sm:max-w-none">
-                          <span className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-[10px] shrink-0">
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-300 font-bold text-[10px]">
                             {(log.company || log.tenantInfo?.name || '-').charAt(0)}
-                          </span>
-                          <span className="text-xs sm:text-sm font-bold text-slate-700 break-words">
+                          </div>
+                          <span className="text-[12px] font-bold text-slate-800">
                             {log.company || log.tenantInfo?.name || '-'}
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 sm:px-10 py-4 sm:py-6 text-right whitespace-nowrap">
+                      <td className="px-8 py-6 text-right">
                         <button
                           onClick={() => removeActivity(log._id)}
-                          className="p-2.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transform translate-x-0 sm:translate-x-2 sm:group-hover:translate-x-0"
-                          title="Purge Record"
+                          className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                          title="Delete Log"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -199,20 +188,41 @@ export default function Activities() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {activities.length > pageSize && (
-            <div className="px-6 sm:px-10 py-6 border-t border-slate-100 bg-slate-50/30 flex justify-center">
-              <Pagination
-                current={currentPage}
-                pageSize={pageSize}
-                total={activities.length}
-                onChange={(page) => setCurrentPage(page)}
-                showSizeChanger={false}
-                size="small"
-                className="font-bold responsive-pagination"
-              />
-            </div>
-          )}
+          {/* Table Pagination Footer */}
+          <div className="flex flex-col md:flex-row items-center justify-between px-8 py-6 bg-white border-t border-slate-100 gap-4">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
+              PAGE {currentPage} OF {totalPages || 1} — SHOWING {paged.length} OF {filtered.length} RECORDS
+            </p>
+            {filtered.length > pageSize && (
+              <div className="flex items-center gap-4">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => prev - 1)}
+                  className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 disabled:opacity-30 transition-colors"
+                >
+                  PREVIOUS
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(num => (
+                    <button
+                      key={num}
+                      onClick={() => setCurrentPage(num)}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold transition-all ${currentPage === num ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 disabled:opacity-30 transition-colors"
+                >
+                  NEXT
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

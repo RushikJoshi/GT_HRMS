@@ -54,7 +54,7 @@ export default function BuilderEditorPanel({ config, selectedBlockId, onUpdateCo
 
     return (
         <div className="flex flex-col h-full bg-white border-l border-gray-100 w-80 shrink-0">
-        <div className="flex h-12 border-b border-gray-50 overflow-hidden px-2 py-1 items-center gap-1">
+            <div className="flex h-12 border-b border-gray-50 overflow-hidden px-2 py-1 items-center gap-1">
                 <button
                     onClick={() => setActiveTab('add')}
                     className={`flex-1 flex items-center justify-center gap-2 h-full rounded-lg text-xs font-bold transition-all ${activeTab === 'add' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}
@@ -207,9 +207,9 @@ export default function BuilderEditorPanel({ config, selectedBlockId, onUpdateCo
                                         const emp = employees.find(x => x._id === empId);
                                         onEmployeeChange(emp);
                                     }}
-                                    options={employees.map(emp => ({ 
+                                    options={employees.map(emp => ({
                                         label: `${emp.firstName} ${emp.lastName} (${emp.employeeCode})`,
-                                        value: emp._id 
+                                        value: emp._id
                                     }))}
                                 />
                             </div>
@@ -402,7 +402,7 @@ function BlockSpecificSettings({ block, onUpdate, variables }) {
                     <div>
                         <label className="text-[10px] font-bold text-gray-500 uppercase block mb-2">Company Name</label>
                         <Input
-                            value={content.companyName || 'Your Company Name'}
+                            value={content.companyName ?? ''}
                             onChange={e => change('companyName', e.target.value)}
                             className="text-xs"
                             placeholder="Enter company name"
@@ -456,9 +456,9 @@ function BlockSpecificSettings({ block, onUpdate, variables }) {
                             {content.logoImage && (
                                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                                     <p className="text-[9px] font-bold text-gray-500 uppercase mb-2">Logo Preview</p>
-                                    <img 
-                                        src={content.logoImage} 
-                                        alt="Logo" 
+                                    <img
+                                        src={content.logoImage}
+                                        alt="Logo"
                                         className="h-12 rounded-lg border border-gray-200"
                                     />
                                 </div>
@@ -501,7 +501,7 @@ function BlockSpecificSettings({ block, onUpdate, variables }) {
                             <label className="text-[10px] font-bold text-gray-500 uppercase block mb-2">Company Address</label>
                             <Input.TextArea
                                 rows={3}
-                                value={content.companyAddress || '123 Business Avenue, Suite 500\nAhmedabad, Gujarat - 380015'}
+                                value={content.companyAddress ?? ''}
                                 onChange={e => change('companyAddress', e.target.value)}
                                 placeholder="Enter company address..."
                                 className="text-xs"
@@ -592,7 +592,7 @@ function BlockSpecificSettings({ block, onUpdate, variables }) {
                                             placeholder="Row name"
                                             value={row.name || ''}
                                             onChange={(e) => {
-                                                const updatedRows = content.customRows.map((r, i) => 
+                                                const updatedRows = content.customRows.map((r, i) =>
                                                     i === idx ? { ...r, name: e.target.value } : r
                                                 );
                                                 change('customRows', updatedRows);
@@ -605,7 +605,7 @@ function BlockSpecificSettings({ block, onUpdate, variables }) {
                                             placeholder="0"
                                             value={row.amount || 0}
                                             onChange={(e) => {
-                                                const updatedRows = content.customRows.map((r, i) => 
+                                                const updatedRows = content.customRows.map((r, i) =>
                                                     i === idx ? { ...r, amount: parseFloat(e.target.value) || 0 } : r
                                                 );
                                                 change('customRows', updatedRows);

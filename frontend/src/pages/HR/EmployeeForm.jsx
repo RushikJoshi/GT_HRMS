@@ -459,7 +459,8 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
         const birth = new Date(dob); const age = Math.floor((Date.now() - birth.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
         if (age < 18) e.dob = 'Employee must be at least 18 years old';
       }
-      if (!contactNo || !phoneRe.test(contactNo)) e.contactNo = 'Phone must be 10-15 digits';
+      const contactDigits = contactNo ? contactNo.toString().replace(/\D/g, '') : '';
+      if (!contactNo || contactDigits.length < 10 || contactDigits.length > 15) e.contactNo = 'Phone must be 10-15 digits';
       // Email and Password validation removed
 
       if (!maritalStatus) e.maritalStatus = 'Marital Status is required';
@@ -475,7 +476,8 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
       if (motherName && motherName.length < 3) e.motherName = 'Mother name must be at least 3 chars';
 
       if (!emergencyContactName || emergencyContactName.length < 3) e.emergencyContactName = 'Emergency contact name required (min 3 chars)';
-      if (!emergencyContactNumber || !phoneRe.test(emergencyContactNumber)) e.emergencyContactNumber = 'Emergency contact number invalid';
+      const emergencyDigits = emergencyContactNumber ? emergencyContactNumber.toString().replace(/\D/g, '') : '';
+      if (!emergencyContactNumber || emergencyDigits.length < 10 || emergencyDigits.length > 15) e.emergencyContactNumber = 'Emergency contact number invalid (10-15 digits)';
     }
 
     if (stepNum === 2) {
@@ -1159,7 +1161,7 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-semibold text-slate-700">Phone Number</label>
-                  <input value={contactNo} onChange={e => setContactNo(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.contactNo ? 'border-red-500' : 'border-slate-300'}`} />
+                  <input value={contactNo} onChange={e => setContactNo(e.target.value.replace(/\D/g, ''))} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.contactNo ? 'border-red-500' : 'border-slate-300'}`} />
                   {errors.contactNo && <div className="text-xs text-red-600 mt-1">{errors.contactNo}</div>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1170,7 +1172,7 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                   </div>
                   <div>
                     <label className="text-sm font-semibold text-slate-700">Emergency Contact #</label>
-                    <input value={emergencyContactNumber} onChange={e => setEmergencyContactNumber(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactNumber ? 'border-red-500' : 'border-slate-300'}`} />
+                    <input value={emergencyContactNumber} onChange={e => setEmergencyContactNumber(e.target.value.replace(/\D/g, ''))} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactNumber ? 'border-red-500' : 'border-slate-300'}`} />
                     {errors.emergencyContactNumber && <div className="text-xs text-red-600 mt-1">{errors.emergencyContactNumber}</div>}
                   </div>
                 </div>

@@ -18,6 +18,7 @@ const CandidateSchema = new mongoose.Schema({
     // 🔐 Identity Verification Fields (Required for OCR Validation)
     aadhaarNumber: { type: String, trim: true },
     panNumber: { type: String, trim: true, uppercase: true },
+    digitalSignature: { type: String }, // Base64 signature image
 
     // Additional data
     metadata: { type: Object, default: {} },

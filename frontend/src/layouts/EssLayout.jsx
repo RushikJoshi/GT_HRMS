@@ -43,9 +43,10 @@ export default function EssLayout() {
       setActiveTab('my-applications');
     } else if (path.includes('/face-attendance')) {
       setActiveTab('face-attendance');
-    } else if (path.includes('/vendor')) {
-      setActiveTab('vendor/list');
     }
+    // else if (path.includes('/vendor')) {
+    //   setActiveTab('vendor/list');
+    // }
   }, [location.pathname]);
 
   useEffect(() => {

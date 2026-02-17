@@ -11,7 +11,11 @@ const RequirementSchema = new mongoose.Schema({
   positionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Position', index: true },
   position: { type: String, trim: true },
   publicFields: { type: [String], default: [] },
-  workflow: { type: [String], default: ['Applied', 'Shortlisted', 'Interview', 'Finalized'] }
+  workflow: { type: [String], default: ['Applied', 'Shortlisted', 'Interview', 'Finalized'] },
+  isReplacement: { type: Boolean, default: false },
+  replacementId: { type: mongoose.Schema.Types.ObjectId, ref: 'ReplacementRequest' },
+  approvalStatus: { type: String, default: 'Pending' }, // For requisition approval
+  hiringStatus: { type: String, default: 'Open' } // Open, Closed, etc.
 }, { strict: false, collection: 'requirements', timestamps: true });
 
 module.exports = RequirementSchema;

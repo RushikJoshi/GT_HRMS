@@ -70,7 +70,10 @@ const ICONS = {
 const NAV_GROUPS = [
   {
     title: 'Overview',
-    items: [{ to: '/hr', label: 'Dashboard', icon: ICONS.dashboard, end: true }]
+    items: [
+      { to: '/hr', label: 'Dashboard', icon: ICONS.dashboard, end: true },
+      { to: '/hr/reports', label: 'Personnel Reports', icon: ICONS.payrollDashboard }
+    ]
   },
   {
     title: 'People',
@@ -177,7 +180,7 @@ const NAV_GROUPS = [
         children: [
           { to: '/hr/career-builder', label: 'Edit Career Page' },
           { to: '/hr/apply-builder', label: 'Edit Apply Page' },
-          { to: '/tenant/customization/vendor', label: 'Edit Vendor Forms' }
+          // { to: '/tenant/customization/vendor', label: 'Edit Vendor Forms' }
         ]
       },
       {

@@ -14,9 +14,9 @@ let rawBaseUrl = import.meta.env.VITE_API_URL;
 // Safety Fallbacks
 if (!rawBaseUrl) {
   rawBaseUrl = import.meta.env.DEV
-    ? 'http://localhost:5000/api' :
+    ? 'http://localhost:5003/api' :
     'https://hrms.gitakshmi.com/api';
-    // : 'https://hrms.dev.gitakshmi.com/api';
+  // : 'https://hrms.dev.gitakshmi.com/api';
 }
 
 // Ensure consistency: Remove trailing slash

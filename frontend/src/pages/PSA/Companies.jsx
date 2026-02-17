@@ -7,22 +7,19 @@ import ModuleConfig from "./ModuleConfig";
 import CompanyView from "./CompanyView";
 import {
   Building2,
-  MapPin,
   Mail,
-  Phone,
   Search,
   Plus,
   Filter,
-  ArrowRight,
-  MoreVertical,
-  Shield,
   Zap,
-  CheckCircle2,
-  X,
   Eye,
   EyeOff,
   Edit2,
-  Settings
+  Settings,
+  LayoutGrid,
+  Users,
+  Activity,
+  Lock
 } from 'lucide-react';
 
 export default function Companies() {
@@ -75,115 +72,175 @@ export default function Companies() {
     setRevealMap(prev => ({ ...prev, [id]: !prev[id] }));
   }
 
+  // Calculate stats for local summary cards
+  const stats = {
+    total: companies.length,
+    active: companies.filter(c => c.status === 'active').length,
+    inactive: companies.filter(c => c.status !== 'active').length
+  };
+
+  const statsCards = [
+    {
+      label: 'TOTAL COMPANIES',
+      value: stats.total,
+      icon: LayoutGrid,
+      iconColor: 'text-blue-600',
+      iconBg: 'bg-blue-50',
+    },
+    {
+      label: 'ACTIVE COMPANIES',
+      value: stats.active,
+      icon: Users,
+      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-50',
+    },
+    {
+      label: 'INACTIVE COMPANIES',
+      value: stats.inactive,
+      icon: Activity,
+      iconColor: 'text-slate-400',
+      iconBg: 'bg-slate-100',
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#F0F2F5] p-6 lg:p-12 font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-slate-50/50 p-6 lg:p-8 font-sans text-slate-900 overflow-x-hidden">
+      <div className="w-full mx-auto space-y-8 animate-in fade-in duration-700 px-0">
 
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-10 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-full bg-gradient-to-l from-emerald-50 to-transparent"></div>
-
-          <div className="space-y-2 relative z-10">
-            <div className="flex items-center gap-4 mb-2">
-              <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center text-white shadow-2xl shadow-emerald-200 ring-8 ring-emerald-50">
-                <Building2 size={28} />
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold text-slate-800 tracking-tight">Companies</h1>
-                <p className="text-slate-500 font-bold text-lg">Manage tenant organizations.</p>
-              </div>
+        {/* Top Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 px-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-100">
+              <Building2 size={24} />
+            </div>
+            <div className="space-y-0.5">
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Companies</h1>
+              <p className="text-[12px] font-medium text-slate-400 tracking-tight">Central ecosystem management for all tenant organizations.</p>
             </div>
           </div>
-
-          <div className="flex items-center gap-4 relative z-10">
-            <button
-              onClick={() => {
-                setSelected(null);
-                setOpenForm(true);
-              }}
-              className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm uppercase tracking-widest shadow-xl shadow-emerald-200 transition-all hover:-translate-y-1 active:scale-95"
-            >
-              <Plus size={18} /> Add Company
-            </button>
-          </div>
+          <button
+            onClick={() => { setSelected(null); setOpenForm(true); }}
+            className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-xl shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95"
+          >
+            <Plus size={16} /> Onboard New Company
+          </button>
         </div>
 
-        {/* Content Card */}
-        <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+        {/* Local Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-4">
+          {statsCards.map((card, idx) => (
+            <div
+              key={idx}
+              className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all hover:shadow-md h-32"
+            >
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  {card.label}
+                </p>
+                <h3 className="text-3xl font-bold text-slate-900">
+                  {card.value}
+                </h3>
+              </div>
+              <div className={`${card.iconBg} ${card.iconColor} w-12 h-12 rounded-xl flex items-center justify-center shadow-sm`}>
+                <card.icon size={22} />
+              </div>
+            </div>
+          ))}
+        </div>
 
-          {/* Desktop Table */}
-          <div className="hidden md:block overflow-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50/50">
-                <tr>
-                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">ID</th>
-                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Logo</th>
-                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Company</th>
-                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Contact</th>
-                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Access Key</th>
-                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Capabilities</th>
-                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Status</th>
-                  <th className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Actions</th>
+        {/* Search & Filter Bar */}
+        <div className="flex flex-col md:flex-row gap-4 px-4">
+          <div className="flex-1 relative group">
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={18} />
+            <input
+              type="text"
+              placeholder="Filter companies by name, code or email..."
+              className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200/60 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-400 transition-all text-sm font-medium text-slate-600 placeholder:text-slate-300 shadow-sm"
+            />
+          </div>
+          <button className="flex items-center justify-center gap-2 px-8 py-4 bg-white border border-slate-200/60 text-slate-500 rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm">
+            <Filter size={14} /> Filter
+          </button>
+        </div>
+
+        {/* Content Table Card (Full Width) */}
+        <div className="bg-white border-y md:border border-slate-200/60 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[1000px]">
+              <thead>
+                <tr className="bg-slate-50/50">
+                  <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] border-b border-slate-100">Company Branding</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] border-b border-slate-100">Client Code</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] border-b border-slate-100">Admin Credentials</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] border-b border-slate-100">Ecosystem Status</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] border-b border-slate-100 text-right">Management</th>
                 </tr>
               </thead>
-
               <tbody className="divide-y divide-slate-50">
                 {paged.map((c) => (
-                  <tr key={c._id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-8 py-6 text-xs font-bold text-slate-400 font-mono">{c.code || c._id.slice(-6)}</td>
+                  <tr key={c._id} className="hover:bg-slate-50/30 transition-colors group">
                     <td className="px-8 py-6">
-                      <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm">
-                        {c.meta?.logo ? (
-                          <img src={(c.meta.logo || '').startsWith('http') ? c.meta.logo : `${API_ORIGIN}${c.meta.logo || ''}`} alt="logo" className="w-full h-full object-contain p-2" />
-                        ) : (
-                          <span className="text-lg font-black text-slate-300">{c.name.charAt(0)}</span>
-                        )}
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-white border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
+                          {c.meta?.logo ? (
+                            <img src={(c.meta.logo || '').startsWith('http') ? c.meta.logo : `${API_ORIGIN}${c.meta.logo || ''}`} alt="logo" className="w-full h-full object-contain p-2" />
+                          ) : (
+                            <Building2 className="text-slate-200" size={20} />
+                          )}
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-[13px] font-bold text-slate-800">{c.name}</p>
+                          <p className="text-[11px] font-medium text-slate-400">{c.meta?.primaryEmail || c.meta?.email || '-'}</p>
+                        </div>
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <span className="text-sm font-bold text-slate-700">{c.name}</span>
-                    </td>
-                    <td className="px-8 py-6 text-xs font-bold text-slate-500">{c.meta?.primaryEmail || c.meta?.email || '-'}</td>
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">
-                          {revealMap[c._id] ? (c.meta?.adminPassword || '-') : (c.meta?.adminPassword ? '••••••' : '-')}
-                        </span>
-                        {c.meta?.adminPassword && (
-                          <button type="button" onClick={() => toggleReveal(c._id)} className="p-1.5 text-slate-400 hover:text-emerald-600 transition-colors">
-                            {revealMap[c._id] ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex flex-wrap gap-1">
-                        {(c.modules || []).length === 0 ? <span className="text-xs text-slate-400 font-bold">-</span> : (c.modules || []).slice(0, 3).map(m => (
-                          <span key={m} className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white" title={m}></span>
-                        ))}
-                        {(c.modules || []).length > 3 && <span className="text-[10px] font-bold text-slate-400">+{c.modules.length - 3}</span>}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${c.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                        {c.status === 'active' ? 'Active' : 'Inactive'}
+                      <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                        {c.code || '-'}
                       </span>
                     </td>
-
+                    <td className="px-8 py-6">
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
+                          <Mail size={12} className="text-slate-300" />
+                          {c.meta?.primaryEmail || c.meta?.email || '-'}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <Lock size={12} className="text-slate-300" />
+                            <span className="text-[11px] font-bold text-slate-400 tracking-widest bg-slate-50 px-2 py-0.5 rounded border border-slate-100/50">
+                              {revealMap[c._id] ? (c.meta?.adminPassword || '-') : '••••••••'}
+                            </span>
+                          </div>
+                          {c.meta?.adminPassword && (
+                            <button onClick={() => toggleReveal(c._id)} className="text-slate-300 hover:text-blue-500 p-1 transition-colors">
+                              {revealMap[c._id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${c.status === 'active' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${c.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest">
+                          {c.status === 'active' ? 'OPERATIONAL' : 'SUSPENDED'}
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-8 py-6 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => { setSelected(c); setOpenView(true); }} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all" title="View">
-                          <Search size={16} />
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button onClick={() => { setSelected(c); setOpenView(true); }} className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all" title="View">
+                          <Eye size={16} />
                         </button>
-                        <button onClick={() => { setSelected(c); setOpenForm(true); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" title="Edit">
+                        <button onClick={() => { setSelected(c); setOpenForm(true); }} className="p-2 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all" title="Edit">
                           <Edit2 size={16} />
                         </button>
-                        <button onClick={() => { setSelected(c); setOpenModules(true); }} className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all" title="Modules">
+                        <button onClick={() => { setSelected(c); setOpenModules(true); }} className="p-2 text-slate-300 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all" title="Modules">
                           <Settings size={16} />
                         </button>
-                        <button onClick={() => toggleActive(c)} className={`p-2 rounded-xl transition-all ${c.status === 'active' ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`} title={c.status === 'active' ? 'Deactivate' : 'Activate'}>
-                          {c.status === 'active' ? <X size={16} /> : <CheckCircle2 size={16} />}
+                        <button onClick={() => toggleActive(c)} className={`p-2 rounded-lg transition-all ${c.status === 'active' ? 'text-slate-300 hover:text-rose-500 hover:bg-rose-50' : 'text-slate-300 hover:text-emerald-500 hover:bg-emerald-50'}`} title={c.status === 'active' ? 'Deactivate' : 'Activate'}>
+                          <Zap size={16} />
                         </button>
                       </div>
                     </td>
@@ -193,53 +250,41 @@ export default function Companies() {
             </table>
           </div>
 
-          {/* Mobile / Small: stacked cards */}
-          <div className="md:hidden p-6 space-y-6">
-            {paged.map((c) => (
-              <div key={c._id} className="bg-white border text-center border-slate-100 rounded-xl p-6 shadow-sm relative overflow-hidden">
-                <div className={`absolute top-0 left-0 w-full h-1 ${c.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-
-                <div className="flex items-center justify-between mb-6">
-                  <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden">
-                    {c.meta?.logo ? (
-                      <img src={(c.meta.logo || '').startsWith('http') ? c.meta.logo : `${API_ORIGIN}${c.meta.logo || ''}`} alt="logo" className="w-full h-full object-contain p-2" />
-                    ) : (
-                      <span className="text-lg font-black text-slate-300">{c.name.charAt(0)}</span>
-                    )}
-                  </div>
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${c.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                    {c.status === 'active' ? 'Active' : 'Inactive'}
-                  </span>
+          {/* Table Pagination Footer */}
+          <div className="flex flex-col md:flex-row items-center justify-between px-8 py-6 bg-white border-t border-slate-100 gap-4">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
+              PAGE {currentPage} OF {Math.ceil(companies.length / pageSize)} — SHOWING {paged.length} OF {companies.length} ORGANIZATIONS
+            </p>
+            {companies.length > pageSize && (
+              <div className="flex items-center gap-4">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => prev - 1)}
+                  className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 disabled:opacity-30 transition-colors"
+                >
+                  PREVIOUS
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.ceil(companies.length / pageSize) }, (_, i) => i + 1).map(num => (
+                    <button
+                      key={num}
+                      onClick={() => setCurrentPage(num)}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold transition-all ${currentPage === num ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}
+                    >
+                      {num}
+                    </button>
+                  ))}
                 </div>
-
-                <h3 className="text-xl font-bold text-slate-800 mb-1">{c.name}</h3>
-                <p className="text-xs font-bold text-slate-400">{c.meta?.primaryEmail || '-'}</p>
-
-                <div className="grid grid-cols-4 gap-2 mt-6 border-t border-slate-50 pt-6">
-                  <button onClick={() => { setSelected(c); setOpenView(true); }} className="flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-600"><Search size={18} /><span className="text-[10px] font-bold">View</span></button>
-                  <button onClick={() => { setSelected(c); setOpenForm(true); }} className="flex flex-col items-center gap-1 text-slate-400 hover:text-blue-600"><Edit2 size={18} /><span className="text-[10px] font-bold">Edit</span></button>
-                  <button onClick={() => { setSelected(c); setOpenModules(true); }} className="flex flex-col items-center gap-1 text-slate-400 hover:text-purple-600"><Settings size={18} /><span className="text-[10px] font-bold">Config</span></button>
-                  <button onClick={() => toggleActive(c)} className={`flex flex-col items-center gap-1 ${c.status === 'active' ? 'text-slate-400 hover:text-rose-600' : 'text-slate-400 hover:text-emerald-600'}`}>
-                    {c.status === 'active' ? <X size={18} /> : <CheckCircle2 size={18} />}
-                    <span className="text-[10px] font-bold">{c.status === 'active' ? 'Block' : 'Active'}</span>
-                  </button>
-                </div>
+                <button
+                  disabled={currentPage === Math.ceil(companies.length / pageSize)}
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 disabled:opacity-30 transition-colors"
+                >
+                  NEXT
+                </button>
               </div>
-            ))}
+            )}
           </div>
-
-          {companies.length > pageSize && (
-            <div className="flex justify-center p-8 border-t border-slate-50 bg-slate-50/30">
-              <Pagination
-                current={currentPage}
-                pageSize={pageSize}
-                total={companies.length}
-                onChange={(page) => setCurrentPage(page)}
-                showSizeChanger={false}
-                className="font-bold"
-              />
-            </div>
-          )}
         </div>
       </div>
 

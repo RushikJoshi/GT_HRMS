@@ -95,13 +95,13 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
                 { id: 'my-applications', label: 'My Applications', icon: ICONS.applications }
             ]
         },
-        {
-            title: 'Vendor Portal',
-            id: 'Vendor',
-            items: [
-                { id: 'vendor/list', label: 'Vendor Forms', icon: ICONS.vendor }
-            ]
-        },
+        // {
+        //     title: 'Vendor Portal',
+        //     id: 'Vendor',
+        //     items: [
+        //         { id: 'vendor/list', label: 'Vendor Forms', icon: ICONS.vendor }
+        //     ]
+        // },
         {
             title: 'Account',
             id: 'Settings',
