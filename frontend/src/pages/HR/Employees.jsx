@@ -147,8 +147,14 @@ export default function Employees() {
     async function fetchJoiningTemplates() {
       try {
         const res = await api.get('/letters/templates?type=joining');
-        setJoiningTemplates(res.data || []);
-      } catch (err) { console.error("Failed to load joining templates", err); }
+        setJoiningTemplates(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        // Silently handle 403/404 - user may not have permission
+        if (err.response?.status !== 403 && err.response?.status !== 404) {
+          console.error("Failed to load joining templates", err);
+        }
+        setJoiningTemplates([]); // Always set to valid array
+      }
     }
     fetchJoiningTemplates();
   }, [fetchFilterOptions]);
@@ -1026,8 +1032,14 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const loadPolicies = useCallback(async () => {
     try {
       const res = await api.get('/hr/leave-policies');
-      setPolicies(res.data || []);
-    } catch (err) { console.error("Failed to load policies", err); }
+      setPolicies(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      // Silently handle 403/404 - user may not have permission
+      if (err.response?.status !== 403 && err.response?.status !== 404) {
+        console.error("Failed to load policies", err);
+      }
+      setPolicies([]); // Always set to valid array
+    }
   }, []);
 
 
@@ -1130,9 +1142,14 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
     loadDepartments();
     loadManagers();
     loadPolicies();
+  }, []); // Run once on mount
+
+  useEffect(() => {
     // Allow preview if creating new OR editing a Draft
-    if (step === 7 && (!employee || employee.status === 'Draft')) loadEmployeeCodePreview();
-  }, [loadDepartments, loadManagers, loadEmployeeCodePreview, step, employee]);
+    if (step === 7 && (!employee || employee.status === 'Draft')) {
+      loadEmployeeCodePreview();
+    }
+  }, [step, employee?.status, loadEmployeeCodePreview]); // Only re-run when step or employee status changes
 
   const [employeeCode, setEmployeeCode] = useState('');
 

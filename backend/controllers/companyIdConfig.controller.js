@@ -11,7 +11,7 @@ const DEFAULT_DOC_TYPES = {
     APP: { name: 'Job Application', prefix: 'APP', formatTemplate: '{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 }, // Changed from APPLICATION to APP as per spec
     OFF: { name: 'Offer Letter', prefix: 'OFF', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 }, // Changed from OFFER
     APPT: { name: 'Appointment Letter', prefix: 'APPT', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 10001 }, // Changed from APPOINTMENT
-    EMP: { name: 'Employee ID', prefix: 'EMP', formatTemplate: '{{PREFIX}}{{COUNTER}}', startFrom: 1000, resetPolicy: 'NEVER', includeYear: false },
+    EMP: { name: 'Employee ID', prefix: 'EMP', formatTemplate: '{{PREFIX}}-{{YEAR}}-{{COUNTER}}', startFrom: 1000, resetPolicy: 'YEARLY' },
     INT: { name: 'Interview', prefix: 'INT', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
     EXP: { name: 'Experience Letter', prefix: 'EXP', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
     REL: { name: 'Relieving Letter', prefix: 'REL', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 }
@@ -21,7 +21,8 @@ const DEFAULT_DOC_TYPES = {
 const LEGACY_MAP = {
     'APPLICATION': 'APP',
     'OFFER': 'OFF',
-    'APPOINTMENT': 'APPT'
+    'APPOINTMENT': 'APPT',
+    'EMPLOYEE': 'EMP'
 };
 
 /**
@@ -222,7 +223,16 @@ exports.generateIdInternal = async ({ tenantId, entityType, increment, extraRepl
     if (!docType) throw new Error(`Document Type configuration not found for: ${key}`);
 
     // 2. Determine Counter Context
-    const counterKey = docType.resetPolicy === 'NEVER' ? 'GLOBAL' : settings.financialYear;
+    let counterKey;
+    if (docType.resetPolicy === 'NEVER') {
+        counterKey = 'GLOBAL';
+    } else if (key === 'EMP') {
+        // For Employee IDs, use calendar year for reset
+        counterKey = String(new Date().getFullYear());
+    } else {
+        // For other document types, use financial year
+        counterKey = settings.financialYear;
+    }
 
     let sequence;
     let counterDoc;
@@ -282,12 +292,15 @@ exports.generateIdInternal = async ({ tenantId, entityType, increment, extraRepl
     const seqStr = String(sequence).padStart(padding, '0');
 
     // Dynamic Values
+    const currentYear = new Date().getFullYear();
+    const yearToken = (key === 'EMP') ? currentYear : settings.financialYear;
+
     const replacements = {
         '{{COMPANY}}': settings.companyCode,
         '{{BRANCH}}': settings.branchCode,
         '{{DEPT}}': extraReplacements['{{DEPT}}'] || settings.departmentCode, // Allow override
         '{{PREFIX}}': docType.prefix,
-        '{{YEAR}}': settings.financialYear,
+        '{{YEAR}}': yearToken,
         '{{MONTH}}': new Date().toLocaleString('default', { month: '2-digit' }), // Simplistic month
         '{{COUNTER}}': seqStr,
         ...extraReplacements
