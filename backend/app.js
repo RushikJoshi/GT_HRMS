@@ -121,6 +121,7 @@ try {
     mongoose.model('BGVDocument', require('./models/BGVDocument'));
     mongoose.model('BGVTimeline', require('./models/BGVTimeline'));
     mongoose.model('BGVReport', require('./models/BGVReport'));
+    mongoose.model('ReplacementRequest', require('./models/ReplacementRequest'));
 } catch (e) {
     console.warn("Model registration warning:", e.message);
 }
@@ -245,6 +246,10 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/deductions', deductionRoutes);
 app.use('/api/tracker', recruitmentCheck, require('./routes/tracker.routes'));
 
+
+app.use('/api/positions', positionRoutes);
+app.use('/api/replacements', require('./routes/replacement.routes'));
+app.use('/api/reports', require('./routes/report.routes'));
 
 /* ===============================
    HRMS ALIAS ROUTES (For Frontend Inconsistencies)

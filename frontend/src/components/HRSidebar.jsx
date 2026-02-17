@@ -70,7 +70,10 @@ const ICONS = {
 const NAV_GROUPS = [
   {
     title: 'Overview',
-    items: [{ to: '/hr', label: 'Dashboard', icon: ICONS.dashboard, end: true }]
+    items: [
+      { to: '/hr', label: 'Dashboard', icon: ICONS.dashboard, end: true },
+      { to: '/hr/reports', label: 'Personnel Reports', icon: ICONS.payrollDashboard }
+    ]
   },
   {
     title: 'People',
@@ -171,12 +174,6 @@ const NAV_GROUPS = [
       },
       { to: '/hr/access', label: 'Access Control', icon: ICONS.access },
       { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings, end: true },
-    ]
-  },
-  {
-    title: 'Social Media',
-    module: 'socialMediaIntegration',
-    items: [
       { to: '/hr/settings/social-media', label: 'Social Media', icon: ICONS.social }
     ]
   },
@@ -189,7 +186,7 @@ const NAV_GROUPS = [
         children: [
           { to: '/hr/career-builder', label: 'Edit Career Page' },
           { to: '/hr/apply-builder', label: 'Edit Apply Page' },
-          { to: '/tenant/customization/vendor', label: 'Edit Vendor Forms' }
+          // { to: '/tenant/customization/vendor', label: 'Edit Vendor Forms' }
         ]
       },
       {

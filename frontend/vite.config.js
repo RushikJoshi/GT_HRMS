@@ -47,6 +47,11 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    resolve: {
+      alias: {
+
+      },
+    },
     define: {
       global: 'window',
     },
@@ -59,6 +64,8 @@ export default defineConfig(({ mode }) => {
         '@tiptap/extension-underline',
         '@tiptap/extension-link',
         '@tiptap/extension-placeholder',
+        'react-signature-canvas',
+        'signature_pad'
       ],
     },
   };

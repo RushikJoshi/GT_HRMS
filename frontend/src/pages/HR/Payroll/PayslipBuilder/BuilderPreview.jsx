@@ -3,12 +3,12 @@ import React from 'react';
 // Helper function to convert number to words
 const numberToWords = (num) => {
     if (!num || num === 0) return '';
-    
+
     const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
     const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
     const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
     const scales = ['', 'Thousand', 'Lakh', 'Crore'];
-    
+
     const convertBelow1000 = (n) => {
         if (n === 0) return '';
         if (n < 10) return ones[n];
@@ -18,10 +18,10 @@ const numberToWords = (num) => {
         }
         return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + convertBelow1000(n % 100) : '');
     };
-    
+
     let words = '';
     let scaleIndex = 0;
-    
+
     while (num > 0) {
         if (scaleIndex === 0) {
             const remainder = num % 1000;
@@ -44,7 +44,7 @@ const numberToWords = (num) => {
         }
         scaleIndex++;
     }
-    
+
     return words.trim() + ' Rupees Only';
 };
 
@@ -78,7 +78,8 @@ export default function BuilderPreview({ config, selectedBlockId, onSelectBlock,
                     className={`
                         relative group transition-all
                         ${isBuilder ? 'cursor-pointer hover:bg-blue-50/30' : ''}
-                        ${isBuilder && selectedBlockId === section.id ? 'ring-2 ring-blue-500 ring-inset z-10 bg-blue-50/50 shadow-sm' : ''}
+                        ${isBuilder && selectedBlockId === section.id ? 'ring-2 ring-blue-500 ring-inset z-10 bg-blue-50/50 shadow-sm print:ring-0 print:bg-transparent print:shadow-none' : ''}
+                        print:p-0 print:m-0
                     `}
                     style={{
                         paddingTop: section.styles?.paddingTop || '0px',
@@ -91,7 +92,8 @@ export default function BuilderPreview({ config, selectedBlockId, onSelectBlock,
                 >
                     {isBuilder && (
                         <div className={`
-                            absolute -top-6 left-0 bg-blue-600 text-white text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-t-lg transition-opacity duration-200 pointer-events-none z-20
+                            builder-section-label
+                            absolute -top-6 left-0 bg-blue-600 text-white text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-t-lg transition-opacity duration-200 pointer-events-none z-20 print:hidden
                             ${selectedBlockId === section.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
                         `}>
                             {section.type}
@@ -118,7 +120,7 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
     // Helper to extract employee data from previewData
     const getEmployeeData = (field) => {
         if (!previewData) return `[${field}]`;
-        
+
         const mapping = {
             'EMPLOYEE_NAME': () => `${previewData.employeeDetails?.firstName} ${previewData.employeeDetails?.lastName}`,
             'EMPLOYEE_CODE': () => previewData.employeeDetails?.employeeCode,
@@ -132,11 +134,11 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
             'ACCOUNT_NO': () => previewData.employeeDetails?.bankDetails?.accountNumber,
             'IFSC': () => previewData.employeeDetails?.bankDetails?.ifscCode,
             'MONTH_YEAR': () => new Date(previewData.payslipDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }),
-            'NET_PAY': () => `₹ ${(previewData.netPay || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`,
-            'GROSS_EARNINGS': () => `₹ ${(previewData.grossEarnings || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`,
-            'TOTAL_DEDUCTIONS': () => `₹ ${(previewData.totalDeductions || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`
+            'NET_PAY': () => `₹ ${(previewData.netPay || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+            'GROSS_EARNINGS': () => `₹ ${(previewData.grossEarnings || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+            'TOTAL_DEDUCTIONS': () => `₹ ${(previewData.totalDeductions || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
         };
-        
+
         return mapping[field] ? mapping[field]() : `[${field}]`;
     };
 
@@ -162,8 +164,8 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
                     {safeContent.showLogo && (
                         <div className="flex-shrink-0">
                             {safeContent.logoImage ? (
-                                <img 
-                                    src={safeContent.logoImage} 
+                                <img
+                                    src={safeContent.logoImage}
                                     alt="Company Logo"
                                     style={{
                                         height: safeContent.logoSize || '80px',
@@ -181,11 +183,11 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
                     )}
                     <div className={`flex-1 ${safeContent.logoAlign === 'center' ? 'text-center' : ''}`}>
                         <h1 style={{ fontSize: safeContent.companyNameSize || '24px' }} className="font-extrabold text-gray-900 leading-tight">
-                            {safeContent.companyName || 'Your Company Name'}
+                            {safeContent.companyName ?? ''}
                         </h1>
                         {safeContent.showAddress && (
                             <p className="text-gray-500 mt-1 whitespace-pre-line leading-relaxed text-sm">
-                                {safeContent.companyAddress || '123 Business Avenue, Suite 500\nAhmedabad, Gujarat - 380015'}
+                                {safeContent.companyAddress ?? ''}
                             </p>
                         )}
                     </div>
@@ -260,16 +262,16 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
                                 safeContent.customRows.map((item, i) => (
                                     <tr key={i} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-2 border border-gray-100">{item.name || 'Row Item'}</td>
-                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>}
+                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                                     </tr>
                                 ))
                             ) : (
                                 previewData?.earnings?.map((item, i) => (
                                     <tr key={i} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-2 border border-gray-100">{item.name || item.description}</td>
-                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>}
+                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                                     </tr>
                                 )) || (
                                     <tr className="hover:bg-gray-50">
@@ -282,9 +284,9 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
                             <tr className="bg-blue-50/50 font-bold">
                                 <td className="p-2 border border-gray-100 uppercase tracking-wider">Total Earnings</td>
                                 <td className="p-2 border border-gray-100 text-right">
-                                    ₹ {safeContent.customRows && safeContent.customRows.length > 0 
-                                        ? (safeContent.customRows.reduce((sum, r) => sum + (r.amount || 0), 0)).toLocaleString('en-IN', {minimumFractionDigits: 2})
-                                        : (previewData?.grossEarnings ? (previewData.grossEarnings).toLocaleString('en-IN', {minimumFractionDigits: 2}) : '0.00')}
+                                    ₹ {safeContent.customRows && safeContent.customRows.length > 0
+                                        ? (safeContent.customRows.reduce((sum, r) => sum + (r.amount || 0), 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                                        : (previewData?.grossEarnings ? (previewData.grossEarnings).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00')}
                                 </td>
                                 {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right">₹ 0.00</td>}
                             </tr>
@@ -310,16 +312,16 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
                                 safeContent.customRows.map((item, i) => (
                                     <tr key={i} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-2 border border-gray-100">{item.name || 'Deduction Item'}</td>
-                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>}
+                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                                     </tr>
                                 ))
                             ) : (
                                 previewData?.deductions?.map((item, i) => (
                                     <tr key={i} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-2 border border-gray-100">{item.name || item.description}</td>
-                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>}
+                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                                     </tr>
                                 )) || (
                                     <tr className="hover:bg-gray-50">
@@ -332,9 +334,9 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
                             <tr className="bg-red-50/50 font-bold">
                                 <td className="p-2 border border-gray-100 uppercase tracking-wider">Total Deductions</td>
                                 <td className="p-2 border border-gray-100 text-right">
-                                    ₹ {safeContent.customRows && safeContent.customRows.length > 0 
-                                        ? (safeContent.customRows.reduce((sum, r) => sum + (r.amount || 0), 0)).toLocaleString('en-IN', {minimumFractionDigits: 2})
-                                        : (previewData?.totalDeductions ? (previewData.totalDeductions).toLocaleString('en-IN', {minimumFractionDigits: 2}) : '0.00')}
+                                    ₹ {safeContent.customRows && safeContent.customRows.length > 0
+                                        ? (safeContent.customRows.reduce((sum, r) => sum + (r.amount || 0), 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                                        : (previewData?.totalDeductions ? (previewData.totalDeductions).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00')}
                                 </td>
                                 {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right">₹ 0.00</td>}
                             </tr>
@@ -360,16 +362,16 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
                                 safeContent.customRows.map((item, i) => (
                                     <tr key={i} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-2 border border-gray-100">{item.name || 'Reimbursement Item'}</td>
-                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>}
+                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                                     </tr>
                                 ))
                             ) : (
                                 previewData?.reimbursements?.map((item, i) => (
                                     <tr key={i} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-2 border border-gray-100">{item.name || item.description}</td>
-                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>}
+                                        <td className="p-2 border border-gray-100 text-right font-medium">₹ {(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right text-gray-400">₹ {(item.ytd || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                                     </tr>
                                 )) || (
                                     <tr className="hover:bg-gray-50">
@@ -382,9 +384,9 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
                             <tr className="bg-green-50/50 font-bold">
                                 <td className="p-2 border border-gray-100 uppercase tracking-wider">Total Reimbursements</td>
                                 <td className="p-2 border border-gray-100 text-right">
-                                    ₹ {safeContent.customRows && safeContent.customRows.length > 0 
-                                        ? (safeContent.customRows.reduce((sum, r) => sum + (r.amount || 0), 0)).toLocaleString('en-IN', {minimumFractionDigits: 2})
-                                        : (previewData?.totalReimbursements ? (previewData.totalReimbursements).toLocaleString('en-IN', {minimumFractionDigits: 2}) : '0.00')}
+                                    ₹ {safeContent.customRows && safeContent.customRows.length > 0
+                                        ? (safeContent.customRows.reduce((sum, r) => sum + (r.amount || 0), 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                                        : (previewData?.totalReimbursements ? (previewData.totalReimbursements).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00')}
                                 </td>
                                 {safeContent.showYTD && <td className="p-2 border border-gray-100 text-right">₹ 0.00</td>}
                             </tr>
@@ -407,7 +409,7 @@ function RenderComponent({ type, content, globalStyles, previewData }) {
                     </div>
                     <div className="text-right">
                         <h4 className="text-3xl font-black tracking-tighter">
-                            ₹ {previewData?.netPay ? (previewData.netPay).toLocaleString('en-IN', {minimumFractionDigits: 2}) : '0.00'}
+                            ₹ {previewData?.netPay ? (previewData.netPay).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
                         </h4>
                     </div>
                 </div>

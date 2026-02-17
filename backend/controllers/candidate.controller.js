@@ -304,20 +304,34 @@ exports.trackApplication = async (req, res) => {
             console.warn("[TRACK_APP] Failed to fetch company name:", e.message);
         }
 
+        // Fetch associated GeneratedLetter (Dynamic Workflow)
+        let dynamicLetter = null;
+        try {
+            const GeneratedLetter = tenantDB.model("GeneratedLetter");
+            dynamicLetter = await GeneratedLetter.findOne({ applicantId: applicationId }).sort({ createdAt: -1 });
+        } catch (e) {
+            console.warn("[TRACK_APP] GeneratedLetter model not available or fetch failed:", e.message);
+        }
+
         res.json({
             timeline: application.timeline && application.timeline.length > 0 ? application.timeline : [{
                 status: 'Applied',
-                message: 'Your application has been received and is under review.',
-                timestamp: application.createdAt || new Date()
+                date: application.createdAt,
+                description: 'Application successfully submitted'
             }],
             jobDetails: {
-                jobTitle: application.requirementId?.jobTitle || 'N/A',
-                department: application.requirementId?.department || 'N/A',
+                id: application.jobId?._id,
+                title: application.jobId?.title,
                 company: companyName,
                 status: application.status,
                 appliedDate: application.createdAt || new Date(),
                 offerLetterUrl: application.offerLetterPath ? `/uploads/offers/${application.offerLetterPath}` : null,
-                joiningLetterUrl: application.joiningLetterPath ? `/uploads/${application.joiningLetterPath}` : null
+                joiningLetterUrl: application.joiningLetterPath ? `/uploads/${application.joiningLetterPath}` : null,
+
+                // Dynamic flow fields
+                letterId: dynamicLetter?._id || null,
+                letterStatus: dynamicLetter?.status || null,
+                tenantId: tenantId
             }
         });
     } catch (err) {

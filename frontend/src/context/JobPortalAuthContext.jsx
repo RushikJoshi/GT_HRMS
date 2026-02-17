@@ -137,8 +137,8 @@ export function JobPortalAuthProvider({ children }) {
               `[JobPortalAuth] Sync failed: ${apiErr.message} (${apiErr.response?.status})`
             );
 
-            // Treat 403 the same as 401 for candidate sessions (invalid/incorrect token)
-            if (apiErr.response?.status === 401 || apiErr.response?.status === 403) {
+            // Treat 404 the same as 401 for candidate sessions (candidate not found)
+            if (apiErr.response?.status === 401 || apiErr.response?.status === 403 || apiErr.response?.status === 404) {
               localStorage.removeItem('token');
               localStorage.removeItem('candidate');
               if (isMounted) {

@@ -1,87 +1,67 @@
 const puppeteer = require('puppeteer');
-const fs = require('fs').promises;
-const path = require('path');
 
+/**
+ * PuppeteerPDFService
+ * Generates PDF buffers dynamically from HTML content using headless Chrome.
+ */
 class PuppeteerPDFService {
     /**
-     * Generate PDF from HTML file using Puppeteer
-     * Supports professional footer paging "Page X of Y"
+     * Generate PDF Buffer from HTML
+     * @param {string} htmlContent - The full HTML content to render
+     * @param {Object} options - Puppeteer PDF options
+     * @returns {Promise<Buffer>} - PDF Buffer
      */
-    async generatePdfFromHtmlFile(htmlFilePath, outputPdfPath) {
-        let browser;
+    async generatePDFBuffer(htmlContent, options = {}) {
+        let browser = null;
         try {
-            console.log(`🚀 [Puppeteer] Launching browser to convert: ${htmlFilePath}`);
+            console.log('🚀 [PUPPETEER] Launching browser...');
             browser = await puppeteer.launch({
-                headless: "new",
-                args: ['--no-sandbox', '--disable-setuid-sandbox']
+                headless: 'new',
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu'
+                ]
             });
 
             const page = await browser.newPage();
 
-            // Load local HTML file
-            // 'file://' protocol ensures relative images/css load correctly
-            const fileUrl = 'file://' + htmlFilePath.replace(/\\/g, '/');
-            await page.goto(fileUrl, { waitUntil: 'networkidle0' });
+            // Intercept requests for fonts if they timeout, but let's try a safer wait first
+            console.log('📄 [PUPPETEER] Setting HTML content...');
 
-            // INJECT CSS TO HIDE OLD WORD FOOTERS
-            // Word -> HTML often uses "footer" or "ftr" classes or @page rules.
-            // We force hide them to avoid double footers (cut-off ones).
-            await page.addStyleTag({
-                content: `
-                    @media print {
-                        footer, .footer, .ftr, [class*="footer"], [class*="ftr"] { display: none !important; }
-                        /* Ensure our Puppeteer footer is visible (it's in shadow DOM, so this shouldn't affect it, but safe to be specific) */
-                    }
-                    /* Also hide common converted Word headers/footers in body */
-                    div[style*="mso-element:footer"], p[class*="Footer"] { display: none !important; height: 0 !important; overflow: hidden !important; }
-                `
+            // We use domcontentloaded + a small wait to be faster than networkidle0
+            await page.setContent(htmlContent, {
+                waitUntil: 'domcontentloaded'
             });
 
-            // Professional Footer Template using Puppeteer classes
-            // date, title, url, pageNumber, totalPages
-            const footerTemplate = `
-                <style>
-                    .footer {
-                        width: 100%;
-                        font-size: 10px;
-                        font-family: Arial, sans-serif;
-                        color: #555;
-                        text-align: center;
-                        margin-top: 10px;
-                        border-top: 1px solid #ddd;
-                        padding-top: 5px;
-                    }
-                </style>
-                <div class="footer">
-                    Page <span class="pageNumber"></span> of <span class="totalPages"></span>
-                </div>
-            `;
+            // Wait a bit for fonts/styles to apply if any
+            await new Promise(r => setTimeout(r, 500));
 
-            console.log(`🖨️ [Puppeteer] Printing PDF to: ${outputPdfPath}`);
-
-            await page.pdf({
-                path: outputPdfPath,
+            // Generate PDF Buffer
+            console.log('📊 [PUPPETEER] Generating PDF buffer...');
+            const buffer = await page.pdf({
                 format: 'A4',
-                printBackground: true, // Print CSS backgrounds
-                displayHeaderFooter: true,
-                headerTemplate: '<div></div>', // Empty header
-                footerTemplate: footerTemplate,
+                printBackground: true,
+                preferCSSPageSize: true,
                 margin: {
-                    top: '40px',
-                    bottom: '60px', // Space for footer
-                    left: '40px',
-                    right: '40px'
-                }
+                    top: '15mm',
+                    bottom: '15mm',
+                    left: '15mm',
+                    right: '15mm'
+                },
+                ...options
             });
 
-            console.log(`✅ [Puppeteer] PDF Generated Successfully`);
-            return outputPdfPath;
-
+            console.log(`✅ [PUPPETEER] PDF Generated successfully (${buffer.length} bytes)`);
+            return buffer;
         } catch (error) {
-            console.error("❌ [Puppeteer] PDF Generation Failed:", error);
+            console.error('❌ [PUPPETEER] Error:', error.message);
             throw error;
         } finally {
-            if (browser) await browser.close();
+            if (browser) {
+                try { await browser.close(); } catch (e) { }
+            }
         }
     }
 }

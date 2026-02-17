@@ -54,6 +54,15 @@ router.get('/generated-letters/:id', authenticate, requireHr, letterCtrl.getLett
 router.patch('/generated-letters/:id/status', authenticate, requireHr, letterCtrl.updateGeneratedLetterStatus);
 router.post('/generated-letters/:id/approval', authenticate, requireHr, letterCtrl.actionLetterApproval);
 
+// --- Dynamic PDF, Sign & Accept (MERN Architect Flow) ---
+const { authenticateCandidate } = require('../middleware/jobPortalAuthMiddleware');
+
+// Get Dynamic PDF (Centralized tenant middleware handles query-based auth for iframes)
+router.get('/:id/pdf', letterCtrl.generateDynamicPDF);
+
+// Candidate Actions
+router.post('/:id/accept', authenticateCandidate, letterCtrl.acceptLetter);
+
 // --- History / Audit ---
 router.get('/history', letterCtrl.getHistory);
 

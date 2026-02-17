@@ -671,6 +671,9 @@ exports.update = async (req, res) => {
       // If user sent employeeId, it will update.
     }
 
+    const oldStatus = existing.status;
+    const newStatus = updatePayload.status;
+
     const emp = await Employee.findOneAndUpdate(
       { _id: req.params.id, tenant: tenantId },
       updatePayload,
@@ -678,6 +681,23 @@ exports.update = async (req, res) => {
     );
 
     if (!emp) return res.status(404).json({ error: "not_found", message: "Employee not found" });
+
+    // Handle Headcount Changes on Status Change
+    if (oldStatus !== newStatus) {
+      const { Department, Position } = getModels(req);
+
+      // Moving OUT of active
+      if (oldStatus === 'active' && (newStatus === 'resigned' || newStatus === 'notice')) {
+        if (emp.departmentId) await Department.findByIdAndUpdate(emp.departmentId, { $inc: { currentHeadcount: -1 } });
+        if (emp.positionId) await Position.findByIdAndUpdate(emp.positionId, { $inc: { currentCount: -1 } });
+      }
+
+      // Moving INTO active (e.g. from notice/resigned - rare but possible)
+      if (newStatus === 'active' && oldStatus !== 'active') {
+        if (emp.departmentId) await Department.findByIdAndUpdate(emp.departmentId, { $inc: { currentHeadcount: 1 } });
+        if (emp.positionId) await Position.findByIdAndUpdate(emp.positionId, { $inc: { currentCount: 1 } });
+      }
+    }
 
     res.json({ success: true, data: emp });
 

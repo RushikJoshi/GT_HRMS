@@ -92,8 +92,8 @@ export default function PsaLayout() {
           <div className="mt-8 mb-4 px-4">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">System</p>
           </div>
-          <NavItem to="/super-admin/activities" icon={Activity} label="Audit Logs" />
-          <NavItem to="/super-admin/modules" icon={Settings} label="Configuration" />
+          <NavItem to="/super-admin/activities" icon={Activity} label="Recent Activities" />
+          <NavItem to="/super-admin/modules" icon={Settings} label="Module Config" />
         </nav>
 
         {/* User / Logout Section */}
@@ -123,15 +123,8 @@ export default function PsaLayout() {
               </button>
               <div className="flex flex-col justify-center h-full">
                 <h1 className="text-lg font-bold text-slate-800 tracking-tight uppercase leading-none bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                  {location.pathname.split('/').pop().replace(/-/g, ' ').replace(/^\w/, c => c.toUpperCase()) || 'Dashboard'}
+                  Product Super Admin
                 </h1>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <div className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </div>
-                  <span className="text-[10px] font-semibold text-emerald-500 uppercase tracking-widest">System Online</span>
-                </div>
               </div>
             </div>
             <div className="flex items-center gap-4 lg:gap-6">
@@ -146,10 +139,6 @@ export default function PsaLayout() {
                 />
               </div>
               <div className="h-8 w-px bg-slate-200 mx-1 hidden lg:block"></div>
-              <button className="relative p-2.5 rounded-xl text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                <Bell size={20} />
-                <span className="absolute top-2.5 right-3 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-              </button>
               <button
                 onClick={() => { logout(); navigate("/super-admin/login"); }}
                 className="px-4 lg:px-5 py-2.5 bg-slate-900 text-white hover:bg-slate-800 text-xs font-semibold rounded-xl shadow-lg shadow-slate-900/20 hover:shadow-slate-900/30 hover:-translate-y-0.5 transition-all flex items-center gap-2 group"

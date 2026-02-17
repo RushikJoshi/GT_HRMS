@@ -492,6 +492,7 @@
 
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
+
     .btn,
     .detail-row {
         transition: none;
