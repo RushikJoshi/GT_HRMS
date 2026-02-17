@@ -7,7 +7,8 @@ const CompanyIdConfig = require('../models/CompanyIdConfig'); // Legacy for migr
 // Standard Enterprise Defaults
 const DEFAULT_DOC_TYPES = {
     JOB: { name: 'Job Requisition', prefix: 'JOB', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 10001 },
-    POS: { name: 'Position', prefix: 'POS', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
+    JOB_OPENING: { name: 'Position ID', prefix: 'POS', formatTemplate: '{{PREFIX}}-{{YEAR}}-{{DEPT}}-{{COUNTER}}', startFrom: 1, separator: '-' },
+    POS: { name: 'Position', prefix: 'POS', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
     APP: { name: 'Job Application', prefix: 'APP', formatTemplate: '{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
     CAN: { name: 'Candidate', prefix: 'CAN', formatTemplate: '{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
     OFF: { name: 'Offer Letter', prefix: 'OFF', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
@@ -70,7 +71,8 @@ const ensureConfiguration = async (tenantId) => {
             formatTemplate: oldConfig?.formatTemplate || defaults.formatTemplate,
             startFrom: oldConfig?.startFrom || defaults.startFrom,
             paddingDigits: oldConfig?.padding || 4, // Mapping padding to paddingDigits
-            resetPolicy: oldConfig?.resetPolicy || defaults.resetPolicy || 'YEARLY'
+            resetPolicy: oldConfig?.resetPolicy || defaults.resetPolicy || 'YEARLY',
+            separator: oldConfig?.separator || defaults.separator || '/'
         });
 
         // Migrate Counter if old config exists
@@ -173,7 +175,12 @@ exports.saveConfigurations = async (req, res) => {
         if (settingsUpdate) {
             settings = await CompanySettings.findOneAndUpdate(
                 { companyId: tenantId },
-                { $set: settingsUpdate },
+                {
+                    $set: {
+                        ...settingsUpdate,
+                        requireDesktopTracker: settingsUpdate.requireDesktopTracker
+                    }
+                },
                 { new: true, upsert: true }
             );
         } else {
@@ -202,6 +209,7 @@ exports.saveConfigurations = async (req, res) => {
                             lastNumber: typeFn.lastNumber, // Allow syncing manual starts
                             paddingDigits: typeFn.paddingDigits,
                             resetPolicy: typeFn.resetPolicy,
+                            separator: typeFn.separator,
                             updatedBy: req.user?.email
                         }
                     },

@@ -1,5 +1,13 @@
 require('dotenv').config();
-// Restart trigger V10 - Engine logic update 2026-02-04
+console.log("🚀 [System] Environment variables loaded.");
+console.log("🔑 [Check] GEMINI_API_KEY present:", process.env.GEMINI_API_KEY ? "YES (MASHED: " + process.env.GEMINI_API_KEY.substring(0, 6) + "...)" : "NO ❌");
+
+if (!process.env.GEMINI_API_KEY) {
+    console.error("❌ FATAL: GEMINI_API_KEY is missing in .env file.");
+    console.error("The system cannot parse resumes without AI. Shutting down.");
+    process.exit(1);
+}
+
 const http = require('http');
 // RESTART TRIGGER V7 - Force restart for schema update
 const mongoose = require('mongoose');
@@ -198,3 +206,4 @@ if (require.main === module) {
 }
 
 module.exports = server;
+// Force Restart v3

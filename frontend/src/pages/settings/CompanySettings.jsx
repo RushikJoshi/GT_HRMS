@@ -12,7 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { notification } from 'antd';
 import api from '../../utils/api';
-import { Save, Loader2, ArrowRight, Edit, Building2, MapPin, Users, Calendar } from 'lucide-react';
+import { Save, Loader2, ArrowRight, Edit, Building2, MapPin, Users, Calendar, Clock } from 'lucide-react';
 // Import CSS from Admin if needed, or rely on Tailwind
 import '../Admin/IdConfiguration.css';
 import SocialMediaDashboard from '../../modules/social-media/SocialMediaDashboard';
@@ -296,6 +296,60 @@ const CompanySettings = () => {
                                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                                             <span className="text-xs font-bold text-slate-400">Active</span>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Require Desktop Tracker Toggle */}
+                            <div className="group col-span-1 md:col-span-2">
+                                <div className="bg-indigo-50/50 border border-indigo-100/50 p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-6">
+                                    <div className="flex gap-4">
+                                        <div className="bg-indigo-600 p-3 rounded-xl text-white shadow-lg shadow-indigo-200">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-slate-800 font-bold">Mandatory Desktop Tracker</h4>
+                                            <p className="text-slate-500 text-sm max-w-md">When enabled, employees must have the desktop agent running to access the HRMS dashboard.</p>
+                                        </div>
+                                    </div>
+
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={settings.requireDesktopTracker}
+                                            onChange={(e) => handleGlobalChange('requireDesktopTracker', e.target.checked)}
+                                        />
+                                        <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-indigo-600"></div>
+                                        <span className="ml-3 text-sm font-bold text-slate-600 uppercase tracking-wider">{settings.requireDesktopTracker ? 'Enabled' : 'Disabled'}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Idle Timeout Setting */}
+                            <div className="group col-span-1 md:col-span-1">
+                                <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                    <Clock size={14} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                    Auto Logout Idle Timeout
+                                </label>
+                                <div className="relative">
+                                    <select
+                                        className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-slate-700 focus:bg-white focus:border-indigo-500/30 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all appearance-none"
+                                        value={settings.idleTimeoutSeconds / 60}
+                                        onChange={(e) => handleGlobalChange('idleTimeoutSeconds', parseInt(e.target.value) * 60)}
+                                    >
+                                        <option value={1}>1 Minute</option>
+                                        <option value={3}>3 Minutes</option>
+                                        <option value={5}>5 Minutes</option>
+                                        <option value={10}>10 Minutes</option>
+                                        <option value={30}>30 Minutes</option>
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
                                     </div>
                                 </div>
                             </div>

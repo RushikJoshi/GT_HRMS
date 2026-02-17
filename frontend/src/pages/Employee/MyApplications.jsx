@@ -250,10 +250,25 @@ export default function MyApplications() {
                                         </div>
                                     </div>
 
-                                    <button className="group/btn relative p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-white transition-all overflow-hidden">
-                                        <div className="absolute inset-0 bg-indigo-600 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-500"></div>
-                                        <ArrowRight size={20} className="relative z-10 group-hover/btn:translate-x-1 transition-transform" />
-                                    </button>
+                                    {(app.offerId || app.offerLetterPath) ? (
+                                        <button
+                                            onClick={() => {
+                                                const path = app.offerId?.letterPath || app.offerLetterPath;
+                                                if (path) {
+                                                    const cleanPath = path.split('/').pop();
+                                                    window.open(`http://localhost:5000/uploads/offers/${cleanPath}`, '_blank');
+                                                }
+                                            }}
+                                            className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition"
+                                        >
+                                            View Offer
+                                        </button>
+                                    ) : (
+                                        <button className="group/btn relative p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-white transition-all overflow-hidden" disabled>
+                                            <div className="absolute inset-0 bg-indigo-600 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-500"></div>
+                                            <ArrowRight size={20} className="relative z-10 group-hover/btn:translate-x-1 transition-transform" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}

@@ -23,6 +23,11 @@ const DocumentTypeSchema = new Schema({
         uppercase: true,
         default: ''
     },
+    separator: {
+        type: String,
+        default: '/',
+        trim: true
+    },
     formatTemplate: {
         type: String,
         default: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}'

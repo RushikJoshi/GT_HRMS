@@ -53,11 +53,7 @@ const PositionSchema = new Schema({
         enum: ['Active', 'Filled', 'Vacant', 'Cancelled'],
         default: 'Vacant'
     },
-    hiringStatus: {
-        type: String,
-        enum: ['Open', 'Closed', 'Paused'],
-        default: 'Closed'
-    },
+    // Hiring Status moved to Requirement (Job Opening)
     isReplacement: {
         type: Boolean,
         default: false

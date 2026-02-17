@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import api, { parseAxiosError } from "../utils/api";
 import { setToken, getToken, removeToken } from "../utils/token";
 import { jwtDecode } from 'jwt-decode';
+import useIdleTimeout from "../hooks/useIdleTimeout";
 
 export const AuthContext = createContext();
 
@@ -14,10 +15,31 @@ export const useAuth = () => {
   return context;
 };
 
+// Desktop Agent Integration Removed
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Centralized Logout Logic
+  const logout = useCallback(() => {
+    console.log("🚪 Logging out user...");
+    removeToken();
+    sessionStorage.removeItem('tenantId');
+    localStorage.removeItem("candidate");
+    localStorage.removeItem("companyName");
+    setUser(null);
+    delete api.defaults.headers.common["Authorization"];
+
+    // Optional: Force redirect if context doesn't handle it
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }, []);
+
+  // Idle Timeout tracking (3 minutes)
+  useIdleTimeout(user ? logout : null, 3, 0.5);
 
   // Initialize on mount
   useEffect(() => {
@@ -117,9 +139,11 @@ export function AuthProvider({ children }) {
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
+    window.addEventListener('auth:expired', handleUnauthorized);
     return () => {
       _authMounted = false; // Prevent future handler execution
       window.removeEventListener('auth:unauthorized', handleUnauthorized);
+      window.removeEventListener('auth:expired', handleUnauthorized);
     };
   }, []);
 
@@ -251,15 +275,6 @@ export function AuthProvider({ children }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
-
-  const logout = useCallback(() => {
-    removeToken();
-    sessionStorage.removeItem('tenantId');
-    localStorage.removeItem("candidate");
-    localStorage.removeItem("companyName");
-    setUser(null);
-    delete api.defaults.headers.common["Authorization"];
   }, []);
 
   const refreshUser = async () => {

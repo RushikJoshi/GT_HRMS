@@ -39,23 +39,70 @@ const ApplicantSchema = new mongoose.Schema({
   linkedin: { type: String, trim: true },
 
   resume: { type: String, trim: true },
+  offerLetterPath: { type: String, trim: true },
 
-  // AI Parsing Fields
+  // AI Parsing & Universal Matching Fields
   rawOCRText: { type: String }, // Raw text from Tesseract
   aiParsedData: { type: Object }, // JSON from AI (Education, Exp, etc.)
   matchPercentage: { type: Number, default: 0 },
+  matchResult: {
+    totalScore: { type: Number, default: 0 },
+    skillsScore: { type: Number, default: 0 },
+    experienceScore: { type: Number, default: 0 }, // Raw or boolean? Engine returns number.
+    educationScore: { type: Number, default: 0 },
+    keywordScore: { type: Number, default: 0 }, // Deprecated but kept
+    responsibilitySimilarity: { type: Number, default: 0 }, // New Semantic Score
+    matchPercentage: { type: Number, default: 0 }, // Redundant but useful in subdoc
+
+    matchedSkills: [{ type: String }],
+    missingSkills: [{ type: String }],
+    experienceMatch: { type: Boolean, default: false },
+    educationMatch: { type: Boolean, default: false },
+
+    finalScoreBreakdown: {
+      skillMatch: { type: Number, default: 0 },
+      experienceMatch: { type: Number, default: 0 },
+      responsibilityMatch: { type: Number, default: 0 },
+      educationMatch: { type: Number, default: 0 },
+      preferredBonus: { type: Number, default: 0 }
+    },
+    recommendation: { type: String, default: "Low Fit" }
+  },
   parsedSkills: [{ type: String }],
   parsingStatus: { type: String, enum: ['Pending', 'Processing', 'Completed', 'Failed'], default: 'Pending' },
 
   status: { type: String, default: 'Applied' },
+  currentStageId: { type: mongoose.Schema.Types.ObjectId }, // Reference to stage._id in JobPipeline
+
   timeline: [
     {
       status: String,
+      stageId: mongoose.Schema.Types.ObjectId,
       message: String,
-      updatedBy: String,
+      updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
       timestamp: { type: Date, default: Date.now }
     }
   ],
+
+  assessmentHistory: [
+    {
+      stageName: String,
+      stageId: mongoose.Schema.Types.ObjectId,
+      rating: Number,
+      feedback: String,
+      scorecard: Object,
+      evaluatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      date: { type: Date, default: Date.now }
+    }
+  ],
+
+  lastEvaluation: {
+    rating: Number,
+    feedback: String,
+    scorecard: Object,
+    evaluatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    date: Date
+  },
 
   joiningDate: { type: Date },
 

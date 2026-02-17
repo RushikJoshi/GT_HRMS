@@ -7,7 +7,6 @@ const deptCtrl = require('../controllers/hr.department.controller');
 const policyCtrl = require('../controllers/leavePolicy.controller');
 const requestCtrl = require('../controllers/leaveRequest.controller');
 const applicantCtrl = require('../controllers/applicant.controller');
-const trackerCtrl = require('../controllers/trackerController');
 
 // Multer Config for Resume Parsing
 const multer = require('multer');
@@ -21,6 +20,7 @@ const upload = multer({ dest: uploadDir });
    EMPLOYEES
 ----------------------------------------- */
 router.get('/hr/employees', auth.authenticate, auth.requireHr, empCtrl.list);
+router.get('/employees', auth.authenticate, auth.requireHr, empCtrl.list); // Alias for frontend compatibility
 router.post('/hr/employees', auth.authenticate, auth.requireHr, empCtrl.create);
 
 // APPLICANTS - RESUME PARSING
@@ -144,13 +144,7 @@ router.use('/hr/career', require('./career.routes'));
 router.get('/hr/bulk/template', auth.authenticate, auth.requireAdminOrHr, empCtrl.downloadBulkUploadTemp);
 router.post('/hr/bulk/upload', auth.authenticate, auth.requireAdminOrHr, empCtrl.bulkUploadEmployees);
 /* -----------------------------------------
-   CANDIDATE STATUS TRACKER
+   CANDIDATE STATUS TRACKER - REMOVED
 ----------------------------------------- */
-router.get('/hr/candidate-status', trackerCtrl.getCandidates);
-router.get('/hr/candidate-status/:id', trackerCtrl.getCandidateById);
-router.get('/hr/candidate-status/:id/timeline', trackerCtrl.getTimeline);
-router.get('/hr/candidate/:id/status', trackerCtrl.getStatus); // NEW ROUTE
-router.post('/hr/candidate-status/:id/status', trackerCtrl.updateStatus);
-router.post('/hr/candidate-status/seed', trackerCtrl.seedData);
 
 module.exports = router;

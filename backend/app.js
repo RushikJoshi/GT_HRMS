@@ -77,6 +77,14 @@ app.use(express.urlencoded({ extended: true }));
 // Register models for main DB
 // We require them to ensure they are registered with mongoose.model
 try {
+    // CENTRALIZED MODELS (v10 Migration)
+    require('./models/User');
+    require('./models/Activity'); // Re-enabled for activity.routes.js
+    // require('./models/Heartbeat'); // Removed tracking
+    // require('./models/AgentSession'); // Removed tracking
+    // require('./models/UserActivitySession'); // Removed tracking
+
+    // Tenant Models (Shared Logic)
     mongoose.model('Notification', require('./models/Notification'));
     mongoose.model('LeaveRequest', require('./models/LeaveRequest'));
     mongoose.model('Regularization', require('./models/Regularization'));
@@ -94,10 +102,19 @@ try {
     mongoose.model('BGVCheck', require('./models/BGVCheck'));
     mongoose.model('BGVDocument', require('./models/BGVDocument'));
     mongoose.model('BGVTimeline', require('./models/BGVTimeline'));
+    // Recruitment Pipeline Models
+    mongoose.model('PipelineTemplate', require('./models/PipelineTemplate'));
+    mongoose.model('JobPipeline', require('./models/JobPipeline'));
+    mongoose.model('CandidateStageHistory', require('./models/CandidateStageHistory'));
+
     mongoose.model('BGVReport', require('./models/BGVReport'));
+    mongoose.model('FeedbackTemplate', require('./models/FeedbackTemplate'));
+    mongoose.model('CandidateStageFeedback', require('./models/CandidateStageFeedback'));
 } catch (e) {
     console.warn("Model registration warning:", e.message);
 }
+
+// STARTUP VALIDATION: Removed for tracking cleanup.
 
 /* ===============================
    ROUTES IMPORT
@@ -105,7 +122,6 @@ try {
 const authRoutes = require('./routes/auth.routes');
 const tenantRoutes = require('./routes/tenant.routes');
 const companyRoutes = require('./routes/company.routes');
-const activityRoutes = require('./routes/activity.routes');
 const uploadRoutes = require('./routes/upload.routes');
 const hrRoutes = require('./routes/hr.routes');
 const psaHrRoutes = require('./routes/psa.hr.routes');
@@ -122,6 +138,7 @@ const letterRoutes = require('./routes/letter.routes');
 const offerTemplateRoutes = require('./routes/offerTemplate.routes');
 const payslipTemplateRoutes = require('./routes/payslipTemplate.routes');
 const offerRoutes = require('./routes/offer.routes');
+const recruitmentPipelineRoutes = require('./routes/recruitment.pipeline.routes');
 
 // Payroll
 const payrollRoutes = require('./routes/payroll.routes');
@@ -140,6 +157,7 @@ const vendorRoutes = require('./routes/vendor.routes');
 
 // Career Page (Optimized for 16MB limit fix)
 const careerOptimizedRoutes = require('./routes/career-optimized.routes');
+const aiRoutes = require('./routes/ai.routes');
 
 /* ===============================
    ROUTES (NO TENANT)
@@ -186,18 +204,23 @@ app.use('/api/holidays', holidayRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/attendance-policy', attendancePolicyRoutes);
 app.use('/api/salary-structure', salaryStructureRoutes);
-app.use('/api/activities', activityRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
 app.use('/api/compensation', compensationRoutes);
 app.use('/api/bgv', require('./routes/bgv.routes'));
+
+app.use('/api/pipeline', recruitmentPipelineRoutes);
+app.use('/api/feedback', require('./routes/feedback.routes'));
 app.use('/api/vendor', vendorRoutes);
 
 app.use('/api/career', careerOptimizedRoutes);
 app.use('/api/social-media', require('./routes/socialMedia.routes'));
+app.use('/api/ai', aiRoutes);
 
 
+app.use('/api/activities', require('./routes/activity.routes'));
 app.use('/api/positions', positionRoutes);
+app.use('/api/custom-fields', require('./routes/customField.routes'));
 
 /* ===============================
    HRMS ALIAS ROUTES (For Frontend Inconsistencies)
@@ -218,6 +241,7 @@ app.use(hrmsPrefix + '/entities', entityRoutes);
 app.use(hrmsPrefix + '/notifications', notificationRoutes);
 app.use(hrmsPrefix + '/comments', commentRoutes);
 app.use(hrmsPrefix + '/positions', positionRoutes);
+app.use(hrmsPrefix + '/custom-fields', require('./routes/customField.routes'));
 app.use(hrmsPrefix + '/employee', employeeRoutes);
 app.use(hrmsPrefix + '/bgv', require('./routes/bgv.routes'));
 app.use(hrmsPrefix + '/vendor', vendorRoutes);
@@ -253,9 +277,7 @@ app.use('/api/hr', salaryRevisionRoutes);
 app.use(hrmsPrefix + '/hr', salaryRevisionRoutes);
 
 try {
-    app.use('/api/tracker', require('./routes/tracker.routes'));
-    app.use('/api/tracker', require('./routes/tracker.routes'));
-    app.use('/api/hr/candidate-status', require('./routes/tracker.routes'));
+    // Tracker routes removed for cleanup
 } catch (e) {
     console.warn("Tracker routes skipped:", e.message);
 }

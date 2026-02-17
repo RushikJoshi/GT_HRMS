@@ -9,10 +9,17 @@ import AssignSalaryModal from '../../components/AssignSalaryModal';
 import { DatePicker, Pagination, Select, Modal, TimePicker, notification, Dropdown, Menu } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications'; // Imports fixed
 import dayjs from 'dayjs';
-import { Eye, Download, Edit2, RefreshCw, Upload, FileText, Settings, Plus, Trash2, X, GripVertical, Star, Clock, Lock, ChevronRight, ChevronDown, RotateCcw, UserX, PlusCircle, UserPlus, Info, Search, Calendar, Shield, ArrowRight } from 'lucide-react';
+import { Eye, Download, Edit2, RefreshCw, Upload, FileText, Settings, Plus, Trash2, X, GripVertical, Star, Clock, Lock, ChevronRight, ChevronDown, RotateCcw, UserX, PlusCircle, UserPlus, Info, Search, Calendar, Shield, ArrowRight, CircleCheck, Save } from 'lucide-react';
 import DynamicPipelineEngine from './DynamicPipelineEngine';
 import InterviewScheduleModal from './modals/InterviewScheduleModal';
 import JobBasedBGVModal from './modals/JobBasedBGVModal';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+import { arrayMove, SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { DraggableStageTab } from './components/DraggableStageTab';
+import { SortableStageItem } from './components/SortableStageItem';
+import StageForm from './components/StageForm';
+import FeedbackFormRenderer from './components/FeedbackFormRenderer';
+
 
 // --- Helper Components ---
 
@@ -71,6 +78,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [requirements, setRequirements] = useState([]);
     const [selectedRequirement, setSelectedRequirement] = useState(null); // Full requirement object
     const [selectedReqId, setSelectedReqId] = useState('all');
+    const [jobPipeline, setJobPipeline] = useState(null);
+    const [pipelineLoading, setPipelineLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [timeFilter, setTimeFilter] = useState('all'); // Added Time Filter State
 
@@ -154,6 +163,28 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         gameType: 'Coding'
     });
 
+    // Add Stage Modal State
+    const [showAddStageModal, setShowAddStageModal] = useState(false);
+    const [showManageStagesModal, setShowManageStagesModal] = useState(false);
+    const [newStageNameInput, setNewStageNameInput] = useState('');
+    const [isAddingStage, setIsAddingStage] = useState(false);
+
+    // Drag and Drop Reorder State
+    const [isManageMode, setIsManageMode] = useState(false);
+    const [hasUnsavedOrder, setHasUnsavedOrder] = useState(false);
+    const [isSavingOrder, setIsSavingOrder] = useState(false);
+    const [tempWorkflowOrder, setTempWorkflowOrder] = useState([]);
+
+    // Drag and Drop Sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8, // 8px movement required to start drag
+            },
+        })
+    );
+
+
 
 
     const handleStageAdd = () => {
@@ -206,6 +237,200 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             setLoading(false);
         }
     };
+
+    // Add Stage to Workflow Handler (Local preparation, save happens in Manage Stages modal)
+    const handleAddStageToWorkflow = (stageData) => {
+        const stageName = stageData.stageName.trim();
+
+        if (workflowTabs.includes(stageName) || tempWorkflowOrder.some(s => s.stageName === stageName)) {
+            showToast('error', 'Error', 'This stage already exists in the pipeline');
+            return;
+        }
+
+        // Prepare new order: Insert before "Finalized" if it exists, otherwise at the end
+        let newOrder = [...tempWorkflowOrder];
+        const finalizedIndex = newOrder.findIndex(s => s.stageName === 'Finalized');
+
+        const newStageObj = {
+            ...stageData,
+            positionIndex: newOrder.length
+        };
+
+        if (finalizedIndex !== -1) {
+            newOrder.splice(finalizedIndex, 0, newStageObj);
+        } else {
+            newOrder.push(newStageObj);
+        }
+
+        // Update indices
+        newOrder.forEach((s, idx) => s.positionIndex = idx);
+
+        setTempWorkflowOrder(newOrder);
+        setShowAddStageModal(false);
+        setNewStageNameInput('');
+        setShowManageStagesModal(true);
+
+        showToast('info', 'Info', `"${stageName}" added to list. Position it and click Save.`);
+    };
+
+    // Handle Edit Stage
+    const [editingStageData, setEditingStageData] = useState(null);
+    const [showEditStageModal, setShowEditStageModal] = useState(false);
+
+    const onStageEdit = (stage) => {
+        setEditingStageData(stage);
+        setShowEditStageModal(true);
+    };
+
+    const handleUpdateStage = (updatedData) => {
+        const newOrder = tempWorkflowOrder.map(s =>
+            s.stageName === editingStageData.stageName ? { ...s, ...updatedData } : s
+        );
+        setTempWorkflowOrder(newOrder);
+        setShowEditStageModal(false);
+        setEditingStageData(null);
+        showToast('success', 'Stage Updated', 'Stage configuration updated in draft.');
+    };
+
+    const onStageDelete = (stage) => {
+        showConfirmToast({
+            title: 'Delete Stage',
+            description: `Remove "${stage.stageName}" from pipeline?`,
+            okText: 'Delete',
+            okType: 'danger',
+            onConfirm: () => {
+                const newOrder = tempWorkflowOrder.filter(s => s.stageName !== stage.stageName);
+                newOrder.forEach((s, idx) => s.positionIndex = idx);
+                setTempWorkflowOrder(newOrder);
+                showToast('info', 'Stage Removed', 'Stage removed from list. Click Save to commit.');
+            }
+        });
+    };
+
+    // Handle Modal Drag End
+    const handleModalDragEnd = (event) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        // FIXED STAGES logic: Applied is always at 0, Shortlisted at 1
+        const activeName = active.id;
+        const overName = over.id;
+
+        if (['Applied', 'Shortlisted', 'Finalized'].includes(activeName)) {
+            showToast('error', 'Locked Stage', `"${activeName}" is a system stage and cannot be moved.`);
+            return;
+        }
+
+        const oldIndex = tempWorkflowOrder.findIndex(s => s.stageName === activeName);
+        const newIndex = tempWorkflowOrder.findIndex(s => s.stageName === overName);
+
+        // Don't allow moving over Applied/Shortlisted
+        if (newIndex <= 1) return;
+
+        // Don't allow moving over Finalized
+        const findex = tempWorkflowOrder.findIndex(s => s.stageName === 'Finalized');
+        if (newIndex >= findex) return;
+
+        const newOrder = arrayMove(tempWorkflowOrder, oldIndex, newIndex);
+        newOrder.forEach((s, idx) => s.positionIndex = idx);
+        setTempWorkflowOrder(newOrder);
+    };
+
+
+    // Handle Drag End - Reorder Stages
+    const handleDragEnd = (event) => {
+        const { active, over } = event;
+
+        if (!over || active.id === over.id) {
+            return;
+        }
+
+        const oldIndex = workflowTabs.indexOf(active.id);
+        const newIndex = workflowTabs.indexOf(over.id);
+
+        // Prevent moving "Applied" or "Finalized"
+        if (active.id === 'Applied' || active.id === 'Finalized') {
+            showToast('error', 'Error', `"${active.id}" stage cannot be moved`);
+            return;
+        }
+
+        // Prevent moving to first position (before "Applied")
+        if (newIndex === 0) {
+            showToast('error', 'Error', '"Applied" must always be the first stage');
+            return;
+        }
+
+        // Prevent moving to last position if "Finalized" exists
+        const finalizedIndex = workflowTabs.indexOf('Finalized');
+        if (finalizedIndex !== -1 && newIndex === workflowTabs.length - 1) {
+            showToast('error', 'Error', '"Finalized" must always be the last stage');
+            return;
+        }
+
+        const newOrder = arrayMove(workflowTabs, oldIndex, newIndex);
+        setWorkflowTabs(newOrder);
+        setTempWorkflowOrder(newOrder);
+        setHasUnsavedOrder(true);
+    };
+
+    // Save Reordered Workflow
+    const handleSaveWorkflowOrder = async () => {
+        if (!selectedRequirement) {
+            showToast('error', 'Error', 'No job selected');
+            return;
+        }
+
+        try {
+            setIsSavingOrder(true);
+
+            // Filter out 'Rejected' as it's a virtual/terminal tab not stored in Requirement.workflow
+            const filteredWorkflow = tempWorkflowOrder.filter(stage => stage !== 'Rejected');
+
+            const response = await api.put(`/requirements/${selectedRequirement._id}/reorder-stages`, {
+                workflow: filteredWorkflow
+            });
+
+            if (response.data.success) {
+                // Refresh requirements
+                const res = await api.get('/requirements');
+                const data = res.data.requirements || res.data || [];
+                setRequirements(data);
+
+                // Update current selection
+                const updatedReq = data.find(r => r._id === selectedRequirement._id);
+                setSelectedRequirement(updatedReq);
+
+                setHasUnsavedOrder(false);
+                setTempWorkflowOrder([]);
+                setIsManageMode(false);
+
+                showToast('success', 'Success', 'Workflow order saved successfully!');
+            }
+        } catch (err) {
+            console.error('Save Order Error:', err);
+            const errorMsg = err.response?.data?.message || 'Failed to save workflow order';
+            showToast('error', 'Error', errorMsg);
+
+            // Revert to original order on error
+            if (selectedRequirement?.workflow) {
+                setWorkflowTabs(selectedRequirement.workflow);
+            }
+            setHasUnsavedOrder(false);
+        } finally {
+            setIsSavingOrder(false);
+        }
+    };
+
+    // Cancel Reorder
+    const handleCancelReorder = () => {
+        if (selectedRequirement?.workflow) {
+            setWorkflowTabs(selectedRequirement.workflow);
+        }
+        setHasUnsavedOrder(false);
+        setTempWorkflowOrder([]);
+        setIsManageMode(false);
+    };
+
 
 
     useEffect(() => {
@@ -268,10 +493,39 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
 
 
+    // Reset Manage Mode when job changes
+    useEffect(() => {
+        setIsManageMode(false);
+        setHasUnsavedOrder(false);
+        setTempWorkflowOrder([]);
+    }, [selectedReqId]);
 
     // Dynamic Tab Calculation (Includes Custom/Ad-hoc Stages)
+    // --- Fetch Job Pipeline ---
+    useEffect(() => {
+        const fetchPipeline = async () => {
+            if (selectedReqId === 'all') {
+                setJobPipeline(null);
+                return;
+            }
+            try {
+                setPipelineLoading(true);
+                const res = await api.get(`/pipeline/job/${selectedReqId}`);
+                setJobPipeline(res.data);
+            } catch (err) {
+                console.error("Failed to fetch job pipeline:", err);
+            } finally {
+                setPipelineLoading(false);
+            }
+        };
+        fetchPipeline();
+    }, [selectedReqId]);
+
     useEffect(() => {
         const MASTER_STAGES = ['Applied', 'Shortlisted', 'Interview', 'HR Round', 'Finalized'];
+
+        // If user is currently reordering, don't overwrite with dynamic calculation
+        if (hasUnsavedOrder) return;
 
         if (selectedReqId === 'all') {
             const globalStages = ['Applied', 'Finalized', 'Rejected'];
@@ -301,29 +555,45 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             const foundStatuses = [...new Set(relevantApplicants.map(a => a.status))];
 
             const extraStatuses = foundStatuses.filter(s =>
-                !baseParams.includes(s) &&
-                !['Selected', 'Rejected', 'Finalized', 'Offer Generated', 'Salary Assigned', 'Offer Issued', 'Offer Accepted', 'Hired', 'Joining Letter Issued', 'Offer Expired', 'Interview Scheduled', 'Interview Rescheduled', 'Interview Completed', 'New Round'].includes(s)
+                !['Selected', 'Rejected', 'Finalized', 'Offer Generated', 'Salary Assigned', 'Offer Issued', 'Offer Accepted', 'Hired', 'Joining Letter Issued', 'Offer Expired', 'Re-Offered', 'Interview Scheduled', 'Interview Rescheduled', 'Interview Completed', 'New Round'].includes(s)
             );
 
             // Insert extra statuses before 'HR Round' if present, else before 'Finalized'
             let insertPos = baseParams.indexOf('HR Round');
             if (insertPos === -1) insertPos = baseParams.indexOf('Finalized');
 
+            // Filter out statuses that are already in baseParams to prevent duplicates
+            const uniqueExtraStatuses = extraStatuses.filter(s => !baseParams.includes(s));
+
             if (insertPos > -1) {
-                baseParams.splice(insertPos, 0, ...extraStatuses);
+                baseParams.splice(insertPos, 0, ...uniqueExtraStatuses);
             } else {
-                baseParams.push(...extraStatuses);
+                baseParams.push(...uniqueExtraStatuses);
             }
 
             // Ensure Finalized is always last
             if (!baseParams.includes('Finalized')) baseParams.push('Finalized');
 
-            setWorkflowTabs(baseParams);
-            if (!baseParams.includes(activeTab)) {
-                setActiveTab(baseParams[0]);
+            // Use Job Pipeline if available, but only if it's healthy
+            let finalTabs = baseParams;
+            if (jobPipeline && jobPipeline.stages && jobPipeline.stages.length > 0) {
+                const pipelineHasCorruption = jobPipeline.stages.some(s => !s.stageName || s.stageName === "Untitled Stage");
+                if (!pipelineHasCorruption) {
+                    let pipelineStages = jobPipeline.stages.map(s => s.stageName);
+                    if (!pipelineStages.includes('Finalized')) pipelineStages.push('Finalized');
+                    if (!pipelineStages.includes('HR Round')) pipelineStages.splice(pipelineStages.indexOf('Finalized'), 0, 'HR Round');
+                    finalTabs = pipelineStages;
+                } else {
+                    console.warn("[DEBUG] CORRUPTED PIPELINE DETECTED IN UI - Falling back to defaults");
+                }
+            }
+
+            setWorkflowTabs([...new Set(finalTabs.filter(p => typeof p === 'string' && p.trim().length > 0))]);
+            if (!finalTabs.includes(activeTab)) {
+                setActiveTab(finalTabs[0]);
             }
         }
-    }, [selectedReqId, selectedRequirement, applicants, activeTab]);
+    }, [selectedReqId, selectedRequirement, jobPipeline, applicants, activeTab, hasUnsavedOrder]);
 
     // Custom Stage State
     const [isCustomStageModalVisible, setIsCustomStageModalVisible] = useState(false);
@@ -358,119 +628,75 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
 
     const renderHiringDropdown = (app) => {
-        if (app.status === 'Finalized') return (
-            <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-100 rounded-full w-full justify-center">
-                <span className="text-blue-600">✅</span>
-                <span className="text-[10px] font-black text-blue-700 tracking-widest uppercase">Selected</span>
-                <CheckCircle size={14} className="text-blue-600" />
-                <span className="text-[10px] font-black text-blue-700 tracking-widest uppercase">Finalized</span>
+        if (app.status === 'Finalized' || app.status === 'Hired') return (
+            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-full w-full justify-center">
+                <CircleCheck size={14} className="text-emerald-600" />
+                <span className="text-[10px] font-black text-emerald-700 tracking-widest uppercase italic">Candidate Finalized</span>
             </div>
         );
 
-        if (app.status === 'Joining Letter Issued') return (
-            <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border border-purple-100 rounded-full w-full justify-center">
-                <CheckCircle size={14} className="text-purple-600" />
-                <span className="text-[10px] font-black text-purple-700 tracking-widest uppercase">Joining Letter Issued</span>
+        if (app.status === 'Rejected') return (
+            <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 border border-rose-100 rounded-full w-full justify-center">
+                <UserX size={14} className="text-rose-600" />
+                <span className="text-[10px] font-black text-rose-700 tracking-widest uppercase">Application Rejected</span>
             </div>
         );
 
-        // Rule: Finalize button ONLY in HR Round tab for Selected candidates
-        if (activeTab === 'HR Round' && app.status === 'Selected') {
-            return (
-                <div className="w-full flex gap-2">
-                    <button
-                        onClick={() => { setCandidateToFinalize(app); setFinalizeModalVisible(true); }}
-                        className="flex-1 h-10 rounded-full bg-blue-600 text-white text-[11px] font-black shadow-lg shadow-blue-100 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 px-6"
-                    >
-                        <span className="text-sm">✅</span>
-                        FINALIZE
-                    </button>
-                    <button
-                        onClick={() => updateStatus(app, 'Rejected')}
-                        className="flex-1 h-10 rounded-full bg-rose-600 text-white text-[11px] font-black shadow-lg shadow-rose-100 hover:bg-rose-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 px-6"
-                    >
-                        <UserX size={16} strokeWidth={2.5} />
-                        REJECT
-                    </button>
-                    <button
-                        onClick={() => handleAddCustomRound(app)}
-                        className="flex-1 h-10 rounded-full bg-amber-600 text-white text-[11px] font-black shadow-lg shadow-amber-100 hover:bg-amber-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 px-6"
-                    >
-                        <PlusCircle size={16} strokeWidth={2.5} />
-                        OTHER ROUND
-                    </button>
-                </div>
-            );
-        }
+        // Dynamic Pipeline Logic
+        const pipelineStages = jobPipeline?.stages || [];
+        const currentStageIdx = pipelineStages.findIndex(s => s.stageName === app.status);
 
-        // Get candidate's current position in workflow
-        const candidateStatusIndex = workflowTabs.indexOf(app.status);
-        const activeTabIndex = workflowTabs.indexOf(activeTab);
+        // Define terminal states that block movement
+        const isTerminal = ['Finalized', 'Hired', 'Rejected'].includes(app.status);
+        if (isTerminal) return null;
+
+        const nextStages = pipelineStages.slice(currentStageIdx + 1, currentStageIdx + 3); // Show next 2 stages
 
         const menuItems = [
             {
-                key: 'label',
+                key: 'header',
                 label: (
                     <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">
-                        Next Pipeline Step
+                        Pipeline Actions
                     </div>
                 ),
                 disabled: true,
             },
-            // Show "Move to Shortlisted" only if candidate is still in Applied status
-            ...(app.status === 'Applied' ? [{
-                key: 'shortlist',
-                icon: <span className="text-blue-500 text-sm">✅</span>,
-                label: <span className="font-bold text-slate-700">Move to Shortlisted</span>,
-                onClick: () => updateStatus(app, 'Shortlisted'),
-            }] : []),
-            // Show "Move to Interview" only if candidate is in Shortlisted (not beyond)
-            ...(app.status === 'Shortlisted' ? [{
-                key: 'interview',
-                icon: <Clock size={16} className="text-indigo-500" />,
-                label: <span className="font-bold text-slate-700">Move to Interview</span>,
-                onClick: () => updateStatus(app, 'Interview'),
-            }] : []),
-            // Show interview options if in Interview stage or custom rounds
-            ...((app.status === 'Interview' || app.status.includes('Interview') || app.status.includes('Round')) ? [
-                {
-                    key: 'hr_round',
-                    icon: <UserPlus size={16} className="text-purple-500" />,
-                    label: <span className="font-bold text-slate-700">Move to HR Round</span>,
-                    onClick: () => updateStatus(app, 'HR Round'),
-                },
-                {
-                    key: 'add_round',
-                    icon: <PlusCircle size={16} className="text-emerald-500" />,
-                    label: <span className="font-bold text-emerald-600">Add Interview Round</span>,
-                    onClick: () => handleAddInterviewRound(app),
-                }
-            ] : []),
-            // Show "Mark as Selected" only if in HR Round and not already selected
-            ...(app.status === 'HR Round' ? [{
-                key: 'select',
-                icon: <span className="text-emerald-500 text-sm">✅</span>,
-                label: <span className="font-bold text-emerald-600">Mark as Selected</span>,
-                onClick: () => updateStatus(app, 'Selected'),
-            }] : []),
-            { type: 'divider', className: 'my-1 border-slate-50' },
+            ...nextStages.map(stage => ({
+                key: stage._id || stage.stageName,
+                icon: stage.stageType === 'Interview' ? <Clock size={16} className="text-indigo-500" /> : <ChevronRight size={16} className="text-blue-500" />,
+                label: <span className="font-bold text-slate-700">Move to {stage.stageName}</span>,
+                onClick: () => updateStatus(app, stage.stageName, null, stage._id)
+            })),
+            {
+                key: 'finalize_sep',
+                type: 'divider'
+            },
+            {
+                key: 'hr_review',
+                icon: <UserPlus size={16} className="text-purple-500" />,
+                label: <span className="font-bold text-slate-700">Direct to HR Round</span>,
+                onClick: () => updateStatus(app, 'HR Round')
+            },
             {
                 key: 'reject',
                 icon: <UserX size={16} className="text-rose-500" />,
-                label: <span className="font-bold text-rose-600">Mark as Rejected</span>,
-                onClick: () => updateStatus(app, 'Rejected'),
-            },
-            // Show "Move Back" only if candidate can actually move back
-            ...(candidateStatusIndex > 0 ? [{
-                key: 'back',
-                icon: <RotateCcw size={16} className="text-slate-400" />,
-                label: <span className="font-bold text-slate-500">Move Back</span>,
-                onClick: () => {
-                    const prevIdx = candidateStatusIndex - 1;
-                    if (prevIdx >= 0) updateStatus(app, workflowTabs[prevIdx]);
-                }
-            }] : [])
+                label: <span className="font-bold text-rose-600">Reject Candidate</span>,
+                danger: true,
+                onClick: () => updateStatus(app, 'Rejected')
+            }
         ];
+
+        // Add "Add Stage" option for HR flexibility
+        menuItems.push({
+            key: 'add_round',
+            icon: <PlusCircle size={16} className="text-amber-500" />,
+            label: <span className="font-bold text-slate-700">Insert Evaluation Round</span>,
+            onClick: () => {
+                setTempWorkflowOrder(jobPipeline?.stages || []);
+                setShowAddStageModal(true);
+            }
+        });
 
         return (
             <Dropdown
@@ -517,12 +743,15 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         const normalizedTarget = normalizeStatus(targetTab);
 
         // Step 2: Handle Terminal/Special statuses
+        // Step 2: Handle Terminal/Special statuses
+        const finalizedStatuses = ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired', 'Offer Generated', 'Offer Letter Generated', 'Re-Offered', 'Sent', 'Draft'];
+
         if (normalizedTarget === 'Finalized') {
-            return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired'].includes(applicantStatus);
+            return finalizedStatuses.includes(applicantStatus);
         }
 
         // Candidates who are Finalized or Selected have passed all steps
-        if (['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired'].includes(applicantStatus)) {
+        if (finalizedStatuses.includes(applicantStatus)) {
             return true; // Visible in all tabs
         }
 
@@ -590,14 +819,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
         // 5. Filter by Active Tab (Stage)
         if (selectedReqId === 'all') {
+            const finalizedStatuses = ['Finalized', 'Selected', 'Offer Issued', 'Offer Accepted', 'Offer Expired', 'Joining Letter Issued', 'Hired', 'Re-Offered', 'Sent', 'Draft'];
+
             // Global Pipeline: Show all active in 'Applied', and only terminal in 'Finalized'
-            if (activeTab === 'Finalized') return baseFiltered.filter(a => a?.status === 'Finalized' || a?.status === 'Selected');
+            if (activeTab === 'Finalized') return baseFiltered.filter(a => finalizedStatuses.includes(a?.status));
             if (activeTab === 'Rejected') return baseFiltered.filter(a => a?.status === 'Rejected');
+
             // 'Applied' is the default bucket for everything else in Global View
-            return baseFiltered.filter(a => a?.status !== 'Finalized' && a?.status !== 'Selected' && a?.status !== 'Rejected');
-            if (activeTab === 'Finalized') return filtered.filter(a => ['Finalized', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Offer Expired'].includes(a?.status));
-            if (activeTab === 'Rejected') return filtered.filter(a => a?.status === 'Rejected');
-            return filtered.filter(a => a?.status !== 'Finalized' && a?.status !== 'Rejected');
+            return baseFiltered.filter(a => !finalizedStatuses.includes(a?.status) && a?.status !== 'Rejected');
         }
 
         // Specific Job Workflow: CUMULATIVE LOGIC (Show all who reached this stage)
@@ -851,21 +1080,38 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         });
     };
 
-    const updateStatus = async (applicant, status, review = null) => {
+    const updateStatus = async (applicant, status, review = null, stageId = null) => {
         try {
-            const payload = { status };
+            const payload = {
+                targetStage: status,
+                targetStageId: stageId || applicant.currentStageId
+            };
+
             if (review) {
                 payload.rating = review.rating;
                 payload.feedback = review.feedback;
-                payload.scorecard = review.scorecard; // Added scorecard
-                payload.stageName = activeTab;
+                payload.scorecard = review.scorecard;
+                payload.stageNote = review.feedback;
             }
-            await api.patch(`/requirements/applicants/${applicant._id}/status`, payload);
-            showToast('success', 'Success', `Status updated to ${status}`);
+
+            // If we have a dedicated job pipeline, use the new movement API
+            if (selectedReqId !== 'all') {
+                const response = await api.post(`/pipeline/applicant/${applicant._id}/move`, payload);
+                if (response.data.success) {
+                    showToast('success', 'Candidate Moved', `Moved to ${status}`);
+                    loadApplicants();
+                    return true;
+                }
+            }
+
+            // Legacy fallback if needed
+            await api.patch(`/requirements/applicants/${applicant._id}/status`, { status });
+            showToast('success', 'Status Switched', `Status updated to ${status}`);
             loadApplicants();
             return true;
         } catch (error) {
-            showToast('error', 'Error', "Failed: " + error.message);
+            console.error("Status Update Error:", error);
+            showToast('error', 'Movement Failed', error.response?.data?.message || error.message);
             return false;
         }
     };
@@ -877,13 +1123,30 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             return;
         }
 
+        // 1. Find CURRENT stage context (based strictly on candidate's status string)
+        const currentStage = jobPipeline?.stages?.find(s =>
+            s.stageName?.trim().toLowerCase() === applicant.status?.trim().toLowerCase()
+        );
+
+        // 2. Find TARGET stage context (to ensure we update currentStageId in DB)
+        const targetStage = jobPipeline?.stages?.find(s =>
+            s.stageName?.trim().toLowerCase() === status.trim().toLowerCase()
+        );
+
+        // ONLY show drawer if the CURRENT stage has a template
+        if (currentStage?.feedbackTemplateId && currentStage.feedbackTemplateId !== "") {
+            openReviewPrompt(applicant, status, currentStage._id);
+            return;
+        }
+
+        // Standard Toast for moves with no specific feedback form
         showConfirmToast({
             title: 'Update Status',
             description: `Update status to ${status}? This will trigger an email.`,
             okText: 'Yes, Update',
             cancelText: 'Cancel',
             onConfirm: async () => {
-                await updateStatus(applicant, status);
+                await updateStatus(applicant, status, null, targetStage?._id);
             }
         });
     };
@@ -906,14 +1169,29 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     };
 
     const handleMoveToRound = (applicant, roundName) => {
+        // Find current stage context strictly by name
+        const currentStage = jobPipeline?.stages?.find(s =>
+            s.stageName?.trim().toLowerCase() === applicant.status?.trim().toLowerCase()
+        );
+
+        // Find target round context
+        const targetStage = jobPipeline?.stages?.find(s =>
+            s.stageName?.trim().toLowerCase() === roundName.trim().toLowerCase()
+        );
+
+        // Only show evaluation drawer if template exists for CURRENT stage
+        if (currentStage?.feedbackTemplateId && currentStage.feedbackTemplateId !== "") {
+            openReviewPrompt(applicant, roundName, currentStage._id);
+            return;
+        }
+
         showConfirmToast({
             title: 'Move to Another Round',
             description: `Move ${applicant.name} to "${roundName}"?`,
             okText: 'Yes, Move',
             cancelText: 'Cancel',
             onConfirm: async () => {
-                // Update status to the selected round name
-                const success = await updateStatus(applicant, roundName);
+                const success = await updateStatus(applicant, roundName, null, targetStage?._id);
                 if (success) {
                     showToast('success', 'Round Changed', `${applicant.name} has been moved to ${roundName}.`);
                 }
@@ -932,16 +1210,53 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         loadApplicants(); // Refresh to show updated BGV status
     };
 
-    const openReviewPrompt = (applicant, status) => {
-        setSelectedApplicant(applicant);
-        setSelectedStatusForReview(status);
-        setReviewRating(0);
-        setReviewFeedback('');
-        setShowEvaluationDrawer(true);
+    const [stageFeedback, setStageFeedback] = useState({ template: null, feedback: null });
+
+    const openReviewPrompt = async (applicant, status, forcedStageId = null) => {
+        // Reset state before fetching
+        setStageFeedback({ template: null, feedback: null });
+        setShowEvaluationDrawer(false);
+
+        // Fetch specific feedback template for this stage
+        try {
+            // Priority 1: forcedStageId (from current stage we matched by name)
+            // Priority 2: applicant.currentStageId (DB fallback)
+            const stageIdToFetch = forcedStageId || applicant.currentStageId;
+
+            if (stageIdToFetch) {
+                const res = await api.get(`/feedback/stage/${applicant._id}/${stageIdToFetch}`);
+                if (res.data.success && res.data.data.template) {
+                    setSelectedApplicant(applicant);
+                    setSelectedStatusForReview(status);
+                    setReviewRating(0);
+                    setReviewFeedback('');
+                    setStageFeedback(res.data.data);
+                    setShowEvaluationDrawer(true);
+                } else {
+                    console.log("[PIPELINE] No template assigned to this stage. Using simple move.");
+                    // Fallback move logic needs target stage ID
+                    const targetStage = jobPipeline?.stages?.find(s => s.stageName?.trim().toLowerCase() === status.trim().toLowerCase());
+                    updateStatus(applicant, status, null, targetStage?._id);
+                }
+            } else {
+                updateStatus(applicant, status);
+            }
+        } catch (err) {
+            console.error("Feedback fetch error:", err);
+            updateStatus(applicant, status);
+        }
     };
 
-    const submitReviewAndStatus = async () => {
-        if (!selectedApplicant || !selectedStatusForReview) return;
+    const submitReviewAndStatus = async (reviewOverride = null) => {
+        let finalStatus = reviewOverride?.decision || selectedStatusForReview;
+
+        if (reviewOverride?.decision === 'Pass' && reviewOverride?.nextStage) {
+            finalStatus = reviewOverride.nextStage;
+        } else if (reviewOverride?.decision === 'Reject') {
+            finalStatus = 'Rejected';
+        }
+
+        if (!selectedApplicant || !finalStatus) return;
 
         setLoading(true);
         try {
@@ -950,15 +1265,28 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 await api.put(`/requirements/applicants/${selectedApplicant._id}/interview/complete`);
             }
 
-            // 2. Update status with review and full scorecard
-            const success = await updateStatus(selectedApplicant, selectedStatusForReview, {
+            // 2. Update status with review
+            const reviewData = reviewOverride ? {
+                rating: 0, // Could calculate if needed
+                feedback: reviewOverride.comments,
+                status: reviewOverride.decision, // Explicitly pass decision
+                scorecard: reviewOverride.answers
+            } : {
                 rating: reviewRating,
                 feedback: reviewFeedback,
+                status: 'Reviewed',
                 scorecard: evaluationData
-            });
+            };
+
+            // Resolve Target Stage ID (Critical for Pipeline integrity)
+            const targetStageObj = jobPipeline?.stages?.find(s =>
+                s.stageName?.trim().toLowerCase() === finalStatus?.trim().toLowerCase()
+            );
+
+            const success = await updateStatus(selectedApplicant, finalStatus, reviewData, targetStageObj?._id);
 
             if (success) {
-                const status = selectedStatusForReview; // Save before clear
+                const status = finalStatus;
                 const applicant = selectedApplicant;
 
                 setShowEvaluationDrawer(false);
@@ -967,6 +1295,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 setReviewFeedback('');
                 setSelectedStatusForReview('');
                 setEvalActiveRound(0);
+                setStageFeedback({ template: null, feedback: null });
 
                 // Trigger scheduling if appropriate
                 if (status === 'Shortlisted' || status.includes('Interview')) {
@@ -995,10 +1324,19 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     }
 
     async function fetchTemplates() {
-        // Fetch Offer Templates
+        // Fetch Offer Templates from BOTH new system and legacy system
         try {
-            const offerRes = await api.get('/letters/templates?type=offer');
-            setTemplates(offerRes.data || []);
+            const [offerRes, legacyRes] = await Promise.all([
+                api.get('/letters/templates?type=offer'),
+                api.get('/hr/offer-templates').catch(() => ({ data: [] }))
+            ]);
+
+            const combined = [
+                ...(offerRes.data || []),
+                ...(legacyRes.data || [])
+            ].filter((v, i, a) => a.findIndex(t => t._id === v._id) === i); // Deduplicate by ID
+
+            setTemplates(combined);
         } catch (err) {
             console.error("Failed to load offer templates", err);
         }
@@ -1439,7 +1777,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
     const handleOpenOfferModal = async (app) => {
         setSelectedApplicant(app);
-        
+
         // Initialize with default values
         const firstName = app.name ? app.name.split(' ')[0] : '';
         setOfferData(prev => ({
@@ -1888,58 +2226,227 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 <div className="bg-white/50 backdrop-blur-xl rounded-[32px] border border-white/60 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.05)] overflow-hidden">
 
                     {/* Modern Pipeline Stepper */}
-                    <div className="bg-white/80 border-b border-indigo-50/50 px-6 py-5">
-                        <div className="flex items-center gap-2 overflow-x-auto pb-4 pt-2 scrollbar-hide snap-x">
-                            {workflowTabs.map((tab, idx) => {
-                                const baseFiltered = getBaseFilteredApplicants();
-                                let count = baseFiltered.filter(a => {
-                                    if (a.status === 'Rejected' && tab !== 'Rejected') return false;
-                                    if (selectedReqId === 'all') {
-                                        if (tab === 'Finalized') return (a.status === 'Finalized' || a.status === 'Selected');
-                                        if (tab === 'Finalized') return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired'].includes(a.status);
-                                        if (tab === 'Rejected') return (a.status === 'Rejected');
-                                        return a.status !== 'Finalized' && a.status !== 'Selected' && a.status !== 'Rejected';
-                                    }
-                                    return checkStatusPassage(a.status, tab, workflowTabs);
-                                }).length;
+                    <div className="bg-white/80 border-b border-indigo-50/50 px-6 py-5 relative">
+                        <div className="flex items-center justify-between gap-4 mb-4">
+                            <h3 className="text-sm font-bold text-slate-700">Hiring Pipeline</h3>
+                        </div>
 
-                                const isActive = activeTab === tab;
-                                const isFinal = tab === 'Finalized';
-                                const isRejected = tab === 'Rejected';
+                        <div className="flex items-center gap-4">
+                            <div className="flex-1 flex items-center gap-2 overflow-x-auto pb-4 pt-2 scrollbar-hide snap-x">
+                                {workflowTabs.map((tab, idx) => {
+                                    const baseFiltered = getBaseFilteredApplicants();
+                                    let count = baseFiltered.filter(a => {
+                                        if (a.status === 'Rejected' && tab !== 'Rejected') return false;
+                                        if (selectedReqId === 'all') {
+                                            const finalizedStatuses = ['Finalized', 'Selected', 'Offer Issued', 'Offer Accepted', 'Offer Expired', 'Joining Letter Issued', 'Hired'];
+                                            if (tab === 'Finalized') return finalizedStatuses.includes(a.status);
+                                            if (tab === 'Rejected') return a.status === 'Rejected';
+                                            return !finalizedStatuses.includes(a.status) && a.status !== 'Rejected';
+                                        }
+                                        return checkStatusPassage(a.status, tab, workflowTabs);
+                                    }).length;
 
-                                return (
+                                    const isActive = activeTab === tab;
+                                    const isFinal = tab === 'Finalized';
+                                    const isRejected = tab === 'Rejected';
+
+                                    return (
+                                        <button
+                                            key={`${tab}-${idx}`}
+                                            onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
+                                            className={`
+                                                group relative flex-shrink-0 px-6 py-3 rounded-2xl transition-all duration-500 ease-out snap-center
+                                                flex items-center gap-3 border
+                                                ${isActive
+                                                    ? (isFinal ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-200/50 border-transparent scale-105' :
+                                                        isRejected ? 'bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-200/50 border-transparent scale-105' :
+                                                            'bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200/50 border-transparent scale-105')
+                                                    : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-100 hover:bg-indigo-50/30 hover:text-indigo-600'}
+                                            `}
+                                        >
+                                            <div className="flex flex-col items-start">
+                                                <span className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isActive ? 'text-white/80' : 'text-slate-400 group-hover:text-indigo-400'}`}>
+                                                    Stage 0{idx + 1}
+                                                </span>
+                                                <span className="text-sm font-black tracking-tight">
+                                                    {tab}
+                                                </span>
+                                            </div>
+                                            <span className={`
+                                                flex items-center justify-center h-6 min-w-[24px] px-2 rounded-full text-[11px] font-black
+                                                ${isActive
+                                                    ? 'bg-white/20 text-white backdrop-blur-sm'
+                                                    : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600'}
+                                            `}>
+                                                {count}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Manage Pipeline Dropdown */}
+                            {selectedRequirement && (
+                                <Dropdown
+                                    menu={{
+                                        items: [
+                                            {
+                                                key: 'add-stage',
+                                                label: (
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                                            <Plus className="w-4 h-4" />
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-bold text-slate-700">Add New Stage</div>
+                                                            <div className="text-[10px] text-slate-400 font-medium">Create a custom round</div>
+                                                        </div>
+                                                    </div>
+                                                ),
+                                                className: "rounded-xl hover:bg-white transition-all p-3",
+                                                onClick: () => {
+                                                    // Initialize temp order so core stages are present
+                                                    const initialDetailed = selectedRequirement.detailedWorkflow && selectedRequirement.detailedWorkflow.length > 0
+                                                        ? selectedRequirement.detailedWorkflow
+                                                        : workflowTabs.map((name, idx) => ({
+                                                            stageName: name,
+                                                            stageType: ['Applied', 'Shortlisted', 'Finalized'].includes(name) ? name : 'Interview',
+                                                            positionIndex: idx
+                                                        }));
+
+                                                    // Enforce uniqueness and ENSURE MANDATORY 'Applied' is first
+                                                    const uniqueItems = [];
+                                                    const seenNames = new Set();
+
+                                                    // 1. Force Applied as first
+                                                    const appliedRef = initialDetailed.find(s => (s.stageName || s.name) === 'Applied');
+                                                    seenNames.add('Applied');
+                                                    uniqueItems.push({
+                                                        ...(appliedRef || {}),
+                                                        stageName: 'Applied',
+                                                        stageType: 'Applied',
+                                                        positionIndex: 0
+                                                    });
+
+                                                    // 2. Add others
+                                                    initialDetailed.forEach(item => {
+                                                        const name = item.stageName || item.name || 'Untitled Stage';
+                                                        if (name === 'Applied') return;
+                                                        if (!seenNames.has(name)) {
+                                                            seenNames.add(name);
+                                                            const mapType = (n, t) => {
+                                                                const low = n.toLowerCase();
+                                                                if (low === 'applied') return 'Applied';
+                                                                if (low === 'shortlisted') return 'Shortlisted';
+                                                                if (low === 'finalized' || low === 'selected') return 'Finalized';
+                                                                if (low === 'rejected') return 'Rejected';
+                                                                if (t === 'assessment') return 'Assessment';
+                                                                if (t === 'interview') return 'Interview';
+                                                                return 'HR';
+                                                            };
+                                                            uniqueItems.push({
+                                                                ...item,
+                                                                stageName: name,
+                                                                stageType: mapType(name, item.stageType || item.type),
+                                                                positionIndex: uniqueItems.length
+                                                            });
+                                                        }
+                                                    });
+
+                                                    // 3. Re-index
+                                                    uniqueItems.forEach((s, idx) => s.positionIndex = idx);
+
+                                                    setTempWorkflowOrder(uniqueItems);
+                                                    setShowAddStageModal(true);
+                                                }
+                                            },
+                                            {
+                                                key: 'manage-stages',
+                                                label: (
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+                                                            <Settings className="w-4 h-4" />
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-bold text-slate-700">Manage & Reorder</div>
+                                                            <div className="text-[10px] text-slate-400 font-medium">Rearrange pipeline stages</div>
+                                                        </div>
+                                                    </div>
+                                                ),
+                                                className: "rounded-xl hover:bg-white transition-all p-3",
+                                                onClick: () => {
+                                                    const initialDetailed = selectedRequirement.detailedWorkflow && selectedRequirement.detailedWorkflow.length > 0
+                                                        ? selectedRequirement.detailedWorkflow
+                                                        : workflowTabs.map((name, idx) => ({
+                                                            stageName: name,
+                                                            stageType: ['Applied', 'Shortlisted', 'Finalized'].includes(name) ? name : 'Interview',
+                                                            positionIndex: idx
+                                                        }));
+
+                                                    // Enforce uniqueness and ENSURE MANDATORY 'Applied' is first
+                                                    const uniqueItems = [];
+                                                    const seenNames = new Set();
+
+                                                    // 1. Force Applied as first
+                                                    const appliedRef = initialDetailed.find(s => (s.stageName || s.name) === 'Applied');
+                                                    seenNames.add('Applied');
+                                                    uniqueItems.push({
+                                                        ...(appliedRef || {}),
+                                                        stageName: 'Applied',
+                                                        stageType: 'Applied',
+                                                        positionIndex: 0
+                                                    });
+
+                                                    // 2. Add others
+                                                    initialDetailed.forEach(item => {
+                                                        const name = item.stageName || item.name || 'Untitled Stage';
+                                                        if (name === 'Applied') return;
+                                                        if (!seenNames.has(name)) {
+                                                            seenNames.add(name);
+                                                            const mapType = (n, t) => {
+                                                                const low = n.toLowerCase();
+                                                                if (low === 'applied') return 'Applied';
+                                                                if (low === 'shortlisted') return 'Shortlisted';
+                                                                if (low === 'finalized' || low === 'selected') return 'Finalized';
+                                                                if (low === 'rejected') return 'Rejected';
+                                                                if (t === 'assessment') return 'Assessment';
+                                                                if (t === 'interview') return 'Interview';
+                                                                return 'HR';
+                                                            };
+                                                            uniqueItems.push({
+                                                                ...item,
+                                                                stageName: name,
+                                                                stageType: mapType(name, item.stageType || item.type),
+                                                                positionIndex: uniqueItems.length
+                                                            });
+                                                        }
+                                                    });
+
+                                                    // 3. Re-index
+                                                    uniqueItems.forEach((s, idx) => s.positionIndex = idx);
+
+                                                    setTempWorkflowOrder(uniqueItems);
+                                                    setShowManageStagesModal(true);
+                                                }
+                                            }
+                                        ],
+                                        className: "rounded-2xl border-none shadow-2xl p-2 min-w-[200px]"
+                                    }}
+                                    trigger={['click']}
+                                    placement="bottomRight"
+                                >
                                     <button
-                                        key={tab}
-                                        onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
-                                        className={`
-                                            group relative flex-shrink-0 px-6 py-3 rounded-2xl transition-all duration-500 ease-out snap-center
-                                            flex items-center gap-3 border
-                                            ${isActive
-                                                ? (isFinal ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-200/50 border-transparent scale-105' :
-                                                    isRejected ? 'bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-200/50 border-transparent scale-105' :
-                                                        'bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200/50 border-transparent scale-105')
-                                                : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-100 hover:bg-indigo-50/30 hover:text-indigo-600'}
-                                        `}
+                                        className="group relative flex-shrink-0 px-5 py-3 rounded-2xl transition-all duration-300 
+                                            flex items-center gap-2 border-2 border-dashed border-indigo-200 bg-white text-indigo-600
+                                            hover:bg-indigo-50 hover:border-indigo-400 hover:shadow-md mb-4"
+                                        title="Manage pipeline stages"
                                     >
-                                        <div className="flex flex-col items-start">
-                                            <span className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isActive ? 'text-white/80' : 'text-slate-400 group-hover:text-indigo-400'}`}>
-                                                Stage 0{idx + 1}
-                                            </span>
-                                            <span className="text-sm font-black tracking-tight">
-                                                {tab}
-                                            </span>
-                                        </div>
-                                        <span className={`
-                                            flex items-center justify-center h-6 min-w-[24px] px-2 rounded-full text-[11px] font-black
-                                            ${isActive
-                                                ? 'bg-white/20 text-white backdrop-blur-sm'
-                                                : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600'}
-                                        `}>
-                                            {count}
-                                        </span>
+                                        <Settings className="w-4 h-4" />
+                                        <span className="text-sm font-bold">Stage Setting</span>
+                                        <ChevronDown className="w-4 h-4" />
                                     </button>
-                                );
-                            })}
+                                </Dropdown>
+                            )}
                         </div>
                     </div>
 
@@ -1972,10 +2479,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     .map((app, index) => (
                                         <div
                                             key={app._id || index}
-                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 overflow-hidden group hover:-translate-y-1 block relative"
+                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 group hover:-translate-y-1 block relative z-0 hover:z-10"
                                         >
                                             {/* Status Header Line */}
-                                            <div className={`h-1.5 w-full ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
+                                            <div className={`h-1.5 w-full rounded-t-[24px] ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
                                                 app.status === 'Rejected' ? 'bg-gradient-to-r from-rose-400 to-rose-600' :
                                                     'bg-gradient-to-r from-blue-400 to-indigo-600'
                                                 }`}></div>
@@ -2029,11 +2536,136 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             <span className="font-medium">{app.source}</span>
                                                         </div>
                                                     )}
-                                                    {/* AI Match Score */}
+
+                                                    {/* Timeline & Status */}
+                                                    <div className="relative group/timeline w-full">
+                                                        <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50 cursor-pointer hover:bg-white hover:shadow-sm transition-all">
+                                                            <span className="w-5 flex justify-center text-slate-400">🚩</span>
+                                                            <span className="font-medium truncate flex-1 text-slate-700">
+                                                                {app.status} <span className="text-slate-400 font-normal"> • {dayjs(app.updatedAt).format('MMM D')}</span>
+                                                            </span>
+                                                        </div>
+                                                        {/* Recent History Tooltip */}
+                                                        {app.timeline && app.timeline.length > 0 && (
+                                                            <div className="absolute top-full left-0 mt-2 w-64 bg-white p-4 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-slate-100 z-50 hidden group-hover/timeline:block animate-in fade-in zoom-in-95 duration-200">
+                                                                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-3 border-b border-slate-50 pb-2">Recent Activity</p>
+                                                                <div className="space-y-3 relative before:absolute before:left-[5px] before:top-1 before:bottom-1 before:w-px before:bg-slate-100">
+                                                                    {[...app.timeline].reverse().slice(0, 3).map((t, i) => (
+                                                                        <div key={i} className="flex flex-col gap-0.5 relative pl-4">
+                                                                            <div className="absolute left-[2px] top-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 border border-white ring-1 ring-blue-50"></div>
+                                                                            <span className="text-[10px] font-bold text-slate-700">{t.status}</span>
+                                                                            <span className="text-[9px] text-slate-400 font-medium">{dayjs(t.timestamp).format('MMM D, h:mm A')}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {/* AI Match Score with Tooltip */}
                                                     {app.matchPercentage !== undefined && (
-                                                        <div className="flex items-center gap-3 text-xs text-slate-500 bg-purple-50/50 p-2 rounded-lg border border-purple-50">
-                                                            <span className="w-5 flex justify-center text-purple-500">✨</span>
-                                                            <span className="font-bold text-purple-700">{app.matchPercentage}% Match</span>
+                                                        <div className="relative group/match">
+                                                            <div className="flex items-center gap-3 text-xs text-slate-500 bg-purple-50/50 p-2 rounded-lg border border-purple-50 cursor-pointer">
+                                                                <span className="w-5 flex justify-center text-purple-500">✨</span>
+                                                                <span className="font-bold text-purple-700">{app.matchPercentage}% Match</span>
+                                                            </div>
+
+                                                            {/* Detailed Match Tooltip */}
+                                                            <div className="absolute top-full left-0 mt-2 w-[280px] bg-white p-4 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-slate-100 z-50 hidden group-hover/match:block animate-in fade-in zoom-in-95 duration-200">
+                                                                <div className="space-y-3">
+                                                                    <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                                                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Match Analysis</span>
+                                                                        <span className="text-sm font-black text-purple-600">{app.matchPercentage}%</span>
+                                                                    </div>
+
+                                                                    {app.matchResult && (
+                                                                        <>
+                                                                            {/* SCORE BREAKDOWN */}
+                                                                            <div className="grid grid-cols-2 gap-2 mb-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                                                                <div className="flex justify-between items-center text-[10px]">
+                                                                                    <span className="text-slate-500 font-bold">Skills (40%)</span>
+                                                                                    <span className={`font-black ${app.matchResult.finalScoreBreakdown?.skillMatch >= 30 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                                                        {app.matchResult.finalScoreBreakdown?.skillMatch || 0}%
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="flex justify-between items-center text-[10px]">
+                                                                                    <span className="text-slate-500 font-bold">Experience (20%)</span>
+                                                                                    <span className={`font-black ${app.matchResult.finalScoreBreakdown?.experienceMatch >= 15 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                                                        {app.matchResult.finalScoreBreakdown?.experienceMatch || 0}%
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="flex justify-between items-center text-[10px]">
+                                                                                    <span className="text-slate-500 font-bold">Semantic (20%)</span>
+                                                                                    <span className={`font-black ${app.matchResult.finalScoreBreakdown?.responsibilityMatch >= 15 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                                                        {app.matchResult.finalScoreBreakdown?.responsibilityMatch || 0}%
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="flex justify-between items-center text-[10px]">
+                                                                                    <span className="text-slate-500 font-bold">Education (10%)</span>
+                                                                                    <span className={`font-black ${app.matchResult.finalScoreBreakdown?.educationMatch >= 8 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                                                        {app.matchResult.finalScoreBreakdown?.educationMatch || 0}%
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="flex justify-between items-center text-[10px] col-span-2 border-t border-slate-200 pt-1 mt-1">
+                                                                                    <span className="text-purple-500 font-bold">Preferred Bonus</span>
+                                                                                    <span className="font-black text-purple-600">
+                                                                                        +{app.matchResult.finalScoreBreakdown?.preferredBonus || 0}%
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Matched Skills */}
+                                                                            <div className="mb-2">
+                                                                                <p className="text-[9px] font-black font-mono text-emerald-600 mb-1 flex items-center gap-1 uppercase tracking-tight">
+                                                                                    <CircleCheck size={10} /> Matched Skills ({app.matchResult.matchedSkills?.length || 0})
+                                                                                </p>
+                                                                                <div className="flex flex-wrap gap-1">
+                                                                                    {(app.matchResult.matchedSkills || []).slice(0, 5).map((skill, i) => (
+                                                                                        <span key={i} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded border border-emerald-100">
+                                                                                            {skill}
+                                                                                        </span>
+                                                                                    ))}
+                                                                                    {(app.matchResult.matchedSkills || []).length > 5 && (
+                                                                                        <span className="text-[9px] text-slate-400">+{app.matchResult.matchedSkills.length - 5}</span>
+                                                                                    )}
+                                                                                    {(!app.matchResult.matchedSkills || app.matchResult.matchedSkills.length === 0) && (
+                                                                                        <span className="text-[9px] text-slate-400 italic">None</span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Missing Skills */}
+                                                                            <div>
+                                                                                <p className="text-[9px] font-black font-mono text-rose-500 mb-1 flex items-center gap-1 uppercase tracking-tight">
+                                                                                    <X size={10} /> Missing Skills ({app.matchResult.missingSkills?.length || 0})
+                                                                                </p>
+                                                                                <div className="flex flex-wrap gap-1">
+                                                                                    {(app.matchResult.missingSkills || []).slice(0, 5).map((skill, i) => (
+                                                                                        <span key={i} className="px-1.5 py-0.5 bg-rose-50 text-rose-700 text-[9px] font-bold rounded border border-rose-100">
+                                                                                            {skill}
+                                                                                        </span>
+                                                                                    ))}
+                                                                                    {(app.matchResult.missingSkills || []).length > 5 && (
+                                                                                        <span className="text-[9px] text-slate-400">+{app.matchResult.missingSkills.length - 5}</span>
+                                                                                    )}
+                                                                                    {(!app.matchResult.missingSkills || app.matchResult.missingSkills.length === 0) && (
+                                                                                        <span className="text-[9px] text-slate-400 italic">None</span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </>
+                                                                    )}
+
+                                                                    {/* Resume Summary */}
+                                                                    {(app.aiParsedData?.experienceSummary || app.intro) && (
+                                                                        <div className="pt-2 border-t border-slate-50">
+                                                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">SUMMARY</p>
+                                                                            <p className="text-[10px] text-slate-600 leading-relaxed line-clamp-3">
+                                                                                {app.aiParsedData?.experienceSummary || app.intro}
+                                                                            </p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -2160,9 +2792,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Salary</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Offer</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">BGV</th>
-                                            {!showAllCandidates && <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Actions</th>}
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Joining</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Actions</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Joining</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Convert</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-slate-50">
@@ -2203,10 +2834,11 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        {app.latestOffer ? (() => {
+                                                        {(app.latestOffer || app.offerId) ? (() => {
+                                                            const latestOffer = app.latestOffer || app.offerId;
                                                             // Calculate Effective Status (Handle Client-Side Expiry)
-                                                            const isTimeExpired = app.latestOffer.expiryDate && new Date(app.latestOffer.expiryDate) < new Date();
-                                                            const effectiveStatus = (app.latestOffer.status === 'Sent' && isTimeExpired) ? 'Expired' : app.latestOffer.status;
+                                                            const isTimeExpired = latestOffer.expiryDate && new Date(latestOffer.expiryDate) < new Date();
+                                                            const effectiveStatus = (latestOffer.status === 'Sent' && isTimeExpired) ? 'Expired' : latestOffer.status;
 
                                                             return (
                                                                 <div className="flex flex-col gap-1.5">
@@ -2214,7 +2846,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                         className="flex items-center gap-2 cursor-pointer group"
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            navigate(`/hr/offers/${app.latestOffer._id}`);
+                                                                            navigate(`/hr/offers/${latestOffer._id}`);
                                                                         }}
                                                                         title="Click to manage full offer lifecycle"
                                                                     >
@@ -2234,7 +2866,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                                     {effectiveStatus === 'ReOffered' ? 'Re-Offered' : 'Sent'}
                                                                                 </span>
                                                                                 {/* Timer */}
-                                                                                <OfferCountdown expiryDate={app.latestOffer.expiryDate} />
+                                                                                <OfferCountdown expiryDate={latestOffer.expiryDate} />
                                                                             </div>
                                                                         )}
                                                                         {effectiveStatus === 'Expired' && (
@@ -2242,9 +2874,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                                 <span className="px-2 py-0.5 rounded bg-slate-100 text-rose-500 text-[10px] font-black uppercase tracking-wide border border-slate-200 w-fit group-hover:bg-slate-200 transition">
                                                                                     EXPIRED
                                                                                 </span>
-                                                                                {app.latestOffer.expiryDate && (
+                                                                                {latestOffer.expiryDate && (
                                                                                     <span className="text-[9px] text-slate-400 font-bold">
-                                                                                        {dayjs(app.latestOffer.expiryDate).format('DD MMM, h:mm a')}
+                                                                                        {dayjs(latestOffer.expiryDate).format('DD MMM, h:mm a')}
                                                                                     </span>
                                                                                 )}
                                                                             </div>
@@ -2276,9 +2908,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             );
                                                         })()
                                                             : (
-                                                                app.offerLetterPath ? (
+                                                                (app.offerLetterPath || (app.offerId && app.offerId.letterPath)) ? (
                                                                     <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                                                        <button onClick={() => viewOfferLetter(app.offerLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
+                                                                        <button onClick={() => viewOfferLetter(app.offerLetterPath || (app.offerId && app.offerId.letterPath))} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
                                                                         <div className="flex flex-col">
                                                                             <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
                                                                             <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
@@ -2339,7 +2971,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             </div>
                                                         ) : (
                                                             !showAllCandidates ? (
-                                                                (app?.latestOffer?.status === 'Accepted' || (!app.latestOffer && app.offerLetterPath)) ? (
+                                                                (((app.latestOffer || app.offerId)?.status === 'Accepted') || (!(app.latestOffer || app.offerId) && (app.offerLetterPath || (app.offerId && app.offerId.letterPath)))) ? (
                                                                     <button onClick={() => openJoiningModal(app)} className="w-full py-2 sm:py-3 bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 uppercase tracking-widest">GENERATE</button>
                                                                 ) : (
                                                                     <button disabled className="w-full py-2 sm:py-3 bg-slate-200 text-slate-400 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl cursor-not-allowed uppercase tracking-widest flex flex-col items-center leading-tight">
@@ -2352,43 +2984,11 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             )
                                                         )}
                                                     </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <span className={`px-2 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-widest ${app.bgvStatus === 'CLEAR' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                                app.bgvStatus === 'FAILED' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                                    app.bgvStatus === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                                        'bg-slate-50 text-slate-400 border-slate-100'
-                                                                }`}>
-                                                                {app.bgvStatus?.replace(/_/g, ' ') || 'NOT INITIATED'}
-                                                            </span>
-                                                            <button
-                                                                onClick={() => app.bgvStatus === 'NOT_INITIATED' ? handleInitiateBGV(app) : navigate('/hr/bgv')}
-                                                                className="text-[9px] font-bold text-blue-600 hover:underline flex items-center gap-1"
-                                                            >
-                                                                {app.bgvStatus === 'NOT_INITIATED' ? 'Initiate' : 'Manage'}
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                    {!showAllCandidates && (
-                                                        <td className="px-6 py-4">
-                                                            {app.isOnboarded ? (
-                                                                <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
-                                                                    <span className="text-indigo-600 text-sm">Onboarded</span>
-                                                                </div>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={() => handleOnboard(app)}
-                                                                    className="px-4 py-2 bg-indigo-600 text-white text-[10px] font-black rounded-lg hover:bg-indigo-700 transition uppercase tracking-widest shadow-sm"
-                                                                >
-                                                                    Onboard
-                                                                </button>
-                                                            )}
-                                                        </td>
-                                                    )}
+
                                                     <td className="px-6 py-4">
                                                         {app.isOnboarded ? (
                                                             <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
-                                                                <CheckCircle size={14} />
+                                                                <CircleCheck size={14} />
                                                                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Converted</span>
                                                             </div>
                                                         ) : (
@@ -2446,127 +3046,195 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
                         {/* Middle Area (Scrollable) */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
-
-                            {/* Round Navigation Tabs */}
-                            <div className="flex gap-2 p-1 bg-slate-50 rounded-xl">
-                                {evaluationData.rounds.map((round, idx) => (
-                                    <button
-                                        key={round.id}
-                                        onClick={() => setEvalActiveRound(idx)}
-                                        className={`flex-1 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all
-                                            ${evalActiveRound === idx
-                                                ? 'bg-white text-blue-600 shadow-sm'
-                                                : 'text-slate-400 hover:text-slate-600'}`}
-                                    >
-                                        {round.name}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Active Evaluation Criteria */}
-                            <div className="space-y-6">
-                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-3">
-                                    <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">0{evalActiveRound + 1}</span>
-                                    {evaluationData.rounds[evalActiveRound].name}
-                                </h3>
-
-                                {evaluationData.rounds[evalActiveRound].categories.map((cat, catIdx) => (
-                                    <div key={catIdx} className="space-y-4">
-                                        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{cat.name}</h4>
-                                        <div className="space-y-2">
-                                            {cat.skills.map((skill, skillIdx) => (
-                                                <div key={skillIdx} className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50/50 border border-slate-100/50 rounded-2xl group hover:bg-white hover:shadow-xl hover:shadow-slate-100 transition-all duration-300">
-                                                    <div className="col-span-12 md:col-span-5">
-                                                        <p className="text-xs font-black text-slate-700">{skill.name}</p>
+                            {/* CONTINUITY: Show Previous Feedbacks History */}
+                            {selectedApplicant.assessmentHistory && selectedApplicant.assessmentHistory.length > 0 && (
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="w-1.5 h-4 bg-blue-600 rounded-full"></div>
+                                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Previous Stage Feedbacks</h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {selectedApplicant.assessmentHistory.map((item, idx) => (
+                                            <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 relative group">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight bg-blue-50 px-2 py-0.5 rounded">
+                                                            {item.stageName}
+                                                        </span>
+                                                        <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-tighter">
+                                                            {dayjs(item.date).format('MMM D, YYYY')}
+                                                        </p>
                                                     </div>
-                                                    <div className="col-span-12 md:col-span-3 flex gap-2">
-                                                        {[1, 2, 3, 4, 5].map(num => (
-                                                            <button
-                                                                key={num}
-                                                                onClick={() => {
-                                                                    const newData = { ...evaluationData };
-                                                                    newData.rounds[evalActiveRound].categories[catIdx].skills[skillIdx].rating = num;
-                                                                    setEvaluationData(newData);
-                                                                    const allRatings = evaluationData.rounds.flatMap(r => r.categories.flatMap(c => c.skills.map(s => s.rating))).filter(r => r > 0);
-                                                                    if (allRatings.length > 0) {
-                                                                        const avg = Math.round(allRatings.reduce((a, b) => a + b, 0) / allRatings.length);
-                                                                        setReviewRating(avg);
-                                                                    }
-                                                                }}
-                                                                className={`w-8 h-8 rounded-full text-[11px] font-black transition-all flex items-center justify-center
-                                                                    ${skill.rating === num
-                                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110'
-                                                                        : 'bg-white text-slate-400 border border-slate-200 hover:border-blue-400 font-bold'}`}
-                                                            >
-                                                                {num}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                    <div className="col-span-12 md:col-span-4">
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Short Note..."
-                                                            value={skill.comment}
-                                                            onChange={(e) => {
-                                                                const newData = { ...evaluationData };
-                                                                newData.rounds[evalActiveRound].categories[catIdx].skills[skillIdx].comment = e.target.value;
-                                                                setEvaluationData(newData);
-                                                                // Sync with main feedback
-                                                                setReviewFeedback(e.target.value);
-                                                            }}
-                                                            className="w-full text-[10px] p-2 bg-white border border-slate-100 rounded-lg outline-none focus:border-blue-500 transition-colors"
-                                                        />
+                                                    <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg shadow-sm border border-slate-50">
+                                                        <span className="text-sm font-black text-slate-700">{item.rating || 0}</span>
+                                                        <span className="text-[8px] text-slate-300">/ 5</span>
                                                     </div>
                                                 </div>
-                                            ))}
-                                        </div>
+                                                <p className="text-xs text-slate-600 font-medium leading-relaxed italic">
+                                                    "{item.feedback || 'No comments provided.'}"
+                                                </p>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="h-px bg-gradient-to-r from-transparent via-slate-100 to-transparent my-6"></div>
+                                </div>
+                            )}
+                            {stageFeedback.template ? (
+                                <FeedbackFormRenderer
+                                    template={stageFeedback.template}
+                                    initialFeedback={stageFeedback.feedback}
+                                    availableStages={workflowTabs.filter(t => !['Applied', 'Finalized'].includes(t))}
+                                    submitting={loading}
+                                    onSubmit={async (data) => {
+                                        try {
+                                            setLoading(true);
+                                            const stageId = selectedApplicant.currentStageId || selectedApplicant.pipelineHistory?.[selectedApplicant.pipelineHistory.length - 1]?.stageId;
+
+                                            // Submit feedback to dedicated collection
+                                            await api.post('/feedback/submit', {
+                                                candidateId: selectedApplicant._id,
+                                                jobId: selectedApplicant.requirementId?._id,
+                                                stageId,
+                                                templateId: stageFeedback.template._id,
+                                                interviewerName: user?.name,
+                                                ...data
+                                            });
+
+                                            // Proceed with status update in the main pipeline
+                                            await submitReviewAndStatus(data); // Pass updated decision and comments
+                                        } catch (err) {
+                                            notification.error({ message: 'Error', description: 'Failed to record feedback' });
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }}
+                                />
+                            ) : (
+                                <>
+                                    {/* Round Navigation Tabs */}
+                                    <div className="flex gap-2 p-1 bg-slate-50 rounded-xl">
+                                        {evaluationData.rounds.map((round, idx) => (
+                                            <button
+                                                key={round.id}
+                                                onClick={() => setEvalActiveRound(idx)}
+                                                className={`flex-1 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all
+                                                    ${evalActiveRound === idx
+                                                        ? 'bg-white text-blue-600 shadow-sm'
+                                                        : 'text-slate-400 hover:text-slate-600'}`}
+                                            >
+                                                {round.name}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Active Evaluation Criteria (LEGACY) */}
+                                    <div className="space-y-6">
+                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-3">
+                                            <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">0{evalActiveRound + 1}</span>
+                                            {evaluationData.rounds[evalActiveRound].name}
+                                        </h3>
+
+                                        {evaluationData.rounds[evalActiveRound].categories.map((cat, catIdx) => (
+                                            <div key={catIdx} className="space-y-4">
+                                                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{cat.name}</h4>
+                                                <div className="space-y-2">
+                                                    {cat.skills.map((skill, skillIdx) => (
+                                                        <div key={skillIdx} className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50/50 border border-slate-100/50 rounded-2xl group hover:bg-white hover:shadow-xl hover:shadow-slate-100 transition-all duration-300">
+                                                            <div className="col-span-12 md:col-span-5">
+                                                                <p className="text-xs font-black text-slate-700">{skill.name}</p>
+                                                            </div>
+                                                            <div className="col-span-12 md:col-span-3 flex gap-2">
+                                                                {[1, 2, 3, 4, 5].map(num => (
+                                                                    <button
+                                                                        key={num}
+                                                                        onClick={() => {
+                                                                            const newData = { ...evaluationData };
+                                                                            newData.rounds[evalActiveRound].categories[catIdx].skills[skillIdx].rating = num;
+                                                                            setEvaluationData(newData);
+                                                                            const allRatings = evaluationData.rounds.flatMap(r => r.categories.flatMap(c => c.skills.map(s => s.rating))).filter(r => r > 0);
+                                                                            if (allRatings.length > 0) {
+                                                                                const avg = Math.round(allRatings.reduce((a, b) => a + b, 0) / allRatings.length);
+                                                                                setReviewRating(avg);
+                                                                            }
+                                                                        }}
+                                                                        className={`w-8 h-8 rounded-full text-[11px] font-black transition-all flex items-center justify-center
+                                                                            ${skill.rating === num
+                                                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110'
+                                                                                : 'bg-white text-slate-400 border border-slate-200 hover:border-blue-400 font-bold'}`}
+                                                                    >
+                                                                        {num}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                            <div className="col-span-12 md:col-span-4">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Short Note..."
+                                                                    value={skill.comment}
+                                                                    onChange={(e) => {
+                                                                        const newData = { ...evaluationData };
+                                                                        newData.rounds[evalActiveRound].categories[catIdx].skills[skillIdx].comment = e.target.value;
+                                                                        setEvaluationData(newData);
+                                                                        // Sync with main feedback
+                                                                        setReviewFeedback(e.target.value);
+                                                                    }}
+                                                                    className="w-full text-[10px] p-2 bg-white border border-slate-100 rounded-lg outline-none focus:border-blue-500 transition-colors"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {/* Footer - Bottom Action Bar */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-6 flex items-center justify-between shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
-                            <div className="flex items-center gap-6">
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[2px] mb-1">Total Score</p>
-                                    <div className="text-2xl font-black text-slate-800">
-                                        {(evaluationData.rounds.flatMap(r => r.categories.flatMap(c => c.skills.map(s => s.rating))).filter(r => r > 0).reduce((a, b, _, arr) => a + b / arr.length, 0) || 0).toFixed(2)}
-                                        <span className="text-xs text-slate-300"> / 5</span>
+                        {!stageFeedback.template && (
+                            <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-6 flex items-center justify-between shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+                                <div className="flex items-center gap-6">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[2px] mb-1">Total Score</p>
+                                        <div className="text-2xl font-black text-slate-800">
+                                            {(evaluationData.rounds.flatMap(r => r.categories.flatMap(c => c.skills.map(s => s.rating))).filter(r => r > 0).reduce((a, b, _, arr) => a + b / arr.length, 0) || 0).toFixed(2)}
+                                            <span className="text-xs text-slate-300"> / 5</span>
+                                        </div>
+                                    </div>
+                                    <div className="w-px h-10 bg-slate-100"></div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[2px] mb-1">Decision</p>
+                                        <Select
+                                            className="w-40 premium-select"
+                                            placeholder="Pick Step"
+                                            value={selectedStatusForReview || null}
+                                            variant="borderless"
+                                            style={{ background: '#f8fafc', borderRadius: '12px', padding: '0 8px', border: '1px solid #f1f5f9' }}
+                                            onChange={(val) => setSelectedStatusForReview(val)}
+                                        >
+                                            <Select.OptGroup label="Hiring Pipeline">
+                                                {workflowTabs.filter(t => !['Applied', 'Finalized'].includes(t)).map(tab => (
+                                                    <Select.Option key={tab} value={tab}>{tab}</Select.Option>
+                                                ))}
+                                            </Select.OptGroup>
+                                            <Select.OptGroup label="Final Result">
+                                                <Select.Option value="Selected" className="text-emerald-600 font-bold">Selected / Hire</Select.Option>
+                                                <Select.Option value="Rejected" className="text-red-500 font-bold">Reject</Select.Option>
+                                            </Select.OptGroup>
+                                        </Select>
                                     </div>
                                 </div>
-                                <div className="w-px h-10 bg-slate-100"></div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[2px] mb-1">Decision</p>
-                                    <Select
-                                        className="w-40 premium-select"
-                                        placeholder="Pick Step"
-                                        value={selectedStatusForReview || null}
-                                        variant="borderless"
-                                        style={{ background: '#f8fafc', borderRadius: '12px', padding: '0 8px', border: '1px solid #f1f5f9' }}
-                                        onChange={(val) => setSelectedStatusForReview(val)}
-                                    >
-                                        <Select.OptGroup label="Hiring Pipeline">
-                                            {workflowTabs.filter(t => !['Applied', 'Finalized'].includes(t)).map(tab => (
-                                                <Select.Option key={tab} value={tab}>{tab}</Select.Option>
-                                            ))}
-                                        </Select.OptGroup>
-                                        <Select.OptGroup label="Final Result">
-                                            <Select.Option value="Selected" className="text-emerald-600 font-bold">Selected / Hire</Select.Option>
-                                            <Select.Option value="Rejected" className="text-red-500 font-bold">Reject</Select.Option>
-                                        </Select.OptGroup>
-                                    </Select>
-                                </div>
-                            </div>
 
-                            <button
-                                onClick={submitReviewAndStatus}
-                                disabled={loading || !selectedStatusForReview}
-                                className="px-8 py-3 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
-                            >
-                                {loading ? 'Processing...' : 'Complete Evaluation'}
-                            </button>
-                        </div>
+                                <button
+                                    onClick={submitReviewAndStatus}
+                                    disabled={loading || !selectedStatusForReview}
+                                    className="px-8 py-3 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
+                                >
+                                    {loading ? 'Processing...' : 'Complete Evaluation'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )
@@ -2823,7 +3491,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                             >
                                 <option value="">-- Select Template --</option>
                                 {templates.map(t => (
-                                    <option key={t._id} value={t._id}>{t.templateName}</option>
+                                    <option key={t._id} value={t._id}>{t.name}</option>
                                 ))}
                             </select>
                         </div>
@@ -3184,7 +3852,164 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     setShowSalaryModal(false);
                 }}
             />
+
+            {/* Add Stage Modal */}
+            <Modal
+                title={null}
+                footer={null}
+                open={showAddStageModal}
+                onCancel={() => setShowAddStageModal(false)}
+                width={700}
+                className="rounded-[32px] overflow-hidden"
+                centered
+            >
+                <div className="p-2">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-600">
+                            <Plus className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black text-slate-800 tracking-tight">Enterprise Stage Config</h2>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Define interview round details</p>
+                        </div>
+                    </div>
+
+                    <StageForm
+                        onCancel={() => setShowAddStageModal(false)}
+                        onSubmit={handleAddStageToWorkflow}
+                    />
+                </div>
+            </Modal>
+
+            {/* Manage Stages Modal */}
+            <Modal
+                title={null}
+                open={showManageStagesModal}
+                onCancel={() => setShowManageStagesModal(false)}
+                footer={null}
+                centered
+                width={500}
+                className="rounded-3xl overflow-hidden"
+            >
+                <div className="p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+                            <Settings className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-slate-800">Manage Pipeline</h3>
+                            <p className="text-sm text-slate-500">Drag to reorder your hiring stages</p>
+                        </div>
+                    </div>
+
+                    <div className="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleModalDragEnd}
+                        >
+                            <SortableContext
+                                items={tempWorkflowOrder.map(s => s.stageName)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {tempWorkflowOrder.map((stage, idx) => (
+                                    <SortableStageItem
+                                        key={stage.stageName}
+                                        stage={stage}
+                                        index={idx}
+                                        isLocked={['Applied', 'Shortlisted', 'Finalized'].includes(stage.stageName)}
+                                        onEdit={onStageEdit}
+                                        onDelete={onStageDelete}
+                                    />
+                                ))}
+                            </SortableContext>
+                        </DndContext>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mt-6">
+                        <div className="flex gap-2 text-xs text-blue-700">
+                            <Info className="w-4 h-4 flex-shrink-0" />
+                            <p>Changing the order affects the pipeline view. "Applied", "Shortlisted", "HR Round" and "Finalized" are locked at their positions.</p>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-6 border-t border-slate-100 mt-6">
+                        <button
+                            onClick={async () => {
+                                try {
+                                    setIsSavingOrder(true);
+
+                                    // Use the new Enterprise Pipeline Reorder API
+                                    const response = await api.put(`/pipeline/job/${selectedRequirement._id}/reorder`, {
+                                        stages: tempWorkflowOrder
+                                    });
+
+                                    if (response.data) {
+                                        // Refresh state
+                                        const pipelineRes = await api.get(`/pipeline/job/${selectedRequirement._id}`);
+                                        setJobPipeline(pipelineRes.data);
+
+                                        const reqRes = await api.get('/requirements');
+                                        const reqData = reqRes.data.requirements || reqRes.data || [];
+                                        setRequirements(reqData);
+
+                                        setShowManageStagesModal(false);
+                                        showToast('success', 'Pipeline Secured', 'Recruitment pipeline architecture updated successfully!');
+                                    }
+                                } catch (err) {
+                                    console.error('Save Pipeline Error:', err);
+                                    showToast('error', 'Save Failed', err.response?.data?.message || 'Failed to update enterprise pipeline');
+                                } finally {
+                                    setIsSavingOrder(false);
+                                }
+                            }}
+                            disabled={isSavingOrder}
+                            className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:shadow-indigo-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {isSavingOrder ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <>
+                                    <Save className="w-4 h-4" />
+                                    Commit Architecture
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Edit Stage Modal */}
+            <Modal
+                title={null}
+                footer={null}
+                open={showEditStageModal}
+                onCancel={() => setShowEditStageModal(false)}
+                width={700}
+                className="rounded-[32px] overflow-hidden"
+                centered
+            >
+                <div className="p-2">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600">
+                            <Settings className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black text-slate-800 tracking-tight">Modify Stage Architecture</h2>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{editingStageData?.stageName}</p>
+                        </div>
+                    </div>
+
+                    <StageForm
+                        initialData={editingStageData}
+                        onCancel={() => setShowEditStageModal(false)}
+                        onSubmit={handleUpdateStage}
+                        isLocked={['Applied', 'Shortlisted', 'Finalized'].includes(editingStageData?.stageName)}
+                    />
+                </div>
+            </Modal>
         </div >
     );
 }
+
 

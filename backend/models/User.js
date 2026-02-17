@@ -12,5 +12,6 @@ const UserSchema = new mongoose.Schema({
 // Ensure unique email per tenant
 UserSchema.index({ tenant: 1, email: 1 }, { unique: true });
 
-// Multi-tenant fix: Export ONLY Schema
-module.exports = UserSchema;
+// Shared Collection: users
+const User = mongoose.model('User', UserSchema, 'users');
+module.exports = User;

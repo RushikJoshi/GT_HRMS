@@ -29,8 +29,6 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const DepartmentSchema = require("../models/Department");
     const LeaveRequestSchema = require("../models/LeaveRequest");
     const AttendanceSchema = require("../models/Attendance");
-    const ActivitySchema = require("../models/Activity");
-    const UserSchema = require("../models/User");
     const RequirementSchema = require("../models/Requirement");
     const ApplicantSchema = require("../models/Applicant");
     const OfferLetterTemplateSchema = require("../models/OfferLetterTemplate");
@@ -85,6 +83,11 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const VendorRegistrationSchema = require("../models/vendor.model.js");
     const VendorBankDetailsSchema = require("../models/vendorBank.model.js");
     const VendorFormConfigSchema = require("../models/VendorFormConfig.model.js");
+    const PipelineTemplateSchema = require("../models/PipelineTemplate");
+    const JobPipelineSchema = require("../models/JobPipeline");
+    const CandidateStageHistorySchema = require("../models/CandidateStageHistory");
+    // const FeedbackTemplateSchema = require("../models/FeedbackTemplate");
+    // const CandidateStageFeedbackSchema = require("../models/CandidateStageFeedback");
 
 
     // Helper to register or FORCE refresh
@@ -113,8 +116,6 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("Department", DepartmentSchema);
     register("LeaveRequest", LeaveRequestSchema);
     register("Attendance", AttendanceSchema);
-    register("Activity", ActivitySchema);
-    register("User", UserSchema);
     register("Requirement", RequirementSchema);
     register("Applicant", ApplicantSchema);
     register("OfferLetterTemplate", OfferLetterTemplateSchema);
@@ -151,6 +152,13 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("PayslipTemplate", PayslipTemplateSchema);
     register("Position", PositionSchema);
     register("CompanyIdConfig", CompanyIdConfigSchema);
+
+    // Recruitment Pipeline Models
+    register("PipelineTemplate", PipelineTemplateSchema);
+    register("JobPipeline", JobPipelineSchema);
+    register("CandidateStageHistory", CandidateStageHistorySchema);
+    // register("FeedbackTemplate", FeedbackTemplateSchema);
+    // register("CandidateStageFeedback", CandidateStageFeedbackSchema);
 
     // BGV Models
     register("BGVDocument", BGVDocumentSchema);

@@ -1771,10 +1771,26 @@ exports.generateOfferLetter = async (req, res) => {
         // Get tenant-specific models
         const { LetterTemplate, GeneratedLetter } = getModels(req);
 
-        // Get the template to check its type
-        const template = await LetterTemplate.findOne({ _id: templateId, tenantId: req.tenantId || req.user.tenantId });
+        // Get the template to check its type - Check both New and Legacy models
+        let template = await LetterTemplate.findOne({ _id: templateId, tenantId: req.tenantId || req.user.tenantId });
+
         if (!template) {
-            console.error('❌ [OFFER LETTER] Template not found:', templateId);
+            console.log('🔍 [OFFER LETTER] Not found in LetterTemplate, checking legacy OfferLetterTemplate...');
+            const { OfferLetterTemplate } = getModels(req);
+            if (OfferLetterTemplate) {
+                template = await OfferLetterTemplate.findById(templateId);
+                if (template) {
+                    // Normalize legacy template to match New system's expectations roughly
+                    template.templateType = 'HTML'; // Legacy is always HTML
+                    template.bodyContent = template.body;
+                    template.headerContent = template.header;
+                    template.footerContent = template.footer;
+                }
+            }
+        }
+
+        if (!template) {
+            console.error('❌ [OFFER LETTER] Template not found in any model:', templateId);
             return res.status(404).json({ message: "Template not found" });
         }
 
@@ -1784,7 +1800,7 @@ exports.generateOfferLetter = async (req, res) => {
             return res.status(404).json({ message: "Applicant not found" });
         }
 
-        console.log('✅ [OFFER LETTER] Found Applicant:', applicant.name, '| Template:', template.templateName);
+        console.log('✅ [OFFER LETTER] Found Applicant:', applicant.name, '| Template:', template.name || template.templateName);
 
         // --- BGV INTEGRATION ---
         const { BGVCase } = getModels(req);
@@ -2140,7 +2156,7 @@ exports.generateOfferLetter = async (req, res) => {
                     tenantId: req.user.tenantId
                 });
 
-                const newStatus = previousOffersCount > 0 ? 'ReOffered' : 'Sent';
+                const newStatus = 'Sent';
 
                 // Handle Re-Offer Logic (Mark previous as not latest)
                 await GlobalOfferModel.updateMany(

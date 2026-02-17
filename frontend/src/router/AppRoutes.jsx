@@ -11,6 +11,7 @@ import EssLayout from '../layouts/EssLayout';
 import ProtectedRoute from '../components/layout/ProtectedRoute';
 import CandidateProtectedRoute from '../routes/CandidateProtectedRoute';
 import CandidateLayout from '../layouts/CandidateLayout';
+// AgentGuard removed for cleanup.
 
 // PSA Pages
 import Dashboard from '../pages/PSA/Dashboard';
@@ -82,6 +83,7 @@ import VendorCustomization from '../pages/HR/Customization/Vendor/VendorCustomiz
 
 // Settings
 import CompanySettings from '../pages/settings/CompanySettings';
+import CustomFieldConfig from '../pages/HR/CustomFieldConfig';
 
 // Payroll
 import SalaryComponents from '../pages/HR/Payroll/SalaryComponents';
@@ -363,6 +365,7 @@ export default function AppRoutes() {
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
+                <Route path="settings/custom-fields" element={<CustomFieldConfig />} />
 
                 {/* Global inside HR */}
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
@@ -375,7 +378,7 @@ export default function AppRoutes() {
             <Route
                 path="/employee"
                 element={
-                    <ProtectedRoute allowedRoles={['employee', 'manager']}>
+                    <ProtectedRoute allowedRoles={['employee', 'manager', 'admin', 'hr']}>
                         <EssLayout />
                     </ProtectedRoute>
                 }

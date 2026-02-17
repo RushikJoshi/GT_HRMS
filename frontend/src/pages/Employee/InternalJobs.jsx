@@ -154,27 +154,38 @@ export default function InternalJobs() {
 
                             <div className="mt-8 flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-50 dark:border-slate-800/50 relative z-10">
                                 <div className="flex flex-1 gap-2">
-                                    <button
-                                        onClick={() => setSelectedJob(job)}
-                                        className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-black text-[9px] uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5 group/btn"
-                                        title="View Details"
-                                    >
-                                        Portal View
-                                    </button>
-                                    <button
-                                        onClick={() => window.open(`/jobs/${tenantCode}?jobId=${job._id}`, '_blank')}
-                                        className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-400 font-black hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center justify-center"
-                                        title="External Public View"
-                                    >
-                                        <Eye size={12} />
-                                    </button>
+                                    {/* Portal View / Apply Button (Internal & Both) */}
+                                    {(job.visibility === 'Internal' || job.visibility === 'Both' || !job.visibility) && (
+                                        <button
+                                            onClick={() => setSelectedJob(job)}
+                                            className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-black text-[9px] uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5 group/btn"
+                                            title="View Details"
+                                        >
+                                            Portal View
+                                        </button>
+                                    )}
+
+                                    {/* Public Link Button (External & Both) */}
+                                    {(job.visibility === 'External' || job.visibility === 'Both') && (
+                                        <button
+                                            onClick={() => window.open(`/jobs/${tenantCode}?jobId=${job._id}`, '_blank')}
+                                            className={`p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 font-black transition-all flex items-center justify-center ${job.visibility === 'External'
+                                                ? 'flex-1 bg-indigo-600 text-white hover:bg-indigo-700' // Primary if External Only
+                                                : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'
+                                                }`}
+                                            title="External Public View"
+                                        >
+                                            <span className={job.visibility === 'External' ? 'mr-2' : 'hidden'}>Apply on Portal</span>
+                                            <Eye size={12} />
+                                        </button>
+                                    )}
                                 </div>
                                 {isJobApplied(job._id) ? (
                                     <div className="flex-1 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl font-black text-[9px] uppercase tracking-widest border border-emerald-100 dark:border-emerald-800/50 flex items-center justify-center gap-2">
                                         <Check size={12} />
                                         Active
                                     </div>
-                                ) : (
+                                ) : job.visibility !== 'External' && (
                                     <button
                                         onClick={() => handleApply(job._id)}
                                         className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 active:scale-95 flex items-center justify-center gap-2"

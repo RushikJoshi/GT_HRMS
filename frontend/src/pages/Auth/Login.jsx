@@ -14,6 +14,8 @@ export default function Login() {
   const [employeeId, setEmployeeId] = useState('');
   const [activeTab, setActiveTab] = useState('psa'); // psa | hr | employee
 
+
+
   // ✅ Redirect if already logged in and token is valid
   useEffect(() => {
     // Wait for auth initialization
@@ -34,6 +36,8 @@ export default function Login() {
   async function handleLogin(e) {
     e.preventDefault();
     setError("");
+
+
 
     try {
       let res;
@@ -174,11 +178,14 @@ export default function Login() {
 
               <button
                 type="submit"
-                className="w-full py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-150 shadow"
+                className="w-full py-3 mt-6 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-150 shadow font-bold tracking-wide"
               >
                 Login
               </button>
             </form>
+
+            {/* Added bottom whitespace to prevent footer overlap feel */}
+            <div className="h-6"></div>
 
           </div>
         </div>

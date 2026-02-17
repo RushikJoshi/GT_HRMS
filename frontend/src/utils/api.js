@@ -106,6 +106,8 @@ export function parseAxiosError(error) {
   return { type: 'server', message: backendMessage || 'Server error. Try again later.' };
 }
 
+let isRedirecting = false;
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -113,11 +115,37 @@ api.interceptors.response.use(
     try {
       error.hrms = parseAxiosError(error);
     } catch (e) {
-      // ignore parsing issues
       error.hrms = { type: 'unknown', message: 'Unknown error' };
     }
 
-    // Emit a user-facing toast for network errors (only once)
+    // Handle 401 Unauthorized (Expired or Invalid Token)
+    if (error.response && error.response.status === 401) {
+      if (!isRedirecting) {
+        isRedirecting = true;
+
+        // 1. Clear all security tokens
+        removeToken();
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('tenantId');
+        localStorage.removeItem('token');
+
+        // 2. Dispatch global event for UI (Context/App.jsx) to show toast
+        window.dispatchEvent(new CustomEvent('auth:expired', {
+          detail: { message: 'Session expired. Please login again.' }
+        }));
+
+        console.warn('🔐 Auth Conflict: 401 detected. Redirecting to login...');
+
+        // 3. Short delay to allow Toast/Cleanup, then hard redirect
+        setTimeout(() => {
+          isRedirecting = false;
+          window.location.href = '/login';
+        }, 1500);
+      }
+      return Promise.reject(error);
+    }
+
+    // Handle Network Errors
     if (error.hrms?.type === 'network') {
       if (!window.__HRMS_API_ERROR) {
         window.__HRMS_API_ERROR = error.hrms.message;
@@ -125,18 +153,6 @@ api.interceptors.response.use(
           window.showToast('error', 'Network Error', window.__HRMS_API_ERROR);
         }
       }
-    }
-
-    if (error.response && error.response.status === 401) {
-      // Token invalid/expired - remove it
-      removeToken();
-      // Remove Authorization header so next request won't have it
-      delete api.defaults.headers.common["Authorization"];
-
-      // Emit global event so AuthContext can handle logout if needed
-      window.dispatchEvent(new Event('auth:unauthorized'));
-
-      console.log('401 Unauthorized - token cleared. ProtectedRoute will redirect.');
     }
 
     return Promise.reject(error);

@@ -35,7 +35,7 @@ export default function PsaLayout() {
   const toggleCompanies = () => setIsCompaniesOpen(!isCompaniesOpen);
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+    <div className="flex h-full bg-slate-50 overflow-hidden font-sans">
 
       {/* SIDEBAR - desktop (dark theme) */}
       <aside className={`hidden sm:flex w-64 bg-slate-900 text-white flex-col flex-shrink-0 transition-all shadow-xl`}>

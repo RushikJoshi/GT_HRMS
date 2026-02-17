@@ -1,7 +1,4 @@
-/**
- * Debug utility to verify authentication setup is correct
- * Use in browser console: window.authDebug()
- */
+import api from './api';
 
 export function setupAuthDebug() {
   window.authDebug = function () {
@@ -39,7 +36,6 @@ export function setupAuthDebug() {
     // 2. Check axios headers
     console.group('🔌 Axios Headers');
     try {
-      const api = require('./api').default;
       const authHeader = api.defaults.headers.common['Authorization'];
       console.log('Authorization header:', authHeader ? 'SET ✅' : 'NOT SET ❌');
       if (authHeader) {

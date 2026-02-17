@@ -36,6 +36,8 @@ router.get('/my-applications', reqCtrl.getMyApplications);
 router.get('/list', reqCtrl.getRequirements);
 router.get('/', reqCtrl.getRequirements); // Added to support GET /api/requirements
 router.get('/applicants', reqCtrl.getApplicants);
+router.post('/:jobId/add-stage', reqCtrl.addStageToWorkflow); // Add stage to workflow
+router.put('/:jobId/reorder-stages', reqCtrl.reorderWorkflowStages); // Reorder workflow stages
 // router.post('/offer-letter/:applicantId', offerCtrl.generateOfferLetter);
 
 // Interview Management Routes

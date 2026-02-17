@@ -552,21 +552,36 @@ exports.create = async (req, res) => {
           console.log(`[ONBOARDING] Linked Applicant ${applicantId} to Employee ${emp._id} (Marked Onboarded)`);
 
           // 2. Handle Vacancy & Automatic Closure
+          // 2. Handle Vacancy & Automatic Closure (Strict Atomic Logic)
           const requirement = await Requirement.findById(applicant.requirementId);
+
           if (requirement) {
-            const hiredCount = await Applicant.countDocuments({
-              requirementId: requirement._id,
-              isOnboarded: true
-            });
+            // Strict Validation: Prevent over-hiring unless override is active
+            if (requirement.filled >= requirement.vacancy && !overrideVacancy) {
+              // This should ideally be caught before employee creation, but as a safeguard:
+              console.warn(`[ONBOARDING] Warning: Vacancy limit reached for ${requirement.jobTitle}. Filled: ${requirement.filled}/${requirement.vacancy}`);
+              // We don't rollback employee creation here as it's a significant action, 
+              // but we flag it and enforce closure. 
+              // In strict mode, we would throw error earlier.
+            }
+
+            // Atomic Increment
+            const updatedReq = await Requirement.findByIdAndUpdate(
+              requirement._id,
+              { $inc: { filled: 1 } },
+              { new: true }
+            );
+
+            console.log(`[ONBOARDING] Incremented Filled count for Job ${updatedReq.jobTitle}. New Status: ${updatedReq.filled}/${updatedReq.vacancy}`);
 
             // Auto-close if limit reached
-            if (requirement.vacancy && hiredCount >= requirement.vacancy) {
+            if (updatedReq.filled >= updatedReq.vacancy) {
               await Requirement.findByIdAndUpdate(requirement._id, {
                 status: 'Closed',
                 closedAt: new Date(),
                 closedBy: req.user?.id || 'System'
               });
-              console.log(`[ONBOARDING] Job ${requirement.jobTitle} automatically CLOSED (Vacancies full: ${hiredCount}/${requirement.vacancy})`);
+              console.log(`[ONBOARDING] Job ${requirement.jobTitle} automatically CLOSED (Vacancies full: ${updatedReq.filled}/${updatedReq.vacancy})`);
             }
           }
         }
