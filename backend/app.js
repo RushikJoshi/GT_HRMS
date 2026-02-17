@@ -20,8 +20,8 @@ const allowedOrigins = [
     'http://localhost:5176', // Vite dev server used in this workspace
     'http://localhost:3000',
     'http://localhost:5000',
-    'https://hrms.gitakshmi.com',
     'https://hrms.dev.gitakshmi.com'
+    // 'https://hrms.gitakshmi.com',
 ];
 
 // Configure CORS strictly to allow only expected origins in production

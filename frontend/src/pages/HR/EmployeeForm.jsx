@@ -162,16 +162,23 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const loadDepartments = useCallback(async () => {
     setDepartmentsLoading(true);
     try {
-      const res = await api.get('/hr/departments');
+      let res;
+      try {
+        res = await api.get('/hr/departments');
+      } catch {
+        // Backward-compatible fallback for older backend mount shape
+        res = await api.get('/hr/hr/departments');
+      }
       const deptList = res.data?.data || res.data || [];
       setDepartments(Array.isArray(deptList) ? deptList : []);
     } catch (err) {
       console.error('Failed to load departments', err);
       // Keep existing departments (if any) and show a visible error
+      const backendMsg = err?.response?.data?.message || err?.response?.data?.error || '';
+      const maybeModuleBlocked = /module|access denied|forbidden/i.test(String(backendMsg));
       const errorMsg =
         err?.hrms?.message ||
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
+        (maybeModuleBlocked ? 'HR module is disabled or access is denied for this company.' : backendMsg) ||
         err?.message ||
         'Failed to load departments';
       notification.error({ message: 'Departments', description: errorMsg, placement: 'topRight' });

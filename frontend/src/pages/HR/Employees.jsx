@@ -1069,11 +1069,25 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
   // Fetch departments for dropdown
   const loadDepartments = useCallback(async () => {
     try {
-      const res = await api.get('/hr/departments');
-      const deptList = Array.isArray(res.data) ? res.data : [];
-      setDepartments(deptList);
+      let res;
+      try {
+        res = await api.get('/hr/departments');
+      } catch {
+        // Backward-compatible fallback for older backend mount shape
+        res = await api.get('/hr/hr/departments');
+      }
+      const deptList = res.data?.data || res.data || [];
+      setDepartments(Array.isArray(deptList) ? deptList : []);
     } catch (err) {
       console.error('Failed to load departments', err);
+      const backendMsg = err?.response?.data?.message || err?.response?.data?.error || '';
+      const maybeModuleBlocked = /module|access denied|forbidden/i.test(String(backendMsg));
+      const errorMsg =
+        err?.hrms?.message ||
+        (maybeModuleBlocked ? 'HR module is disabled or access is denied for this company.' : backendMsg) ||
+        err?.message ||
+        'Failed to load departments';
+      notification.error({ message: 'Departments', description: errorMsg, placement: 'topRight' });
       setDepartments([]);
     }
   }, []);
