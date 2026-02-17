@@ -1,6 +1,6 @@
 
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import React from 'react';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getToken, isValidToken } from '../utils/token';
 
@@ -9,6 +9,7 @@ import PsaLayout from '../layouts/PsaLayout';
 import HrLayout from '../layouts/HrLayout';
 import EssLayout from '../layouts/EssLayout';
 import ProtectedRoute from '../components/layout/ProtectedRoute';
+import ProtectedModule from '../components/common/ProtectedModule';
 import CandidateProtectedRoute from '../routes/CandidateProtectedRoute';
 import CandidateLayout from '../layouts/CandidateLayout';
 
@@ -219,13 +220,13 @@ export default function AppRoutes() {
                 <Route path="users" element={<UserManagement />} />
                 <Route path="departments" element={<Departments />} />
                 <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
-                <Route path="leave-approvals" element={<LeaveApprovals />} />
-                <Route path="leave-requests" element={<Leaves />} />
-                <Route path="leave-approvals/regularization" element={<RegularizationApprovals category="Leave" />} />
+                <Route path="leave-approvals" element={<ProtectedModule module="leave"><LeaveApprovals /></ProtectedModule>} />
+                <Route path="leave-requests" element={<ProtectedModule module="leave"><Leaves /></ProtectedModule>} />
+                <Route path="leave-approvals/regularization" element={<ProtectedModule module="leave"><RegularizationApprovals category="Leave" /></ProtectedModule>} />
                 <Route path="attendance" element={<AttendanceAdmin />} />
                 <Route path="attendance/correction" element={<RegularizationApprovals category="Attendance" />} />
                 <Route path="attendance-calendar" element={<CalendarManagement />} />
-                <Route path="leave-policies" element={<LeavePolicies />} />
+                <Route path="leave-policies" element={<ProtectedModule module="leave"><LeavePolicies /></ProtectedModule>} />
                 <Route path="requirements" element={<RequirementPage />} />
                 <Route path="create-requirement" element={<CreateRequirement />} />
                 <Route path="applicants" element={<Applicants />} />
@@ -240,12 +241,12 @@ export default function AppRoutes() {
 
 
 
-                <Route path="bgv" element={<BGVManagement />} />
-                <Route path="bgv/emails" element={<BGVEmailManagement />} />
+                <Route path="bgv" element={<ProtectedModule module="backgroundVerification"><BGVManagement /></ProtectedModule>} />
+                <Route path="bgv/emails" element={<ProtectedModule module="backgroundVerification"><BGVEmailManagement /></ProtectedModule>} />
 
                 {/* Letters */}
-                <Route path="letters" element={<LetterDashboard />} />
-                <Route path="letters/issue" element={<IssueLetterWizard />} />
+                <Route path="letters" element={<ProtectedModule module="documentManagement"><LetterDashboard /></ProtectedModule>} />
+                <Route path="letters/issue" element={<ProtectedModule module="documentManagement"><IssueLetterWizard /></ProtectedModule>} />
                 <Route path="letter-templates" element={<LetterTemplates />} />
                 <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
                 <Route path="letter-settings" element={<LetterSettings />} />
@@ -277,7 +278,7 @@ export default function AppRoutes() {
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
-                <Route path="settings/social-media" element={<SocialMediaPage />} />
+                <Route path="settings/social-media" element={<ProtectedModule module="socialMediaIntegration"><SocialMediaPage /></ProtectedModule>} />
 
                 {/* Global inside Tenant */}
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
@@ -296,13 +297,13 @@ export default function AppRoutes() {
                 <Route path="users" element={<UserManagement />} />
                 <Route path="departments" element={<Departments />} />
                 <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
-                <Route path="leave-approvals" element={<LeaveApprovals />} />
-                <Route path="leave-requests" element={<Leaves />} />
-                <Route path="leave-approvals/regularization" element={<RegularizationApprovals category="Leave" />} />
+                <Route path="leave-approvals" element={<ProtectedModule module="leave"><LeaveApprovals /></ProtectedModule>} />
+                <Route path="leave-requests" element={<ProtectedModule module="leave"><Leaves /></ProtectedModule>} />
+                <Route path="leave-approvals/regularization" element={<ProtectedModule module="leave"><RegularizationApprovals category="Leave" /></ProtectedModule>} />
                 <Route path="attendance" element={<AttendanceAdmin />} />
                 <Route path="attendance/correction" element={<RegularizationApprovals category="Attendance" />} />
                 <Route path="attendance-calendar" element={<CalendarManagement />} />
-                <Route path="leave-policies" element={<LeavePolicies />} />
+                <Route path="leave-policies" element={<ProtectedModule module="leave"><LeavePolicies /></ProtectedModule>} />
                 <Route path="requirements" element={<RequirementPage />} />
                 <Route path="create-requirement" element={<CreateRequirement />} />
                 <Route path="positions" element={<PositionMaster />} />
@@ -321,13 +322,13 @@ export default function AppRoutes() {
 
 
 
-                <Route path="bgv" element={<BGVManagement />} />
+                <Route path="bgv" element={<ProtectedModule module="backgroundVerification"><BGVManagement /></ProtectedModule>} />
                 <Route path="face-update-requests" element={<FaceUpdateRequest />} />
-                <Route path="bgv/emails" element={<BGVEmailManagement />} />
+                <Route path="bgv/emails" element={<ProtectedModule module="backgroundVerification"><BGVEmailManagement /></ProtectedModule>} />
 
                 {/* Letters */}
-                <Route path="letters" element={<LetterDashboard />} />
-                <Route path="letters/issue" element={<IssueLetterWizard />} />
+                <Route path="letters" element={<ProtectedModule module="documentManagement"><LetterDashboard /></ProtectedModule>} />
+                <Route path="letters/issue" element={<ProtectedModule module="documentManagement"><IssueLetterWizard /></ProtectedModule>} />
                 <Route path="letter-templates" element={<LetterTemplates />} />
                 <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
                 <Route path="letter-settings" element={<LetterSettings />} />
@@ -359,7 +360,7 @@ export default function AppRoutes() {
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
-                <Route path="settings/social-media" element={<SocialMediaPage />} />
+                <Route path="settings/social-media" element={<ProtectedModule module="socialMediaIntegration"><SocialMediaPage /></ProtectedModule>} />
 
                 {/* Global inside HR */}
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />

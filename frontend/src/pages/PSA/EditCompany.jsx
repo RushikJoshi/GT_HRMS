@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import companiesService from '../../services/companiesService';
 import { API_ROOT } from '../../utils/api';
+import { normalizeEnabledModules } from '../../utils/moduleConfig';
 
 export default function EditCompany() {
     const { id } = useParams();
@@ -29,7 +30,7 @@ export default function EditCompany() {
         code: '',
         name: '',
         email: '',
-        modules: [],
+        enabledModules: {},
         status: 'active'
     });
     const [logoFile, setLogoFile] = useState(null);
@@ -53,11 +54,7 @@ export default function EditCompany() {
         return url.startsWith('http') ? url : `${API_ROOT}${url}`;
     };
 
-    useEffect(() => {
-        loadCompany();
-    }, [id]);
-
-    const loadCompany = async () => {
+    const loadCompany = useCallback(async () => {
         try {
             setLoading(true);
             const data = await companiesService.getCompanyById(id);
@@ -65,7 +62,7 @@ export default function EditCompany() {
                 code: data.code || '',
                 name: data.name || '',
                 email: data.meta?.email || '',
-                modules: data.modules || [],
+                enabledModules: normalizeEnabledModules(data.enabledModules, data.modules),
                 status: data.status || 'active'
             });
             if (data.meta?.logo) {
@@ -76,7 +73,11 @@ export default function EditCompany() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [id]);
+
+    useEffect(() => {
+        loadCompany();
+    }, [loadCompany]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -95,10 +96,13 @@ export default function EditCompany() {
 
     const handleModuleToggle = (modId) => {
         setFormData(prev => {
-            const newModules = prev.modules.includes(modId)
-                ? prev.modules.filter(m => m !== modId)
-                : [...prev.modules, modId];
-            return { ...prev, modules: newModules };
+            return {
+                ...prev,
+                enabledModules: {
+                    ...(prev.enabledModules || {}),
+                    [modId]: !(prev.enabledModules || {})[modId]
+                }
+            };
         });
     };
 
@@ -129,7 +133,7 @@ export default function EditCompany() {
                 code: formData.code,
                 name: formData.name,
                 status: formData.status,
-                modules: formData.modules,
+                enabledModules: formData.enabledModules,
                 meta: {
                     primaryEmail: formData.email,
                     email: formData.email,

@@ -1,41 +1,47 @@
 import React, { useEffect, useState, useMemo } from "react";
 import PropTypes from "prop-types";
 import api from "../../utils/api";
+import { applyModuleDependencies, createDefaultEnabledModules, normalizeEnabledModules } from "../../utils/moduleConfig";
 import {
   Save,
   Settings,
+  Check,
+  LayoutGrid,
   Building2,
+  CircleDollarSign,
   Users,
   Clock,
   Briefcase,
-  Activity,
-  BarChart3,
   UserCircle2,
-  ChevronDown,
-  CheckCircle2,
-  Banknote,
-  LayoutGrid
+  Plus,
+  CircleFadingPlus
 } from "lucide-react";
 
 const AVAILABLE_MODULES = [
-  { code: "hr", label: "HR Management", description: "Employee management, roles, policies", icon: Users },
-  { code: "payroll", label: "Payroll Processing", description: "Salary processing, tax, & payslips", icon: Banknote },
-  { code: "attendance", label: "Time & Attendance", description: "Punch in/out, shifts & timesheets", icon: Clock },
-  { code: "ess", label: "ESS Portal", description: "Employee self-service access", icon: UserCircle2 },
-  { code: "recruitment", label: "Recruitment", description: "Job posting & hiring workflows", icon: Briefcase },
-  { code: "analytics", label: "Analytics & Reports", description: "Data insights & dashboards", icon: BarChart3 },
+  { code: "hr", label: "HR Management", description: "Employee records, roles & hierarchy", icon: Users, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "payroll", label: "Payroll System", description: "Salaries, taxes & disbursements", icon: CircleDollarSign, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "attendance", label: "Attendance & Time", description: "Shifts, biometrics & tracking", icon: Clock, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "leave", label: "Leave Management", description: "Leave apply, tracking & approval", icon: Clock, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "employeePortal", label: "Employee Portal", description: "Self-service dashboard", icon: UserCircle2, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "recruitment", label: "Recruitment", description: "Hiring, jobs & applicants", icon: Briefcase, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "backgroundVerification", label: "BGV", description: "Background Verification", icon: Briefcase, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "documentManagement", label: "Document Management", description: "Managing and Sending Documents and Offers", icon: CircleFadingPlus, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+  { code: "socialMediaIntegration", label: "Social Media Integration", description: "Social Media Integration and Automation", icon: CircleFadingPlus, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
 ];
 
 export default function ModuleConfig({ company, onClose }) {
-  const [modules, setModules] = useState([]);
+  const [enabledModules, setEnabledModules] = useState(
+    createDefaultEnabledModules(false, AVAILABLE_MODULES.map((m) => m.code))
+  );
   const [saving, setSaving] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState(company || null);
-  const [loading, setLoading] = useState(false);
 
   const activeCount = useMemo(() => {
-    return modules.length;
-  }, [modules]);
+    return AVAILABLE_MODULES.reduce((count, mod) => {
+      return count + (enabledModules?.[mod.code] === true ? 1 : 0);
+    }, 0);
+  }, [enabledModules]);
 
   const allSelected = activeCount === AVAILABLE_MODULES.length;
 
@@ -65,16 +71,40 @@ export default function ModuleConfig({ company, onClose }) {
 
   function handleSelectAll() {
     if (allSelected) {
-      setModules([]);
+      setEnabledModules(Object.fromEntries(AVAILABLE_MODULES.map(m => [m.code, false])));
     } else {
-      setModules(AVAILABLE_MODULES.map(m => m.code));
+      setEnabledModules(applyModuleDependencies(Object.fromEntries(AVAILABLE_MODULES.map(m => [m.code, true]))));
+    }
+  }
+
+  useEffect(() => {
+    const normalized = normalizeEnabledModules(company?.enabledModules, company?.modules);
+    const filtered = Object.fromEntries(
+      AVAILABLE_MODULES.map((m) => [m.code, normalized[m.code] === true])
+    );
+    setEnabledModules(filtered);
+    if (!company) {
+      loadCompanies();
+    } else {
+      setSelectedCompany(company);
+    }
+  }, [company]);
+
+  async function loadCompanies() {
+    try {
+      const res = await api.get('/tenants');
+      const list = Array.isArray(res.data) ? res.data : (res.data?.tenants || res.data?.data || []);
+      setCompanies(list || []);
+    } catch (err) {
+      console.error('Failed to load companies', err);
     }
   }
 
   function toggle(code) {
-    setModules((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
-    );
+    setEnabledModules((prev) => {
+      const next = { ...prev, [code]: !prev[code] };
+      return applyModuleDependencies(next);
+    });
   }
 
   async function handleSave() {
@@ -82,12 +112,13 @@ export default function ModuleConfig({ company, onClose }) {
     if (!target?._id) return;
     setSaving(true);
     try {
-      await api.put(`/tenants/${target._id}/modules`, { modules });
-      alert("Configuration saved successfully!");
-      if (onClose) onClose();
+      const payloadModules = applyModuleDependencies({ ...enabledModules });
+      await api.put(`/tenants/company/${target._id}/modules`, { enabledModules: payloadModules });
+      alert("Configuration updated successfully!");
+      if (typeof onClose === 'function') onClose();
     } catch (err) {
       console.error(err);
-      alert("Failed to save configuration.");
+      alert("Failed to save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -146,14 +177,39 @@ export default function ModuleConfig({ company, onClose }) {
           </div>
         </div>
 
-        {/* Modules Grid Section */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <h3 className="text-sm font-bold text-slate-900">Available Modules</h3>
-              <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                {activeCount} Active
-              </span>
+        {/* Global Controls */}
+        <div className="bg-white p-6 sm:p-10 rounded-2xl border border-slate-200 shadow-sm space-y-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-2 h-full bg-emerald-600"></div>
+
+          <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-8">
+            <div className="flex-1 space-y-4">
+              <label className="text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-[0.2em] ml-1">Configuration Target</label>
+              <div className="relative group">
+                <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 text-emerald-500" size={20} />
+                <select
+                  className="w-full pl-14 pr-8 py-4 sm:py-5 bg-slate-50 border-2 border-slate-100 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-8 focus:ring-emerald-500/5 font-bold text-slate-800 text-base sm:text-lg tracking-tight appearance-none transition-all cursor-pointer shadow-sm"
+                  value={selectedCompany?._id || ''}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const c = companies.find((x) => x._id === id) || null;
+                    setSelectedCompany(c);
+                    const normalized = normalizeEnabledModules(c?.enabledModules, c?.modules);
+                    setEnabledModules(Object.fromEntries(
+                      AVAILABLE_MODULES.map((m) => [m.code, normalized[m.code] === true])
+                    ));
+                  }}
+                >
+                  <option value="">-- Choose Organization --</option>
+                  {companies.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.name} ({c.code || 'CORE'})
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <Plus size={18} className="rotate-45" />
+                </div>
+              </div>
             </div>
             <label className="flex items-center gap-3 cursor-pointer group">
               <input
@@ -212,26 +268,52 @@ export default function ModuleConfig({ company, onClose }) {
           )}
         </div>
 
-        {/* Bottom Footer Section */}
-        {selectedCompany && (
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 mt-12">
-            <div className="flex items-center gap-3">
-              <Activity size={18} className="text-slate-300" />
-              <p className="text-[11px] font-medium text-slate-400 italic">Configuration changes are immediate and will affect user access levels across the system.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setSelectedCompany(null)}
-                className="px-6 py-2.5 text-[11px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-all"
-              >
-                Reset
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-[11px] uppercase tracking-widest hover:bg-blue-700 transition-all"
-              >
-                Update Configuration
-              </button>
+        {/* Modules Grid */}
+        {selectedCompany ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-10 pb-20">
+            {AVAILABLE_MODULES.map((m) => {
+              const active = !!enabledModules[m.code];
+              const Icon = m.icon;
+              return (
+                <div
+                  key={m.code}
+                  onClick={() => !saving && toggle(m.code)}
+                  className={`group relative p-8 sm:p-10 rounded-2xl border-2 transition-all duration-300 cursor-pointer flex flex-col items-center text-center sm:items-start sm:text-left ${active
+                    ? 'border-emerald-500 bg-white shadow-md scale-[1.01]'
+                    : `border-slate-100 bg-white hover:border-slate-300 hover:shadow-md`
+                    }`}
+                >
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between w-full mb-6">
+                    <div className={`p-4 sm:p-5 rounded-xl transition-all duration-500 ${active ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-sm ring-4 sm:ring-8 ring-emerald-50' : `${m.color} group-hover:scale-110 shadow-sm`}`}>
+                      <Icon size={24} className="sm:hidden" />
+                      <Icon size={28} className="hidden sm:block" />
+                    </div>
+                    <div className={`mt-4 sm:mt-0 w-8 h-8 sm:w-10 sm:h-10 rounded-xl border-2 flex items-center justify-center transition-all duration-500 ${active ? 'bg-emerald-600 border-emerald-600 scale-110' : 'bg-transparent border-slate-200'
+                      }`}>
+                      {active ? <Check size={18} className="text-white" /> : <Plus size={18} className="text-slate-300" />}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h3 className={`text-base sm:text-xl font-bold tracking-tight ${active ? 'text-slate-900' : 'text-slate-800'}`}>{m.label}</h3>
+                    <p className={`text-[11px] sm:text-sm font-semibold leading-relaxed ${active ? 'text-slate-600' : 'text-slate-400'}`}>{m.description}</p>
+                  </div>
+
+                  {active && (
+                    <div className="absolute top-4 right-4 sm:static sm:mt-6 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Active</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="py-20 sm:py-40 text-center bg-white rounded-2xl border-4 border-dashed border-slate-100 shadow-sm px-6">
+            <div className="w-20 h-20 sm:w-28 sm:h-28 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-8 transform -rotate-6 shadow-inner ring-4 sm:ring-8 ring-emerald-50/50 animate-bounce-slow">
+              <LayoutGrid size={40} className="sm:hidden" />
+              <LayoutGrid size={56} className="hidden sm:block" />
             </div>
           </div>
         )}
@@ -246,6 +328,7 @@ ModuleConfig.propTypes = {
     _id: PropTypes.string,
     name: PropTypes.string,
     modules: PropTypes.arrayOf(PropTypes.string),
+    enabledModules: PropTypes.object,
   }),
   onClose: PropTypes.func,
 };

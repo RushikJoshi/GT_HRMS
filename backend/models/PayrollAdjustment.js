@@ -67,7 +67,7 @@ const PayrollAdjustmentSchema = new mongoose.Schema({
     // Maker-Checker approval fields
     approvedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'Employee'
     },
     approvedAt: {
         type: Date
@@ -83,7 +83,7 @@ const PayrollAdjustmentSchema = new mongoose.Schema({
     },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'Employee',
         required: true
     },
     metadata: {

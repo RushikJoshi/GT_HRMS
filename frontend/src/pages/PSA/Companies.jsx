@@ -21,6 +21,7 @@ import {
   Activity,
   Lock
 } from 'lucide-react';
+import { enabledModulesToArray, normalizeEnabledModules } from "../../utils/moduleConfig";
 
 export default function Companies() {
   const [companies, setCompanies] = useState([]);

@@ -18,6 +18,8 @@ module.exports = async function tenantResolver(req, res, next) {
       console.log(`🔍 [TENANT_RESOLVER] Hitting PDF route: ${req.method} ${req.path}`);
       console.log(`   Query Params: tenantId=${req.query.tenantId}, hasToken=${!!req.query.token}`);
     }
+    // Defensive logging for debugging
+    console.log(`[TENANT_MIDDLEWARE] ${req.method} ${req.path}`);
 
     // Skip tenant resolution for OPTIONS requests (CORS preflight) and Health Check
     if (req.method === 'OPTIONS' || req.path === '/api/health' || req.path === '/health') {
@@ -43,26 +45,25 @@ module.exports = async function tenantResolver(req, res, next) {
       }
     }
 
-    // Try to read tenantId from already-populated req.user or from header or query (for iframes)
-    let tenantId = req.user?.tenantId || req.user?.tenant || req.headers["x-tenant-id"] || req.query.tenantId;
+    // Try to read tenantId from already-populated req.user or from header
+    let tenantId = req.user?.tenantId || req.user?.tenant || req.headers["x-tenant-id"];
+    let tokenCompanyCode = req.user?.companyCode || req.headers["x-company-code"] || null;
 
     // If no req.user yet (middleware may run before auth middleware), try to extract tenantId from JWT
     if (!tenantId || (!req.user && !req.candidate)) {
       const authHeader = req.headers.authorization || req.headers.Authorization;
-      const queryToken = req.query.token;
-      const token = (authHeader && authHeader.split(' ')[1]) || queryToken;
-
-      if (token) {
-        try {
-          const payload = jwt.verify(token, process.env.JWT_SECRET || "hrms_secret_key_123");
-          tenantId = payload.tenantId || payload.tenant || tenantId;
-
-          if (!req.user && !req.candidate) {
-            if (payload.role === 'candidate') {
-              req.candidate = { id: payload.id, tenantId: payload.tenantId, role: 'candidate' };
-            } else {
-              req.user = payload;
-            }
+      if (authHeader) {
+        const parts = authHeader.split(' ');
+        if (parts.length === 2 && /^Bearer$/i.test(parts[0])) {
+          const token = parts[1];
+          try {
+            const payload = jwt.verify(token, process.env.JWT_SECRET || "hrms_secret_key_123");
+            tenantId = payload.tenantId || payload.tenant || tenantId;
+            tokenCompanyCode = payload.companyCode || payload.company_code || tokenCompanyCode;
+            console.log(`[TENANT_MIDDLEWARE] Extracted tenantId from token: ${tenantId}`);
+          } catch (e) {
+            console.log(`[TENANT_MIDDLEWARE] Failed to verify token: ${e.message}`);
+            // ignore invalid token here; auth middleware will handle auth failures
           }
           console.log(`[TENANT_MIDDLEWARE] Authenticated via ${queryToken ? 'query' : 'header'} token. Tenant: ${tenantId}`);
         } catch (e) {
@@ -107,14 +108,36 @@ module.exports = async function tenantResolver(req, res, next) {
       const t = await Tenant.findOne({ code: tenantId }).select('_id').lean();
       if (t) {
         req.tenantId = t._id.toString();
+        tenantId = req.tenantId;
         console.log(`[TENANT_MIDDLEWARE] Resolved tenant code ${tenantId} to ID ${req.tenantId}`);
       } else {
         console.warn(`[TENANT_MIDDLEWARE] Could not resolve tenant code: ${tenantId}`);
       }
+    } else {
+      // If tenantId looks valid but doesn't exist (stale tokens), try resolving via companyCode
+      // This prevents "departments not showing" when the token contains an old tenantId but a correct companyCode.
+      let Tenant;
+      try {
+        Tenant = mongoose.model('Tenant');
+      } catch (e) {
+        Tenant = require('../models/Tenant');
+      }
+
+      const exists = await Tenant.findById(tenantId).select('_id code').lean();
+      if (!exists && tokenCompanyCode) {
+        const t = await Tenant.findOne({ code: tokenCompanyCode }).select('_id').lean();
+        if (t) {
+          req.tenantId = t._id.toString();
+          tenantId = req.tenantId;
+          console.warn(`[TENANT_MIDDLEWARE] TenantId not found; resolved via companyCode=${tokenCompanyCode} -> ${req.tenantId}`);
+        } else {
+          console.warn(`[TENANT_MIDDLEWARE] TenantId not found and companyCode could not be resolved: ${tokenCompanyCode}`);
+        }
+      }
     }
 
     // dbManager (called by getTenantDB) handles caching and model registration
-    req.tenantDB = await getTenantDB(tenantId);
+    req.tenantDB = await getTenantDB(req.tenantId || tenantId);
 
     next();
   } catch (err) {

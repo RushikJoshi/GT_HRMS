@@ -20,8 +20,8 @@ const allowedOrigins = [
     'http://localhost:5176', // Vite dev server used in this workspace
     'http://localhost:3000',
     'http://localhost:5000',
-    'https://hrms.gitakshmi.com',
     'https://hrms.dev.gitakshmi.com'
+    // 'https://hrms.gitakshmi.com',
 ];
 
 // Configure CORS strictly to allow only expected origins in production
@@ -33,6 +33,15 @@ app.use(cors({
         // Allow explicit origins
         if (allowedOrigins.includes(origin)) return callback(null, true);
 
+        // Allow dynamic origins from env (Frontend, Ngrok, Backend)
+        const envOrigins = [
+            process.env.FRONTEND_URL,
+            process.env.NGROK_URL,
+            process.env.BACKEND_URL
+        ].filter(Boolean); // Remove undefined/null/empty strings
+
+        if (envOrigins.includes(origin)) return callback(null, true);
+
         // Allow any localhost origin during development (different dev ports)
         try {
             const u = new URL(origin);
@@ -42,7 +51,10 @@ app.use(cors({
         }
 
         // Otherwise block
-        return callback(new Error('Not allowed by CORS'));
+        // Otherwise block (TEMPORARILY CHANGED TO ALLOW AND LOG)
+        console.warn('⚠️ CORS DEBUG - WOULD BLOCK Origin:', origin);
+        // return callback(new Error('Not allowed by CORS')); // DISABLED FOR DEBUGGING
+        return callback(null, true); // ALLOW TEMPORARILY
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Tenant-ID"],
@@ -54,11 +66,24 @@ app.options('*', cors({
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) return callback(null, true);
+
+        // Allow dynamic origins from env (Frontend, Ngrok, Backend)
+        const envOrigins = [
+            process.env.FRONTEND_URL,
+            process.env.NGROK_URL,
+            process.env.BACKEND_URL
+        ].filter(Boolean);
+
+        if (envOrigins.includes(origin)) return callback(null, true);
+
         try {
             const u = new URL(origin);
             if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return callback(null, true);
         } catch (e) { }
-        return callback(new Error('Not allowed by CORS'));
+        // Otherwise block (TEMPORARILY CHANGED TO ALLOW AND LOG)
+        console.warn('⚠️ CORS DEBUG - WOULD BLOCK Origin (OPTIONS):', origin);
+        // return callback(new Error('Not allowed by CORS')); // DISABLED FOR DEBUGGING
+        return callback(null, true); // ALLOW TEMPORARILY
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Tenant-ID"],
@@ -162,40 +187,61 @@ const wrapAsync = (fn) => (req, res, next) =>
 
 app.use('/api', wrapAsync(tenantMiddleware));
 
+const checkModuleAccess = require('./middleware/moduleAccess.middleware');
+const auth = require('./middleware/auth.jwt'); // Ensure auth is available for middleware sequence if needed, though most routes already use it internaly or we can add it here.
+
+
 /* ===============================
    TENANT SCOPED ROUTES
 ================================ */
-app.use('/api/salary', (req, res, next) => {
-    console.log(`[DEBUG_ROUTING] Salary Route accessed: ${req.path}`);
-    next();
-}, require('./routes/salary.routes'));
+// --- PAYROLL MODULE ---
+const payrollCheck = checkModuleAccess('payroll');
+app.use('/api/salary', payrollCheck, require('./routes/salary.routes'));
+app.use('/api/payroll', payrollCheck, payrollRoutes);
+app.use('/api/payroll/corrections', payrollCheck, payrollAdjustmentRoutes);
+app.use('/api/compensation', payrollCheck, compensationRoutes);
+app.use('/api/salary-structure', payrollCheck, salaryStructureRoutes);
+app.use('/api/payslip-templates', payrollCheck, payslipTemplateRoutes);
+app.use('/api/payroll-rules', payrollCheck, payrollRuleRoutes);
 
-// Force Restart Tracker: v9.2
-app.get('/api/salary/ping', (req, res) => res.json({ message: 'Salary Pong', time: new Date() }));
+// --- ATTENDANCE MODULE ---
+const attendanceCheck = checkModuleAccess('attendance');
+app.use('/api/attendance', attendanceCheck, attendanceRoutes);
+app.use('/api/attendance-policy', attendanceCheck, attendancePolicyRoutes);
+app.use('/api/holidays', attendanceCheck, holidayRoutes);
 
-app.use('/api/letters', letterRoutes);
-app.use('/api/offer-templates', offerTemplateRoutes);
-app.use('/api/payslip-templates', payslipTemplateRoutes);
-app.use('/api', hrRoutes);
-app.use('/api/psa', psaHrRoutes);
-app.use('/api/employee', employeeRoutes);
-app.use('/api/requirements', requirementRoutes);
+// --- HR MODULE ---
+const hrCheck = checkModuleAccess('hr');
+const leaveCheck = checkModuleAccess('leave');
+const bgvCheck = checkModuleAccess('backgroundVerification');
+const documentMgmtCheck = checkModuleAccess('documentManagement');
+app.use('/api/letters', hrCheck, documentMgmtCheck, letterRoutes);
+// Primary mount keeps hrRoutes paths like /hr/employees accessible at /api/hr/employees
+app.use('/api', hrCheck, hrRoutes);
+// Backward-compat alias for older frontend calls that used /api/hr/hr/*
+app.use('/api/hr', hrCheck, hrRoutes);
+app.use('/api/psa', hrCheck, psaHrRoutes);
+app.use('/api/employee', hrCheck, employeeRoutes);
+app.use('/api/bgv', hrCheck, bgvCheck, require('./routes/bgv.routes'));
+app.use('/api/entities', hrCheck, entityRoutes);
+app.use('/api/positions', hrCheck, positionRoutes);
+
+// --- RECRUITMENT MODULE ---
+const recruitmentCheck = checkModuleAccess('recruitment');
+app.use('/api/requirements', recruitmentCheck, requirementRoutes);
+app.use('/api/offer-templates', recruitmentCheck, offerTemplateRoutes);
+app.use('/api/vendor', recruitmentCheck, vendorRoutes);
+app.use('/api/career', recruitmentCheck, careerOptimizedRoutes);
+app.use('/api/interviews', recruitmentCheck, require('./routes/interview.routes'));
+app.use('/api/tracker', recruitmentCheck, require('./routes/tracker.routes'));
+
+// --- OTHER ---
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/comments', commentRoutes);
-app.use('/api/entities', entityRoutes);
-app.use('/api/holidays', holidayRoutes);
-app.use('/api/attendance', attendanceRoutes);
-app.use('/api/attendance-policy', attendancePolicyRoutes);
-app.use('/api/salary-structure', salaryStructureRoutes);
 app.use('/api/activities', activityRoutes);
-app.use('/api/payroll', payrollRoutes);
-app.use('/api/payroll/corrections', payrollAdjustmentRoutes);
-app.use('/api/compensation', compensationRoutes);
-app.use('/api/bgv', require('./routes/bgv.routes'));
-app.use('/api/vendor', vendorRoutes);
-
-app.use('/api/career', careerOptimizedRoutes);
 app.use('/api/social-media', require('./routes/socialMedia.routes'));
+app.use('/api/deductions', deductionRoutes);
+app.use('/api/tracker', recruitmentCheck, require('./routes/tracker.routes'));
 
 
 app.use('/api/positions', positionRoutes);
@@ -207,63 +253,42 @@ app.use('/api/reports', require('./routes/report.routes'));
 ================================ */
 // Mount all main routers under /api/hrms as well (for frontend calls like /requirements)
 const hrmsPrefix = '/api/hrms';
-app.use(hrmsPrefix + '/requirements', requirementRoutes);
-app.use(hrmsPrefix + '/holidays', holidayRoutes);
-app.use(hrmsPrefix + '/letters', letterRoutes);
-app.use(hrmsPrefix + '/offer-templates', offerTemplateRoutes);
-app.use(hrmsPrefix + '/payslip-templates', payslipTemplateRoutes);
-app.use(hrmsPrefix + '/attendance', attendanceRoutes);
-app.use(hrmsPrefix + '/attendance-policy', attendancePolicyRoutes);
-app.use(hrmsPrefix + '/payroll', payrollRoutes);
-app.use(hrmsPrefix + '/payroll/corrections', payrollAdjustmentRoutes);
-app.use(hrmsPrefix + '/compensation', compensationRoutes);
-app.use(hrmsPrefix + '/entities', entityRoutes);
-app.use(hrmsPrefix + '/notifications', notificationRoutes);
-app.use(hrmsPrefix + '/comments', commentRoutes);
-app.use(hrmsPrefix + '/positions', positionRoutes);
-app.use(hrmsPrefix + '/employee', employeeRoutes);
-app.use(hrmsPrefix + '/vendor', vendorRoutes);
+// Alias /hrms/hr/ -> hrRoutes
+app.use(hrmsPrefix, hrCheck, hrRoutes);
 
-// Special case for letter_templates (plural vs singular)
-app.use(hrmsPrefix + '/letter_templates', (req, res, next) => {
+// Alias payroll under /api/hrms
+app.use(hrmsPrefix + '/payroll', payrollCheck, payrollRoutes);
+app.use(hrmsPrefix + '/payroll/corrections', payrollCheck, payrollAdjustmentRoutes);
+app.use(hrmsPrefix + '/compensation', payrollCheck, compensationRoutes);
+app.use(hrmsPrefix + '/payroll-rules', payrollCheck, payrollRuleRoutes);
+
+// Alias attendance under /api/hrms
+app.use(hrmsPrefix + '/attendance', attendanceCheck, attendanceRoutes);
+app.use(hrmsPrefix + '/attendance-policy', attendanceCheck, attendancePolicyRoutes);
+app.use(hrmsPrefix + '/holidays', attendanceCheck, holidayRoutes);
+
+// Alias recruitment under /api/hrms
+app.use(hrmsPrefix + '/requirements', recruitmentCheck, requirementRoutes);
+app.use(hrmsPrefix + '/interviews', recruitmentCheck, require('./routes/interview.routes'));
+app.use(hrmsPrefix + '/offer-templates', recruitmentCheck, offerTemplateRoutes);
+
+// Alias deduction routes
+app.use(hrmsPrefix + '/deductions', deductionRoutes);
+
+// Alias employee portal
+app.use(hrmsPrefix + '/employee', checkModuleAccess('employeePortal'), employeeRoutes);
+
+// Alias letter templates (Plural in frontend, singular in backend)
+app.use(hrmsPrefix + '/letter_templates', hrCheck, (req, res, next) => {
     req.url = '/templates' + req.url;
     return letterRoutes(req, res, next);
 });
 
-
-app.use(hrmsPrefix + '/interviews', require('./routes/interview.routes'));
-
-// Alias /hrms/hr/ -> hrRoutes (handles /hrms/hr/employees etc)
-
-// Since hrRoutes already prefixes routes with /hr, we mount it at the root of /api/hrms
-app.use(hrmsPrefix, hrRoutes);
-
-// Alias employee routes under /api/hrms for frontend compatibility
-app.use(hrmsPrefix + '/employee', employeeRoutes);
-
-// Optional modules - handle if missing/failing
 try {
-    app.use('/api/payroll-engine', require('./routes/payrollEngine.routes'));
-    app.use(hrmsPrefix + '/payroll-engine', require('./routes/payrollEngine.routes'));
-} catch (e) {
-    console.warn("Payroll Engine routes skipped:", e.message);
-}
-
-app.use('/api/payroll-rules', payrollRuleRoutes);
-app.use(hrmsPrefix + '/payroll-rules', payrollRuleRoutes);
-app.use('/api/hr', salaryRevisionRoutes);
-app.use(hrmsPrefix + '/hr', salaryRevisionRoutes);
-
-try {
-    app.use('/api/tracker', require('./routes/tracker.routes'));
-    app.use('/api/tracker', require('./routes/tracker.routes'));
-    app.use('/api/hr/candidate-status', require('./routes/tracker.routes'));
+    app.use('/api/hr/candidate-status', recruitmentCheck, require('./routes/tracker.routes'));
 } catch (e) {
     console.warn("Tracker routes skipped:", e.message);
 }
-
-app.use('/api', deductionRoutes);
-app.use('/api/hrms', deductionRoutes);
 
 /* ===============================
    STATIC FILE SERVING

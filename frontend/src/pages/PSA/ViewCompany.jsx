@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import companiesService from '../../services/companiesService';
 import { API_ROOT } from '../../utils/api';
+import { enabledModulesToArray, normalizeEnabledModules } from '../../utils/moduleConfig';
 
 export default function ViewCompany() {
     const { id } = useParams();
@@ -59,6 +60,8 @@ export default function ViewCompany() {
             </button>
         </div>
     );
+
+    const activeModules = enabledModulesToArray(normalizeEnabledModules(company.enabledModules, company.modules));
 
     return (
         <div className="min-h-screen bg-slate-50/30 p-4 sm:p-6 lg:p-8 font-sans text-slate-900">

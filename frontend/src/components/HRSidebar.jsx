@@ -77,6 +77,7 @@ const NAV_GROUPS = [
   },
   {
     title: 'People',
+    module: 'hr',
     items: [
       { to: '/hr/employees', label: 'Employees', icon: ICONS.employees },
 
@@ -87,6 +88,7 @@ const NAV_GROUPS = [
   },
   {
     title: 'Attendance',
+    module: 'attendance',
     items: [
 
       { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.attendance },
@@ -97,6 +99,7 @@ const NAV_GROUPS = [
   },
   {
     title: 'Leave',
+    module: 'leave',
     items: [
       { to: '/hr/leave-approvals', label: 'Leave Requests', icon: ICONS.leaveRequests },
       { to: '/hr/leave-policies', label: 'Leave Policies', icon: ICONS.leavePolicies }
@@ -104,6 +107,7 @@ const NAV_GROUPS = [
   },
   {
     title: 'Payroll',
+    module: 'payroll',
     items: [
       { to: '/hr/payroll/dashboard', label: 'Payroll Dashboard', icon: ICONS.payrollDashboard },
       { to: '/hr/payroll/salary-components', label: 'Salary Components', icon: ICONS.salaryComponents },
@@ -116,6 +120,7 @@ const NAV_GROUPS = [
   },
   {
     title: 'Hiring',
+    module: 'recruitment',
     items: [
       {
         label: 'Recruitment',
@@ -136,19 +141,20 @@ const NAV_GROUPS = [
           { to: '/hr/internal-applicants', label: 'Internal' }
         ]
       },
-      {
-        label: 'BGV Management',
-        icon: ICONS.bgv,
-        children: [
-          { to: '/hr/bgv', label: 'Case Master' },
-          { to: '/hr/bgv/emails', label: 'Email Management' }
-        ]
-      },
       { to: '/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
     ]
   },
   {
+    title: 'BGV',
+    module: 'backgroundVerification',
+    items: [
+      { to: '/hr/bgv', label: 'Case Master', icon: ICONS.bgv },
+      { to: '/hr/bgv/emails', label: 'Email Management', icon: ICONS.bgv }
+    ]
+  },
+  {
     title: 'Document Management',
+    module: 'documentManagement',
     items: [
       { to: '/hr/letters', label: 'Dashboard', icon: ICONS.dashboard },
       { to: '/hr/letters/issue', label: 'Issue New Letter', icon: ICONS.applicants },
@@ -168,6 +174,12 @@ const NAV_GROUPS = [
       },
       { to: '/hr/access', label: 'Access Control', icon: ICONS.access },
       { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings, end: true },
+    ]
+  },
+  {
+    title: 'Social Media',
+    module: 'socialMediaIntegration',
+    items: [
       { to: '/hr/settings/social-media', label: 'Social Media', icon: ICONS.social }
     ]
   },
@@ -194,10 +206,24 @@ const NAV_GROUPS = [
 
 /* ================= COMPONENT ================= */
 export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigate }) {
-  const { user, isInitialized } = useAuth();
+  const { user, isInitialized, enabledModules } = useAuth();
   const location = useLocation();
   const [expanded, setExpanded] = useState({});
   const [tenant, setTenant] = useState(null);
+
+  const filteredGroups = NAV_GROUPS.filter(group => {
+    // Super Admin sees everything
+    if (user?.role === 'psa') return true;
+
+    // If group has a module requirement, check it
+    if (group.module) {
+      return enabledModules && enabledModules[group.module] === true;
+    }
+
+    // Default: allow (Dashboard, Configuration etc which might be shared)
+    return true;
+  });
+
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -241,7 +267,7 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {NAV_GROUPS.map(group => (
+        {filteredGroups.map(group => (
           <div key={group.title}>
             {!collapsed && (
               <button

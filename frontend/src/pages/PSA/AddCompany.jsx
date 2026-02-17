@@ -20,6 +20,19 @@ import {
     Zap
 } from 'lucide-react';
 import companiesService from '../../services/companiesService';
+import { createDefaultEnabledModules } from '../../utils/moduleConfig';
+
+const DEFAULT_MODULE_CODES = [
+    'hr',
+    'payroll',
+    'attendance',
+    'leave',
+    'employeePortal',
+    'recruitment',
+    'backgroundVerification',
+    'documentManagement',
+    'socialMediaIntegration'
+];
 
 export default function AddCompany() {
     const navigate = useNavigate();
@@ -41,7 +54,7 @@ export default function AddCompany() {
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
 
-    const defaultModules = ['hr', 'payroll', 'attendance', 'ess', 'recruitment', 'analytics'];
+    const defaultEnabledModules = createDefaultEnabledModules(false, DEFAULT_MODULE_CODES);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -79,14 +92,14 @@ export default function AddCompany() {
                 try {
                     const upRes = await companiesService.uploadLogo(formData.logo);
                     logoUrl = upRes.url || upRes.path || '';
-                } catch (e) { console.warn('Logo upload skipped'); }
+                } catch { console.warn('Logo upload skipped'); }
             }
 
             const payload = {
                 name: formData.name,
                 code: formData.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10),
                 status: 'active',
-                modules: defaultModules,
+                enabledModules: defaultEnabledModules,
                 meta: {
                     primaryEmail: formData.email,
                     email: formData.email,

@@ -72,7 +72,7 @@ async function generateEmployeeId({ req, tenantId, department, firstName, lastNa
     // 1. Get next ID via centralized utility
     const result = await companyIdConfig.generateIdInternal({
       tenantId: tenantId,
-      entityType: 'EMPLOYEE',
+      entityType: 'EMP',  // Changed from 'EMPLOYEE' to 'EMP' to match the config key
       increment: true,
       extraReplacements: {
         '{{DEPT}}': (department || 'GEN').substring(0, 3).toUpperCase(),
@@ -388,6 +388,16 @@ exports.create = async (req, res) => {
     const allowOverride = tenant?.meta?.empCodeAllowOverride || false;
 
     const { firstName, lastName, department, customEmployeeId, departmentId, joiningDate, status, lastStep, applicantId, ...restBody } = req.body;
+    const { contactNo, emergencyContactNumber } = restBody;
+
+    // Contact Number Validation (Indian 10-digit, starts with 6-9)
+    const indianPhoneRe = /^[6-9]\d{9}$/;
+    if (contactNo && !indianPhoneRe.test(contactNo)) {
+      return res.status(400).json({ success: false, error: "invalid_contact", message: "Contact number must be a valid 10-digit Indian number starting with 6-9." });
+    }
+    if (emergencyContactNumber && !indianPhoneRe.test(emergencyContactNumber)) {
+      return res.status(400).json({ success: false, error: "invalid_emergency_contact", message: "Emergency contact must be a valid 10-digit Indian number starting with 6-9." });
+    }
 
     let finalEmployeeId;
 
@@ -630,6 +640,16 @@ exports.update = async (req, res) => {
     const tenantId = req.tenantId;
 
     const updatePayload = { ...req.body };
+
+    // Contact Number Validation (Indian 10-digit, starts with 6-9)
+    const indianPhoneRe = /^[6-9]\d{9}$/;
+    if (updatePayload.contactNo && !indianPhoneRe.test(updatePayload.contactNo)) {
+      return res.status(400).json({ success: false, error: "invalid_contact", message: "Contact number must be a valid 10-digit Indian number starting with 6-9." });
+    }
+    if (updatePayload.emergencyContactNumber && !indianPhoneRe.test(updatePayload.emergencyContactNumber)) {
+      return res.status(400).json({ success: false, error: "invalid_emergency_contact", message: "Emergency contact must be a valid 10-digit Indian number starting with 6-9." });
+    }
+
     // delete updatePayload.employeeId; <= MODIFIED: Allow update if Draft
     delete updatePayload.tenant;
 

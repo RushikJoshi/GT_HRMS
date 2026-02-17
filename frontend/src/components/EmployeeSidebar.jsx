@@ -58,6 +58,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
         {
             title: 'Work Management',
             id: 'Attendance',
+            module: 'attendance',
             items: [
                 { id: 'attendance', label: 'My Attendance', icon: ICONS.attendance },
                 { id: 'regularization', label: 'Regularization', icon: ICONS.regularization },
@@ -67,6 +68,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
         {
             title: 'Leave & Time',
             id: 'Leave',
+            module: 'leave',
             items: [
                 { id: 'leaves', label: 'My Leaves', icon: ICONS.leaves }
             ]
@@ -74,6 +76,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
         ...(isManager ? [{
             title: 'Team Management',
             id: 'Team',
+            module: 'hr', // Team management usually part of HR module
             items: [
                 { id: 'team-attendance', label: 'Team Attendance', icon: ICONS.attendance },
                 { id: 'team-leaves', label: 'Team Leaves', icon: ICONS.leaves },
@@ -83,6 +86,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
         {
             title: 'Finances',
             id: 'Payroll',
+            module: 'payroll',
             items: [
                 { id: 'payslips', label: 'My Payslips', icon: ICONS.payslips }
             ]
@@ -90,6 +94,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
         {
             title: 'Growth',
             id: 'Opportunities',
+            module: 'recruitment',
             items: [
                 { id: 'internal-jobs', label: 'Internal Jobs', icon: ICONS.jobs },
                 { id: 'my-applications', label: 'My Applications', icon: ICONS.applications }
@@ -110,6 +115,16 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
             ]
         }
     ];
+
+    const { enabledModules } = useAuth();
+
+    const filteredGroups = NAV_GROUPS.filter(group => {
+        if (user?.role === 'psa') return true;
+        if (group.module) {
+            return enabledModules && enabledModules[group.module] === true;
+        }
+        return true;
+    });
 
     const toggleGroup = (title) => {
         setExpandedGroups(prev => ({ ...prev, [title]: !prev[title] }));
@@ -151,7 +166,7 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
 
             {/* Navigation Scroll Area */}
             <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 custom-scrollbar">
-                {NAV_GROUPS.map((group) => {
+                {filteredGroups.map((group) => {
                     const groupTitle = group.title;
                     const groupKey = group.id || group.title;
                     const isExpanded = expandedGroups[groupKey];
