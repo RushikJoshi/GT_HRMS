@@ -174,12 +174,6 @@ const NAV_GROUPS = [
       },
       { to: '/hr/access', label: 'Access Control', icon: ICONS.access },
       { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings, end: true },
-    ]
-  },
-  {
-    title: 'Social Media',
-    module: 'socialMediaIntegration',
-    items: [
       { to: '/hr/settings/social-media', label: 'Social Media', icon: ICONS.social }
     ]
   },

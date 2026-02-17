@@ -26,6 +26,22 @@ module.exports = async function tenantResolver(req, res, next) {
       return next();
     }
 
+    // Skip tenant resolution for Social Media OAuth routes
+    // These routes use OAuth state parameter to carry tenant context
+    const socialOAuthPaths = [
+      '/social-media/linkedin/connect',
+      '/social-media/linkedin/callback',
+      '/social-media/facebook/connect',
+      '/social-media/facebook/callback',
+      '/social-media/instagram/connect',
+      '/social-media/instagram/callback'
+    ];
+
+    if (socialOAuthPaths.some(path => req.path.includes(path))) {
+      console.log(`[TENANT_MIDDLEWARE] Skipping for Social OAuth: ${req.path}`);
+      return next();
+    }
+
     // For public routes, try to get tenantId from header or URL param
     if (req.path.startsWith('/public/')) {
       // Some public routes like resolve-code or tenant details DON'T need a tenantId beforehand

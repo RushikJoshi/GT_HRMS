@@ -9,7 +9,14 @@ const Tenant = require('../models/Tenant');
 const checkModuleAccess = (moduleName) => {
     return async (req, res, next) => {
         try {
-            // 1. Super Admin bypass
+            // 1. Skip for OAuth routes (safety check)
+            const oauthPaths = ['/connect', '/callback'];
+            if (oauthPaths.some(path => req.path.includes(path))) {
+                console.log(`[checkModuleAccess] Skipping OAuth route: ${req.path}`);
+                return next();
+            }
+
+            // 2. Super Admin bypass
             if (req.user && req.user.role === 'psa') {
                 return next();
             }
