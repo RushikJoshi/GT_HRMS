@@ -60,6 +60,15 @@ exports.applyJob = async (req, res) => {
 
         const { rawText, structuredData } = parseResult;
 
+        // 4. Calculate Match Score
+        const MatchingEngine = require('../services/MatchingEngine.service');
+        let matchResult = { totalScore: 0, breakdown: {}, matchedSkills: [], missingSkills: [] };
+        try {
+            matchResult = await MatchingEngine.calculateMatchScore(job, structuredData);
+        } catch (e) {
+            console.error("[APPLY_JOB] Matching Engine Failed:", e.message);
+        }
+
         // 3. Create Applicant
         const applicant = new Applicant({
             requirementId: jobId,
@@ -67,13 +76,19 @@ exports.applyJob = async (req, res) => {
             name: structuredData.fullName || "Unknown Candidate",
             email: structuredData.email || "unknown@email.com",
             mobile: structuredData.phone || "",
-            resume: req.file.filename, // Store filename relative to uploads
+            resume: req.file.filename,
 
             // AI Fields
             rawOCRText: rawText,
             aiParsedData: structuredData,
             parsedSkills: structuredData.skills || [],
             parsingStatus: rawText ? 'Completed' : 'Failed',
+
+            // MATCHING ENGINE RESULTS
+            matchScore: matchResult.totalScore,
+            matchBreakdown: matchResult.breakdown,
+            matchedSkills: matchResult.matchedSkills,
+            missingSkills: matchResult.missingSkills,
 
             // Manual/Defaults
             experience: structuredData.totalExperience || "",
@@ -88,8 +103,10 @@ exports.applyJob = async (req, res) => {
             success: true,
             message: "Application submitted successfully",
             applicantId: applicant._id,
-            profile: structuredData
+            profile: structuredData,
+            matchPercent: matchResult.totalScore
         });
+
 
     } catch (error) {
         console.error("[APPLY_JOB] Error:", error);

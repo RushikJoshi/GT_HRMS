@@ -1,7 +1,16 @@
 require('dotenv').config();
+
+// Critical Check: AI Support
+if (!process.env.GEMINI_API_KEY) {
+    console.warn("⚠️  WARNING: GEMINI_API_KEY is missing in .env file.");
+    console.warn("AI generation and parsing features will NOT work.");
+}
+
 // Restart trigger V10 - Engine logic update 2026-02-04
 const http = require('http');
 // RESTART TRIGGER V7 - Force restart for schema update
+// RESTART TRIGGER V12 - Requirement Schema Update 2026-02-17
+// RESTART TRIGGER V13 - Final evaluationCriteria in Requirement Schema
 const mongoose = require('mongoose');
 const app = require('./app');
 
