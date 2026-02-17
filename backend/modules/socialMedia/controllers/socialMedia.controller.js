@@ -46,11 +46,13 @@ const FACEBOOK_CONFIG = {
 
 /**
  * Generate state parameter for CSRF protection
+ * @param {string} redirectPath - Where to redirect after OAuth (default: /hr/settings/social-media)
  */
-function generateState(tenantId, userId) {
+function generateState(tenantId, userId, redirectPath = '/hr/settings/social-media') {
     const stateObj = {
         tenantId,
         userId,
+        redirectPath,  // Store redirect destination for OAuth callback
         timestamp: Date.now(),
         nonce: crypto.randomBytes(16).toString('hex')
     };
@@ -94,7 +96,7 @@ exports.initiateLinkedInOAuth = async (req, res) => {
         console.log('🔵 LinkedIn OAuth Initiation (Public):', { tenantId, userId });
 
         // Generate state parameter for CSRF protection
-        const state = generateState(tenantId, userId);
+        const state = generateState(tenantId, userId, '/hr/settings/social-media');
 
         // Build LinkedIn OAuth URL
         const params = new URLSearchParams({
@@ -137,13 +139,13 @@ exports.handleLinkedInCallback = async (req, res) => {
         // Handle OAuth errors from LinkedIn
         if (error) {
             console.error('❌ LinkedIn OAuth error:', error, error_description);
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent(error_description || error)}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent(error_description || error)}`);
         }
 
         // Missing code or state - redirect with error
         if (!code || !state) {
             console.error('❌ Missing code or state in callback');
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent('Missing authorization code or state')}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent('Missing authorization code or state')}`);
         }
 
         // Validate state parameter (CSRF protection)
@@ -152,7 +154,7 @@ exports.handleLinkedInCallback = async (req, res) => {
             stateData = validateState(state);
         } catch (stateError) {
             console.error('❌ State validation failed:', stateError.message);
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent('Invalid or expired state parameter')}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent('Invalid or expired state parameter')}`);
         }
 
         const { tenantId, userId } = stateData;
@@ -238,14 +240,14 @@ exports.handleLinkedInCallback = async (req, res) => {
         console.log('✅ LinkedIn account saved to database');
 
         // Redirect back to frontend with success message
-        res.redirect(`${frontendUrl}/hr/settings/company?oauth=success&platform=linkedin`);
+        res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=success&platform=linkedin`);
     } catch (error) {
         console.error('❌ LinkedIn callback failed:', error.response?.data || error.message);
         console.error('Full error:', error);
 
         // ALWAYS redirect to frontend, even on error
         const errorMessage = error.response?.data?.error_description || error.message || 'OAuth callback failed';
-        res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent(errorMessage)}`);
+        res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent(errorMessage)}`);
     }
 };
 
@@ -262,7 +264,7 @@ exports.initiateFacebookOAuth = async (req, res) => {
         }
 
         console.log('🔵 Facebook OAuth Initiation:', { tenantId, userId });
-        const state = generateState(tenantId, userId);
+        const state = generateState(tenantId, userId, '/hr/settings/social-media');
 
         const params = new URLSearchParams({
             client_id: FACEBOOK_CONFIG.clientId,
@@ -305,11 +307,11 @@ exports.handleFacebookCallback = async (req, res) => {
 
         if (error) {
             logSocial('Callback Error:', error);
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent(error_description || error)}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent(error_description || error)}`);
         }
         if (!code || !state) {
             logSocial('Missing code or state');
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=Missing code or state`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=Missing code or state`);
         }
 
         let stateData;
@@ -318,7 +320,7 @@ exports.handleFacebookCallback = async (req, res) => {
             logSocial('State Validated', { tenantId: stateData.tenantId });
         } catch (e) {
             logSocial('State Validation Failed:', e.message);
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent(e.message)}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent(e.message)}`);
         }
 
         const { tenantId, userId } = stateData;
@@ -369,7 +371,7 @@ exports.handleFacebookCallback = async (req, res) => {
         if (!pages || pages.length === 0) {
             logSocial('No Pages Found');
             console.warn('⚠️ No Facebook Pages found for user. Possible reasons: User has no pages, or permissions (pages_show_list) not granted.');
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent('No Facebook Pages found. Make sure you granted "Pages" access.')}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent('No Facebook Pages found. Make sure you granted "Pages" access.')}`);
         }
 
         // AUTO-SELECT STRATEGY: Pick the first page
@@ -429,12 +431,12 @@ exports.handleFacebookCallback = async (req, res) => {
             // Maybe better to leave it or mark disconnected.
         }
 
-        res.redirect(`${frontendUrl}/hr/settings/company?oauth=success&platform=facebook`);
+        res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=success&platform=facebook`);
 
     } catch (error) {
         console.error('❌ Facebook callback failed:', error.response?.data || error.message);
         const msg = error.response?.data?.error?.message || error.message || 'Facebook connection failed';
-        res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent(msg)}`);
+        res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent(msg)}`);
     }
 };
 
@@ -465,7 +467,7 @@ exports.initiateInstagramOAuth = async (req, res) => {
         }
 
         console.log('🔵 Instagram OAuth Initiation:', { tenantId, userId });
-        const state = generateState(tenantId, userId);
+        const state = generateState(tenantId, userId, '/hr/settings/social-media');
 
         const params = new URLSearchParams({
             client_id: INSTAGRAM_CONFIG.clientId,
@@ -497,11 +499,11 @@ exports.handleInstagramCallback = async (req, res) => {
 
         if (error) {
             console.error('❌ Instagram Callback Error:', error);
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent(error_description || error)}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent(error_description || error)}`);
         }
         if (!code || !state) {
             console.error('❌ Missing code or state');
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=Missing code or state`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=Missing code or state`);
         }
 
         let stateData;
@@ -510,7 +512,7 @@ exports.handleInstagramCallback = async (req, res) => {
             console.log('🔵 State Validated:', { tenantId: stateData.tenantId });
         } catch (e) {
             console.error('❌ State Validation Failed:', e.message);
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent(e.message)}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent(e.message)}`);
         }
 
         const { tenantId, userId } = stateData;
@@ -553,7 +555,7 @@ exports.handleInstagramCallback = async (req, res) => {
         const pages = accountsResponse.data.data;
         if (!pages || pages.length === 0) {
             console.warn('⚠️ No Facebook Pages found.');
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent('No Facebook Pages found. You need a Page to connect Instagram.')}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent('No Facebook Pages found. You need a Page to connect Instagram.')}`);
         }
 
         let connected = false;
@@ -597,16 +599,16 @@ exports.handleInstagramCallback = async (req, res) => {
 
         if (!connected) {
             console.warn('⚠️ No Instagram Business Account found linked to any Page.');
-            return res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent('No Instagram Business Account found linked to your Facebook Pages.')}`);
+            return res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent('No Instagram Business Account found linked to your Facebook Pages.')}`);
         }
 
         console.log('✅ Instagram account connected successfully');
-        res.redirect(`${frontendUrl}/hr/settings/company?oauth=success&platform=instagram`);
+        res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=success&platform=instagram`);
 
     } catch (error) {
         console.error('❌ Instagram callback failed:', error.response?.data || error.message);
         const msg = error.response?.data?.error?.message || error.message || 'Instagram connection failed';
-        res.redirect(`${frontendUrl}/hr/settings/company?oauth=error&message=${encodeURIComponent(msg)}`);
+        res.redirect(`${frontendUrl}/hr/settings/social-media?oauth=error&message=${encodeURIComponent(msg)}`);
     }
 };
 
