@@ -4,7 +4,9 @@ const DepartmentSchema = new mongoose.Schema({
   tenant: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true, required: true },
   name: { type: String, required: true, trim: true, minlength: 2, maxlength: 50 },
   code: { type: String, trim: true, uppercase: true, required: true },
-  status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
+  budgetedHeadcount: { type: Number, default: 0 },
+  currentHeadcount: { type: Number, default: 0 },
+  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   description: { type: String, trim: true, maxlength: 250 },
   // optional parent department (Deprecated/Removed from UI)
   parentDepartment: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', default: null, index: true },
@@ -21,5 +23,5 @@ DepartmentSchema.index({ tenant: 1, name: 1 }, { unique: true, collation: { loca
 // ensure unique department code per tenant
 DepartmentSchema.index({ tenant: 1, code: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
 
-module.exports =  DepartmentSchema;
- 
+module.exports = DepartmentSchema;
+

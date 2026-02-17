@@ -1,29 +1,25 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-async function cleanup() {
+async function run() {
     try {
         await mongoose.connect(process.env.MONGO_URI);
         const admin = mongoose.connection.db.admin();
         const dbs = await admin.listDatabases();
-
-        console.log(`Total Databases: ${dbs.databases.length}`);
-
-        let totalCollections = 0;
+        let total = 0;
+        console.log('--- Collection Count Report ---');
         for (const dbInfo of dbs.databases) {
-            const db = mongoose.connection.useDb(dbInfo.name);
-            const collections = await db.db.listCollections().toArray();
-            totalCollections += collections.length;
-            console.log(`DB: ${dbInfo.name}, Collections: ${collections.length}`);
+            const db = mongoose.connection.client.db(dbInfo.name);
+            const collections = await db.listCollections().toArray();
+            console.log(`${dbInfo.name}: ${collections.length} collections`);
+            total += collections.length;
         }
-
-        console.log(`\nTOTAL COLLECTIONS ACROSS ALL DBS: ${totalCollections}`);
-
+        console.log('----------------------------');
+        console.log(`TOTAL COLLECTIONS: ${total}`);
         process.exit(0);
     } catch (err) {
         console.error(err);
         process.exit(1);
     }
 }
-
-cleanup();
+run();

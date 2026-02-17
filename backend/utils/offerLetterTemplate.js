@@ -246,7 +246,7 @@ function generateOfferLetterHTML(applicant, offerData, companyInfo) {
                 
                 <div>
                     <p class="acceptance-label">Your Signature</p>
-                    <div class="acceptance-field"></div>
+                    <div style="border-bottom:1px solid black; width:150px; margin-top: 40px;"></div>
                 </div>
             </div>
         </div>

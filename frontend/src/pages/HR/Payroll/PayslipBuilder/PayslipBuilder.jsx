@@ -6,9 +6,14 @@ import {
     User, Building2, Wallet, CreditCard, FileText, ChevronRight,
     Undo2, Redo2, Monitor, Smartphone, Download, Eye
 } from 'lucide-react';
-import { message, Modal, Input } from 'antd';
+import { message, Modal, Input, Dropdown, Button } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../../../utils/api';
+import {
+    Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+    ImageRun, AlignmentType, WidthType, BorderStyle, VerticalAlign,
+    PageOrientation, HeadingLevel, HeightRule
+} from 'docx';
 
 import BuilderLayerPanel from './BuilderLayerPanel';
 import BuilderPreview from './BuilderPreview';
@@ -39,10 +44,10 @@ export default function PayslipBuilder() {
         name: "New Payslip Template",
         sections: [],
         styles: {
-            backgroundColor: '#f3f4f6',
+            backgroundColor: '#ffffff',
             fontFamily: 'Inter',
-            fontSize: '14px',
-            color: '#1f2937',
+            fontSize: '12px',
+            color: '#000000',
             padding: '40px'
         }
     });
@@ -70,72 +75,83 @@ export default function PayslipBuilder() {
     ];
 
     useEffect(() => {
-        console.log('🔨 PayslipBuilder Initializing:', { id, loading });
-
-        if (id !== 'new') {
-            console.log('Loading existing template:', id);
-            fetchTemplate();
-        } else {
-            const defaultConfig = {
-                sections: [
-                    {
-                        id: 'section-' + Math.random().toString(36).substr(2, 9),
-                        type: 'company-header',
-                        content: {
-                            showLogo: true,
-                            logoSize: '80px',
-                            companyName: 'Your Company Name',
-                            companyNameSize: '24px',
-                            showAddress: true,
-                            companyAddress: '123 Business Avenue, Suite 500\nAhmedabad, Gujarat - 380015'
-                        },
-                        styles: { paddingTop: '20px', paddingBottom: '20px' }
-                    },
-                    {
-                        id: 'section-' + Math.random().toString(36).substr(2, 9),
-                        type: 'employee-details-grid',
-                        content: {
-                            columns: 2,
-                            fields: [
-                                'EMPLOYEE_NAME',
-                                'EMPLOYEE_CODE',
-                                'DEPARTMENT',
-                                'DESIGNATION',
-                                'DATE_OF_JOINING',
-                                'PAN_NUMBER'
-                            ]
-                        },
-                        styles: { paddingTop: '20px', paddingBottom: '20px' }
-                    }
-                ],
-                styles: {
-                    backgroundColor: '#ffffff',
-                    fontFamily: 'Inter',
-                    fontSize: '12px',
-                    color: '#000000',
-                    padding: '30px'
-                }
+        const initBuilder = async () => {
+            let companyInfo = {
+                name: 'Your Company Name',
+                address: '123 Business Avenue, Suite 500\nAhmedabad, Gujarat - 380015'
             };
-            console.log('Default config created:', defaultConfig);
-            setConfig(defaultConfig);
-            saveToHistory(defaultConfig);
-            // For new templates we can stop loading immediately
-            setLoading(false);
-        }
 
-        // Fetch employees for preview (does not block UI)
+            try {
+                const tenantRes = await api.get('/tenants/me');
+                if (tenantRes.data) {
+                    companyInfo.name = tenantRes.data.name || companyInfo.name;
+                    if (tenantRes.data.meta?.address) {
+                        companyInfo.address = tenantRes.data.meta.address;
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to fetch tenant info:', e);
+            }
+
+            if (id !== 'new') {
+                await fetchTemplate();
+            } else {
+                const defaultConfig = {
+                    name: "New Payslip Template",
+                    sections: [
+                        {
+                            id: 'section-' + Math.random().toString(36).substr(2, 9),
+                            type: 'company-header',
+                            content: {
+                                showLogo: true,
+                                logoSize: '80px',
+                                companyName: companyInfo.name,
+                                companyNameSize: '24px',
+                                showAddress: true,
+                                companyAddress: companyInfo.address
+                            },
+                            styles: { paddingTop: '20px', paddingBottom: '20px' }
+                        },
+                        {
+                            id: 'section-' + Math.random().toString(36).substr(2, 9),
+                            type: 'employee-details-grid',
+                            content: {
+                                columns: 2,
+                                fields: [
+                                    'EMPLOYEE_NAME',
+                                    'EMPLOYEE_CODE',
+                                    'DEPARTMENT',
+                                    'DESIGNATION',
+                                    'DATE_OF_JOINING',
+                                    'PAN_NUMBER'
+                                ]
+                            },
+                            styles: { paddingTop: '20px', paddingBottom: '20px' }
+                        }
+                    ],
+                    styles: {
+                        backgroundColor: '#ffffff',
+                        fontFamily: 'Inter',
+                        fontSize: '12px',
+                        color: '#000000',
+                        padding: '30px'
+                    }
+                };
+                setConfig(defaultConfig);
+                saveToHistory(defaultConfig);
+                setLoading(false);
+            }
+        };
+
+        initBuilder();
         fetchEmployeesForPreview();
     }, [id]);
 
     const fetchEmployeesForPreview = async () => {
         try {
-            console.log('📥 Fetching employees for preview...');
-            // Use existing HR employees endpoint to avoid 404s
             const res = await api.get('/hr/employees?limit=100');
             if (res.data?.success && Array.isArray(res.data.data)) {
-                console.log('✅ Employees loaded:', res.data.data.length);
                 setEmployees(res.data.data);
-                // Auto-select first employee
                 if (res.data.data.length > 0) {
                     setSelectedEmployee(res.data.data[0]);
                 }
@@ -149,14 +165,10 @@ export default function PayslipBuilder() {
         if (!empId || !month) return;
         try {
             setLoadingPreview(true);
-            console.log('📥 Fetching payslip preview:', { empId, month });
-            // Corrected API endpoint to match backend structure
             const res = await api.get(`/payroll/payslips/${empId}?month=${month}`);
             if (res.data?.success && res.data.data) {
-                console.log('✅ Payslip preview loaded');
                 setPreviewData(res.data.data);
             } else {
-                console.warn('No payslip found for this month');
                 setPreviewData(null);
             }
         } catch (err) {
@@ -184,21 +196,13 @@ export default function PayslipBuilder() {
     const fetchTemplate = async () => {
         try {
             setLoading(true);
-            console.log('📥 Fetching template:', id);
             const res = await api.get(`/payslip-templates/${id}`);
-            console.log('✅ Template loaded:', res.data);
-
             if (res.data?.success && res.data.data) {
                 const template = res.data.data;
-
                 if (template.templateType === 'BUILDER' && template.builderConfig) {
-                    console.log('Using BUILDER config');
                     setConfig(template.builderConfig);
                     saveToHistory(template.builderConfig);
                 } else {
-                    // Convert legacy template or show message
-                    console.log('Template is legacy type, creating blank');
-                    message.info("This is a legacy template. Editing in builder will recreate it.");
                     const fallbackConfig = {
                         name: template.name || 'Payslip Template',
                         sections: [],
@@ -207,21 +211,10 @@ export default function PayslipBuilder() {
                     setConfig(fallbackConfig);
                     saveToHistory(fallbackConfig);
                 }
-            } else {
-                throw new Error('Invalid response format');
             }
         } catch (err) {
-            console.error('❌ Template load error:', err?.message, err);
-            message.error(`Failed to load template: ${err?.message || 'Unknown error'}`);
-
-            // Fallback to blank template
-            const fallbackConfig = {
-                name: "Payslip Template",
-                sections: [],
-                styles: { backgroundColor: '#ffffff', padding: '30px', fontFamily: 'Inter', fontSize: '12px', color: '#000000' }
-            };
-            setConfig(fallbackConfig);
-            saveToHistory(fallbackConfig);
+            console.error('Template load error:', err);
+            message.error('Failed to load template');
         } finally {
             setLoading(false);
         }
@@ -252,28 +245,23 @@ export default function PayslipBuilder() {
     };
 
     const handleSave = async () => {
-        // If it's a new template, force user to verify/enter name via Modal
         if (id === 'new') {
             setTempName(config.name === 'New Payslip Template' ? '' : config.name);
             setSaveModalOpen(true);
             return;
         }
-
         await performSave(config.name);
     };
 
     const performSave = async (finalName) => {
         setSaving(true);
         try {
-            // Update config with the final confirmed name
             const updatedConfig = { ...config, name: finalName };
             setConfig(updatedConfig);
-
             const payload = {
                 name: finalName,
                 templateType: 'BUILDER',
                 builderConfig: updatedConfig,
-                // generate a static HTML preview for the list view and old PDF engine
                 htmlContent: "<!-- BUILDER_GENERATED -->"
             };
 
@@ -288,13 +276,7 @@ export default function PayslipBuilder() {
                 message.success("Template saved successfully");
             }
         } catch (error) {
-            console.error('Save failed:', error);
-            // Handle backend duplicate name error (409) specifically if possible, or generic
-            if (error.response?.status === 409) {
-                message.error(error.response.data.message || "Template name already exists");
-            } else {
-                message.error("Failed to save template");
-            }
+            message.error(error.response?.status === 409 ? "Template name already exists" : "Failed to save template");
         } finally {
             setSaving(false);
             setSaveModalOpen(false);
@@ -302,43 +284,40 @@ export default function PayslipBuilder() {
     };
 
     const addBlock = (type) => {
-        const id = Math.random().toString(36).substr(2, 9);
+        const blkId = Math.random().toString(36).substr(2, 9);
         const newBlock = {
-            id,
+            id: blkId,
             type,
             content: getDefaultContent(type),
             styles: getDefaultStyles(type)
         };
-        const newConfig = {
-            ...config,
-            sections: [...config.sections, newBlock]
-        };
+        const newConfig = { ...config, sections: [...config.sections, newBlock] };
         setConfig(newConfig);
-        setSelectedBlockId(id);
+        setSelectedBlockId(blkId);
         saveToHistory(newConfig);
     };
 
-    const updateBlock = (id, newBlockData) => {
+    const updateBlock = (blkId, newBlockData) => {
         const newConfig = {
             ...config,
-            sections: config.sections.map(s => s.id === id ? { ...s, ...newBlockData } : s)
+            sections: config.sections.map(s => s.id === blkId ? { ...s, ...newBlockData } : s)
         };
         setConfig(newConfig);
         saveToHistory(newConfig);
     };
 
-    const removeBlock = (id) => {
+    const removeBlock = (blkId) => {
         const newConfig = {
             ...config,
-            sections: config.sections.filter(s => s.id !== id)
+            sections: config.sections.filter(s => s.id !== blkId)
         };
         setConfig(newConfig);
-        if (selectedBlockId === id) setSelectedBlockId(null);
+        if (selectedBlockId === blkId) setSelectedBlockId(null);
         saveToHistory(newConfig);
     };
 
-    const duplicateBlock = (id) => {
-        const index = config.sections.findIndex(s => s.id === id);
+    const duplicateBlock = (blkId) => {
+        const index = config.sections.findIndex(s => s.id === blkId);
         if (index === -1) return;
         const original = config.sections[index];
         const copy = {
@@ -353,8 +332,8 @@ export default function PayslipBuilder() {
         saveToHistory(newConfig);
     };
 
-    const moveBlock = (id, direction) => {
-        const index = config.sections.findIndex(s => s.id === id);
+    const moveBlock = (blkId, direction) => {
+        const index = config.sections.findIndex(s => s.id === blkId);
         if (index === -1) return;
         if (direction === 'up' && index === 0) return;
         if (direction === 'down' && index === config.sections.length - 1) return;
@@ -371,19 +350,16 @@ export default function PayslipBuilder() {
     const getDefaultContent = (type) => {
         switch (type) {
             case 'text': return { text: 'Enter your text here...', align: 'left', size: '14px', weight: 'normal' };
-            case 'heading': return { text: 'New Heading', level: 'h2', align: 'left' };
             case 'divider': return { thickness: '1px', color: '#e5e7eb', style: 'solid' };
-            case 'image': return { url: '', width: '100px', align: 'left' };
             case 'spacer': return { height: '20px' };
-            case 'row': return { columns: [{ id: 'col-1', content: [] }, { id: 'col-2', content: [] }] };
             case 'company-header': return {
                 showLogo: true,
                 logoAlign: 'left',
                 logoSize: '80px',
-                companyName: 'Your Company Name',
+                companyName: '',
                 companyNameSize: '24px',
                 showAddress: true,
-                companyAddress: '123 Business Avenue, Suite 500\nAhmedabad, Gujarat - 380015'
+                companyAddress: ''
             };
             case 'payslip-title': return { text: 'Payslip for the month of {{MONTH_YEAR}}', align: 'center' };
             case 'employee-details-grid': return { columns: 2, fields: ['EMPLOYEE_NAME', 'EMPLOYEE_CODE', 'DEPARTMENT', 'DESIGNATION'] };
@@ -401,8 +377,323 @@ export default function PayslipBuilder() {
         paddingLeft: '0px',
         paddingRight: '0px',
         marginTop: '0px',
-        marginBottom: '0px'
+        marginBottom: '0px',
     });
+
+    const exportToPDF = () => {
+        const title = config.name || 'payslip-template';
+        const docTitle = document.title;
+        document.title = title;
+        window.print();
+        document.title = docTitle;
+    };
+
+    // Helper: Number to Words
+    const numberToWords = (num) => {
+        if (!num || num === 0) return '';
+        const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+        const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+        const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+        const scales = ['', 'Thousand', 'Lakh', 'Crore'];
+
+        const convertBelow1000 = (n) => {
+            if (n === 0) return '';
+            if (n < 10) return ones[n];
+            if (n < 20) return teens[n - 10];
+            if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+            return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + convertBelow1000(n % 100) : '');
+        };
+
+        let words = '';
+        let scaleIndex = 0;
+
+        while (num > 0) {
+            const remainder = num % (scaleIndex === 0 ? 1000 : 100);
+            if (remainder !== 0) {
+                words = convertBelow1000(remainder) + (scaleIndex > 0 ? ' ' + scales[scaleIndex] : '') + ' ' + words;
+            }
+            num = Math.floor(num / (scaleIndex === 0 ? 1000 : 100));
+            scaleIndex++;
+        }
+        return words.trim() + ' Rupees Only';
+    };
+
+    const exportToWord = async () => {
+        setSaving(true);
+        const hide = message.loading('Generating premium Word document...', 0);
+
+        try {
+            const fetchImage = async (url) => {
+                if (!url) return null;
+                try {
+                    const response = await fetch(url);
+                    const buffer = await response.arrayBuffer();
+                    return new Uint8Array(buffer);
+                } catch (e) { return null; }
+            };
+
+            const docChildren = [];
+
+            // Helper to get Employee Data
+            const getEmpData = (field) => {
+                if (!previewData) return `[${field}]`;
+                const mapping = {
+                    'EMPLOYEE_NAME': () => `${previewData.employeeDetails?.firstName || ''} ${previewData.employeeDetails?.lastName || ''}`,
+                    'EMPLOYEE_CODE': () => previewData.employeeDetails?.employeeCode,
+                    'DEPARTMENT': () => previewData.employeeDetails?.department?.name,
+                    'DESIGNATION': () => previewData.employeeDetails?.designation?.name,
+                    'DATE_OF_JOINING': () => previewData.employeeDetails?.joiningDate ? new Date(previewData.employeeDetails.joiningDate).toLocaleDateString() : '',
+                    'PAN_NUMBER': () => previewData.employeeDetails?.panNumber,
+                    'UAN_NO': () => previewData.employeeDetails?.uanNumber,
+                    'PF_NO': () => previewData.employeeDetails?.pfNumber,
+                    'BANK_NAME': () => previewData.employeeDetails?.bankDetails?.bankName,
+                    'ACCOUNT_NO': () => previewData.employeeDetails?.bankDetails?.accountNumber,
+                    'IFSC': () => previewData.employeeDetails?.bankDetails?.ifscCode,
+                    'MONTH_YEAR': () => previewData.payslipDate ? new Date(previewData.payslipDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : '',
+                    'NET_PAY': () => `₹ ${(previewData.netPay || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+                    'GROSS_EARNINGS': () => `₹ ${(previewData.grossEarnings || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+                    'TOTAL_DEDUCTIONS': () => `₹ ${(previewData.totalDeductions || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                };
+                return mapping[field] ? mapping[field]() : `[${field}]`;
+            };
+
+            // Helper to replace variables
+            const replaceVars = (text) => {
+                if (!text) return '';
+                let result = text;
+                const vars = [
+                    'EMPLOYEE_NAME', 'EMPLOYEE_CODE', 'DEPARTMENT', 'DESIGNATION', 'DATE_OF_JOINING',
+                    'PAN_NUMBER', 'UAN_NO', 'PF_NO', 'BANK_NAME', 'ACCOUNT_NO', 'IFSC', 'MONTH_YEAR',
+                    'NET_PAY', 'GROSS_EARNINGS', 'TOTAL_DEDUCTIONS'
+                ];
+                vars.forEach(v => {
+                    result = result.replace(new RegExp(`\\{\\{${v}\\}\\}`, 'g'), getEmpData(v));
+                });
+                return result;
+            };
+
+            for (const section of config.sections) {
+                const { type, content, styles } = section;
+
+                // --- COMPANY HEADER ---
+                if (type === 'company-header') {
+                    const logoCell = [];
+                    if (content.showLogo && content.logoUrl) {
+                        const imgData = await fetchImage(content.logoUrl);
+                        if (imgData) {
+                            const size = parseInt(content.logoSize) || 60;
+                            logoCell.push(new Paragraph({
+                                children: [new ImageRun({ data: imgData, transformation: { width: size, height: size } })],
+                                alignment: AlignmentType.CENTER
+                            }));
+                        }
+                    }
+
+                    const infoCell = [
+                        new Paragraph({
+                            children: [new TextRun({ text: content.companyName || '', bold: true, size: 32, color: '000000' })],
+                            alignment: content.logoPosition === 'right' ? AlignmentType.LEFT : AlignmentType.RIGHT
+                        }),
+                        ...(content.showAddress ? (content.companyAddress || '').split('\n').map(line =>
+                            new Paragraph({
+                                children: [new TextRun({ text: line, size: 18, color: '666666' })],
+                                alignment: content.logoPosition === 'right' ? AlignmentType.LEFT : AlignmentType.RIGHT
+                            })
+                        ) : [])
+                    ];
+
+                    const cells = content.logoPosition === 'right'
+                        ? [new TableCell({ children: infoCell, width: { size: 80, type: WidthType.PERCENTAGE } }), new TableCell({ children: logoCell, width: { size: 20, type: WidthType.PERCENTAGE } })]
+                        : [new TableCell({ children: logoCell, width: { size: 20, type: WidthType.PERCENTAGE } }), new TableCell({ children: infoCell, width: { size: 80, type: WidthType.PERCENTAGE } })];
+
+                    docChildren.push(new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, insideHorizontal: { style: BorderStyle.NONE }, insideVertical: { style: BorderStyle.NONE } },
+                        rows: [new TableRow({ children: cells })],
+                        margins: { bottom: 400 }
+                    }));
+                }
+
+                // --- PAYSLIP TITLE ---
+                else if (type === 'payslip-title') {
+                    docChildren.push(new Paragraph({
+                        children: [new TextRun({ text: replaceVars(content.text || 'Payslip'), bold: true, size: 28, allCaps: true })],
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 200, after: 200 },
+                        border: { top: { style: BorderStyle.SINGLE, space: 10, color: "EEEEEE" }, bottom: { style: BorderStyle.SINGLE, space: 10, color: "EEEEEE" } }
+                    }));
+                }
+
+                // --- EMPLOYEE GRID ---
+                else if (type === 'employee-details-grid') {
+                    const fields = content.fields || [];
+                    const rows = [];
+                    for (let i = 0; i < fields.length; i += 2) {
+                        const createCell = (key) => new TableCell({
+                            children: [new Paragraph({
+                                children: [
+                                    new TextRun({ text: (key ? key.replace(/_/g, ' ') : '') + ': ', size: 18, color: '888888', bold: true }),
+                                    new TextRun({ text: key ? getEmpData(key) : '', size: 18, bold: true })
+                                ]
+                            })],
+                            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+                            padding: { top: 100, bottom: 100 },
+                            width: { size: 50, type: WidthType.PERCENTAGE }
+                        });
+                        rows.push(new TableRow({ children: [createCell(fields[i]), createCell(fields[i + 1])] }));
+                    }
+                    docChildren.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows, margins: { bottom: 300 } }));
+                }
+
+                // --- TABLES (Earnings, Deductions, Reimbursements) ---
+                else if (type.includes('table')) {
+                    const title = content.title || type.replace('-table', '');
+                    const color = type === 'earnings-table' ? '2563EB' : type === 'deductions-table' ? 'EF4444' : '16A34A';
+
+                    docChildren.push(new Paragraph({
+                        children: [new TextRun({ text: title.toUpperCase(), bold: true, size: 20, color: color })],
+                        spacing: { before: 200, after: 100 }
+                    }));
+
+                    const tableRows = [
+                        new TableRow({
+                            children: ['Description', 'Amount', 'YTD'].filter(h => h !== 'YTD' || content.showYTD).map(h => new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 16, color: '666666' })] })],
+                                shading: { fill: 'F9FAFB' },
+                                borders: { bottom: { style: BorderStyle.SINGLE, color: 'DDDDDD' } }
+                            }))
+                        })
+                    ];
+
+                    let rowsData = [];
+                    if (content.customRows && content.customRows.length > 0) {
+                        rowsData = content.customRows;
+                    } else if (type === 'earnings-table') {
+                        rowsData = previewData?.earnings || [{ name: 'Basic Salary', amount: 0, ytd: 0 }];
+                    } else if (type === 'deductions-table') {
+                        rowsData = previewData?.deductions || [{ name: 'EPF', amount: 0, ytd: 0 }];
+                    } else {
+                        rowsData = previewData?.reimbursements || [{ name: 'None', amount: 0, ytd: 0 }];
+                    }
+
+                    rowsData.forEach(r => {
+                        const cells = [
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r.name || r.description || '', size: 18 })] })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "₹ " + (r.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }), size: 18 })], alignment: AlignmentType.RIGHT })] })
+                        ];
+                        if (content.showYTD) {
+                            cells.push(new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "₹ " + (r.ytd || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }), size: 18, color: '999999' })], alignment: AlignmentType.RIGHT })] }));
+                        }
+                        tableRows.push(new TableRow({ children: cells }));
+                    });
+
+                    // Total Row
+                    const totalAmt = rowsData.reduce((sum, r) => sum + (r.amount || 0), 0);
+                    const totalYTD = rowsData.reduce((sum, r) => sum + (r.ytd || 0), 0);
+
+                    const totalCells = [
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "TOTAL " + title.toUpperCase(), bold: true, size: 18 })] })], shading: { fill: type === 'earnings-table' ? 'EFF6FF' : type === 'deductions-table' ? 'FEF2F2' : 'F0FDF4' } }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "₹ " + totalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }), bold: true, size: 18 })], alignment: AlignmentType.RIGHT })], shading: { fill: type === 'earnings-table' ? 'EFF6FF' : type === 'deductions-table' ? 'FEF2F2' : 'F0FDF4' } })
+                    ];
+                    if (content.showYTD) {
+                        totalCells.push(new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "₹ " + totalYTD.toLocaleString('en-IN', { minimumFractionDigits: 2 }), size: 18 })], alignment: AlignmentType.RIGHT })], shading: { fill: type === 'earnings-table' ? 'EFF6FF' : type === 'deductions-table' ? 'FEF2F2' : 'F0FDF4' } }));
+                    }
+                    tableRows.push(new TableRow({ children: totalCells }));
+
+                    docChildren.push(new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        rows: tableRows,
+                        borders: { top: { style: BorderStyle.SINGLE, color: 'EEEEEE' }, bottom: { style: BorderStyle.SINGLE, color: 'EEEEEE' }, left: { style: BorderStyle.SINGLE, color: 'EEEEEE' }, right: { style: BorderStyle.SINGLE, color: 'EEEEEE' }, insideHorizontal: { style: BorderStyle.SINGLE, color: 'EEEEEE' } }
+                    }));
+                    docChildren.push(new Paragraph({ text: "" })); // Spacer
+                }
+
+                // --- NET PAY BOX ---
+                else if (type === 'net-pay-box') {
+                    const netPay = previewData?.netPay || 0;
+                    docChildren.push(new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        rows: [
+                            new TableRow({
+                                children: [
+                                    new TableCell({
+                                        children: [
+                                            new Paragraph({ children: [new TextRun({ text: content.title || "NET SALARY PAYABLE", size: 16, color: '666666', bold: true })] }),
+                                            new Paragraph({ children: [new TextRun({ text: `(${numberToWords(netPay)})`, size: 14, italics: true, color: '888888' })] })
+                                        ],
+                                        verticalAlign: VerticalAlign.CENTER,
+                                        width: { size: 60, type: WidthType.PERCENTAGE },
+                                        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                                    }),
+                                    new TableCell({
+                                        children: [new Paragraph({ children: [new TextRun({ text: "₹ " + netPay.toLocaleString('en-IN', { minimumFractionDigits: 2 }), bold: true, size: 36 })], alignment: AlignmentType.RIGHT })],
+                                        verticalAlign: VerticalAlign.CENTER,
+                                        width: { size: 40, type: WidthType.PERCENTAGE },
+                                        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                                    })
+                                ]
+                            })
+                        ],
+                        borders: { top: { style: BorderStyle.SINGLE, size: 12 }, bottom: { style: BorderStyle.SINGLE, size: 12 }, left: { style: BorderStyle.SINGLE, size: 12 }, right: { style: BorderStyle.SINGLE, size: 12 } },
+                        margins: { top: 200, bottom: 200, left: 200, right: 200 }
+                    }));
+                }
+
+                // --- DIVIDER ---
+                else if (type === 'divider') {
+                    docChildren.push(new Paragraph({
+                        text: "",
+                        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "E5E7EB" } },
+                        spacing: { before: 100, after: 100 }
+                    }));
+                }
+
+                // --- TEXT ---
+                else if (type === 'text') {
+                    docChildren.push(new Paragraph({
+                        children: [new TextRun({
+                            text: replaceVars(content.text || ''),
+                            size: content.size ? parseInt(content.size) * 2 : 24,
+                            bold: content.weight === 'bold',
+                            color: content.color ? content.color.replace('#', '') : '000000'
+                        })],
+                        alignment: content.align === 'center' ? AlignmentType.CENTER : content.align === 'right' ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                        spacing: { before: 100, after: 100 }
+                    }));
+                }
+
+                // --- SPACER ---
+                else if (type === 'spacer') {
+                    docChildren.push(new Paragraph({ text: "", spacing: { after: 300 } }));
+                }
+            }
+
+            const doc = new Document({
+                sections: [{
+                    properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 567, right: 567, bottom: 567, left: 567 } } }, // A4 Narrow margins
+                    children: docChildren
+                }]
+            });
+
+            const blob = await Packer.toBlob(doc);
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${config.name || 'payslip-template'}.docx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+            hide();
+            message.success('Premium Word document generated!');
+        } catch (err) {
+            console.error(err);
+            hide();
+            message.error('Word export failed');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -415,9 +706,9 @@ export default function PayslipBuilder() {
 
     return (
         <ErrorBoundary>
-            <div className="flex flex-col h-screen bg-gray-50 overflow-hidden font-sans">
+            <div className="flex flex-col h-screen bg-gray-50 overflow-hidden font-sans print:bg-white">
                 {/* Header */}
-                <header className="h-16 bg-white border-b border-gray-200 px-6 py-0 z-40 shrink-0 flex items-center justify-between">
+                <header className="h-16 bg-white border-b border-gray-200 px-6 py-0 z-40 shrink-0 flex items-center justify-between print:hidden">
                     <div className="flex items-center gap-4">
                         <button onClick={() => navigate('/hr/payslip-templates')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
                             <ArrowLeft size={20} />
@@ -476,6 +767,22 @@ export default function PayslipBuilder() {
 
                         <div className="h-6 w-px bg-gray-200"></div>
 
+                        <Dropdown
+                            menu={{
+                                items: [
+                                    { key: 'pdf', label: 'Download as PDF', icon: <FileText size={14} />, onClick: exportToPDF },
+                                    { key: 'word', label: 'Download as Word (DOC)', icon: <div className="w-3.5 h-3.5 flex items-center justify-center font-bold text-[10px] bg-blue-100 text-blue-600 rounded">W</div>, onClick: exportToWord }
+                                ]
+                            }}
+                            placement="bottomRight"
+                        >
+                            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-all text-sm shadow-sm active:scale-95">
+                                <Download size={16} className="text-blue-600" />
+                                <span>Export</span>
+                                <ChevronRight size={14} className="rotate-90 text-gray-400" />
+                            </button>
+                        </Dropdown>
+
                         <button
                             onClick={handleSave}
                             disabled={saving}
@@ -487,23 +794,22 @@ export default function PayslipBuilder() {
                     </div>
                 </header>
 
-                {/* Workspace */}
-                <div className="flex flex-1 overflow-hidden">
-                    {/* Left Panel: Layers / Structure */}
-                    <BuilderLayerPanel
-                        config={config}
-                        selectedBlockId={selectedBlockId}
-                        onSelectBlock={setSelectedBlockId}
-                        onMove={moveBlock}
-                        onRemove={removeBlock}
-                        onDuplicate={duplicateBlock}
-                    />
+                <div className="flex flex-1 overflow-hidden print:overflow-visible print:h-auto print:block">
+                    <div className="print:hidden">
+                        <BuilderLayerPanel
+                            config={config}
+                            selectedBlockId={selectedBlockId}
+                            onSelectBlock={setSelectedBlockId}
+                            onMove={moveBlock}
+                            onRemove={removeBlock}
+                            onDuplicate={duplicateBlock}
+                        />
+                    </div>
 
-                    {/* Center Panel: Canvas */}
-                    <div className="flex-1 bg-gray-200/50 relative overflow-hidden flex flex-col items-center">
-                        <div className="w-full h-full p-8 overflow-y-auto scrollbar-hide flex justify-center">
-                            <div className={`transition-all duration-500 ease-in-out ${previewMode === "mobile" ? "w-[390px] min-h-[844px] bg-white shadow-2xl rounded-[40px] border-[12px] border-gray-900 overflow-y-auto scrollbar-hide relative" : "w-full max-w-[800px] bg-white shadow-2xl min-h-[1100px] border border-gray-100"}`}>
-                                {previewMode === "mobile" && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-900 rounded-b-2xl z-20"></div>}
+                    <div className="flex-1 bg-gray-200/50 relative overflow-hidden flex flex-col items-center print:bg-white print:overflow-visible print:p-0 print:block">
+                        <div className="w-full h-full p-8 overflow-y-auto scrollbar-hide flex justify-center print:p-0 print:overflow-visible print:block">
+                            <div className={`builder-preview-canvas transition-all duration-500 ease-in-out print:shadow-none print:border-none print:w-full print:max-w-none print:mx-0 ${previewMode === "mobile" ? "w-[390px] min-h-[844px] bg-white shadow-2xl rounded-[40px] border-[12px] border-gray-900 overflow-y-auto scrollbar-hide relative print:rounded-none print:border-0" : "w-full max-w-[800px] bg-white shadow-2xl min-h-[1100px] border border-gray-100"}`}>
+                                {previewMode === "mobile" && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-900 rounded-b-2xl z-20 print:hidden"></div>}
 
                                 <BuilderPreview
                                     config={config}
@@ -517,50 +823,107 @@ export default function PayslipBuilder() {
                         </div>
                     </div>
 
-                    {/* Right Panel: Controls & Components */}
-                    <BuilderEditorPanel
-                        config={config}
-                        selectedBlockId={selectedBlockId}
-                        onUpdateConfig={setConfig}
-                        onAddBlock={addBlock}
-                        onUpdateBlock={updateBlock}
-                        onRemoveBlock={removeBlock}
-                        variables={variables}
-                        employees={employees}
-                        selectedEmployee={selectedEmployee}
-                        selectedMonth={selectedMonth}
-                        onEmployeeChange={handleEmployeeChange}
-                        onMonthChange={handleMonthChange}
-                        previewData={previewData}
-                        loadingPreview={loadingPreview}
-                    />
+                    <div className="print:hidden">
+                        <BuilderEditorPanel
+                            config={config}
+                            selectedBlockId={selectedBlockId}
+                            onUpdateConfig={setConfig}
+                            onAddBlock={addBlock}
+                            onUpdateBlock={updateBlock}
+                            onRemoveBlock={removeBlock}
+                            variables={variables}
+                            employees={employees}
+                            selectedEmployee={selectedEmployee}
+                            selectedMonth={selectedMonth}
+                            onEmployeeChange={handleEmployeeChange}
+                            onMonthChange={handleMonthChange}
+                            previewData={previewData}
+                            loadingPreview={loadingPreview}
+                        />
+                    </div>
                 </div>
+
+                <Modal
+                    title="Save Payslip Template"
+                    open={saveModalOpen}
+                    footer={null}
+                    onCancel={() => setSaveModalOpen(false)}
+                >
+                    <div className="py-4">
+                        <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Template Name</label>
+                        <Input
+                            placeholder="e.g., Premium Corporate Template"
+                            value={tempName}
+                            onChange={e => setTempName(e.target.value)}
+                            onPressEnter={() => {
+                                if (tempName.trim()) performSave(tempName);
+                            }}
+                            autoFocus
+                        />
+                        <div className="mt-6 flex justify-end gap-3">
+                            <Button onClick={() => setSaveModalOpen(false)}>Cancel</Button>
+                            <Button
+                                type="primary"
+                                loading={saving}
+                                onClick={() => {
+                                    if (!tempName.trim()) return message.warning('Please enter a name');
+                                    performSave(tempName);
+                                }}
+                                className="bg-gray-900 hover:bg-black"
+                            >
+                                Save Template
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
             </div>
-            {/* Name Save Modal */}
-            <Modal
-                title="Save Payslip Template"
-                open={saveModalOpen}
-                onOk={() => {
-                    if (!tempName.trim()) {
-                        message.error("Please enter a template name");
-                        return;
+
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @media print {
+                    @page { 
+                        size: A4; 
+                        margin: 0mm; 
                     }
-                    performSave(tempName);
-                }}
-                onCancel={() => setSaveModalOpen(false)}
-                okText="Save & Create"
-                confirmLoading={saving}
-            >
-                <div className="py-4">
-                    <p className="mb-2 text-gray-600">Please give your new template a unique name:</p>
-                    <Input
-                        value={tempName}
-                        onChange={(e) => setTempName(e.target.value)}
-                        placeholder="e.g., Executive Payslip 2026"
-                        autoFocus
-                    />
-                </div>
-            </Modal>
+                    html, body {
+                        width: 210mm !important;
+                        height: 297mm !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: hidden !important;
+                        background: white !important;
+                    }
+                    /* Hide EVERYTHING by default */
+                    body * {
+                        visibility: hidden !important;
+                    }
+                    /* Only show the canvas and its children */
+                    .builder-preview-canvas, .builder-preview-canvas * {
+                        visibility: visible !important;
+                    }
+                    .builder-preview-canvas {
+                        position: fixed !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: 210mm !important;
+                        height: 297mm !important;
+                        background: white !important;
+                        padding: 15mm !important;
+                        margin: 0 !important;
+                        box-sizing: border-box !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                        transform: none !important;
+                        z-index: 9999 !important;
+                    }
+                    /* Ensure no background colors or offsets from parents interfere */
+                    #root, #root > div {
+                        background: none !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                    }
+                }
+            ` }} />
         </ErrorBoundary>
     );
 }

@@ -18,8 +18,14 @@ const EmployeeSchema = new mongoose.Schema({
     trim: true,
     // required: function() { return this.status === 'Active'; } // Removed as per user request 
   },
-  status: { type: String, enum: ['Active', 'Draft'], default: 'Active' },
-  lastStep: { type: Number, default: 6 }, // Default to 6 (completed) for existing/direct creations
+  status: { type: String, enum: ['active', 'notice', 'resigned', 'Draft'], default: 'active' },
+  lastStep: { type: Number, default: 6 },
+  resignationDate: { type: Date },
+  lastWorkingDate: { type: Date },
+  replacementRequired: { type: Boolean, default: false },
+  replacementId: { type: mongoose.Schema.Types.ObjectId, ref: 'ReplacementRequest' },
+  salary: { type: Number, default: 0 },
+  employmentType: { type: String, enum: ['permanent', 'contract'], default: 'permanent' },
   password: { type: String, trim: true },
   profilePic: { type: String, trim: true },
   bloodGroup: { type: String, trim: true },

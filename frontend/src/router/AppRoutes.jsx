@@ -56,6 +56,7 @@ import AttendanceHistory from '../pages/HR/AttendanceHistory';
 import BGVManagement from '../pages/HR/BGVManagement';
 import FaceUpdateRequest from '../pages/HR/FaceUpdateRequests';
 import BGVEmailManagement from '../pages/HR/BGVEmailManagement';
+import PersonnelReports from '../pages/HR/PersonnelReports';
 
 // Letter modules
 import LetterDashboard from '../pages/HR/Letters/LetterDashboard';
@@ -236,6 +237,7 @@ export default function AppRoutes() {
                 <Route path="org-tree" element={<CeoOrg />} />
                 <Route path="access" element={<AccessControl />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+                <Route path="reports" element={<PersonnelReports />} />
 
 
 
@@ -252,7 +254,7 @@ export default function AppRoutes() {
                 {/* Career Builder */}
                 <Route path="career-builder" element={<CareerBuilder />} />
                 <Route path="apply-builder" element={<ApplyPageBuilder />} />
-                <Route path="customization/vendor" element={<VendorCustomization />} />
+                {/* <Route path="customization/vendor" element={<VendorCustomization />} /> */}
 
                 {/* Payroll */}
                 <Route path="salary-structure/:candidateId" element={<SalaryStructure />} />
@@ -316,6 +318,7 @@ export default function AppRoutes() {
                 <Route path="access" element={<AccessControl />} />
                 <Route path="offer-templates" element={<OfferTemplates />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
+                <Route path="reports" element={<PersonnelReports />} />
 
 
 
@@ -393,10 +396,10 @@ export default function AppRoutes() {
                 <Route path="face-attendance" element={<FaceAttendance />} />
 
                 {/* Vendor Management (Moved from HR) */}
-                <Route path="vendor/list" element={<VendorList />} />
+                {/* <Route path="vendor/list" element={<VendorList />} />
                 <Route path="vendor/step1" element={<VendorFormStep1 />} />
                 <Route path="vendor/step2/:vendorId?" element={<VendorFormStep2 />} />
-                <Route path="vendor/details/:id" element={<VendorDetails />} />
+                <Route path="vendor/details/:id" element={<VendorDetails />} /> */}
             </Route>
 
 

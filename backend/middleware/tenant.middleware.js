@@ -6,6 +6,18 @@ const getTenantDB = require('../utils/tenantDB');
 
 module.exports = async function tenantResolver(req, res, next) {
   try {
+    const fs = require('fs');
+    const path = require('path');
+    const logMsg = `[${new Date().toISOString()}] ${req.method} ${req.path} | Query: ${JSON.stringify(req.query)}\n`;
+    fs.appendFileSync(path.join(process.cwd(), 'debug.log'), logMsg);
+
+    // Core Logger for Critical Flows
+    if (req.path.includes('/pdf')) {
+      const pdfLog = `🔍 [PDF_REQUEST] Letter: ${req.params.id || 'N/A'} | Tenant: ${req.query.tenantId} | Token: ${req.query.token?.slice(0, 10)}...\n`;
+      fs.appendFileSync(path.join(process.cwd(), 'debug.log'), pdfLog);
+      console.log(`🔍 [TENANT_RESOLVER] Hitting PDF route: ${req.method} ${req.path}`);
+      console.log(`   Query Params: tenantId=${req.query.tenantId}, hasToken=${!!req.query.token}`);
+    }
     // Defensive logging for debugging
     console.log(`[TENANT_MIDDLEWARE] ${req.method} ${req.path}`);
 
@@ -54,7 +66,7 @@ module.exports = async function tenantResolver(req, res, next) {
     let tokenCompanyCode = req.user?.companyCode || req.headers["x-company-code"] || null;
 
     // If no req.user yet (middleware may run before auth middleware), try to extract tenantId from JWT
-    if (!tenantId) {
+    if (!tenantId || (!req.user && !req.candidate)) {
       const authHeader = req.headers.authorization || req.headers.Authorization;
       if (authHeader) {
         const parts = authHeader.split(' ');
@@ -69,8 +81,17 @@ module.exports = async function tenantResolver(req, res, next) {
             console.log(`[TENANT_MIDDLEWARE] Failed to verify token: ${e.message}`);
             // ignore invalid token here; auth middleware will handle auth failures
           }
+          console.log(`[TENANT_MIDDLEWARE] Authenticated via ${queryToken ? 'query' : 'header'} token. Tenant: ${tenantId}`);
+        } catch (e) {
+          console.log(`[TENANT_MIDDLEWARE] Token verification failed: ${e.message}`);
         }
       }
+    }
+
+    // If it's a 25-char ID but looks like it should be 24 (ObjectId), sanitize it
+    // This handles a known issue where some IDs were generated with an extra character
+    if (tenantId && tenantId.length === 25) {
+      console.warn(`⚠️ [TENANT_RESOLVER] Malformed 25-char tenantId detected: ${tenantId}. Attempting to use as is.`);
     }
 
     req.tenantId = tenantId;

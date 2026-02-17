@@ -128,18 +128,21 @@ function getModels(req) {
     }
     const db = req.tenantDB;
     try {
-        // Models are already registered by dbManager, just retrieve them
-        // Do NOT pass schema - use connection.model(name) only
-
-        // Defensive: Check if models exist, if not, try to load them (Safe Lazy Loading)
-        if (!db.models.EmployeeSalarySnapshot) {
-            try { db.model('EmployeeSalarySnapshot', require('../models/EmployeeSalarySnapshot')); } catch (e) { }
-        }
+        // Safe Lazy Loading for all required models
         if (!db.models.GeneratedLetter) {
             try { db.model('GeneratedLetter', require('../models/GeneratedLetter')); } catch (e) { }
         }
         if (!db.models.LetterTemplate) {
             try { db.model('LetterTemplate', require('../models/LetterTemplate')); } catch (e) { }
+        }
+        if (!db.models.Applicant) {
+            try { db.model('Applicant', require('../models/Applicant')); } catch (e) { }
+        }
+        if (!db.models.Candidate) {
+            try { db.model('Candidate', require('../models/Candidate')); } catch (e) { }
+        }
+        if (!db.models.Employee) {
+            try { db.model('Employee', require('../models/Employee')); } catch (e) { }
         }
         if (!db.models.CompanyProfile) {
             try { db.model('CompanyProfile', require('../models/CompanyProfile')); } catch (e) { }
@@ -147,34 +150,15 @@ function getModels(req) {
         if (!db.models.LetterApproval) {
             try { db.model('LetterApproval', require('../models/LetterApproval')); } catch (e) { }
         }
-        if (!db.models.BGVCase) {
-            try { db.model('BGVCase', require('../models/BGVCase')); } catch (e) { console.error("Failed to load BGVCase model:", e); }
-        }
-        if (!db.models.Notification) {
-            try { db.model('Notification', require('../models/Notification')); } catch (e) { console.error("Failed to load Notification model:", e); }
-        }
-        if (!db.models.Applicant) {
-            try { db.model('Applicant', require('../models/Applicant')); } catch (e) { }
-        }
-        if (!db.models.Employee) {
-            try { db.model('Employee', require('../models/Employee')); } catch (e) { }
-        }
-        if (!db.models.LetterRevocation) {
-            try { db.model('LetterRevocation', require('../models/LetterRevocation')); } catch (e) { }
-        }
 
         return {
-            CompanyProfile: db.model("CompanyProfile"),
-            LetterTemplate: db.model("LetterTemplate"),
             GeneratedLetter: db.model("GeneratedLetter"),
-            LetterApproval: db.model("LetterApproval"),
+            LetterTemplate: db.model("LetterTemplate"),
             Applicant: db.model("Applicant"),
+            Candidate: db.model("Candidate"),
             Employee: db.model("Employee"),
-            LetterRevocation: db.model("LetterRevocation"),
-            EmployeeSalarySnapshot: db.model("EmployeeSalarySnapshot"),
-            BGVCase: db.models.BGVCase || null,
-            Notification: db.models.Notification || null
-            // SalaryStructure is GLOBAL, not tenant-specific
+            CompanyProfile: db.model("CompanyProfile"),
+            LetterApproval: db.model("LetterApproval")
         };
     } catch (err) {
         console.error("[letter.controller] Error retrieving models:", err);
@@ -876,7 +860,6 @@ exports.uploadWordTemplate = [
                         // If index not found but error persists, throw original error
                         throw saveError;
                     } catch (fixError) {
-                        console.error('❌ [UPLOAD TEMPLATE] Failed to auto-fix index:', fixError.message);
                         // If auto-fix fails, return helpful error
                         return res.status(500).json({
                             success: false,
@@ -902,7 +885,7 @@ exports.uploadWordTemplate = [
             if (req.file && fs.existsSync(req.file.path)) {
                 try {
                     fs.unlinkSync(req.file.path);
-                    console.log(`🧹 [UPLOAD TEMPLATE] Cleaned up file: ${req.file.path}`);
+                    console.log(`🧹[UPLOAD TEMPLATE] Cleaned up file: ${req.file.path} `);
                 } catch (e) {
                     console.error('⚠️ [UPLOAD TEMPLATE] Failed to cleanup file:', e.message);
                 }
@@ -919,11 +902,11 @@ exports.previewWordTemplatePDF = async (req, res) => {
     try {
         const { templateId } = req.params;
 
-        console.log(`🔍 [PREVIEW WORD TEMPLATE PDF] Request for templateId: ${templateId}`);
+        console.log(`🔍[PREVIEW WORD TEMPLATE PDF] Request for templateId: ${templateId} `);
 
         // Validate ID format
         if (!templateId || !mongoose.Types.ObjectId.isValid(templateId)) {
-            console.error(`🔍 [PREVIEW WORD TEMPLATE PDF] Invalid templateId format: ${templateId}`);
+            console.error(`🔍[PREVIEW WORD TEMPLATE PDF] Invalid templateId format: ${templateId} `);
             return res.status(400).json({ message: "Invalid template ID format" });
         }
 
@@ -939,31 +922,31 @@ exports.previewWordTemplatePDF = async (req, res) => {
         const template = await LetterTemplate.findOne(query);
 
         if (!template) {
-            console.error(`🔍 [PREVIEW WORD TEMPLATE PDF] Template not found for ID: ${templateId}`);
+            console.error(`🔍[PREVIEW WORD TEMPLATE PDF] Template not found for ID: ${templateId} `);
             return res.status(404).json({ message: "Template not found" });
         }
 
         // Validate template type
         if (template.templateType !== 'WORD') {
-            console.error(`🔍 [PREVIEW WORD TEMPLATE PDF] Template is not a WORD template: ${template.templateType}`);
+            console.error(`🔍[PREVIEW WORD TEMPLATE PDF] Template is not a WORD template: ${template.templateType} `);
             return res.status(400).json({ message: "Template is not a WORD template. Preview is only available for WORD templates." });
         }
 
         // Validate filePath exists
         if (!template.filePath) {
-            console.error(`🔍 [PREVIEW WORD TEMPLATE PDF] Template filePath is missing`);
+            console.error(`🔍[PREVIEW WORD TEMPLATE PDF] Template filePath is missing`);
             return res.status(400).json({ message: "Template file path not set. Please re-upload the template." });
         }
 
         // Normalize and validate file path
         const normalizedFilePath = normalizeFilePath(template.filePath);
-        console.log(`🔍 [PREVIEW WORD TEMPLATE PDF] Original path: ${template.filePath}`);
-        console.log(`🔍 [PREVIEW WORD TEMPLATE PDF] Normalized path: ${normalizedFilePath}`);
+        console.log(`🔍[PREVIEW WORD TEMPLATE PDF] Original path: ${template.filePath} `);
+        console.log(`🔍[PREVIEW WORD TEMPLATE PDF] Normalized path: ${normalizedFilePath} `);
 
         // Check if file exists
         if (!fs.existsSync(normalizedFilePath)) {
-            console.error(`❌ [PREVIEW WORD TEMPLATE PDF] Template file NOT FOUND at path: ${normalizedFilePath}`);
-            console.error(`❌ [PREVIEW WORD TEMPLATE PDF] Original path from DB: ${template.filePath}`);
+            console.error(`❌[PREVIEW WORD TEMPLATE PDF] Template file NOT FOUND at path: ${normalizedFilePath} `);
+            console.error(`❌[PREVIEW WORD TEMPLATE PDF] Original path from DB: ${template.filePath} `);
             return res.status(404).json({
                 message: "Template file not found on server. Please re-upload the template.",
                 code: "FILE_NOT_FOUND"
@@ -1063,18 +1046,18 @@ exports.previewWordTemplatePDF = async (req, res) => {
 
         // Verify PDF exists before serving
         if (!fs.existsSync(pdfPath)) {
-            console.error(`🔍 [PREVIEW WORD TEMPLATE PDF] Generated PDF not found at: ${pdfPath}`);
+            console.error(`🔍[PREVIEW WORD TEMPLATE PDF] Generated PDF not found at: ${pdfPath}`);
             return res.status(500).json({ message: "PDF preview generation failed. The PDF file was not created." });
         }
 
         // Serve PDF
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename="${templateBaseName}.pdf"`);
+        res.setHeader('Content-Disposition', `inline; filename = "${templateBaseName}.pdf"`);
         const pdfStream = fs.createReadStream(pdfPath);
 
         // Handle stream errors
         pdfStream.on('error', (streamError) => {
-            console.error(`❌ [PREVIEW WORD TEMPLATE PDF] Stream error:`, streamError);
+            console.error(`❌[PREVIEW WORD TEMPLATE PDF] Stream error: `, streamError);
             if (!res.headersSent) {
                 res.status(500).json({ message: "Error reading PDF file", error: streamError.message });
             }
@@ -1115,7 +1098,7 @@ exports.downloadWordTemplate = async (req, res) => {
         const template = await LetterTemplate.findOne(query);
 
         if (!template) {
-            console.error(`❌ [DOWNLOAD WORD] Template not found: ${templateId}`);
+            console.error(`❌[DOWNLOAD WORD] Template not found: ${templateId}`);
             return res.status(404).json({ message: "Template not found" });
         }
 
@@ -1124,7 +1107,7 @@ exports.downloadWordTemplate = async (req, res) => {
         }
 
         if (!template.filePath) {
-            console.error(`❌ [DOWNLOAD WORD] Template filePath missing for template: ${templateId}`);
+            console.error(`❌[DOWNLOAD WORD] Template filePath missing for template: ${templateId} `);
             return res.status(400).json({ message: "Template file path not set. Please re-upload the template." });
         }
 
@@ -1132,7 +1115,7 @@ exports.downloadWordTemplate = async (req, res) => {
         const normalizedFilePath = normalizeFilePath(template.filePath);
 
         if (!fs.existsSync(normalizedFilePath)) {
-            console.error(`❌ [DOWNLOAD WORD] Template file NOT FOUND at: ${normalizedFilePath}`);
+            console.error(`❌[DOWNLOAD WORD] Template file NOT FOUND at: ${normalizedFilePath} `);
             return res.status(404).json({
                 message: "Template file not found on server. Please re-upload the template.",
                 code: "FILE_NOT_FOUND"
@@ -1142,11 +1125,11 @@ exports.downloadWordTemplate = async (req, res) => {
         // Serve the Word file
         const fileName = path.basename(normalizedFilePath);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="${template.name || fileName}"`);
+        res.setHeader('Content-Disposition', `attachment; filename = "${template.name || fileName}"`);
         const fileStream = fs.createReadStream(normalizedFilePath);
 
         fileStream.on('error', (streamError) => {
-            console.error(`❌ [DOWNLOAD WORD] Stream error:`, streamError);
+            console.error(`❌[DOWNLOAD WORD] Stream error: `, streamError);
             if (!res.headersSent) {
                 res.status(500).json({ message: "Error reading template file", error: streamError.message });
             }
@@ -1180,12 +1163,12 @@ exports.downloadWordTemplatePDF = async (req, res) => {
         const template = await LetterTemplate.findById(templateId);
 
         if (!template) {
-            console.error(`❌ [DOWNLOAD PDF] Template not found: ${templateId}`);
+            console.error(`❌[DOWNLOAD PDF] Template not found: ${templateId} `);
             return res.status(404).json({ message: "Template not found" });
         }
 
         if (!template.filePath) {
-            console.error(`❌ [DOWNLOAD PDF] Template filePath missing for template: ${templateId}`);
+            console.error(`❌[DOWNLOAD PDF] Template filePath missing for template: ${templateId} `);
             return res.status(400).json({ message: "Template file path not set. Please re-upload the template." });
         }
 
@@ -1193,7 +1176,7 @@ exports.downloadWordTemplatePDF = async (req, res) => {
         const normalizedFilePath = normalizeFilePath(template.filePath);
 
         if (!fs.existsSync(normalizedFilePath)) {
-            console.error(`❌ [DOWNLOAD PDF] Template file NOT FOUND at: ${normalizedFilePath}`);
+            console.error(`❌[DOWNLOAD PDF] Template file NOT FOUND at: ${normalizedFilePath} `);
             return res.status(404).json({
                 message: "Template file not found on server. Please re-upload the template.",
                 code: "FILE_NOT_FOUND"
@@ -1229,7 +1212,7 @@ exports.downloadWordTemplatePDF = async (req, res) => {
 
         // Serve PDF
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${templateBaseName}.pdf"`);
+        res.setHeader('Content-Disposition', `attachment; filename = "${templateBaseName}.pdf"`);
         const pdfStream = fs.createReadStream(pdfPath);
         pdfStream.pipe(res);
 
@@ -1462,9 +1445,9 @@ exports.generateJoiningLetter = async (req, res) => {
         };
 
         const flatData = {};
-        earnings.forEach(e => { flatData[e.code] = cur(e.monthly || e.monthlyAmount); flatData[`${e.code}_ANNUAL`] = cur(e.yearly || e.yearlyAmount); });
-        employeeDeductions.forEach(d => { flatData[d.code] = cur(d.monthly || d.monthlyAmount); flatData[`${d.code}_ANNUAL`] = cur(d.yearly || d.yearlyAmount); });
-        benefits.forEach(b => { flatData[b.code] = cur(b.monthly || b.monthlyAmount); flatData[`${b.code}_ANNUAL`] = cur(b.yearly || b.yearlyAmount); });
+        earnings.forEach(e => { flatData[e.code] = cur(e.monthly || e.monthlyAmount); flatData[`${e.code} _ANNUAL`] = cur(e.yearly || e.yearlyAmount); });
+        employeeDeductions.forEach(d => { flatData[d.code] = cur(d.monthly || d.monthlyAmount); flatData[`${d.code} _ANNUAL`] = cur(d.yearly || d.yearlyAmount); });
+        benefits.forEach(b => { flatData[b.code] = cur(b.monthly || b.monthlyAmount); flatData[`${b.code} _ANNUAL`] = cur(b.yearly || b.yearlyAmount); });
 
         req.calculatedSalaryData = {
             earnings: earnings.map(e => ({ name: e.name, monthly: cur(e.monthly), yearly: cur(e.yearly) })),
@@ -1592,15 +1575,15 @@ exports.generateJoiningLetter = async (req, res) => {
         } catch (idErr) {
             console.warn("⚠️ [JOINING LETTER] Could not generate reference number:", idErr.message);
             console.error("⚠️ [JOINING LETTER] ID Generation Error Stack:", idErr.stack);
-            generatedRefNo = `APPT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(5, '0')}`;
+            generatedRefNo = `APPT - ${new Date().getFullYear()} -${String(Math.floor(Math.random() * 10000)).padStart(5, '0')} `;
         }
 
         // A. Basic Placeholders
         // Normalize target for mapOfferToJoiningData
         const normalizedTarget = {
             ...(target.toObject ? target.toObject() : target),
-            name: target.name || (target.firstName ? `${target.firstName} ${target.lastName || ''}`.trim() : ''),
-            address: target.address || (target.tempAddress ? `${target.tempAddress.line1}, ${target.tempAddress.city}` : '')
+            name: target.name || (target.firstName ? `${target.firstName} ${target.lastName || ''} `.trim() : ''),
+            address: target.address || (target.tempAddress ? `${target.tempAddress.line1}, ${target.tempAddress.city} ` : '')
         };
         const basicData = joiningLetterUtils.mapOfferToJoiningData(normalizedTarget, {}, snapshot);
 
@@ -1630,8 +1613,8 @@ exports.generateJoiningLetter = async (req, res) => {
             totals: salaryStructure.totals,
             ...(req.calculatedSalaryData || {}),
             ...(req.flatSalaryData || {}),
-            salary_table_text_block: salaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n'),
-            SALARY_TABLE: salaryComponents.map(r => `${r.name}\t${r.monthly}\t${r.yearly}`).join('\n'),
+            salary_table_text_block: salaryComponents.map(r => `${r.name} \t${r.monthly} \t${r.yearly} `).join('\n'),
+            SALARY_TABLE: salaryComponents.map(r => `${r.name} \t${r.monthly} \t${r.yearly} `).join('\n'),
 
             // Custom Overrides for Ref No and Issue Date (Use generated APPOINTMENT ID)
             ref_no: refNo || generatedRefNo || basicData.ref_no,
@@ -1787,7 +1770,7 @@ exports.generateJoiningLetter = async (req, res) => {
                         formattedJoiningDate,
                         attachmentPath
                     );
-                    console.log(`✅ [JOINING LETTER] Email sent to ${target.email}`);
+                    console.log(`✅[JOINING LETTER] Email sent to ${target.email} `);
                 }
 
                 // 3. Create Notification for Candidate Portal
@@ -1799,10 +1782,10 @@ exports.generateJoiningLetter = async (req, res) => {
                         entityType: 'JoiningLetter',
                         entityId: generated._id,
                         title: 'Joining Letter Issued',
-                        message: `Congratulations! Your joining letter for ${jobTitle} has been issued. Please check your email or download it from here.`,
+                        message: `Congratulations! Your joining letter for ${jobTitle} has been issued.Please check your email or download it from here.`,
                         isRead: false
                     });
-                    console.log(`✅ [JOINING LETTER] Notification created for candidate ${target.candidateId}`);
+                    console.log(`✅[JOINING LETTER] Notification created for candidate ${target.candidateId}`);
                 }
 
             } catch (notifyErr) {
@@ -1873,7 +1856,7 @@ exports.generateOfferLetter = async (req, res) => {
             try {
                 const tenantId = req.tenantId || req.user.tenantId;
                 const bgv = await BGVCase.findOne({ applicationId: applicant._id, tenant: tenantId });
-                console.log(`🔍 [OFFER LETTER] BGV Status: ${bgv ? bgv.overallStatus : 'NOT_FOUND'}`);
+                console.log(`🔍[OFFER LETTER] BGV Status: ${bgv ? bgv.overallStatus : 'NOT_FOUND'} `);
 
                 if (bgv) {
                     if (bgv.overallStatus === 'FAILED') {
@@ -1895,7 +1878,7 @@ exports.generateOfferLetter = async (req, res) => {
                     }
 
                     if (bgv.overallStatus === 'IN_PROGRESS') {
-                        console.warn(`⚠️ [OFFER LETTER] BGV is still IN_PROGRESS for ${applicant.name}. Proceeding with caution.`);
+                        console.warn(`⚠️[OFFER LETTER] BGV is still IN_PROGRESS for ${applicant.name}.Proceeding with caution.`);
                         // Non-blocking: We allow generation but could add a warning to the response if needed.
                         // For now, let's just proceed to solve the user's issue.
                     }
@@ -1971,9 +1954,9 @@ exports.generateOfferLetter = async (req, res) => {
             const issuedDate = formatCustomDate(validIssueDate, dateFormat);
             console.log('📅 [OFFER LETTER] Issued Date set to:', issuedDate, 'Format:', dateFormat);
 
-            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)}`;
+            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)} `;
             // Construct Dear Name: "Ms. Rima" if user entered "Rima"
-            const finalDearName = `${salutation ? salutation + ' ' : ''}${safeString(dearName || name || applicant.name)}`;
+            const finalDearName = `${salutation ? salutation + ' ' : ''}${safeString(dearName || name || applicant.name)} `;
 
             console.log('👤 [OFFER LETTER] Full Name constructed:', fullName);
             console.log('👤 [OFFER LETTER] Dear Name constructed:', finalDearName);
@@ -2089,7 +2072,7 @@ exports.generateOfferLetter = async (req, res) => {
             const issuedDate = formatCustomDate(validIssueDate, dateFormat);
             const issuedDateStr = issuedDate;
 
-            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)}`;
+            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)} `;
 
             const replacements = {
                 '{{employee_name}}': fullName,
@@ -2120,20 +2103,20 @@ exports.generateOfferLetter = async (req, res) => {
 
             if (!htmlContent.includes('<html')) {
                 htmlContent = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
+    < !DOCTYPE html >
+        <html>
+            <head>
+                <meta charset="UTF-8">
                     <style>
-                        body { font-family: 'Arial', sans-serif; line-height: 1.6; padding: 40px; }
-                        .header { text-align: center; margin-bottom: 30px; }
-                        .content { margin-bottom: 30px; }
+                        body {font - family: 'Arial', sans-serif; line-height: 1.6; padding: 40px; }
+                        .header {text - align: center; margin-bottom: 30px; }
+                        .content {margin - bottom: 30px; }
                     </style>
-                </head>
-                <body>
-                    ${htmlContent}
-                </body>
-                </html>`;
+            </head>
+            <body>
+                ${htmlContent}
+            </body>
+        </html>`;
             }
 
             const fileName = `Offer_Letter_${applicantId}_${Date.now()}`;
@@ -2198,7 +2181,7 @@ exports.generateOfferLetter = async (req, res) => {
             if (!updatedApplicant.timeline) updatedApplicant.timeline = [];
             updatedApplicant.timeline.push({
                 status: 'Offer Issued',
-                message: `🎉 Offer Letter Generated (${refNo}). Joining date: ${joiningDate ? new Date(joiningDate).toLocaleDateString('en-IN') : 'TBD'}.`,
+                message: `🎉 Offer Letter Generated(${refNo}).Joining date: ${joiningDate ? new Date(joiningDate).toLocaleDateString('en-IN') : 'TBD'}.`,
                 updatedBy: req.user?.name || "HR",
                 timestamp: new Date()
             });
@@ -2250,7 +2233,7 @@ exports.generateOfferLetter = async (req, res) => {
                         companyName,
                         attachmentPath
                     );
-                    console.log(`✅ [OFFER LETTER] Email sent to ${updatedApplicant.email}`);
+                    console.log(`✅[OFFER LETTER] Email sent to ${updatedApplicant.email} `);
                 }
 
                 // 3. Create Notification for Candidate Portal
@@ -2263,10 +2246,10 @@ exports.generateOfferLetter = async (req, res) => {
                         entityType: 'OfferLetter',
                         entityId: generated._id,
                         title: 'Offer Letter Issued',
-                        message: `Congratulations! Your offer letter for ${jobTitle} has been issued. Please check your email or download it from here.`,
+                        message: `Congratulations! Your offer letter for ${jobTitle} has been issued.Please check your email or download it from here.`,
                         isRead: false
                     });
-                    console.log(`✅ [OFFER LETTER] Notification created for candidate ${updatedApplicant.candidateId}`);
+                    console.log(`✅[OFFER LETTER] Notification created for candidate ${updatedApplicant.candidateId}`);
                 }
 
             } catch (notifyErr) {
@@ -2352,7 +2335,7 @@ exports.previewJoiningLetter = async (req, res) => {
         }
 
         if (!target) {
-            console.error(`🔥 [PREVIEW JOINING LETTER] ${targetType === 'employee' ? 'Employee' : 'Applicant'} not found:`, employeeId || applicantId);
+            console.error(`🔥[PREVIEW JOINING LETTER] ${targetType === 'employee' ? 'Employee' : 'Applicant'} not found: `, employeeId || applicantId);
             return res.status(404).json({ message: `${targetType === 'employee' ? 'Employee' : 'Applicant'} not found` });
         }
 
@@ -2404,7 +2387,7 @@ exports.previewJoiningLetter = async (req, res) => {
 
             // Return 404 with clear message and actionable error code
             return res.status(404).json({
-                message: `Template file not found on server at path: ${normalizedFilePath}. Please re-upload the template.`,
+                message: `Template file not found on server at path: ${normalizedFilePath}. Please re - upload the template.`,
                 code: "FILE_NOT_FOUND",
                 templateId: template._id.toString(),
                 filePath: normalizedFilePath
@@ -2570,9 +2553,9 @@ exports.previewJoiningLetter = async (req, res) => {
         };
 
         const flatData = {};
-        earnings.forEach(e => { flatData[e.code] = safeCur(e.monthlyAmount); flatData[`${e.code}_ANNUAL`] = safeCur(e.annualAmount); });
-        employeeDeductions.forEach(d => { flatData[d.code] = safeCur(d.monthlyAmount); flatData[`${d.code}_ANNUAL`] = safeCur(d.annualAmount); });
-        benefits.forEach(b => { flatData[b.code] = safeCur(b.monthlyAmount); flatData[`${b.code}_ANNUAL`] = safeCur(b.annualAmount); });
+        earnings.forEach(e => { flatData[e.code] = safeCur(e.monthlyAmount); flatData[`${e.code} _ANNUAL`] = safeCur(e.annualAmount); });
+        employeeDeductions.forEach(d => { flatData[d.code] = safeCur(d.monthlyAmount); flatData[`${d.code} _ANNUAL`] = safeCur(d.annualAmount); });
+        benefits.forEach(b => { flatData[b.code] = safeCur(b.monthlyAmount); flatData[`${b.code} _ANNUAL`] = safeCur(b.annualAmount); });
 
         // ... (rest of logic same) ...
 
@@ -2693,7 +2676,7 @@ exports.previewJoiningLetter = async (req, res) => {
             issued_date: issueDate ? new Date(issueDate).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN'),
             issue_date: issueDate ? new Date(issueDate).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN'),
             issuedDate: issueDate ? new Date(issueDate).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN'),
-            ref_no: refNo || `JL/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+            ref_no: refNo || `JL / ${new Date().getFullYear()}/${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
             refNo: refNo,
             ref_code: refNo,
             reference_number: refNo
@@ -3718,6 +3701,228 @@ exports.enforceDocumentAccess = async (req, res) => {
     } catch (error) {
         console.error('❌ [ACCESS CONTROL] Error:', error.message);
         res.status(403).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * ===================================================================
+ * 🧱 DYNAMIC PDF & SIGNATURE WORKFLOW (MERN ARCHITECT)
+ * ===================================================================
+ */
+
+/**
+ * GENERATE DYNAMIC PDF BUFFER
+ * Fetches data, populates template, injects signature, and returns PDF buffer.
+ */
+exports.generateDynamicPDF = async (req, res) => {
+    const fs = require('fs');
+    const path = require('path');
+    const logFile = path.join(process.cwd(), 'debug.log');
+    fs.appendFileSync(logFile, `🚀 [DYNAMIC_PDF] Controller Start for ID: ${req.params.id}\n`);
+    try {
+        const { id } = req.params;
+        const models = getModels(req);
+        const { GeneratedLetter, Candidate, Applicant } = models;
+
+        fs.appendFileSync(logFile, `📄 [DYNAMIC_PDF] Models retrieved. Fetching letter...\n`);
+        // 1. Fetch Letter
+        const letter = await GeneratedLetter.findById(id).lean();
+        if (!letter) {
+            fs.appendFileSync(logFile, `❌ [DYNAMIC_PDF] Letter not found: ${id}\n`);
+            return res.status(404).send("Document not found in database.");
+        }
+
+        fs.appendFileSync(logFile, `📄 [DYNAMIC_PDF] Letter found. Snapshots: ${!!letter.templateSnapshot}, Path: ${letter.pdfPath}\n`);
+
+        // 2. Content Priority: HTML Snapshot > Static File Fallback
+        let rawHtml = letter.templateSnapshot?.bodyContent || "";
+
+        // If it's a legacy static PDF and no HTML exists, we serve it directly
+        if (!rawHtml && letter.pdfPath) {
+            fs.appendFileSync(logFile, `📂 [DYNAMIC_PDF] Serving static fallback: ${letter.pdfPath}\n`);
+
+            // Clean up path for Windows/Unix compatibility
+            let cleanPath = letter.pdfPath;
+            if (cleanPath.startsWith('/') || cleanPath.startsWith('\\')) {
+                cleanPath = cleanPath.substring(1);
+            }
+
+            // MERN Architecture: Relative paths are relative to the 'uploads' directory
+            let absolutePath;
+            if (path.isAbsolute(cleanPath)) {
+                absolutePath = cleanPath;
+            } else {
+                // Try with 'uploads' prefix first (standard)
+                absolutePath = path.join(process.cwd(), 'uploads', cleanPath);
+
+                // Fallback: Try without 'uploads' prefix (deprecated)
+                if (!fs.existsSync(absolutePath)) {
+                    const fallbackPath = path.join(process.cwd(), cleanPath);
+                    if (fs.existsSync(fallbackPath)) {
+                        absolutePath = fallbackPath;
+                    }
+                }
+            }
+
+            if (fs.existsSync(absolutePath)) {
+                fs.appendFileSync(logFile, `✅ [DYNAMIC_PDF] File exists at ${absolutePath}. Sending...\n`);
+                res.setHeader("Content-Type", "application/pdf");
+                res.setHeader("Access-Control-Allow-Origin", "*");
+                res.setHeader("X-Frame-Options", "ALLOWALL");
+                res.setHeader("Content-Security-Policy", "frame-ancestors *;");
+                return res.sendFile(absolutePath);
+            } else {
+                fs.appendFileSync(logFile, `❌ [DYNAMIC_PDF] File MISSING at ${absolutePath}\n`);
+            }
+        }
+
+        // 3. Data Population
+        const applicant = letter.applicantId ? await Applicant.findById(letter.applicantId).lean() : null;
+        const candidate = (applicant && applicant.candidateId) ? await Candidate.findById(applicant.candidateId).lean() : null;
+        const data = letter.snapshotData ? (letter.snapshotData instanceof Map ? Object.fromEntries(letter.snapshotData) : letter.snapshotData) : {};
+
+        let finalHtml = rawHtml || "<p style='text-align:center; padding: 100px; font-family: sans-serif;'>Document content is missing or being processed. Please contact support.</p>";
+
+        // Resolve Placeholders
+        Object.entries(data).forEach(([key, val]) => {
+            const regex = new RegExp(`{{${key}}}`, 'g');
+            finalHtml = finalHtml.replace(regex, val || "");
+        });
+
+        // 4. Signature Injection (Architecture Standard) - DISABLED as per request
+        const signatureHtml = `<div style="position: relative; height: 80px; margin-top: 20px;">
+                 <div style="border-bottom:1.5px solid #1a1a1a; width:180px; position:absolute; bottom:10px;"></div>
+                 <p style="position:absolute; bottom:-10px; left:0; font-size: 11px; color: #64748b; font-weight: 600;">(Candidate Acceptance Space)</p>
+               </div>`;
+
+        if (finalHtml.includes('{{SIGNATURE}}')) {
+            finalHtml = finalHtml.replace('{{SIGNATURE}}', signatureHtml);
+        } else if (finalHtml.includes('{{SIGNATURE_CANDIDATE_ACCEPTANCE}}')) {
+            finalHtml = finalHtml.replace('{{SIGNATURE_CANDIDATE_ACCEPTANCE}}', signatureHtml);
+        } else {
+            finalHtml += `<div style="margin-top: 60px; page-break-inside: avoid;">${signatureHtml}</div>`;
+        }
+
+        // 5. Wrap in Professional A4 Wrapper
+        const wrappedHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+                    body { font-family: 'Inter', sans-serif; line-height: 1.5; color: #1e293b; padding: 0; margin: 0; background: #f1f5f9; }
+                    .document-wrapper { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 25mm; box-sizing: border-box; background: white; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
+                    .content-section { font-size: 13px; text-align: justify; }
+                    p { margin-bottom: 12px; }
+                    @page { size: A4; margin: 0; }
+                    table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px; }
+                    th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+                    th { background: #f8fafc; font-weight: 700; color: #475569; }
+                    .header-logo { max-height: 60px; margin-bottom: 30px; }
+                </style>
+            </head>
+            <body>
+                <div class="document-wrapper">
+                    <div class="content-section">${finalHtml}</div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        // 6. Generate via Puppeteer
+        const puppeteerService = require('../services/PuppeteerPDFService');
+        const pdfBuffer = await puppeteerService.generatePDFBuffer(wrappedHtml);
+
+        if (!pdfBuffer || pdfBuffer.length === 0) {
+            fs.appendFileSync(logFile, `❌ [DYNAMIC_PDF] Generated buffer is empty\n`);
+            return res.status(500).send("Failed to generate PDF content.");
+        }
+
+        // Security & Compatibility Headers for Iframe Rendering
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Length", pdfBuffer.length);
+        res.setHeader("Content-Disposition", `inline; filename="Letter_${id}.pdf"`);
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET");
+        res.setHeader("X-Frame-Options", "ALLOWALL");
+        res.setHeader("Content-Security-Policy", "frame-ancestors *;");
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+
+        fs.appendFileSync(logFile, `✅ [DYNAMIC_PDF] Sending BINARY PDF Buffer (${pdfBuffer.length} bytes)\n`);
+
+        // Use .end() with a Buffer to ensure binary transmission instead of JSON stringification
+        res.status(200).end(Buffer.from(pdfBuffer), 'binary');
+
+    } catch (error) {
+        fs.appendFileSync(logFile, `❌ [DYNAMIC_PDF] Critical Failure: ${error.message}\n`);
+        console.error('❌ [DYNAMIC PDF] Critical Failure:', error);
+        res.status(500).setHeader("Content-Type", "text/plain").send(`Failed to generate PDF: ${error.message}`);
+    }
+};
+
+/**
+ * SIGN LETTER
+ */
+exports.signLetter = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { signatureImage } = req.body;
+        const { id: candidateId } = req.candidate;
+        const { GeneratedLetter, Candidate, Applicant } = getModels(req);
+
+        const letter = await GeneratedLetter.findById(id);
+        if (!letter) return res.status(404).json({ success: false, message: "Letter not found" });
+
+        // Security: Ownership Check
+        const applicant = await Applicant.findById(letter.applicantId);
+        if (!applicant || String(applicant.candidateId) !== String(candidateId)) {
+            return res.status(403).json({ success: false, message: "Unauthorized access to this document." });
+        }
+
+        if (letter.status === "Accepted") {
+            return res.status(400).json({ success: false, message: "Locked: Document already accepted." });
+        }
+
+        // Save Signature & Update Status
+        await Candidate.findByIdAndUpdate(candidateId, { digitalSignature: signatureImage });
+        letter.status = "Signed";
+        await letter.save();
+
+        res.json({ success: true, message: "Digital signature applied successfully." });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * ACCEPT LETTER
+ */
+exports.acceptLetter = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { id: candidateId } = req.candidate;
+        const { GeneratedLetter, Applicant } = getModels(req);
+
+        const letter = await GeneratedLetter.findById(id);
+        if (!letter) return res.status(404).json({ success: false, message: "Letter not found" });
+
+        // Security: Ownership Check
+        const applicant = await Applicant.findById(letter.applicantId);
+        if (!applicant || String(applicant.candidateId) !== String(candidateId)) {
+            return res.status(403).json({ success: false, message: "Unauthorized access to this document." });
+        }
+
+
+        letter.status = "Accepted";
+        letter.acceptedAt = new Date();
+        await letter.save();
+
+        res.json({ success: true, message: "Document finalized and accepted successfully." });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 

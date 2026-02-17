@@ -4,7 +4,8 @@ import api from '../utils/api';
 import {
     ArrowLeft, Clock, Briefcase, Building2, MapPin,
     ExternalLink, ShieldCheck, AlertCircle,
-    CheckCircle2, Download, X, Upload, FileText
+    CheckCircle2, Download, X, Upload, FileText,
+    Check
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getTenantId } from '../utils/auth';
@@ -26,6 +27,15 @@ export default function ApplicationTrack() {
     const [requiredDocs, setRequiredDocs] = useState([]);
 
     const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+
+    // Dynamic PDF URL helper (Updated to include auth context for iframes)
+    const getLetterPdfUrl = (letterId) => {
+        if (!letterId) return null;
+        const authId = getTenantId() || jobDetails?.tenantId;
+        const token = localStorage.getItem('token');
+        // Add timestamp to prevent caching issues after signature
+        return `${API_BASE}/letters/${letterId}/pdf?tenantId=${authId}&token=${token}&_t=${Date.now()}`;
+    };
 
     // 2. Stages Configuration
     const stages = [
@@ -138,6 +148,23 @@ export default function ApplicationTrack() {
         }
     };
 
+
+    const handleFinalAccept = async () => {
+        try {
+            setLoading(true);
+            const res = await api.post(`/letters/${jobDetails.letterId}/accept`);
+            if (res.data.success) {
+                alert("Congratulations! The letter has been accepted and finalized.");
+                setShowOfferModal(false);
+                window.location.reload();
+            }
+        } catch (err) {
+            console.error("Final accept error:", err);
+            alert(err.response?.data?.message || "Failed to accept letter");
+            setLoading(false);
+        }
+    };
+
     const handleFileUpload = async (event, docType) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -225,7 +252,7 @@ export default function ApplicationTrack() {
                                 <div className="h-20 w-20 rounded-3xl bg-[#EEF2FF] flex items-center justify-center text-indigo-600 mb-8 shadow-sm">
                                     <Briefcase size={36} />
                                 </div>
-                                <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-4 group-hover:text-indigo-600 transition-colors leading-tight">{jobDetails?.jobTitle || 'Position Details'}</h2>
+                                <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-4 group-hover:text-indigo-600 transition-colors leading-tight">{jobDetails?.title || 'Position Details'}</h2>
                                 <div className="space-y-4 mb-10">
                                     <div className="flex items-center gap-4 text-slate-500 font-bold text-xs uppercase tracking-widest">
                                         <Building2 className="w-5 h-5 text-indigo-400" />
@@ -238,7 +265,7 @@ export default function ApplicationTrack() {
                                 </div>
 
                                 <div className="mt-12 pt-10 border-t border-slate-50 space-y-4">
-                                    {jobDetails?.offerLetterUrl && (
+                                    {(jobDetails?.offerLetterUrl || jobDetails?.letterId) && (
                                         <button
                                             onClick={() => setShowOfferModal(true)}
                                             className="w-full bg-white border border-indigo-100 text-indigo-600 py-5 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-50 transition-all flex items-center justify-center gap-3 shadow-sm"
@@ -257,7 +284,7 @@ export default function ApplicationTrack() {
                                     )}
 
                                     <button
-                                        onClick={() => navigate(`/apply-job/${jobDetails?.requirementId?._id || jobDetails?.requirementId}?tenantId=${tenantId}`)}
+                                        onClick={() => navigate(`/apply-job/${jobDetails?.id}?tenantId=${tenantId}`)}
                                         className="w-full bg-slate-50 text-slate-600 py-5 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-3"
                                     >
                                         <ShieldCheck className="w-4 h-4" /> Review Application
@@ -267,33 +294,43 @@ export default function ApplicationTrack() {
                         </div>
 
                         {/* OFFER ACTIONS */}
-                        {jobDetails?.offerLetterUrl && (jobDetails?.status === 'Offer Issued' || jobDetails?.status === 'Selected') && (
-                            <div className="bg-white rounded-[2.5rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50 p-8 text-center animate-in slide-in-from-bottom-5">
-                                <h3 className="text-xl font-bold text-slate-800 mb-4">Pending Action</h3>
-                                <p className="text-slate-500 text-sm mb-8 px-4">
-                                    Congratulations! Please review the offer letter and accept to proceed.
+                        {(jobDetails?.offerLetterUrl || jobDetails?.letterId) && (jobDetails?.status === 'Offer Issued' || jobDetails?.status === 'Selected' || jobDetails?.letterStatus) && (
+                            <div className="bg-white rounded-[2.5rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50 p-10 text-center animate-in slide-in-from-bottom-5">
+                                <div className="h-16 w-16 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 mx-auto mb-6">
+                                    <FileText size={32} />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800 mb-4">Letter Action Required</h3>
+                                <p className="text-slate-500 text-sm mb-8 px-4 leading-relaxed">
+                                    {jobDetails?.letterId
+                                        ? `Your letter is ready for review. Please review and accept below to proceed.`
+                                        : "Congratulations! Please review the offer letter and accept to proceed."}
                                 </p>
-                                <div className="flex flex-col gap-3">
+
+                                <div className="flex flex-col gap-4">
                                     <button
                                         onClick={() => setShowOfferModal(true)}
-                                        className="w-full bg-white border border-slate-200 text-slate-600 py-4 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                        className="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold text-[10px] uppercase tracking-[0.1em] hover:bg-slate-800 transition shadow-xl flex items-center justify-center gap-3"
                                     >
-                                        <ExternalLink size={16} /> View Offer Letter
+                                        <ExternalLink size={16} /> Open Document Review
                                     </button>
-                                    <div className="flex gap-3">
-                                        <button
-                                            onClick={handleRejectOffer}
-                                            className="flex-1 bg-white border border-rose-200 text-rose-600 py-4 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-50 transition-all flex items-center justify-center gap-2"
-                                        >
-                                            <X size={16} /> Reject
-                                        </button>
-                                        <button
-                                            onClick={handleAcceptOffer}
-                                            className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center gap-2"
-                                        >
-                                            <CheckCircle2 size={16} /> Accept
-                                        </button>
-                                    </div>
+
+                                    {!jobDetails?.letterId ? (
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <button onClick={handleRejectOffer} className="bg-white border border-rose-100 text-rose-500 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-rose-50 transition-all">Reject</button>
+                                            <button onClick={handleAcceptOffer} className="bg-emerald-500 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all">Accept</button>
+                                        </div>
+                                    ) : (
+                                        jobDetails?.letterStatus !== 'Accepted' && (
+                                            <div className="pt-2 border-t border-slate-50 mt-2">
+                                                <button
+                                                    onClick={handleFinalAccept}
+                                                    className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <Check size={16} /> Accept Offer
+                                                </button>
+                                            </div>
+                                        )
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -376,7 +413,7 @@ export default function ApplicationTrack() {
                                             <div key={index} className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between group">
                                                 <div className="flex items-center gap-10">
                                                     <div className={`w-16 sm:w-20 h-16 sm:h-20 flex-shrink-0 rounded-[1.5rem] border-4 flex items-center justify-center bg-white shadow-lg transition-all duration-700 relative
-                                                        ${isCurrent ? 'border-indigo-600 ring-12 ring-indigo-50 scale-110' : (isCompleted ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50')}`}>
+                                                            ${isCurrent ? 'border-indigo-600 ring-12 ring-indigo-50 scale-110' : (isCompleted ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50')}`}>
                                                         {isCurrent ? (
                                                             <div className="w-4 h-4 bg-indigo-600 rounded-full animate-ping" />
                                                         ) : (
@@ -432,36 +469,72 @@ export default function ApplicationTrack() {
                 </div>
             </div>
 
-            {/* Offer Letter Modal */}
+            {/* Offer Letter Modal - Advanced Architect View */}
             {showOfferModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-[2rem] w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl relative overflow-hidden">
-                        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800">Offer Letter</h3>
-                                <p className="text-slate-400 text-xs font-bold uppercase mt-1">Review your document</p>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-6xl h-[92vh] flex flex-col shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden border border-white/20">
+
+                        {/* Modal Header */}
+                        <div className="px-10 py-8 border-b border-slate-100 flex items-center justify-between bg-white relative z-10">
+                            <div className="flex items-center gap-5">
+                                <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-200">
+                                    <FileText size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-800 tracking-tight">
+                                        Document Review
+                                    </h3>
+                                    <div className="text-slate-400 text-[10px] font-bold uppercase mt-1 flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                                        {jobDetails?.letterId ? 'Secure Dynamic Document' : 'Official Document'}
+                                    </div>
+                                </div>
                             </div>
+
                             <div className="flex items-center gap-4">
+
                                 <button
-                                    onClick={() => handleDownload(jobDetails?.offerLetterUrl, 'Offer Letter')}
-                                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all"
+                                    onClick={() => handleDownload(jobDetails?.offerLetterUrl || getLetterPdfUrl(jobDetails?.letterId), 'Offer Letter')}
+                                    className="flex items-center gap-2 px-6 py-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all"
                                 >
-                                    <Download size={16} /> Download
+                                    <Download size={16} /> Download PDF
                                 </button>
+
                                 <button
-                                    onClick={() => setShowOfferModal(false)}
-                                    className="p-3 rounded-full hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-all"
+                                    onClick={() => { setShowOfferModal(false); }}
+                                    className="p-4 rounded-full hover:bg-rose-50 hover:text-rose-500 text-slate-400 transition-all group"
                                 >
-                                    <X size={24} />
+                                    <X size={28} className="group-hover:rotate-90 transition-transform" />
                                 </button>
                             </div>
                         </div>
-                        <div className="flex-1 bg-slate-100 p-6 overflow-hidden">
-                            <iframe
-                                src={jobDetails?.offerLetterUrl?.startsWith('http') ? jobDetails?.offerLetterUrl : `${API_BASE.replace(/\/api$/, '')}${jobDetails?.offerLetterUrl}`}
-                                className="w-full h-full rounded-2xl border border-slate-200 bg-white shadow-sm"
-                                title="Offer Letter"
-                            />
+
+                        {/* Modal Content - Document Display */}
+                        <div className="flex-1 flex overflow-hidden bg-slate-50 relative">
+                            {/* PDF Preview */}
+                            <div className={`flex-1 p-6 lg:p-10 w-full flex flex-col`}>
+                                <div className="flex-1 bg-white rounded-3xl shadow-inner border border-slate-200 overflow-hidden relative">
+                                    <iframe
+                                        src={jobDetails?.letterId ? getLetterPdfUrl(jobDetails.letterId) : (jobDetails?.offerLetterUrl?.startsWith('http') ? jobDetails?.offerLetterUrl : `${API_BASE.replace(/\/api$/, '')}${jobDetails?.offerLetterUrl}`)}
+                                        className="w-full h-full"
+                                        title="Offer Letter"
+                                    />
+                                </div>
+                                <div className="mt-4 flex items-center justify-between px-2">
+                                    <p className="text-[10px] text-slate-400 font-medium">
+                                        Having trouble viewing? Use the download button or open in a new tab.
+                                    </p>
+                                    <a
+                                        href={jobDetails?.letterId ? getLetterPdfUrl(jobDetails.letterId) : (jobDetails?.offerLetterUrl?.startsWith('http') ? jobDetails?.offerLetterUrl : `${API_BASE.replace(/\/api$/, '')}${jobDetails?.offerLetterUrl}`)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] text-indigo-600 font-bold hover:underline flex items-center gap-1"
+                                    >
+                                        <ExternalLink size={10} /> Open in New Tab
+                                    </a>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>

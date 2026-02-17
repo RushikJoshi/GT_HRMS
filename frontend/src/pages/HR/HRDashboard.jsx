@@ -35,17 +35,19 @@ export default function HRDashboard() {
       setLoading(true);
       setError(null);
       try {
-        const [tRes, eRes, dRes, lRes, attRes] = await Promise.all([
+        const [tRes, eRes, dRes, lRes, attRes, repRes] = await Promise.all([
           api.get('/tenants/me').catch(() => ({ data: null })),
           api.get('/hr/employees').catch(() => ({ data: [] })),
           api.get('/hr/departments').catch(() => ({ data: [] })),
           api.get('/hr/leaves/requests').catch(() => ({ data: { data: [] } })),
-          api.get('/attendance/stats').catch(() => ({ data: null }))
+          api.get('/attendance/stats').catch(() => ({ data: null })),
+          api.get('/reports/dashboard-summary').catch(() => ({ data: { data: {} } }))
         ]);
 
         const employees = Array.isArray(eRes.data) ? eRes.data : (eRes.data?.data || []);
         const formattedDepartments = Array.isArray(dRes.data) ? dRes.data : [];
         const leavesData = lRes.data?.data || [];
+        const reportStats = repRes.data?.data || {};
 
         setTenant(tRes.data);
         setDepartments(formattedDepartments);
@@ -63,6 +65,10 @@ export default function HRDashboard() {
           pendingLeaves: leavesData.filter(l => String(l?.status || '').toLowerCase() === 'pending').length,
           activeHRs: employees.filter(emp => String(emp?.role || '').toLowerCase().includes('hr')).length,
           topLevel: hierarchyStats.roots || employees.filter(emp => !emp?.manager).length,
+          vacant: reportStats.totalVacant || 0,
+          replacements: reportStats.replacementInProgress || 0,
+          slaBreaches: reportStats.slaBreachCount || 0,
+          attrition: reportStats.attritionRate || 0
         });
       } catch (err) {
         console.error('Failed to load HR dashboard data', err);
@@ -265,6 +271,68 @@ export default function HRDashboard() {
             <div className="text-[10px] font-bold text-amber-100 uppercase tracking-widest mt-1">Pending Leaves</div>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Link to="/hr/reports" className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+              <Briefcase size={20} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-slate-800">{counts.vacant}</div>
+              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Vacant Positions</div>
+            </div>
+          </div>
+          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-indigo-500" style={{ width: '40%' }}></div>
+          </div>
+        </Link>
+
+        <Link to="/hr/reports" className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all">
+              <UserPlus size={20} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-slate-800">{counts.replacements}</div>
+              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Replacements</div>
+            </div>
+          </div>
+          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-500" style={{ width: '60%' }}></div>
+          </div>
+        </Link>
+
+        <Link to="/hr/reports" className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition-all">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-slate-800">{counts.slaBreaches}</div>
+              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">SLA Breaches</div>
+            </div>
+          </div>
+          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-rose-500" style={{ width: '20%' }}></div>
+          </div>
+        </Link>
+
+        <Link to="/hr/reports" className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-all">
+              <Activity size={20} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-slate-800">{counts.attrition}%</div>
+              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Attrition Rate</div>
+            </div>
+          </div>
+          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-orange-500" style={{ width: '15%' }}></div>
+          </div>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-10">
