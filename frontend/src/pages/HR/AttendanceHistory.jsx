@@ -437,7 +437,7 @@ export default function AttendanceHistory() {
               // Check if this is a date field
               if (key.toLowerCase().includes('date') || key.toLowerCase().includes('punch')) {
                 let date = null;
-
+                
                 if (val instanceof Date) {
                   date = val;
                 } else if (typeof val === 'number') {
@@ -497,7 +497,7 @@ export default function AttendanceHistory() {
               uniqueEmployees: new Set(newData.map(d => d.employee?._id)).size,
               dateRange: newData.length > 0 ? `${new Date(newData[newData.length - 1]?.date).toLocaleDateString()} to ${new Date(newData[0]?.date).toLocaleDateString()}` : 'N/A'
             });
-
+            
             // Extract what months are in the fresh data
             const monthsInData = new Set();
             const datesInData = new Set();
@@ -506,14 +506,14 @@ export default function AttendanceHistory() {
               monthsInData.add(`${date.getMonth() + 1}/${date.getFullYear()}`);
               datesInData.add(record.date.split('T')[0]);
             });
-
+            
             console.log('📅 Months in uploaded data:', Array.from(monthsInData).join(', '));
             console.log('📊 Total unique dates:', datesInData.size);
-
+            
             // Store raw data AND process it
             setAttendance(newData);
             processAttendanceData(newData);
-
+            
             // Navigate to first available month in the uploaded data
             if (monthsInData.size > 0) {
               const firstMonth = Array.from(monthsInData)[0];
@@ -532,7 +532,7 @@ export default function AttendanceHistory() {
               setUploadPreview([]);
               setUploadErrors([]);
             }, 300);
-
+            
           } else {
             setUploadErrors([response.data.message || 'Upload failed']);
           }
@@ -572,7 +572,7 @@ export default function AttendanceHistory() {
 
       console.log(`🔍 Processing attendance data for ${selMonth + 1}/${selYear}`);
       console.log(`📊 Total records received: ${data.length}`);
-
+      
       // Debug: Show date range info
       if (data.length > 0) {
         const dates = data.map(d => new Date(d.date).toLocaleDateString());
@@ -590,12 +590,12 @@ export default function AttendanceHistory() {
           const itemDate = new Date(item.date);
           const itemMonth = itemDate.getMonth();
           const itemYear = itemDate.getFullYear();
-
+          
           // Debug: Log first few records to check date filtering
           if (idx < 3) {
             console.log(`  Record ${idx}: Date=${itemDate.toLocaleDateString()}, Month=${itemMonth + 1}, Year=${itemYear}, FilterMonth=${selMonth + 1}, FilterYear=${selYear}, Match=${itemMonth === selMonth && itemYear === selYear}`);
           }
-
+          
           // Filter by selected month/year
           if (itemMonth !== selMonth || itemYear !== selYear) {
             return acc;
@@ -679,10 +679,10 @@ export default function AttendanceHistory() {
         const totalDays = employee.days.size;
         const presentDays = employee.presentDays.size + employee.halfDayDays.size * 0.5;
         const workingDays = totalDays - employee.weeklyOffDays.size - employee.holidayDays.size;
-
+        
         // Use working days for attendance rate, fallback to total days if no working days calculated
-        employee.attendanceRate = workingDays > 0
-          ? Math.round((employee.presentDays.size / workingDays) * 100)
+        employee.attendanceRate = workingDays > 0 
+          ? Math.round((employee.presentDays.size / workingDays) * 100) 
           : (totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0);
       });
 
@@ -717,7 +717,7 @@ export default function AttendanceHistory() {
       try {
         setLoading(true);
         const data = await getEmployeeAttendance();
-
+        
         if (!data || !Array.isArray(data)) {
           console.error('Invalid attendance data received:', data);
           setAttendance([]);
@@ -727,13 +727,13 @@ export default function AttendanceHistory() {
         }
 
         console.log(`Received ${data.length} attendance records from API`);
-
+        
         // Store raw data for filtering by month later
         setAttendance(data);
-
+        
         // Process with month filter on initial load
         processAttendanceData(data);
-
+        
       } catch (err) {
         console.error('Error fetching attendance:', err);
         setAttendance([]);
@@ -968,7 +968,7 @@ export default function AttendanceHistory() {
       </div>
 
       {/* Attendance History Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-[32px] shadow-xl border-2 border-slate-200/60 dark:border-slate-800 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
           <div className="flex items-center justify-between">
             <div>
@@ -982,17 +982,20 @@ export default function AttendanceHistory() {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-          <table className="w-full min-w-[1000px] border-separate border-spacing-0">
-            <thead className="bg-slate-50/50 dark:bg-slate-950/50">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800">
               <tr>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[20%] border-b border-slate-100 dark:border-slate-800 rounded-tl-[32px]">Employee</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%] border-b border-slate-100 dark:border-slate-800">Present Days</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%] border-b border-slate-100 dark:border-slate-800">Absent</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%] border-b border-slate-100 dark:border-slate-800">Late Arrivals</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%] border-b border-slate-100 dark:border-slate-800">Total Hours</th>
-                <th className="px-6 py-5 text-left text-[10px) font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[18%] border-b border-slate-100 dark:border-slate-800">Face Registration</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[16%] text-right border-b border-slate-100 dark:border-slate-800 rounded-tr-[32px]">Actions</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Present Days</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Absent</th>
+                {/* <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Leaves</th> */}
+                {/* <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Weekly Offs</th> */}
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Late Arrivals</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Hours</th>
+                {/* <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendance</th> */}
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Face Registration</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -1338,7 +1341,7 @@ export default function AttendanceHistory() {
               {/* Working Hours */}
               <div>
                 <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest mb-4">
-                  Working Hours
+                Working Hours
                 </h3>
                 <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-6">
                   <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-2">Total Hours Worked</p>

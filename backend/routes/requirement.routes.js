@@ -28,9 +28,7 @@ router.put('/template', reqTmplCtrl.updateTemplate);
 // router.post('/template/reset', reqTmplCtrl.resetTemplate);
 
 // Routes
-router.post('/create', reqCtrl.createRequirement);
 router.patch('/:id/status', reqCtrl.updateStatus);
-router.put('/:id', reqCtrl.updateRequirement);
 router.delete('/:id', reqCtrl.deleteRequirement);
 router.get('/internal-jobs', reqCtrl.getInternalJobs);
 router.post('/internal-apply/:id', reqCtrl.applyInternal);
@@ -38,6 +36,8 @@ router.get('/my-applications', reqCtrl.getMyApplications);
 router.get('/list', reqCtrl.getRequirements);
 router.get('/', reqCtrl.getRequirements); // Added to support GET /api/requirements
 router.get('/applicants', reqCtrl.getApplicants);
+router.post('/:jobId/add-stage', reqCtrl.addStageToWorkflow); // Add stage to workflow
+router.put('/:jobId/reorder-stages', reqCtrl.reorderWorkflowStages); // Reorder workflow stages
 // router.post('/offer-letter/:applicantId', offerCtrl.generateOfferLetter);
 
 // Interview Management Routes
@@ -88,6 +88,41 @@ const upload = multer({
 });
 
 // router.post('/applicants/:id/upload-salary-excel', auth.authenticate, auth.requireHr, upload.single('file'), applicantCtrl.uploadSalaryExcel);
+
+// ==================== BANNER UPLOAD ROUTES ====================
+
+const bannerUploadDir = path.join(__dirname, '..', 'uploads', 'requirements');
+if (!fs.existsSync(bannerUploadDir)) fs.mkdirSync(bannerUploadDir, { recursive: true });
+
+const bannerStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, bannerUploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'banner-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const bannerUpload = multer({
+    storage: bannerStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpg|jpeg|png|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+
+        if (extname && mimetype) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Only JPG, PNG, and WEBP images are allowed'));
+        }
+    }
+});
+
+// Create/Update with Banner
+router.post('/create', bannerUpload.single('bannerImage'), reqCtrl.createRequirement);
+router.put('/:id', bannerUpload.single('bannerImage'), reqCtrl.updateRequirement);
 
 // ==================== DOCUMENT UPLOAD ROUTES ====================
 

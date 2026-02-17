@@ -35,14 +35,6 @@ exports.loginController = async (req, res) => {
         email: SUPER_ADMIN.email,
         role: SUPER_ADMIN.role,
       },
-      enabledModules: {
-        hr: true,
-        payroll: true,
-        attendance: true,
-        recruitment: true,
-        employeePortal: true,
-        reports: true
-      }
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -120,8 +112,6 @@ exports.loginHrController = async (req, res) => {
         companyCode: tenant.code,
         tenantId: tenant._id,
       },
-      company: tenant,
-      enabledModules: tenant.enabledModules || {}
     });
   } catch (err) {
     console.error("HR login error:", err);
@@ -221,8 +211,6 @@ exports.loginEmployeeController = async (req, res) => {
         tenantId: tenant._id,
         companyCode: tenant.code,
       },
-      company: tenant,
-      enabledModules: tenant.enabledModules || {}
     });
   } catch (err) {
     console.error("Employee login error:", err);

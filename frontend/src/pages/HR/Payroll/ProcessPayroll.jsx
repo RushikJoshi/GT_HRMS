@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Table, message, Button, DatePicker, Tag, Tooltip, Drawer, Statistic, Row, Col, Space, Modal, Descriptions, Avatar, Card, Divider, Empty, Spin } from 'antd';
+import { Table, message, Select, Checkbox, Button, DatePicker, Tag, Tooltip, Drawer, Statistic, Row, Col, Space, Modal, Descriptions, Avatar, Progress, Card, Divider, Empty, Spin, Popconfirm } from 'antd';
 import { PlayCircle, Calculator, FileText, AlertCircle, IndianRupee, Calendar, Eye, CheckCircle, Download, FileJson, AlertTriangle, Zap } from 'lucide-react';
 import api from '../../../utils/api';
 import dayjs from 'dayjs';
 
-
+const { Option } = Select;
 
 const ProcessPayroll = () => {
     const [month, setMonth] = useState(dayjs());
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(false);
-
+    const [templates, setTemplates] = useState([]);
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [calculating, setCalculating] = useState(false);
     const [previews, setPreviews] = useState({}); // { empId: { gross, net, error, source } }
@@ -21,12 +21,18 @@ const ProcessPayroll = () => {
     const [payrollRunning, setPayrollRunning] = useState(false);
     const [payrollResult, setPayrollResult] = useState(null);
 
-
+    // ✅ NEW: Compensation Source Toggle
+    const [useCompensation, setUseCompensation] = useState(false);
 
     // Toast
     const [messageApi, contextHolder] = message.useMessage();
 
-
+    // Fetch Templates on Mount
+    useEffect(() => {
+        api.get('/payroll/salary-templates')
+            .then(res => setTemplates(res.data?.data || []))
+            .catch(err => console.error("Failed templates", err));
+    }, []);
 
     // Fetch Employees when month changes
     useEffect(() => {
@@ -43,7 +49,9 @@ const ProcessPayroll = () => {
             const res = await api.get(`/payroll/process/employees?month=${mStr}`);
             setEmployees(res.data.data.map(e => ({
                 ...e,
-                key: e._id
+                key: e._id,
+                // Default to assigned template, or none
+                selectedTemplateId: e.salaryTemplateId
             })));
         } catch (err) {
             messageApi.error(err.response?.data?.message || "Failed to fetch employees");
@@ -52,18 +60,38 @@ const ProcessPayroll = () => {
         }
     };
 
-
+    const handleTemplateChange = (empId, val) => {
+        setEmployees(prev => prev.map(e => e._id === empId ? { ...e, selectedTemplateId: val } : e));
+        setPreviews(prev => {
+            const next = { ...prev };
+            delete next[empId];
+            return next;
+        });
+    };
 
     const calculatePreview = async () => {
+        // ✅ NEW: Support compensation source
         const itemsToPreview = employees
             .filter(e => selectedRowKeys.includes(e._id))
+            .filter(e => {
+                if (useCompensation) {
+                    // For compensation, we just need the employee to exist
+                    return true;
+                } else {
+                    // For template, require selectedTemplateId
+                    return e.selectedTemplateId;
+                }
+            })
             .map(e => ({
                 employeeId: e._id,
-                useCompensation: true
+                ...(useCompensation ? { useCompensation: true } : { salaryTemplateId: e.selectedTemplateId })
             }));
 
         if (itemsToPreview.length === 0) {
-            messageApi.warning("Select at least one employee to preview");
+            const msg = useCompensation
+                ? "Select at least one employee to preview compensation"
+                : "Select employees with templates assigned to preview";
+            messageApi.warning(msg);
             return;
         }
 
@@ -72,15 +100,18 @@ const ProcessPayroll = () => {
             const res = await api.post('/payroll/process/preview', {
                 month: month.format('YYYY-MM'),
                 items: itemsToPreview,
-                useCompensation: true
+                useCompensation // ✅ Pass flag
             });
+
+            console.log('Preview Response:', res.data.data);
 
             const newPreviews = {};
             res.data.data.forEach(p => {
                 newPreviews[p.employeeId] = p;
             });
             setPreviews(newPreviews);
-            messageApi.success(`Calculated successfully for ${itemsToPreview.length} employee(s)`);
+            const sourceLabel = useCompensation ? 'compensation' : 'template';
+            messageApi.success(`Calculated successfully for ${itemsToPreview.length} employee(s) using ${sourceLabel}`);
         } catch (err) {
             console.error('Calculation Error:', err);
             messageApi.error(err.response?.data?.message || "Calculation failed");
@@ -90,16 +121,22 @@ const ProcessPayroll = () => {
     };
 
     const fetchPreviewForEmployee = async (emp) => {
+        // ✅ NEW: Support compensation source
+        if (!useCompensation && !emp.selectedTemplateId) {
+            messageApi.warning('Select a template for this employee first');
+            return;
+        }
+
         try {
             const payload = {
                 month: month.format('YYYY-MM'),
                 items: [
                     {
                         employeeId: emp._id,
-                        useCompensation: true
+                        ...(useCompensation ? { useCompensation: true } : { salaryTemplateId: emp.selectedTemplateId })
                     }
                 ],
-                useCompensation: true
+                useCompensation
             };
 
             const res = await api.post('/payroll/process/preview', payload);
@@ -114,11 +151,19 @@ const ProcessPayroll = () => {
     };
 
     const runPayroll = async () => {
+        // ✅ NEW: Support compensation source
         const itemsToProcess = employees
             .filter(e => selectedRowKeys.includes(e._id))
+            .filter(e => {
+                if (useCompensation) {
+                    return true; // All employees can use compensation
+                } else {
+                    return e.selectedTemplateId; // Template source requires template
+                }
+            })
             .map(e => ({
                 employeeId: e._id,
-                useCompensation: true
+                ...(useCompensation ? { useCompensation: true } : { salaryTemplateId: e.selectedTemplateId })
             }));
 
         if (itemsToProcess.length === 0) {
@@ -126,8 +171,9 @@ const ProcessPayroll = () => {
             return;
         }
 
+        const sourceLabel = useCompensation ? 'Employee Compensation' : 'Salary Template';
         if (!window.confirm(
-            `Are you sure you want to process payroll for ${itemsToProcess.length} employees using Employee Compensation for ${month.format('MMMM YYYY')}?`
+            `Are you sure you want to process payroll for ${itemsToProcess.length} employees using ${sourceLabel} for ${month.format('MMMM YYYY')}?`
         )) return;
 
         setPayrollRunning(true);
@@ -135,7 +181,7 @@ const ProcessPayroll = () => {
             const response = await api.post('/payroll/process/run', {
                 month: month.format('YYYY-MM'),
                 items: itemsToProcess,
-                useCompensation: true
+                useCompensation // ✅ Pass flag
             });
 
             const result = response.data.data;
@@ -143,7 +189,7 @@ const ProcessPayroll = () => {
             setSelectedRowKeys([]);
             setPreviews({});
 
-            messageApi.success(`Payroll processed successfully! ${result.processedEmployees} employees processed.`);
+            messageApi.success(`Payroll processed successfully! ${result.processedEmployees} employees processed using ${sourceLabel}.`);
 
             // Refresh employee list
             await fetchEmployees();
@@ -181,6 +227,26 @@ const ProcessPayroll = () => {
             )
         },
         {
+            title: 'Salary Template',
+            key: 'template',
+            // ✅ NEW: Hide when using compensation
+            hidden: useCompensation,
+            render: (_, record) => (
+                <Select
+                    className="w-48"
+                    placeholder="Select Template"
+                    value={record.selectedTemplateId}
+                    onChange={(val) => handleTemplateChange(record._id, val)}
+                    status={!record.selectedTemplateId ? 'error' : ''}
+                    disabled={useCompensation} // ✅ Disable when compensation is ON
+                    options={templates.map(t => ({
+                        value: t._id,
+                        label: `${t.templateName} (₹${t.annualCTC?.toLocaleString()})`
+                    }))}
+                />
+            )
+        },
+        {
             title: 'Preview (Net Pay)',
             key: 'preview',
             width: 250,
@@ -201,17 +267,23 @@ const ProcessPayroll = () => {
                         </div>
                     </Tooltip>
                 );
-
-                // ✅ MATCH SCREENSHOT: Extract actual Basic component amount
-                const earnings = prev.breakdown?.earningsSnapshot || [];
-                const basicItem = earnings.find(e => e.name?.toLowerCase().includes('basic'));
-                const basicVal = basicItem ? basicItem.amount : prev.gross; // Fallback to gross if no basic found
-
                 return (
                     <div className="space-y-1 bg-emerald-50 p-2 rounded">
+                        {/* ✅ NEW: Show compensation source badge */}
+                        {prev.compensationSource && (
+                            <div className="flex items-center gap-1 mb-1">
+                                {prev.isLegacyFallback ? (
+                                    <Tag color="orange">ACTIVE (LEGACY)</Tag>
+                                ) : prev.compensationSource === 'EMPLOYEE_CTC_VERSION' ? (
+                                    <Tag color="blue">ACTIVE (CTC)</Tag>
+                                ) : (
+                                    <Tag color="cyan">{prev.compensationSource.toUpperCase()}</Tag>
+                                )}
+                            </div>
+                        )}
                         <div className="flex items-center justify-between">
                             <span className="text-xs text-slate-600 font-medium">Basic:</span>
-                            <span className="font-mono font-semibold text-slate-800">₹{Math.round(basicVal || 0).toLocaleString()}</span>
+                            <span className="font-mono font-semibold text-slate-800">₹{Math.round(prev.gross || 0).toLocaleString()}</span>
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="text-xs text-slate-600 font-medium">Net Pay:</span>
@@ -221,7 +293,7 @@ const ProcessPayroll = () => {
                             size="small"
                             type="text"
                             onClick={() => {
-                                setDetailData(prev.breakdown || prev);
+                                setDetailData(prev);
                                 setDetailDrawer({ visible: true, empId: record._id });
                             }}
                             icon={<Eye size={14} />}
@@ -237,7 +309,12 @@ const ProcessPayroll = () => {
             title: 'Status',
             key: 'status',
             render: (_, record) => {
-                return <Tag color="cyan">ACTIVE COMPENSATION</Tag>;
+                // ✅ NEW: Show compensation status
+                if (useCompensation) {
+                    return <Tag color="cyan">ACTIVE COMPENSATION</Tag>;
+                }
+                if (!record.selectedTemplateId) return <Tag color="warning">Missing Template</Tag>;
+                return <Tag color="blue">Ready</Tag>;
             }
         }
     ];
@@ -247,7 +324,16 @@ const ProcessPayroll = () => {
         onChange: (keys) => setSelectedRowKeys(keys),
     }), [selectedRowKeys]);
 
-
+    // ✅ NEW: Filter columns based on compensation toggle
+    const memoColumns = React.useMemo(() => {
+        return columns.filter(col => {
+            // Hide template column when using compensation
+            if (useCompensation && col.key === 'template') {
+                return false;
+            }
+            return true;
+        });
+    }, [templates, previews, useCompensation]);
 
     return (
         <div className="w-full px-4 py-4 space-y-4">
@@ -259,10 +345,28 @@ const ProcessPayroll = () => {
                         <Calculator className="w-5 h-5 text-blue-600" />
                         Process Payroll
                     </h1>
-                    {/* ✅ MATCH SCREENSHOT: lowercase subtext */}
-                    <p className="text-xs text-slate-500 mt-0.5">calculate and generate payslips for a specific month.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Calculate and generate payslips for a specific month.</p>
                 </div>
                 <div className="flex items-center gap-4">
+                    {/* ✅ NEW: Compensation Source Toggle */}
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                        <label className="text-xs font-medium text-slate-700">
+                            Use Employee Compensation
+                        </label>
+                        <Checkbox
+                            checked={useCompensation}
+                            onChange={(e) => {
+                                setUseCompensation(e.target.checked);
+                                setPreviews({});
+                                setSelectedRowKeys([]);
+                                messageApi.info(
+                                    e.target.checked
+                                        ? 'Switched to Employee Compensation source'
+                                        : 'Switched to Salary Template source'
+                                );
+                            }}
+                        />
+                    </div>
                     <DatePicker
                         picker="month"
                         value={month}
@@ -280,13 +384,9 @@ const ProcessPayroll = () => {
                 <div className="p-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                     <h3 className="font-semibold text-slate-700 text-sm">Employee List ({employees.length})</h3>
                     <div className="flex gap-3 items-center">
-                        <div className="flex items-center gap-2 mr-2">
-                            <Tag color="blue" className="text-xs">Selected: {selectedRowKeys.length}</Tag>
-                            <Tag color="green" className="text-xs">Previews: {Object.keys(previews).length}</Tag>
-                        </div>
                         <Space size="small">
                             <Button
-                                icon={<Calculator size={14} />} // ✅ MATCH SCREENSHOT: Calculator icon
+                                icon={<IndianRupee size={14} />}
                                 onClick={calculatePreview}
                                 loading={calculating}
                                 disabled={selectedRowKeys.length === 0}
@@ -306,12 +406,16 @@ const ProcessPayroll = () => {
                                 Run Payroll
                             </Button>
                         </Space>
+                        <div className="ml-3 flex items-center gap-2">
+                            <Tag color="blue" className="text-xs">Selected: {selectedRowKeys.length}</Tag>
+                            <Tag color="green" className="text-xs">Previews: {Object.keys(previews).length}</Tag>
+                        </div>
                     </div>
                 </div>
 
                 <Table
                     rowSelection={rowSelection}
-                    columns={columns}
+                    columns={memoColumns}
                     dataSource={employees}
                     rowKey="_id"
                     loading={loading}

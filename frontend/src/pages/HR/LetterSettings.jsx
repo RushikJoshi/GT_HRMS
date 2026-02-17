@@ -118,7 +118,7 @@ export default function LetterSettings() {
     };
 
     return (
-        <div className="p-6 w-full mx-auto pb-20">
+        <div className="p-6 max-w-4xl mx-auto pb-20">
             <div className="mb-8">
                 <h1 className="text-2xl font-bold text-slate-900">Letter Pad Settings</h1>
                 <p className="text-slate-500 text-sm mt-1">
@@ -127,7 +127,7 @@ export default function LetterSettings() {
                 </p>
             </div>
 
-            <div className="bg-white border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
                     <FileImage className="text-blue-600" size={20} />
                     <h2 className="font-semibold text-slate-800">Letter Pad Image</h2>

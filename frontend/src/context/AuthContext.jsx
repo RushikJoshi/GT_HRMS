@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import api, { parseAxiosError } from "../utils/api";
 import { setToken, getToken, removeToken } from "../utils/token";
 import { jwtDecode } from 'jwt-decode';
+import useIdleTimeout from "../hooks/useIdleTimeout";
 
 export const AuthContext = createContext();
 
@@ -14,18 +15,31 @@ export const useAuth = () => {
   return context;
 };
 
+// Desktop Agent Integration Removed
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [enabledModules, setEnabledModules] = useState(() => {
-    try {
-      const stored = localStorage.getItem('enabledModules');
-      return stored ? JSON.parse(stored) : {};
-    } catch (e) {
-      return {};
-    }
-  });
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Centralized Logout Logic
+  const logout = useCallback(() => {
+    console.log("🚪 Logging out user...");
+    removeToken();
+    sessionStorage.removeItem('tenantId');
+    localStorage.removeItem("candidate");
+    localStorage.removeItem("companyName");
+    setUser(null);
+    delete api.defaults.headers.common["Authorization"];
+
+    // Optional: Force redirect if context doesn't handle it
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }, []);
+
+  // Idle Timeout tracking (3 minutes)
+  useIdleTimeout(user ? logout : null, 3, 0.5);
 
   // Initialize on mount
   useEffect(() => {
@@ -48,9 +62,7 @@ export function AuthProvider({ children }) {
           removeToken();
           localStorage.removeItem('candidate');
           localStorage.removeItem('companyName');
-          localStorage.removeItem('enabledModules');
           setUser(null);
-          setEnabledModules({});
           delete api.defaults.headers.common["Authorization"];
           setIsInitialized(true);
           return;
@@ -95,9 +107,7 @@ export function AuthProvider({ children }) {
         removeToken();
         localStorage.removeItem('candidate');
         localStorage.removeItem('companyName');
-        localStorage.removeItem('enabledModules');
         setUser(null);
-        setEnabledModules({});
         delete api.defaults.headers.common["Authorization"];
       } finally {
         setIsInitialized(true);
@@ -121,9 +131,7 @@ export function AuthProvider({ children }) {
         sessionStorage.removeItem('tenantId');
         localStorage.removeItem("candidate");
         localStorage.removeItem("companyName");
-        localStorage.removeItem("enabledModules");
         setUser(null);
-        setEnabledModules({});
         delete api.defaults.headers.common["Authorization"];
       } catch (e) {
         console.error('Error while handling unauthorized event:', e);
@@ -131,9 +139,11 @@ export function AuthProvider({ children }) {
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
+    window.addEventListener('auth:expired', handleUnauthorized);
     return () => {
       _authMounted = false; // Prevent future handler execution
       window.removeEventListener('auth:unauthorized', handleUnauthorized);
+      window.removeEventListener('auth:expired', handleUnauthorized);
     };
   }, []);
 
@@ -141,7 +151,7 @@ export function AuthProvider({ children }) {
     setIsLoading(true);
     try {
       const res = await api.post("/auth/login", { email, password });
-      const { token, user: userData, enabledModules: modules } = res.data;
+      const { token, user: userData } = res.data;
 
       setToken(token);
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -161,10 +171,6 @@ export function AuthProvider({ children }) {
         } catch (e) { /* ignore */ }
       }
 
-      const freshModules = modules || {};
-      setEnabledModules(freshModules);
-      localStorage.setItem('enabledModules', JSON.stringify(freshModules));
-
       setUser(userData);
       return { success: true };
     } catch (error) {
@@ -180,15 +186,10 @@ export function AuthProvider({ children }) {
     setIsLoading(true);
     try {
       const res = await api.post('/auth/login-hr', { companyCode, email, password });
-      const { token, user: userData, enabledModules: modules } = res.data;
+      const { token, user: userData } = res.data;
 
       setToken(token);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-      const freshModules = modules || {};
-      setEnabledModules(freshModules);
-      localStorage.setItem('enabledModules', JSON.stringify(freshModules));
-
       setUser(userData);
 
       try {
@@ -215,15 +216,10 @@ export function AuthProvider({ children }) {
     setIsLoading(true);
     try {
       const res = await api.post('/auth/login-employee', { companyCode, employeeId, password });
-      const { token, user: userData, enabledModules: modules } = res.data;
+      const { token, user: userData } = res.data;
 
       setToken(token);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-      const freshModules = modules || {};
-      setEnabledModules(freshModules);
-      localStorage.setItem('enabledModules', JSON.stringify(freshModules));
-
       setUser(userData);
 
       try {
@@ -281,17 +277,6 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    removeToken();
-    sessionStorage.removeItem('tenantId');
-    localStorage.removeItem("candidate");
-    localStorage.removeItem("companyName");
-    localStorage.removeItem("enabledModules");
-    setUser(null);
-    setEnabledModules({});
-    delete api.defaults.headers.common["Authorization"];
-  }, []);
-
   const refreshUser = async () => {
     // Placeholder for refreshing user data from backend if needed
     // Currently just relies on token state
@@ -314,8 +299,6 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user,
-      enabledModules,
-      setEnabledModules,
       isInitialized,
       isLoading,
       login,

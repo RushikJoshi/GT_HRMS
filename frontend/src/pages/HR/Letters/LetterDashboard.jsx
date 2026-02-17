@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api, { API_ROOT } from '../../../utils/api';
+import api from '../../../utils/api';
 import {
     FileText, Plus, Search, Filter, Mail, Eye, Download,
     CheckCircle, Clock, AlertCircle, FilePlus, ChevronRight, X,
@@ -9,8 +9,7 @@ import {
 import { formatDateDDMMYYYY } from '../../../utils/dateUtils';
 import { showToast } from '../../../utils/uiNotifications';
 import DocumentManagementPanel from '../../../components/DocumentManagementPanel';
-
-
+import { useDocumentManagement } from '../../../hooks/useDocumentManagement';
 
 export default function LetterDashboard() {
     const navigate = useNavigate();
@@ -54,10 +53,6 @@ export default function LetterDashboard() {
     };
 
     const handleLetterUpdated = (updatedLetter) => {
-        if (!updatedLetter?._id) {
-            fetchDashboardData();
-            return;
-        }
         setRecentLetters(recentLetters.map(l => l._id === updatedLetter._id ? updatedLetter : l));
         setSelectedLetter(updatedLetter);
         showToast('success', 'Success', 'Letter updated successfully');
@@ -84,32 +79,8 @@ export default function LetterDashboard() {
         }
     };
 
-    const resolveLetterPdfUrl = (pdfUrl) => {
-        if (!pdfUrl) return null;
-        if (/^https?:\/\//i.test(pdfUrl)) return pdfUrl;
-        return `${API_ROOT}${pdfUrl.startsWith('/') ? '' : '/'}${pdfUrl}`;
-    };
-
-    const handleDownloadLetter = (letter) => {
-        const url = resolveLetterPdfUrl(letter?.pdfUrl);
-        if (!url) {
-            showToast('error', 'Error', 'Letter URL not available');
-            return;
-        }
-
-        const fileName = `${letter?.letterType || 'letter'}_${letter?._id || Date.now()}.pdf`;
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
     return (
-        <div className="space-y-6 w-full mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-500">
+        <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-500">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -118,7 +89,7 @@ export default function LetterDashboard() {
                 </div>
                 <div className="flex gap-3 w-full sm:w-auto">
                     <button
-                        onClick={() => navigate('/hr/letter-templates')}
+                        onClick={() => navigate('/hr/letters/templates')}
                         className="px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl font-black text-sm uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-2"
                     >
                         <FileText size={18} /> Manage Templates
@@ -151,7 +122,7 @@ export default function LetterDashboard() {
             </div>
 
             {/* Main Content Area */}
-            <div className="bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Recent Letters</h2>
                     <div className="relative w-full sm:max-w-xs">
@@ -187,17 +158,17 @@ export default function LetterDashboard() {
                                     <td colSpan="5" className="px-6 py-12 text-center text-slate-400 font-bold">No letters issued yet.</td>
                                 </tr>
                             ) : recentLetters.filter(l =>
-                                (l.employeeId?.firstName + ' ' + l.employeeId?.lastName + ' ' + l.employeeId?.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                (l.employeeId?.firstName + ' ' + l.employeeId?.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
                                 l.templateId?.name.toLowerCase().includes(searchTerm.toLowerCase())
                             ).map((letter) => (
                                 <tr key={letter._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition group">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center font-black text-blue-600 dark:text-blue-400 text-xs shadow-inner">
-                                                {/* {letter.applicantId?.firstName?.[0]}{letter.applicantId?.lastName?.[0]} */}
+                                                {letter.employeeId?.firstName?.[0]}{letter.employeeId?.lastName?.[0]}
                                             </div>
                                             <div>
-                                                <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{letter.employeeId? `${letter.employeeId.firstName} ${letter.employeeId.lastName}` : letter.applicantId?.name}</p>
+                                                <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{letter.employeeId?.firstName} {letter.employeeId?.lastName}</p>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{letter.employeeId?.employeeId || 'NO ID'}</p>
                                             </div>
                                         </div>
@@ -218,26 +189,21 @@ export default function LetterDashboard() {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition">
-                                            {/* <button
+                                            <button
                                                 onClick={() => handleOpenManagement(letter)}
                                                 className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-purple-500 hover:text-white transition"
                                                 title="Manage"
                                             >
                                                 <History size={16} />
-                                            </button> */}
+                                            </button>
                                             <button
-                                                onClick={() => {
-                                                    const url = resolveLetterPdfUrl(letter.pdfUrl);
-                                                    if (url) window.open(url, '_blank', 'noopener,noreferrer');
-                                                    else showToast('error', 'Error', 'Letter URL not available');
-                                                }}
+                                                onClick={() => window.open(letter.pdfUrl, '_blank')}
                                                 className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-blue-500 hover:text-white transition"
                                                 title="View"
                                             >
                                                 <Eye size={16} />
                                             </button>
                                             <button
-                                                onClick={() => handleDownloadLetter(letter)}
                                                 className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-emerald-500 hover:text-white transition"
                                                 title="Download"
                                             >
@@ -274,11 +240,11 @@ export default function LetterDashboard() {
             {selectedLetterId && selectedLetter && (
                 <div className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-start justify-end overflow-y-auto pt-4">
                     {/* Close on background click */}
-                    <div
+                    <div 
                         className="absolute inset-0 cursor-pointer"
                         onClick={handleCloseManagement}
                     />
-
+                    
                     {/* Side Panel */}
                     <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-l-3xl shadow-2xl ml-4 mr-0 my-4 overflow-y-auto max-h-[calc(100vh-2rem)]">
                         {/* Close Button */}
@@ -296,7 +262,7 @@ export default function LetterDashboard() {
 
                         {/* Document Management Panel */}
                         <div className="p-6">
-                            <DocumentManagementPanel
+                            <DocumentManagementPanel 
                                 letter={selectedLetter}
                                 userRole={userRole}
                                 onLetterUpdated={handleLetterUpdated}

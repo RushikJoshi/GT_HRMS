@@ -7,22 +7,28 @@ const CompanyIdConfig = require('../models/CompanyIdConfig'); // Legacy for migr
 // Standard Enterprise Defaults
 const DEFAULT_DOC_TYPES = {
     JOB: { name: 'Job Requisition', prefix: 'JOB', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 10001 },
-    POS: { name: 'Position', prefix: 'POS', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
-    APP: { name: 'Job Application', prefix: 'APP', formatTemplate: '{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 }, // Changed from APPLICATION to APP as per spec
-    OFF: { name: 'Offer Letter', prefix: 'OFF', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 }, // Changed from OFFER
-    APPT: { name: 'Appointment Letter', prefix: 'APPT', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 10001 }, // Changed from APPOINTMENT
-    EMP: { name: 'Employee ID', prefix: 'EMP', formatTemplate: '{{PREFIX}}-{{YEAR}}-{{COUNTER}}', startFrom: 1000, resetPolicy: 'YEARLY' },
+    JOB_OPENING: { name: 'Position ID', prefix: 'POS', formatTemplate: '{{PREFIX}}-{{YEAR}}-{{DEPT}}-{{COUNTER}}', startFrom: 1, separator: '-' },
+    POS: { name: 'Position', prefix: 'POS', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
+    APP: { name: 'Job Application', prefix: 'APP', formatTemplate: '{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
+    CAN: { name: 'Candidate', prefix: 'CAN', formatTemplate: '{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
+    OFF: { name: 'Offer Letter', prefix: 'OFF', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
+    APPT: { name: 'Appointment Letter', prefix: 'APPT', formatTemplate: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 10001 },
+    EMP: { name: 'Employee ID', prefix: 'EMP', formatTemplate: '{{PREFIX}}{{COUNTER}}', startFrom: 1000, resetPolicy: 'NEVER', includeYear: false },
     INT: { name: 'Interview', prefix: 'INT', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
     EXP: { name: 'Experience Letter', prefix: 'EXP', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 },
     REL: { name: 'Relieving Letter', prefix: 'REL', formatTemplate: '{{COMPANY}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}', startFrom: 1 }
 };
 
-// Legacy mappings for migration
+// Legacy mappings for migration and backward compatibility
 const LEGACY_MAP = {
     'APPLICATION': 'APP',
+    'JOB_APPLICATION': 'APP',
     'OFFER': 'OFF',
     'APPOINTMENT': 'APPT',
-    'EMPLOYEE': 'EMP'
+    'EMPLOYEE': 'EMP',
+    'CANDIDATE': 'CAN',
+    'JOB': 'JOB',
+    'INTERVIEW': 'INT'
 };
 
 /**
@@ -65,7 +71,8 @@ const ensureConfiguration = async (tenantId) => {
             formatTemplate: oldConfig?.formatTemplate || defaults.formatTemplate,
             startFrom: oldConfig?.startFrom || defaults.startFrom,
             paddingDigits: oldConfig?.padding || 4, // Mapping padding to paddingDigits
-            resetPolicy: oldConfig?.resetPolicy || defaults.resetPolicy || 'YEARLY'
+            resetPolicy: oldConfig?.resetPolicy || defaults.resetPolicy || 'YEARLY',
+            separator: oldConfig?.separator || defaults.separator || '/'
         });
 
         // Migrate Counter if old config exists
@@ -115,9 +122,18 @@ exports.getConfigurations = async (req, res) => {
                 BRANCH: settings.branchCode,
                 DEPT: settings.departmentCode, // Default
                 PREFIX: doc.prefix,
+                REF: doc.refNumber || '',
                 YEAR: settings.financialYear,
                 COUNTER: String(nextNum).padStart(doc.paddingDigits, '0')
             };
+
+            // Inject Custom Tokens
+            if (doc.customTokens) {
+                const tokens = typeof doc.customTokens.toObject === 'function' ? doc.customTokens.toObject() : doc.customTokens;
+                Object.keys(tokens).forEach(t => {
+                    params[t.toUpperCase()] = tokens[t];
+                });
+            }
 
             let preview = doc.formatTemplate;
             Object.keys(params).forEach(k => preview = preview.replace(`{{${k}}}`, params[k]));
@@ -159,7 +175,12 @@ exports.saveConfigurations = async (req, res) => {
         if (settingsUpdate) {
             settings = await CompanySettings.findOneAndUpdate(
                 { companyId: tenantId },
-                { $set: settingsUpdate },
+                {
+                    $set: {
+                        ...settingsUpdate,
+                        requireDesktopTracker: settingsUpdate.requireDesktopTracker
+                    }
+                },
                 { new: true, upsert: true }
             );
         } else {
@@ -178,9 +199,70 @@ exports.saveConfigurations = async (req, res) => {
 
                 const updated = await DocumentType.findOneAndUpdate(
                     { companyId: tenantId, key: typeFn.key },
-                    { $set: typeFn },
-                    { new: true }
+                    {
+                        $set: {
+                            name: typeFn.name,
+                            prefix: typeFn.prefix,
+                            refNumber: typeFn.refNumber,
+                            formatTemplate: typeFn.formatTemplate,
+                            startFrom: typeFn.startFrom,
+                            lastNumber: typeFn.lastNumber, // Allow syncing manual starts
+                            paddingDigits: typeFn.paddingDigits,
+                            resetPolicy: typeFn.resetPolicy,
+                            separator: typeFn.separator,
+                            updatedBy: req.user?.email
+                        }
+                    },
+                    { new: true, upsert: true }
                 );
+
+                // --- SAFE SYNC: Only advance counter if Start From increases ---
+                // MODIFIED: Account for explicit user overrides via 'lastNumber' (Manual Reset/Set)
+                const settings = await CompanySettings.findOne({ companyId: tenantId });
+                const counterKey = updated.resetPolicy === 'NEVER' ? 'GLOBAL' : (settings?.financialYear || 'GLOBAL');
+
+                // 1. Explicit Manual Override (User Input: "Last Sequence")
+                if (typeFn.lastNumber !== undefined && typeFn.lastNumber !== null) {
+                    const newLastNum = parseInt(typeFn.lastNumber);
+                    await DocumentCounter.findOneAndUpdate(
+                        { companyId: tenantId, documentType: typeFn.key, financialYear: counterKey },
+                        { $set: { lastNumber: newLastNum } },
+                        { new: true, upsert: true }
+                    );
+                    console.log(`[ID_CONFIG] Manually set counter for ${typeFn.key} to ${newLastNum}`);
+                }
+                // 2. StartFrom "Catch Up" Logic (Only if no manual override)
+                else if (typeFn.startFrom !== undefined) {
+                    // 1. Get current counter
+                    const currentCounter = await DocumentCounter.findOne({
+                        companyId: tenantId,
+                        documentType: typeFn.key,
+                        financialYear: counterKey
+                    });
+
+                    const newStartFrom = parseInt(typeFn.startFrom);
+
+                    if (!currentCounter) {
+                        // Init new counter
+                        await DocumentCounter.create({
+                            companyId: tenantId,
+                            documentType: typeFn.key,
+                            financialYear: counterKey,
+                            lastNumber: newStartFrom - 1
+                        });
+                        console.log(`[ID_CONFIG] Initialized counter for ${typeFn.key} to ${newStartFrom - 1}`);
+                    } else {
+                        // Only advance if startFrom is pushed AHEAD of current usage
+                        if (newStartFrom > (currentCounter.lastNumber + 1)) {
+                            await DocumentCounter.updateOne(
+                                { _id: currentCounter._id },
+                                { $set: { lastNumber: newStartFrom - 1 } }
+                            );
+                            console.log(`[ID_CONFIG] Advanced counter for ${typeFn.key} to ${newStartFrom - 1} (StartFrom increased)`);
+                        }
+                    }
+                }
+
                 results.push(updated);
             }
         }
@@ -223,16 +305,7 @@ exports.generateIdInternal = async ({ tenantId, entityType, increment, extraRepl
     if (!docType) throw new Error(`Document Type configuration not found for: ${key}`);
 
     // 2. Determine Counter Context
-    let counterKey;
-    if (docType.resetPolicy === 'NEVER') {
-        counterKey = 'GLOBAL';
-    } else if (key === 'EMP') {
-        // For Employee IDs, use calendar year for reset
-        counterKey = String(new Date().getFullYear());
-    } else {
-        // For other document types, use financial year
-        counterKey = settings.financialYear;
-    }
+    const counterKey = docType.resetPolicy === 'NEVER' ? 'GLOBAL' : settings.financialYear;
 
     let sequence;
     let counterDoc;
@@ -292,19 +365,26 @@ exports.generateIdInternal = async ({ tenantId, entityType, increment, extraRepl
     const seqStr = String(sequence).padStart(padding, '0');
 
     // Dynamic Values
-    const currentYear = new Date().getFullYear();
-    const yearToken = (key === 'EMP') ? currentYear : settings.financialYear;
-
     const replacements = {
         '{{COMPANY}}': settings.companyCode,
         '{{BRANCH}}': settings.branchCode,
         '{{DEPT}}': extraReplacements['{{DEPT}}'] || settings.departmentCode, // Allow override
         '{{PREFIX}}': docType.prefix,
-        '{{YEAR}}': yearToken,
+        '{{REF}}': docType.refNumber || '',
+        '{{YEAR}}': settings.financialYear,
         '{{MONTH}}': new Date().toLocaleString('default', { month: '2-digit' }), // Simplistic month
         '{{COUNTER}}': seqStr,
         ...extraReplacements
     };
+
+    // 5. Inject Custom Tokens from Config
+    if (docType.customTokens) {
+        const configTokens = typeof docType.customTokens.toObject === 'function' ? docType.customTokens.toObject() : docType.customTokens;
+        Object.keys(configTokens).forEach(t => {
+            const tokenKey = `{{${t.toUpperCase()}}}`;
+            replacements[tokenKey] = configTokens[t];
+        });
+    }
 
     let generatedId = docType.formatTemplate;
     Object.keys(replacements).forEach(token => {

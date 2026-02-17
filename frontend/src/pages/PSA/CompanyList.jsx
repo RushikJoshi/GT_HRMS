@@ -13,16 +13,9 @@ import {
     Users,
     Activity,
     Mail,
-    Lock,
-    Building2,
-    ArrowUpRight,
-    ChevronLeft,
-    ChevronRight,
-    MoreVertical,
-    Globe
+    Lock
 } from 'lucide-react';
 import companiesService from '../../services/companiesService';
-import { API_ROOT } from '../../utils/api';
 
 export default function CompanyList() {
     const navigate = useNavigate();
@@ -31,9 +24,11 @@ export default function CompanyList() {
     const [searchTerm, setSearchTerm] = useState('');
     const [revealPassword, setRevealPassword] = useState({});
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 8;
+    const itemsPerPage = 10;
 
-    const [viewMode, setViewMode] = useState('grid');
+    // Environment helper
+    const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
+    const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 
     useEffect(() => {
         fetchCompanies();
@@ -52,7 +47,7 @@ export default function CompanyList() {
     };
 
     const handleToggleStatus = async (company) => {
-        if (!window.confirm(`Are you sure you want to change the operational state for ${company.name}?`)) return;
+        if (!window.confirm(`Are you sure you want to ${company.status === 'active' ? 'deactivate' : 'activate'} this company?`)) return;
         try {
             await companiesService.toggleCompanyStatus(company._id, company.status);
             fetchCompanies();
@@ -61,14 +56,13 @@ export default function CompanyList() {
         }
     };
 
-    const togglePassword = (id, e) => {
-        e.stopPropagation();
+    const togglePassword = (id) => {
         setRevealPassword(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
     const getLogoUrl = (url) => {
         if (!url) return null;
-        return url.startsWith('http') ? url : `${API_ROOT}${url}`;
+        return url.startsWith('http') ? url : `${API_ORIGIN}${url}`;
     };
 
     const filteredCompanies = companies.filter(c =>
@@ -77,6 +71,7 @@ export default function CompanyList() {
         c.meta?.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Reset to page 1 when search changes
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm]);
@@ -93,292 +88,223 @@ export default function CompanyList() {
         inactive: companies.filter(c => c.status !== 'active').length
     };
 
-    // Updated Stats Cards Configuration with Gradients
-    const statCardsConfig = [
-        {
-            label: 'Total Entities',
-            value: stats.total,
-            icon: Building2,
-            gradient: 'bg-gradient-to-br from-indigo-500 to-purple-600',
-            shadow: 'shadow-indigo-200'
-        },
-        {
-            label: 'Operational',
-            value: stats.active,
-            icon: Activity,
-            gradient: 'bg-gradient-to-br from-emerald-400 to-teal-500',
-            shadow: 'shadow-emerald-200'
-        },
-        {
-            label: 'Deactivated',
-            value: stats.inactive,
-            icon: EyeOff,
-            gradient: 'bg-gradient-to-br from-rose-500 to-orange-500',
-            shadow: 'shadow-orange-200'
-        },
-    ];
-
     return (
-        <div className="min-h-screen bg-[#F9FAFB] p-4 sm:p-6 lg:p-10 font-sans text-slate-900">
-            <div className="w-full mx-auto space-y-6 sm:space-y-8 animate-in fade-in duration-700">
+        <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans selection:bg-indigo-100 selection:text-indigo-600">
+            <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
 
                 {/* Header Area */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div className="w-full">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div>
                         <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200 shrink-0">
-                                <Building2 size={22} />
+                            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                                <Briefcase size={22} />
                             </div>
-                            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Global Registry</h1>
+                            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Companies</h1>
                         </div>
-                        <p className="text-sm text-slate-500 font-medium ml-1">Centralized surveillance and management of tenant organizations.</p>
+                        <p className="text-slate-500 font-medium ml-1">Central ecosystem management for all tenant organizations.</p>
                     </div>
-
-                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-                        <div className="p-1 bgColor-white border border-slate-200 rounded-2xl flex md:flex gap-1 shadow-sm w-full sm:w-auto overflow-hidden">
-                            <button
-                                onClick={() => setViewMode('grid')}
-                                className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${viewMode === 'grid' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
-                            >
-                                Grid
-                            </button>
-                            <button
-                                onClick={() => setViewMode('list')}
-                                className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${viewMode === 'list' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
-                            >
-                                List
-                            </button>
-                        </div>
-                        <button
-                            onClick={() => navigate('/super-admin/companies/add')}
-                            className="w-full sm:w-auto bg-gradient-to-br from-emerald-500 to-teal-600 border-none hover:from-emerald-600 hover:to-teal-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-3 shadow-xl shadow-emerald-200 transition-all active:scale-95"
-                        >
-                            <Plus size={18} /> Onboard
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => navigate('/psa/companies/add')}
+                        className="bg-slate-900 hover:bg-black text-white px-6 py-3.5 rounded-2xl font-bold text-sm flex items-center gap-3 shadow-xl shadow-slate-200 transition-all hover:-translate-y-1 active:scale-95"
+                    >
+                        <Plus size={18} /> Onboard New Company
+                    </button>
                 </div>
 
-                {/* Quick Stats Grid - Updated Design */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-                    {statCardsConfig.map((s, i) => (
-                        <div key={i} className={`${s.gradient} relative overflow-hidden p-6 sm:p-8 rounded-2xl flex items-center justify-between shadow-sm transition-all duration-300 hover:scale-[1.01] hover:shadow-md group`}>
-                            <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-700"></div>
-                            <div className="absolute bottom-10 -left-10 w-24 h-24 bg-black/5 rounded-full blur-xl"></div>
-
-                            <div className="relative z-10">
-                                <p className="text-[9px] sm:text-[10px] font-bold text-white/90 uppercase tracking-widest mb-1">{s.label}</p>
-                                <p className="text-3xl sm:text-4xl font-bold text-white tracking-tight drop-shadow-sm">{s.value}</p>
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[
+                        { label: 'Total Companies', value: stats.total, icon: Users, color: 'bg-indigo-600', bg: 'bg-indigo-50', text: 'text-indigo-600' },
+                        { label: 'Active Companies', value: stats.active, icon: Activity, color: 'bg-emerald-600', bg: 'bg-emerald-50', text: 'text-emerald-600' },
+                        { label: 'Inactive Companies', value: stats.inactive, icon: Power, color: 'bg-slate-400', bg: 'bg-slate-50', text: 'text-slate-500' }
+                    ].map((s, i) => (
+                        <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-5 group hover:shadow-md transition-shadow">
+                            <div className={`w-14 h-14 ${s.bg} ${s.text} rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110`}>
+                                <s.icon size={26} />
                             </div>
-                            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-white border border-white/20 shadow-inner group-hover:scale-110 transition-transform relative z-10 shrink-0">
-                                <s.icon size={22} className="sm:hidden" />
-                                <s.icon size={26} className="hidden sm:block" />
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p>
+                                <p className="text-3xl font-black text-slate-900 tracking-tight">{s.value}</p>
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* Filters & Search */}
-                <div className="flex flex-col md:flex-row gap-4 items-center">
-                    <div className="relative flex-1 w-full group">
-                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-600 transition-colors" size={20} />
-                        <input
-                            type="text"
-                            placeholder="Search companies..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-14 pr-6 py-3.5 sm:py-4 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-400 transition-all font-medium text-slate-700 placeholder:text-slate-400 shadow-sm text-sm"
-                        />
-                    </div>
-                    <button className="w-full md:w-auto px-6 sm:px-8 py-3.5 sm:py-4 bg-white border border-slate-200 rounded-xl text-[10px] font-extrabold uppercase tracking-widest text-slate-500 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all shadow-sm">
-                        <Filter size={16} /> Filters
-                    </button>
-                </div>
+                {/* Main Content Card */}
+                <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
 
-                {/* View Content Switching */}
-                {loading ? (
-                    <div className="py-24 text-center space-y-4">
-                        <div className="animate-spin rounded-full h-12 w-12 border-[3px] border-emerald-600 border-t-transparent mx-auto"></div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Syncing Registry...</p>
+                    {/* Control Bar */}
+                    <div className="p-6 border-b border-slate-50 bg-slate-50/30 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="relative w-full max-w-md group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
+                            <input
+                                type="text"
+                                placeholder="Filter companies by name, code or email..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-medium text-slate-700 placeholder:text-slate-400"
+                            />
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button className="flex items-center gap-2 px-5 py-3 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 border border-slate-200 rounded-2xl hover:bg-white transition-all">
+                                <Filter size={14} /> Filter
+                            </button>
+                        </div>
                     </div>
-                ) : filteredCompanies.length === 0 ? (
-                    <div className="py-20 sm:py-32 text-center bg-white rounded-2xl border-2 border-dashed border-slate-100">
-                        <Search size={40} className="mx-auto text-slate-100 mb-6" />
-                        <h3 className="text-xl font-bold text-slate-900 tracking-tight">No Matches Found</h3>
-                        <p className="text-slate-400 text-sm font-medium mt-2">Adjust your filters to find the specific entity.</p>
+
+                    {/* Table View */}
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="bg-slate-50/50 border-b border-slate-100">
+                                    <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Company Branding</th>
+                                    <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Code</th>
+                                    <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Admin Credentials</th>
+                                    <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Ecosystem Status</th>
+                                    <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Management</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {loading ? (
+                                    <tr><td colSpan="5" className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse">Synchronizing Data...</td></tr>
+                                ) : currentCompanies.length === 0 ? (
+                                    <tr><td colSpan="5" className="p-12 text-center text-slate-400 font-medium">No organizations found in the current landscape.</td></tr>
+                                ) : (
+                                    currentCompanies.map((company) => (
+                                        <tr key={company._id} className="hover:bg-indigo-50/20 transition-all group">
+                                            <td className="px-8 py-6 min-w-[280px]">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-14 w-14 flex-shrink-0 bg-white shadow-sm rounded-2xl overflow-hidden border border-slate-100 flex items-center justify-center">
+                                                        {getLogoUrl(company.meta?.logo) ? (
+                                                            <img src={getLogoUrl(company.meta.logo)} alt="" className="h-full w-full object-contain p-1" />
+                                                        ) : (
+                                                            <span className="text-xl font-black text-slate-300">{company.name?.charAt(0)}</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <h3 className="text-base font-bold text-slate-900 leading-none mb-1.5 group-hover:text-indigo-600 transition-colors truncate" title={company.name}>{company.name}</h3>
+                                                        <div className="flex items-center gap-1.5 text-slate-400">
+                                                            <Mail size={12} className="shrink-0" />
+                                                            <span className="text-xs font-semibold truncate" title={company.meta?.primaryEmail}>{company.meta?.primaryEmail}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <span className="text-xs font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg border border-slate-200 font-mono tracking-wider">
+                                                    {company.code}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 min-w-[240px]">
+                                                <div className="space-y-1.5">
+                                                    <div className="text-xs font-bold text-slate-600 truncate max-w-[220px]" title={company.meta?.email}>
+                                                        {company.meta?.email}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-2 py-1.5 rounded-md">
+                                                            <Lock size={10} className="text-slate-400" />
+                                                            <span className="text-[10px] font-mono text-slate-500">
+                                                                {revealPassword[company._id] ? company.meta?.adminPassword : '••••••••'}
+                                                            </span>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => togglePassword(company._id)}
+                                                            className="text-slate-300 hover:text-indigo-600 transition-colors shrink-0"
+                                                        >
+                                                            {revealPassword[company._id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className={`${company.status === 'active'
+                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                    : 'bg-rose-50 text-rose-600 border-rose-100'
+                                                    } flex items-center gap-2 w-fit px-3.5 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest whitespace-nowrap`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${company.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></div>
+                                                    {company.status === 'active' ? 'Operational' : 'Restricted'}
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6 text-right min-w-[200px]">
+                                                <div className="flex items-center justify-end gap-2.5 group-hover:translate-x-[-4px] transition-transform">
+                                                    <button
+                                                        onClick={() => navigate(`/psa/companies/view/${company._id}`)}
+                                                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm shrink-0"
+                                                        title="Detailed Intel"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => navigate(`/psa/companies/edit/${company._id}`)}
+                                                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-indigo-600 hover:text-white transition-all shadow-sm shrink-0"
+                                                        title="Modify Config"
+                                                    >
+                                                        <Edit2 size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => window.open(`/jobs/${company.code}`, '_blank')}
+                                                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-blue-600 hover:text-white transition-all shadow-sm shrink-0"
+                                                        title="Launch Portal"
+                                                    >
+                                                        <ExternalLink size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleToggleStatus(company)}
+                                                        className={`w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 transition-all shadow-sm shrink-0 ${company.status === 'active'
+                                                            ? 'text-rose-400 hover:bg-rose-600 hover:text-white'
+                                                            : 'text-emerald-400 hover:bg-emerald-600 hover:text-white'
+                                                            }`}
+                                                        title={company.status === 'active' ? 'Kill Process' : 'Resume Process'}
+                                                    >
+                                                        <Power size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
-                ) : (
-                    <>
-                        {viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 pb-10">
-                                {currentCompanies.map((c) => (
-                                    <div
-                                        key={c._id}
-                                        onClick={() => navigate(`/super-admin/companies/view/${c._id}`)}
-                                        className="group bg-white rounded-2xl p-6 sm:p-8 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer relative overflow-hidden"
+
+                    {/* Pagination Controls - Always Visible */}
+                    <div className="px-8 py-6 bg-slate-50/30 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Page {currentPage} of {totalPages} • Showing {currentCompanies.length} of {filteredCompanies.length} Organizations
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-900 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-500"
+                            >
+                                Previous
+                            </button>
+                            <div className="flex items-center gap-1.5 mx-2">
+                                {[...Array(totalPages)].map((_, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => setCurrentPage(i + 1)}
+                                        className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === i + 1
+                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 scale-110'
+                                            : 'text-slate-400 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200'
+                                            }`}
                                     >
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-500">
-                                                {c.meta?.logo ? (
-                                                    <img src={getLogoUrl(c.meta.logo)} alt="Logo" className="w-full h-full object-contain p-2" />
-                                                ) : (
-                                                    <span className="text-2xl font-bold text-slate-300">{c.name?.charAt(0)}</span>
-                                                )}
-                                            </div>
-                                            <div className={`px-2.5 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest flex items-center gap-1.5 ${c.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                <div className={`w-1 h-1 rounded-full ${c.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-                                                {c.status}
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <div>
-                                                <h3 className="text-base sm:text-lg font-bold text-slate-900 truncate tracking-tight">{c.name}</h3>
-                                                <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mt-1">{c.code || 'NO-CODE'}</p>
-                                            </div>
-
-                                            <div className="space-y-2.5 pt-2">
-                                                <div className="flex items-center gap-2.5 text-slate-500">
-                                                    <Globe size={14} className="text-emerald-400 shrink-0" />
-                                                    <span className="text-[11px] font-bold truncate">{c.domain || 'Not Setup'}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2.5 text-slate-500">
-                                                    <Mail size={14} className="text-rose-400 shrink-0" />
-                                                    <span className="text-[11px] font-bold truncate">{c.meta?.email || 'No Email'}</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-6 border-t border-slate-50 flex items-center justify-center gap-2">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); navigate(`/super-admin/companies/edit/${c._id}`); }}
-                                                    className="flex-1 py-2.5 bg-slate-50 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all flex items-center justify-center group/btn"
-                                                >
-                                                    <Edit2 size={16} className="group-hover/btn:scale-110 transition-transform" />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleToggleStatus(c); }}
-                                                    className={`flex-1 py-2.5 rounded-xl transition-all flex items-center justify-center group/btn ${c.status === 'active' ? 'bg-rose-50 text-rose-400 hover:text-rose-600 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-100'}`}
-                                                >
-                                                    <Power size={16} className="group-hover/btn:scale-110 transition-transform" />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); navigate(`/super-admin/companies/view/${c._id}`); }}
-                                                    className="flex-1 py-2.5 bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white rounded-xl transition-all flex items-center justify-center group/btn"
-                                                >
-                                                    <ArrowUpRight size={16} className="group-hover/btn:scale-110 transition-transform" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                        {i + 1}
+                                    </button>
                                 ))}
                             </div>
-                        ) : (
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                                <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-                                    <table className="w-full text-left border-collapse min-w-[1000px]">
-                                        <thead className="bg-slate-50/50">
-                                            <tr>
-                                                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap w-[30%]">Entity Organization</th>
-                                                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap w-[15%]">Identification</th>
-                                                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap w-[25%]">Digital Domain</th>
-                                                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap w-[15%]">Status</th>
-                                                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right whitespace-nowrap w-[15%]">Operations</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white">
-                                            {currentCompanies.map((c) => (
-                                                <tr key={c._id} className="group hover:bg-slate-50/30 transition-colors cursor-pointer" onClick={() => navigate(`/super-admin/companies/view/${c._id}`)}>
-                                                    <td className="px-8 py-5 border-b border-slate-50 shrink-0">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0">
-                                                                {c.meta?.logo ? (
-                                                                    <img src={getLogoUrl(c.meta.logo)} className="w-7 h-7 object-contain" alt="logo" />
-                                                                ) : (
-                                                                    <Building2 size={16} className="text-slate-300" />
-                                                                )}
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <p className="text-sm font-bold text-slate-800 leading-none mb-1 truncate max-w-[200px]">{c.name}</p>
-                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter truncate max-w-[200px]">{c.meta?.email || 'N/A'}</p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-8 py-5 border-b border-slate-50">
-                                                        <span className="px-3 py-1 bg-slate-50 text-slate-500 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-slate-100">{c.code || 'ORG'}</span>
-                                                    </td>
-                                                    <td className="px-8 py-5 border-b border-slate-50">
-                                                        <div className="flex items-center gap-2 text-slate-500">
-                                                            <Globe size={14} className="text-emerald-400 shrink-0" />
-                                                            <span className="text-xs font-bold text-slate-600 truncate max-w-[150px]">{c.domain || 'Not Setup'}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-8 py-5 border-b border-slate-50">
-                                                        <div className={`w-fit px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest flex items-center gap-2 ${c.status === 'active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/50' : 'bg-rose-50 text-rose-600 border border-rose-100/50'}`}>
-                                                            <div className={`w-1.5 h-1.5 rounded-full ${c.status === 'active' ? 'bg-emerald-500 shadow-sm' : 'bg-rose-500'}`}></div>
-                                                            {c.status}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-8 py-5 border-b border-slate-50 text-right">
-                                                        <div className="flex items-center justify-end gap-1 overflow-hidden">
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); navigate(`/super-admin/companies/edit/${c._id}`); }}
-                                                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                                            >
-                                                                <Edit2 size={16} />
-                                                            </button>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); handleToggleStatus(c); }}
-                                                                className={`p-2 rounded-lg transition-all ${c.status === 'active' ? 'text-rose-400 hover:text-rose-600 hover:bg-rose-50' : 'text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
-                                                            >
-                                                                <Power size={16} />
-                                                            </button>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); navigate(`/super-admin/companies/view/${c._id}`); }}
-                                                                className="p-2 text-slate-400 hover:bg-slate-900 hover:text-white rounded-lg transition-all"
-                                                            >
-                                                                <Eye size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-                    </>
-                )}
-
-                {/* Pagination Controls */}
-                {!loading && totalPages > 1 && (
-                    <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 pt-6 sm:pt-10 pb-12 sm:pb-20">
-                        <button
-                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                            className="flex-1 sm:flex-none p-3 sm:p-4 bg-white border border-slate-200 rounded-xl shadow-sm text-slate-400 hover:text-emerald-600 disabled:opacity-30 transition-all font-bold uppercase text-[9px] sm:text-[10px] tracking-widest flex items-center justify-center gap-2"
-                        >
-                            <ChevronLeft size={16} /> <span className="hidden sm:inline">Prev</span>
-                        </button>
-                        <div className="flex items-center gap-2 scrollbar-hide overflow-x-auto max-w-[200px] sm:max-w-none">
-                            {[...Array(totalPages)].map((_, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => setCurrentPage(i + 1)}
-                                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl text-[10px] sm:text-xs font-bold transition-all shrink-0 ${currentPage === i + 1 ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-200'}`}
-                                >
-                                    {i + 1}
-                                </button>
-                            ))}
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-900 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-500"
+                            >
+                                Next
+                            </button>
                         </div>
-                        <button
-                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                            className="flex-1 sm:flex-none p-3 sm:p-4 bg-white border border-slate-200 rounded-xl shadow-sm text-slate-400 hover:text-emerald-600 disabled:opacity-30 transition-all font-bold uppercase text-[9px] sm:text-[10px] tracking-widest flex items-center justify-center gap-2"
-                        >
-                            <span className="hidden sm:inline">Next</span> <ChevronRight size={16} />
-                        </button>
                     </div>
-                )}
+
+                </div>
             </div>
         </div>
     );

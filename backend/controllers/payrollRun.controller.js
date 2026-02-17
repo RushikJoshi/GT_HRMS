@@ -55,7 +55,7 @@ exports.initiatePayrollRun = async (req, res) => {
         // Check if payroll run already exists
         let payrollRun = await PayrollRun.findOne({ tenantId, month, year });
 
-        if (payrollRun && ['APPROVED', 'PAID'].includes(payrollRun.status) && (payrollRun.processedEmployees || 0) > 0) {
+        if (payrollRun && ['APPROVED', 'PAID'].includes(payrollRun.status)) {
             return res.status(400).json({
                 success: false,
                 error: "Payroll run finalized",

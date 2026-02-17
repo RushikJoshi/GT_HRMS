@@ -19,20 +19,23 @@ const {
     generateEmployeeId,
     generateInterviewId
 } = require('../utils/idGenerator');
+const OfferSchema = require('../models/Offer');
+
+// GLOBAL MODEL for Shared Collection
+const GlobalOfferModel = mongoose.models.GlobalOffer || mongoose.model('GlobalOffer', OfferSchema, 'offers');
 
 /**
  * Get models for tenant database
  */
 function getModels(db) {
     const Application = db.models.Application || db.model('Application', require('../models/Application'));
-    const Offer = db.models.Offer || db.model('Offer', require('../models/Offer'));
     const Requirement = db.models.Requirement || db.model('Requirement', require('../models/Requirement'));
     const Candidate = db.models.Candidate || db.model('Candidate', require('../models/Candidate'));
     const Employee = db.models.Employee || db.model('Employee', require('../models/Employee'));
     const Interview = db.models.Interview || db.model('Interview', require('../models/Interview'));
     const SalaryStructure = db.models.SalaryStructure || db.model('SalaryStructure', require('../models/SalaryStructure'));
 
-    return { Application, Offer, Requirement, Candidate, Employee, Interview, SalaryStructure };
+    return { Application, Requirement, Candidate, Employee, Interview, SalaryStructure };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -364,7 +367,7 @@ exports.createOffer = async (req, res) => {
         const { applicationId } = req.params;
         const offerData = req.body;
 
-        const { Application, Offer, SalaryStructure } = getModels(db);
+        const { Application, SalaryStructure } = getModels(db);
 
         // ─────────────────────────────────────────────────────────────────
         // VALIDATION 1: Check application
@@ -415,13 +418,19 @@ exports.createOffer = async (req, res) => {
         // Calculate validity (default: 7 days from now)
         const validUntil = offerData.validUntil || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-        const offer = new Offer({
-            offerId,
-            tenant: tenantId,
+        const offer = new GlobalOfferModel({
+            offerId, // Human readable ID
+            tenantId, // Global schema uses tenantId
             applicationId: application._id,
             applicationReadableId: application.applicationId,
             candidateId: application.candidateId,
             jobId: application.jobId,
+
+            // Snapshot Fields for Global Collection
+            candidateName: application.candidateInfo.name,
+            candidateEmail: application.candidateInfo.email,
+            jobTitle: application.jobId.jobTitle || 'Role',
+            salary: salaryStructure.ctc || 0, // Fallback
 
             candidateInfo: {
                 name: application.candidateInfo.name,
@@ -455,7 +464,7 @@ exports.createOffer = async (req, res) => {
             workingDays: offerData.workingDays || 'Monday to Friday',
             workingHours: offerData.workingHours || '9:00 AM to 6:00 PM',
 
-            validUntil,
+            expiryDate: validUntil, // Global schema uses expiryDate
 
             benefits: offerData.benefits || [],
             specialTerms: offerData.specialTerms || [],
@@ -463,7 +472,7 @@ exports.createOffer = async (req, res) => {
             status: 'DRAFT'
         });
 
-        await offer.save({ session });
+        await offer.save(); // Note: Global collection might not support multi-DB transactions easily, but we'll try standard save
 
         // ─────────────────────────────────────────────────────────────────
         // UPDATE APPLICATION
@@ -506,6 +515,7 @@ exports.createOffer = async (req, res) => {
  * Send offer letter to candidate
  */
 exports.sendOffer = async (req, res) => {
+    // Note: session for tenant DB might not work with Global connection
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -513,9 +523,9 @@ exports.sendOffer = async (req, res) => {
         const { tenantId, db, user } = req;
         const { offerId } = req.params;
 
-        const { Offer, Application } = getModels(db);
+        const { Application } = getModels(db);
 
-        const offer = await Offer.findOne({ _id: offerId, tenant: tenantId });
+        const offer = await GlobalOfferModel.findOne({ _id: offerId, tenantId: tenantId });
 
         if (!offer) {
             await session.abortTransaction();
@@ -528,9 +538,10 @@ exports.sendOffer = async (req, res) => {
         // Use model method (includes validation)
         try {
             offer.send(user._id, user.name || user.email);
-            await offer.save({ session });
+            // Global collection usually doesn't participate in tenant DB sessions
+            await offer.save();
 
-            // Update application
+            // Update application (Tenant DB)
             const application = await Application.findById(offer.applicationId);
             if (application) {
                 application.markOfferSent();
@@ -548,7 +559,7 @@ exports.sendOffer = async (req, res) => {
                     offerId: offer.offerId,
                     status: offer.status,
                     sentDate: offer.sentDate,
-                    validUntil: offer.validUntil
+                    validUntil: offer.expiryDate // Match schema
                 }
             });
 
@@ -561,7 +572,7 @@ exports.sendOffer = async (req, res) => {
         }
 
     } catch (error) {
-        await session.abortTransaction();
+        if (session.inTransaction()) await session.abortTransaction();
         console.error('Send Offer Error:', error);
         res.status(500).json({
             success: false,
@@ -589,9 +600,9 @@ exports.acceptOffer = async (req, res) => {
         const { offerId } = req.params;
         const { acceptanceNotes } = req.body;
 
-        const { Offer, Application } = getModels(db);
+        const { Application } = getModels(db);
 
-        const offer = await Offer.findOne({ _id: offerId, tenant: tenantId });
+        const offer = await GlobalOfferModel.findOne({ _id: offerId, tenantId: tenantId });
 
         if (!offer) {
             await session.abortTransaction();
@@ -603,7 +614,7 @@ exports.acceptOffer = async (req, res) => {
 
         try {
             offer.accept(acceptanceNotes);
-            await offer.save({ session });
+            await offer.save();
 
             // Update application
             const application = await Application.findById(offer.applicationId);
@@ -620,7 +631,7 @@ exports.acceptOffer = async (req, res) => {
                 data: {
                     offerId: offer.offerId,
                     status: offer.status,
-                    acceptedDate: offer.acceptedDate
+                    acceptedDate: offer.acceptedAt
                 }
             });
 
@@ -633,7 +644,7 @@ exports.acceptOffer = async (req, res) => {
         }
 
     } catch (error) {
-        await session.abortTransaction();
+        if (session.inTransaction()) await session.abortTransaction();
         console.error('Accept Offer Error:', error);
         res.status(500).json({
             success: false,
@@ -666,12 +677,12 @@ exports.convertToEmployee = async (req, res) => {
         const { offerId } = req.params;
         const { actualJoiningDate, department } = req.body;
 
-        const { Offer, Application, Employee } = getModels(db);
+        const { Application, Employee } = getModels(db);
 
         // ─────────────────────────────────────────────────────────────────
         // VALIDATION: Check offer
         // ─────────────────────────────────────────────────────────────────
-        const offer = await Offer.findOne({ _id: offerId, tenant: tenantId });
+        const offer = await GlobalOfferModel.findOne({ _id: offerId, tenantId: tenantId });
 
         if (!offer) {
             await session.abortTransaction();
@@ -701,11 +712,11 @@ exports.convertToEmployee = async (req, res) => {
             tenant: tenantId,
 
             // Personal Info
-            firstName: offer.candidateInfo.name.split(' ')[0],
-            lastName: offer.candidateInfo.name.split(' ').slice(1).join(' '),
-            email: offer.candidateInfo.email,
-            contactNo: offer.candidateInfo.mobile,
-            fatherName: offer.candidateInfo.fatherName,
+            firstName: offer.candidateName.split(' ')[0] || "",
+            lastName: offer.candidateName.split(' ').slice(1).join(' ') || "",
+            email: offer.candidateEmail,
+            contactNo: offer.candidateInfo?.mobile || "",
+            fatherName: offer.candidateInfo?.fatherName || "",
 
             // Job Info
             department: offer.jobDetails.department,
@@ -733,7 +744,7 @@ exports.convertToEmployee = async (req, res) => {
         // UPDATE OFFER
         // ─────────────────────────────────────────────────────────────────
         offer.linkEmployee(employee._id, employee.employeeId);
-        await offer.save({ session });
+        await offer.save();
 
         // ─────────────────────────────────────────────────────────────────
         // UPDATE APPLICATION

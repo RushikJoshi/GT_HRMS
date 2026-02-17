@@ -68,7 +68,7 @@ const FaceUpdateRequests = () => {
     }
 
     return (
-        <div className="p-6 w-full mx-auto">
+        <div className="p-6 max-w-7xl mx-auto">
             <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
@@ -86,7 +86,7 @@ const FaceUpdateRequests = () => {
                 </button>
             </div>
 
-            <div className="bg-white border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />

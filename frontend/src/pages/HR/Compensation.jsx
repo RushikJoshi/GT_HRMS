@@ -232,7 +232,7 @@ export default function Compensation() {
             </div>
 
             {/* Table section */}
-            <div className="bg-white border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white border border-slate-200 rounded-[32px] shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>

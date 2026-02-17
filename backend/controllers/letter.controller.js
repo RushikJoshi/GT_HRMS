@@ -7,8 +7,13 @@ const fs = require('fs');
 const fsPromises = require('fs').promises;
 const Docxtemplater = require('docxtemplater');
 const PizZip = require('pizzip');
+
 const joiningLetterUtils = require('../utils/joiningLetterUtils');
-const emailService = require('../services/email.service');
+const crypto = require('crypto'); // For token generation
+const OfferSchema = require('../models/Offer');
+
+// GLOBAL MODEL for Shared Collection (Fixes 500 collections limit)
+const GlobalOfferModel = mongoose.models.GlobalOffer || mongoose.model('GlobalOffer', OfferSchema, 'offers');
 
 // PDF conversion uses LibreOfficeService (reliable cross-platform solution)
 console.log('🚀 LETTER CONTROLLER VERSION: 3.1 (LibreOffice PDF conversion)');
@@ -17,34 +22,15 @@ async function extractPlaceholders(filePath) {
     try {
         const buffer = await fsPromises.readFile(filePath);
         const zip = new PizZip(buffer);
-        const xmlParts = zip.file(/word\/(document|header\d*|footer\d*)\.xml/);
-        if (!Array.isArray(xmlParts) || xmlParts.length === 0) return [];
+        const docXml = zip.file("word/document.xml");
+        if (!docXml) return [];
 
+        const text = docXml.asText();
         const placeholderRegex = /\{\{([^}]+)\}\}/g;
         const placeholders = new Set();
-
-        const decodeXmlEntities = (value) => value
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&amp;/g, '&')
-            .replace(/&quot;/g, '"')
-            .replace(/&apos;/g, "'");
-
-        for (const xmlEntry of xmlParts) {
-            const xmlText = decodeXmlEntities(
-                xmlEntry
-                    .asText()
-                    .replace(/<w:tab\/>/g, '\t')
-                    .replace(/<w:br\/>/g, '\n')
-                    .replace(/<w:p\b[^>]*>/g, '\n')
-                    .replace(/<[^>]+>/g, '')
-            );
-
-            let match;
-            while ((match = placeholderRegex.exec(xmlText)) !== null) {
-                const cleaned = sanitizePlaceholderToken(match[1]);
-                if (cleaned) placeholders.add(cleaned);
-            }
+        let match;
+        while ((match = placeholderRegex.exec(text)) !== null) {
+            placeholders.add(match[1].trim());
         }
 
         return Array.from(placeholders);
@@ -52,73 +38,6 @@ async function extractPlaceholders(filePath) {
         console.warn('⚠️ Error extracting placeholders (non-critical):', error.message);
         return [];
     }
-}
-
-function sanitizePlaceholderToken(raw) {
-    const cleaned = String(raw || '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    if (!cleaned) return null;
-    if (cleaned.length > 120) return null;
-    if (/mergefield/i.test(cleaned)) return null;
-    if (/^w:/i.test(cleaned)) return null;
-    if (!/[a-z0-9]/i.test(cleaned)) return null;
-
-    return cleaned;
-}
-
-function sanitizePlaceholderList(placeholders = []) {
-    if (!Array.isArray(placeholders)) return [];
-    const seen = new Set();
-    const result = [];
-
-    for (const token of placeholders) {
-        const cleaned = sanitizePlaceholderToken(token);
-        if (!cleaned || seen.has(cleaned)) continue;
-        seen.add(cleaned);
-        result.push(cleaned);
-    }
-
-    return result;
-}
-
-function sanitizeDocxTemplateDelimiters(zip) {
-    try {
-        const files = zip.file(/word\/(document|header\d*|footer\d*)\.xml/);
-        if (!Array.isArray(files) || files.length === 0) return;
-
-        files.forEach((entry) => {
-            const xml = entry.asText();
-            const sanitized = xml
-                // Convert triple/quadruple brace runs to standard docxtemplater delimiters.
-                .replace(/\{{3,}/g, '{{')
-                .replace(/\}{3,}/g, '}}');
-
-            if (sanitized !== xml) {
-                zip.file(entry.name, sanitized);
-            }
-        });
-    } catch (e) {
-        console.warn('⚠️ [DOCX SANITIZE] Failed to sanitize template delimiters:', e.message);
-    }
-}
-
-function buildTemplateCompileError(error) {
-    const issues = Array.isArray(error?.properties?.errors) ? error.properties.errors : [];
-    const details = issues.map((item) => ({
-        id: item?.properties?.id || item?.id || 'template_error',
-        file: item?.properties?.file || 'word/document.xml',
-        context: item?.properties?.context || item?.properties?.xtag || item?.message || 'Invalid template tag'
-    }));
-
-    return {
-        success: false,
-        code: 'INVALID_TEMPLATE_SYNTAX',
-        message: 'Template contains invalid placeholder syntax. Use {{placeholder}} format with exactly two braces.',
-        details
-    };
 }
 
 // Helper to get models from tenant database
@@ -159,9 +78,6 @@ function getModels(req) {
         if (!db.models.Employee) {
             try { db.model('Employee', require('../models/Employee')); } catch (e) { }
         }
-        if (!db.models.LetterRevocation) {
-            try { db.model('LetterRevocation', require('../models/LetterRevocation')); } catch (e) { }
-        }
 
         return {
             CompanyProfile: db.model("CompanyProfile"),
@@ -170,7 +86,6 @@ function getModels(req) {
             LetterApproval: db.model("LetterApproval"),
             Applicant: db.model("Applicant"),
             Employee: db.model("Employee"),
-            LetterRevocation: db.model("LetterRevocation"),
             EmployeeSalarySnapshot: db.model("EmployeeSalarySnapshot"),
             BGVCase: db.models.BGVCase || null,
             Notification: db.models.Notification || null
@@ -463,7 +378,7 @@ exports.getTemplates = async (req, res) => {
         const templates = await LetterTemplate.find(query).sort('-createdAt');
 
         // Transform response based on type
-        const responseData = await Promise.all(templates.map(async (template) => {
+        const responseData = templates.map(template => {
             const base = {
                 _id: template._id,
                 name: template.name,
@@ -472,20 +387,12 @@ exports.getTemplates = async (req, res) => {
                 createdAt: template.createdAt
             };
 
-            let resolvedPlaceholders = sanitizePlaceholderList(template.placeholders || []);
-            if (template.templateType === 'WORD' && resolvedPlaceholders.length === 0 && template.filePath) {
-                const normalizedPath = normalizeFilePath(template.filePath);
-                if (normalizedPath && fs.existsSync(normalizedPath)) {
-                    resolvedPlaceholders = await extractPlaceholders(normalizedPath);
-                }
-            }
-
             if (template.templateType === 'WORD') {
                 // Word templates (both offer and joining)
                 return {
                     ...base,
                     filePath: template.filePath,
-                    placeholders: resolvedPlaceholders,
+                    placeholders: template.placeholders || [],
                     status: template.status,
                     version: template.version,
                     templateType: 'WORD'
@@ -508,14 +415,14 @@ exports.getTemplates = async (req, res) => {
                 return {
                     ...base,
                     filePath: template.filePath,
-                    placeholders: resolvedPlaceholders,
+                    placeholders: template.placeholders || [],
                     status: template.status,
                     version: template.version,
                     templateType: 'WORD'
                 };
             }
             return base;
-        }));
+        });
 
         res.json(responseData);
     } catch (error) {
@@ -640,7 +547,7 @@ exports.getTemplateById = async (req, res) => {
         // Handle WORD templates - validate filePath exists
         if (template.templateType === 'WORD') {
             responseData.templateType = 'WORD';
-            responseData.placeholders = sanitizePlaceholderList(template.placeholders || []);
+            responseData.placeholders = template.placeholders || [];
             responseData.version = template.version;
             responseData.status = template.status;
 
@@ -651,9 +558,6 @@ exports.getTemplateById = async (req, res) => {
                     const normalizedPath = normalizeFilePath(template.filePath);
                     const fileExists = fs.existsSync(normalizedPath);
                     if (fileExists) {
-                        if (responseData.placeholders.length === 0) {
-                            responseData.placeholders = await extractPlaceholders(normalizedPath);
-                        }
                         // Return normalized filePath for WORD templates (needed for preview)
                         responseData.filePath = normalizedPath;
                         responseData.hasFile = true;
@@ -1257,11 +1161,12 @@ exports.generateJoiningLetter = async (req, res) => {
         const Applicant = getApplicantModel(req);
         const { Employee, LetterTemplate, GeneratedLetter } = getModels(req);
 
-        console.log('🔥 [JOINING LETTER] Request received:', { applicantId, employeeId, templateId, refNo, issueDate });
+        console.log('🔥 [JOINING LETTER] Inputs:', { applicantId, employeeId, templateId, refNo, issueDate });
 
-        // Validate input
-        if (!templateId || (!applicantId && !employeeId)) {
-            return res.status(400).json({ message: "templateId and (applicantId or employeeId) are required" });
+        const tenantId = req.user?.tenantId || req.tenantId;
+        if (!tenantId) {
+            console.error('❌ [JOINING LETTER] Missing tenantId');
+            return res.status(400).json({ success: false, message: "Tenant ID required" });
         }
 
         // Fetch target
@@ -1590,9 +1495,16 @@ exports.generateJoiningLetter = async (req, res) => {
             generatedRefNo = appointmentIdResult.id;
             console.log('✅ [JOINING LETTER] Generated Reference Number:', generatedRefNo);
         } catch (idErr) {
-            console.warn("⚠️ [JOINING LETTER] Could not generate reference number:", idErr.message);
-            console.error("⚠️ [JOINING LETTER] ID Generation Error Stack:", idErr.stack);
-            generatedRefNo = `APPT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(5, '0')}`;
+            console.error("❌ [JOINING LETTER] CRITICAL: ID Generation Failed:", idErr.message);
+            console.error("❌ [JOINING LETTER] Stack:", idErr.stack);
+
+            // If explicit refNo was provided by user, we can proceed, otherwise we MUST fail
+            // so the user knows configuration is broken instead of getting a random ID.
+            if (!refNo) {
+                console.error("❌ [JOINING LETTER] Aborting generation because no sequence could be generated and no manual Ref No was provided.");
+                throw new Error(`Reference Number Generation Failed: ${idErr.message}. Please check Document Sequence settings for APPT.`);
+            }
+            generatedRefNo = refNo;
         }
 
         // A. Basic Placeholders
@@ -1715,19 +1627,26 @@ exports.generateJoiningLetter = async (req, res) => {
             });
         }
 
+        console.log('📝 [JOINING LETTER] Saving record...');
         const generated = new GeneratedLetter({
-            tenantId: req.user?.tenantId || req.tenantId,
-            applicantId: applicantId, // Use correct schema key
+            tenantId: tenantId,
+            applicantId: applicantId || null,
             employeeId: employeeId || null,
             templateId,
             letterType: 'joining',
             pdfPath: finalRelativePath,
             pdfUrl: finalPdfUrl,
-            status: 'generated',
-            generatedBy: req.user?.id
+            status: 'draft',
+            generatedBy: req.user?.id || req.user?.userId || req.user?._id
         });
 
-        await generated.save();
+        try {
+            await generated.save();
+            console.log('✅ [JOINING LETTER] GeneratedLetter document saved');
+        } catch (saveErr) {
+            console.error('❌ [JOINING LETTER] GeneratedLetter save FAILED:', saveErr.message);
+            throw saveErr;
+        }
 
         // Increment Appointment ID Sequence (Consume the ID)
         try {
@@ -1827,13 +1746,13 @@ exports.generateJoiningLetter = async (req, res) => {
         });
 
     } catch (error) {
-        // Test comment
-        console.error('🔥 [JOINING LETTER] FATAL ERROR:', error);
+        console.error('🔥 [JOINING LETTER] FATAL ERROR:', error.message);
+        console.error('❌ [JOINING LETTER] Stack:', error.stack);
         res.status(500).json({
             success: false,
             message: "Generate Failed: " + error.message,
             error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 };
@@ -1852,10 +1771,26 @@ exports.generateOfferLetter = async (req, res) => {
         // Get tenant-specific models
         const { LetterTemplate, GeneratedLetter } = getModels(req);
 
-        // Get the template to check its type
-        const template = await LetterTemplate.findOne({ _id: templateId, tenantId: req.tenantId || req.user.tenantId });
+        // Get the template to check its type - Check both New and Legacy models
+        let template = await LetterTemplate.findOne({ _id: templateId, tenantId: req.tenantId || req.user.tenantId });
+
         if (!template) {
-            console.error('❌ [OFFER LETTER] Template not found:', templateId);
+            console.log('🔍 [OFFER LETTER] Not found in LetterTemplate, checking legacy OfferLetterTemplate...');
+            const { OfferLetterTemplate } = getModels(req);
+            if (OfferLetterTemplate) {
+                template = await OfferLetterTemplate.findById(templateId);
+                if (template) {
+                    // Normalize legacy template to match New system's expectations roughly
+                    template.templateType = 'HTML'; // Legacy is always HTML
+                    template.bodyContent = template.body;
+                    template.headerContent = template.header;
+                    template.footerContent = template.footer;
+                }
+            }
+        }
+
+        if (!template) {
+            console.error('❌ [OFFER LETTER] Template not found in any model:', templateId);
             return res.status(404).json({ message: "Template not found" });
         }
 
@@ -1865,7 +1800,7 @@ exports.generateOfferLetter = async (req, res) => {
             return res.status(404).json({ message: "Applicant not found" });
         }
 
-        console.log('✅ [OFFER LETTER] Found Applicant:', applicant.name, '| Template:', template.templateName);
+        console.log('✅ [OFFER LETTER] Found Applicant:', applicant.name, '| Template:', template.name || template.templateName);
 
         // --- BGV INTEGRATION ---
         const { BGVCase } = getModels(req);
@@ -1912,142 +1847,145 @@ exports.generateOfferLetter = async (req, res) => {
         let templateType = template.templateType;
         let pdfFileName; // Store filename for database
 
+        // --- UNIFIED DATA PREPARATION (v4.0) ---
+        // 3. Prepare Data - FETCH FROM EmployeeSalarySnapshot (Single Source of Truth)
+        const EmployeeSalarySnapshot = req.tenantDB.model('EmployeeSalarySnapshot');
+
+        console.log('🔍 [OFFER LETTER] Fetching snapshot from database...');
+        const query = { applicant: applicantId };
+        let snapshot = await EmployeeSalarySnapshot.findOne(query).sort({ createdAt: -1 }).lean();
+
+        if (snapshot) {
+            console.log('✅ [OFFER LETTER] Found DB Snapshot:', { id: snapshot._id, locked: snapshot.locked, ctc: snapshot.ctc });
+        } else {
+            console.warn('⚠️ [OFFER LETTER] No salary snapshot found for applicant:', applicantId);
+        }
+
+        const safeString = (val) => (val !== undefined && val !== null ? String(val) : '');
+        const finalFatherName = safeString(fatherName || applicant.fatherName);
+        const validIssueDate = issueDate ? new Date(issueDate) : new Date();
+        const issuedDate = formatCustomDate(validIssueDate, dateFormat);
+        const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)}`;
+        const finalDearName = `${salutation ? salutation + ' ' : ''}${safeString(dearName || name || applicant.name)}`;
+
+        // Generate Ref No if not provided
+        let finalRefNo = refNo;
+        if (!finalRefNo) {
+            try {
+                const companyIdConfig = require('./companyIdConfig.controller');
+                const { CompanyProfile } = getModels(req);
+                const companyProfile = await CompanyProfile.findOne({ tenantId: req.user.tenantId });
+                const companyCode = companyProfile?.companyCode || 'GTPL';
+                const branchCode = companyProfile?.branchCode || 'AHM';
+                const deptName = applicant.requirementId?.department?.name || 'GEN';
+                const deptCode = deptName.substring(0, 3).toUpperCase();
+
+                const idResult = await companyIdConfig.generateIdInternal({
+                    tenantId: req.user.tenantId,
+                    entityType: 'OFFER',
+                    increment: false,
+                    extraReplacements: { '{{COMPANY}}': companyCode, '{{BRANCH}}': branchCode, '{{DEPT}}': deptCode }
+                });
+                finalRefNo = idResult.id;
+                console.log('✅ [OFFER LETTER] Auto-generated ref for letter:', finalRefNo);
+            } catch (err) { console.warn('⚠️ [OFFER LETTER] ID Gen failed:', err.message); }
+        }
+
+        const initialOfferData = {
+            employee_name: fullName,
+            candidate_name: fullName,
+            name: fullName,
+            father_name: finalFatherName,
+            fatherName: finalFatherName,
+            designation: safeString(applicant.requirementId?.jobTitle || applicant.currentDesignation),
+            position: safeString(applicant.requirementId?.jobTitle || applicant.currentDesignation),
+            joining_date: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
+            joiningDate: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
+            location: safeString(location || applicant.location || applicant.workLocation),
+            work_location: safeString(location || applicant.location || applicant.workLocation),
+            address: safeString(address || applicant.address),
+            candidate_address: safeString(address || applicant.address),
+            offer_ref_no: safeString(finalRefNo),
+            refNo: safeString(finalRefNo),
+            ref_no: safeString(finalRefNo),
+            reference_number: safeString(finalRefNo),
+            refNumber: safeString(finalRefNo),
+            ref_number: safeString(finalRefNo),
+            offerRefCode: safeString(finalRefNo),
+            offer_ref_code: safeString(finalRefNo),
+            offer_id: safeString(finalRefNo),
+            reference: safeString(finalRefNo),
+            ref: safeString(finalRefNo),
+            letter_ref: safeString(finalRefNo),
+            issued_date: issuedDate,
+            issuedDate: issuedDate,
+            current_date: issuedDate,
+            issue_date: issuedDate,
+            Date: issuedDate,
+            dear_name: finalDearName,
+            DearName: finalDearName,
+            dear_name_only: safeString(dearName || name || applicant.name)
+        };
+
+        // Calculate salary totals for patches
+        let salaryTotals = {};
+        if (snapshot) {
+            const earnings = (snapshot.earnings || []).map(e => ({
+                ...e,
+                monthly: e.monthlyAmount || e.monthly || 0,
+                yearly: e.yearlyAmount || e.yearly || (e.monthlyAmount * 12) || 0
+            }));
+            const deducons = (snapshot.employeeDeductions || snapshot.deductions || []).map(d => ({
+                ...d,
+                monthly: d.monthlyAmount || d.monthly || 0,
+                yearly: d.yearlyAmount || d.yearly || (d.monthlyAmount * 12) || 0
+            }));
+            const benefits = (snapshot.benefits || []).map(b => ({
+                ...b,
+                monthly: b.monthlyAmount || b.monthly || 0,
+                yearly: b.yearlyAmount || b.yearly || (b.monthlyAmount * 12) || 0
+            }));
+
+            const grossAAnnual = snapshot.summary?.grossEarnings || earnings.reduce((sum, e) => sum + e.yearly, 0);
+            const totalBenefitsAnnual = snapshot.summary?.totalBenefits || benefits.reduce((sum, b) => sum + b.yearly, 0);
+            const totalDeductionsAnnual = snapshot.summary?.totalDeductions || deducons.reduce((sum, d) => sum + d.yearly, 0);
+            const totalCTCAnnual = snapshot.ctc || (grossAAnnual + totalBenefitsAnnual);
+            const netAnnual = snapshot.summary?.netPay || (grossAAnnual - totalDeductionsAnnual);
+
+            salaryTotals = {
+                grossA: { monthly: Math.round(grossAAnnual / 12), yearly: Math.round(grossAAnnual) },
+                computedCTC: { monthly: Math.round(totalCTCAnnual / 12), yearly: Math.round(totalCTCAnnual) },
+                netSalary: { monthly: Math.round(netAnnual / 12), yearly: Math.round(netAnnual) }
+            };
+        }
+
+        const offerData = applyUniversalSalaryPatches(initialOfferData, snapshot, salaryTotals);
+        // ----------------------------------------
+
         if (template.templateType === 'WORD') {
-            // Handle Word template processing
-            console.log('🔥 [OFFER LETTER] Processing Word template (Sync using LibreOffice)');
+            console.log('🔥 [OFFER LETTER] Processing Word template');
 
             if (!template.filePath) {
-                console.error('❌ [OFFER LETTER] Template filePath is missing in database');
-                return res.status(400).json({
-                    message: "Template file path is missing. Please re-upload the template.",
-                    code: "FILE_PATH_MISSING"
-                });
+                return res.status(400).json({ message: "Template filePath missing" });
             }
 
-            // Normalize file path
             const normalizedFilePath = normalizeFilePath(template.filePath);
-            console.log('🔥 [OFFER LETTER] Original filePath:', template.filePath);
-            console.log('🔥 [OFFER LETTER] Normalized filePath:', normalizedFilePath);
-
             if (!fs.existsSync(normalizedFilePath)) {
-                console.error('❌ [OFFER LETTER] Template file NOT FOUND at path:', normalizedFilePath);
-                return res.status(404).json({
-                    message: "Word template file not found on server. Please re-upload the template.",
-                    code: "FILE_NOT_FOUND"
-                });
+                return res.status(404).json({ message: "Template file not found" });
             }
 
-            console.log('✅ [OFFER LETTER] Template file found, reading...');
             const content = await fsPromises.readFile(normalizedFilePath);
-
-            // Initialize Docxtemplater
             const zip = new PizZip(content);
             const doc = new Docxtemplater(zip, {
                 paragraphLoop: true,
                 linebreaks: true,
-                nullGetter: function (tag) { return ''; },
+                nullGetter: () => '',
                 delimiters: { start: '{{', end: '}}' }
             });
 
-            // Prepare data using inputs from Modal + Applicant DB
-            const safeString = (val) => (val !== undefined && val !== null ? String(val) : '');
-
-            // Get father name with priority: Modal Input -> DB
-            const finalFatherName = safeString(fatherName || applicant.fatherName);
-            console.log('🔥 [OFFER LETTER] Father name source:', {
-                fromModal: fatherName,
-                fromDB: applicant.fatherName,
-                final: finalFatherName
-            });
-
-            // Extract placeholders for debugging
-            const docPlaceholders = await extractPlaceholders(normalizedFilePath);
-            console.log('🔍 [OFFER LETTER] Placeholders found in template:', docPlaceholders);
-
-            // Get issued date - From Modal or TODAY's date
-            // Format: Do MMM. YYYY (e.g., "16th Jan. 2026")
-            // Format: Based on user selection
-            const validIssueDate = issueDate ? new Date(issueDate) : new Date();
-            const issuedDate = formatCustomDate(validIssueDate, dateFormat);
-            console.log('📅 [OFFER LETTER] Issued Date set to:', issuedDate, 'Format:', dateFormat);
-
-            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)}`;
-            // Construct Dear Name: "Ms. Rima" if user entered "Rima"
-            const finalDearName = `${salutation ? salutation + ' ' : ''}${safeString(dearName || name || applicant.name)}`;
-
-            console.log('👤 [OFFER LETTER] Full Name constructed:', fullName);
-            console.log('👤 [OFFER LETTER] Dear Name constructed:', finalDearName);
-
-            const offerData = {
-                employee_name: fullName,
-                candidate_name: fullName,
-                name: fullName,
-                Name: fullName,
-                NAME: fullName,
-                ApplicantName: fullName,
-                CandidateName: fullName,
-
-                // Father name - support multiple placeholder variations
-                father_name: finalFatherName,
-                father_names: finalFatherName,
-                fatherName: finalFatherName,
-                fatherNames: finalFatherName,
-                FATHER_NAME: finalFatherName,
-                FATHER_NAMES: finalFatherName,
-
-                designation: safeString(applicant.requirementId?.jobTitle || applicant.currentDesignation),
-                // Joining Date: HR Input (Modal) -> Applicant DB (Fallback)
-                // Joining Date: Force format even if DB has ISO string
-                joining_date: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
-                joiningDate: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
-                JOINING_DATE: formatCustomDate(joiningDate || applicant.joiningDate, dateFormat),
-
-                // Location: HR Input (Modal) -> Applicant DB (Fallback)
-                location: safeString(location || applicant.location || applicant.workLocation),
-
-                // Address: Priority -> Modal Input (address) -> Database (applicant.address)
-                address: safeString(address || applicant.address),
-                candidate_address: safeString(address || applicant.address),
-                // Ref No: HR Input (Modal) ONLY
-                offer_ref_no: safeString(refNo),
-                refNo: safeString(refNo),
-
-                // Issued Date - support multiple placeholder variations
-                issued_date: issuedDate,
-                issuedDate: issuedDate, // CamelCase alias
-                ISSUED_DATE: issuedDate, // Uppercase alias
-                Date: issuedDate,
-                DATE: issuedDate,
-                today: issuedDate,
-                Today: issuedDate,
-                current_date: issuedDate,
-                issue_date: issuedDate,
-                ISSUE_DATE: issuedDate,
-
-                // Specific "Dear X" placeholder
-                dear_name: finalDearName,
-                DearName: finalDearName,
-                dear_name_only: safeString(dearName || name || applicant.name) // Without Ms./Mr.
-            };
-
-            const issuedDateStr = issuedDate;
-            const finalSalutation = salutation;
-            const candidateNameWithSalutation = fullName;
-
-            console.log('🔥 [OFFER LETTER] Word template data:', offerData);
-            console.log('📅 [OFFER LETTER] Issue Date:', issuedDateStr);
-            console.log('👤 [OFFER LETTER] Salutation:', finalSalutation);
-            console.log('👤 [OFFER LETTER] Candidate Name (with salutation):', candidateNameWithSalutation);
-            console.log('📋 [OFFER LETTER] All Date Placeholders:', {
-                issued_date: issuedDateStr,
-                Date_odt: issuedDateStr,
-                Date: issuedDateStr
-            });
-
-            // Render the document
+            console.log('🔥 [OFFER LETTER] Rendering Word with data:', Object.keys(offerData).length, 'keys');
             doc.render(offerData);
 
-            // Generate DOCX output
             const buf = doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
             const fileName = `Offer_Letter_${applicantId}_${Date.now()}`;
             const outputDir = path.join(__dirname, '../uploads/offers');
@@ -2056,84 +1994,34 @@ exports.generateOfferLetter = async (req, res) => {
             const docxPath = path.join(outputDir, `${fileName}.docx`);
             await fsPromises.writeFile(docxPath, buf);
 
-            // --- SYNCHRONOUS PDF CONVERSION ---
             try {
-                console.log('🔄 [OFFER LETTER] Starting Synchronous PDF Conversion...');
                 const libreOfficeService = require('../services/LibreOfficeService');
-
                 const pdfAbsolutePath = libreOfficeService.convertToPdfSync(docxPath, outputDir);
                 pdfFileName = path.basename(pdfAbsolutePath);
-
                 relativePath = `offers/${pdfFileName}`;
                 downloadUrl = `/uploads/${relativePath}`;
-
-                console.log('✅ [OFFER LETTER] PDF Conversion Successful:', downloadUrl);
-
             } catch (pdfError) {
-                console.error('⚠️ [OFFER LETTER] PDF Conversion Failed:', pdfError.message);
-                return res.status(500).json({
-                    message: "PDF Generation Failed. Please ensure LibreOffice is installed.",
-                    error: pdfError.message
-                });
+                return res.status(500).json({ message: "PDF Generation Failed", error: pdfError.message });
             }
 
         } else {
-            // Handle HTML template processing (Now using LibreOffice)
-            console.log('🔥 [OFFER LETTER] Processing HTML template (Sync using LibreOffice)');
-
-            const safeString = (val) => (val !== undefined && val !== null ? String(val) : '');
-            const finalFatherName = safeString(fatherName || applicant.fatherName);
-
-            // Get issued date - From Modal or TODAY
-            const validIssueDate = issueDate ? new Date(issueDate) : new Date();
-            const issuedDate = formatCustomDate(validIssueDate, dateFormat);
-            const issuedDateStr = issuedDate;
-
-            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)}`;
-
-            const replacements = {
-                '{{employee_name}}': fullName,
-                '{{candidate_name}}': fullName,
-                '{{father_name}}': finalFatherName,
-                '{{father_names}}': finalFatherName,
-                '{{designation}}': safeString(applicant.requirementId?.jobTitle || applicant.currentDesignation),
-                '{{joining_date}}': safeString(joiningDate ? formatCustomDate(joiningDate, dateFormat) : (applicant.joiningDate ? formatCustomDate(applicant.joiningDate, dateFormat) : '')),
-                '{{location}}': safeString(location || applicant.location || applicant.workLocation),
-                '{{address}}': safeString(address || applicant.address),
-                '{{offer_ref_no}}': safeString(refNo),
-                '{{issued_date}}': issuedDateStr,
-                '{{issuedDate}}': issuedDateStr,
-                '{{ISSUED_DATE}}': issuedDateStr,
-                '{{current_date}}': issuedDateStr,
-                '{{Date}}': issuedDateStr,
-                '{{DATE}}': issuedDateStr,
-                '{{Date_odt}}': issuedDateStr,
-                '{{date_odt}}': issuedDateStr,
-                '{{DATE_ODT}}': issuedDateStr
-            };
+            // Handle HTML template processing
+            console.log('🔥 [OFFER LETTER] Processing HTML template');
 
             let htmlContent = template.bodyContent || '';
-            Object.keys(replacements).forEach(key => {
-                const regex = new RegExp(key, 'g');
-                htmlContent = htmlContent.replace(regex, replacements[key]);
+
+            // Unify replacements using offerData
+            Object.keys(offerData).forEach(key => {
+                const val = offerData[key];
+                if (typeof val === 'string' || typeof val === 'number') {
+                    // Replace both {{key}} and {{KEY}}
+                    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+                    htmlContent = htmlContent.replace(regex, val);
+                }
             });
 
             if (!htmlContent.includes('<html')) {
-                htmlContent = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <style>
-                        body { font-family: 'Arial', sans-serif; line-height: 1.6; padding: 40px; }
-                        .header { text-align: center; margin-bottom: 30px; }
-                        .content { margin-bottom: 30px; }
-                    </style>
-                </head>
-                <body>
-                    ${htmlContent}
-                </body>
-                </html>`;
+                htmlContent = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body { font-family: 'Arial', sans-serif; line-height: 1.6; padding: 40px; }</style></head><body>${htmlContent}</body></html>`;
             }
 
             const fileName = `Offer_Letter_${applicantId}_${Date.now()}`;
@@ -2149,35 +2037,53 @@ exports.generateOfferLetter = async (req, res) => {
                 pdfFileName = path.basename(pdfAbsolutePath);
                 relativePath = `offers/${pdfFileName}`;
                 downloadUrl = `/uploads/${relativePath}`;
-                console.log('✅ [OFFER LETTER] HTML-to-PDF Conversion Successful:', downloadUrl);
             } catch (pdfError) {
-                console.error('⚠️ [OFFER LETTER] HTML-to-PDF Conversion Failed:', pdfError.message);
                 return res.status(500).json({ message: "PDF Generation Failed", error: pdfError.message });
             }
         }
 
+
         if (!preview) {
+            console.log('📝 [OFFER LETTER] Non-preview mode: Saving GeneratedLetter document...');
+            console.log('🛠️ [OFFER LETTER] Document data:', {
+                tenantId: req.user?.tenantId || req.tenantId,
+                applicantId: applicantId,
+                templateId,
+                letterType: 'offer',
+                pdfPath: relativePath,
+                pdfUrl: downloadUrl,
+                status: 'generated',
+                generatedBy: req.user?.id || req.user?.userId || req.user?._id
+            });
+
             // Save generated letter record
             const generated = new GeneratedLetter({
                 tenantId: req.user?.tenantId || req.tenantId,
                 applicantId: applicantId,
                 templateId,
-                templateType, // 'WORD' or 'BLANK'/'LETTER_PAD'
                 letterType: 'offer',
                 pdfPath: relativePath,
                 pdfUrl: downloadUrl,
-                status: 'generated',
-                generatedBy: req.user?.id || req.user?.userId
+                status: 'draft', // Default state
+                generatedBy: req.user?.id || req.user?.userId || req.user?._id
             });
-            await generated.save();
 
+            try {
+                await generated.save();
+                console.log('✅ [OFFER LETTER] GeneratedLetter document saved successfully');
+            } catch (saveErr) {
+                console.error('❌ [OFFER LETTER] GeneratedLetter save FAILED:', saveErr.message);
+                throw saveErr; // Rethrow to catch below
+            }
+
+            console.log('📝 [OFFER LETTER] Updating Applicant document...');
             // Prepare update data for applicant (Save the inputs)
             // Store just the filename, not the full path to avoid duplicate /offers/ in URL
             const storedFileName = pdfFileName || (relativePath ? path.basename(relativePath) : '');
             const updateData = {
                 offerLetterPath: storedFileName,
-                offerRefCode: refNo,
-                status: 'Offer Issued'
+                offerRefCode: finalRefNo,
+                status: 'Selected'
             };
 
             if (joiningDate) updateData.joiningDate = new Date(joiningDate);
@@ -2190,6 +2096,11 @@ exports.generateOfferLetter = async (req, res) => {
             const { Applicant: ApplicantModel } = getModels(req);
             const updatedApplicant = await ApplicantModel.findById(applicantId);
 
+            if (!updatedApplicant) {
+                console.error('❌ [OFFER LETTER] Applicant NOT FOUND during final update:', applicantId);
+                throw new Error("Applicant not found during status update phase");
+            }
+
             // Apply updates
             Object.keys(updateData).forEach(key => {
                 updatedApplicant[key] = updateData[key];
@@ -2197,16 +2108,23 @@ exports.generateOfferLetter = async (req, res) => {
 
             if (!updatedApplicant.timeline) updatedApplicant.timeline = [];
             updatedApplicant.timeline.push({
-                status: 'Offer Issued',
-                message: `🎉 Offer Letter Generated (${refNo}). Joining date: ${joiningDate ? new Date(joiningDate).toLocaleDateString('en-IN') : 'TBD'}.`,
+                status: 'Offer Letter Generated',
+                message: `Offer letter ref: ${finalRefNo} has been generated. Joining date: ${joiningDate ? new Date(joiningDate).toLocaleDateString('en-IN') : 'TBD'}.`,
                 updatedBy: req.user?.name || "HR",
                 timestamp: new Date()
             });
 
-            await updatedApplicant.save();
+            try {
+                await updatedApplicant.save();
+                console.log('✅ [OFFER LETTER] Applicant document updated successfully');
+            } catch (appSaveErr) {
+                console.error('❌ [OFFER LETTER] Applicant save FAILED:', appSaveErr.message);
+                throw appSaveErr;
+            }
 
             // --- INCREMENT OFFER COUNTER ---
             try {
+                console.log('📊 [OFFER LETTER] Incrementing OFFER counter...');
                 const companyIdConfig = require('./companyIdConfig.controller');
                 const deptName = updatedApplicant.requirementId?.department?.name || 'GEN';
                 const deptCode = deptName.substring(0, 3).toUpperCase();
@@ -2219,62 +2137,100 @@ exports.generateOfferLetter = async (req, res) => {
                         '{{DEPT}}': deptCode
                     }
                 });
-                console.log('✅ [OFFER LETTER] Incrementing sequence for OFFER');
+                console.log('✅ [OFFER LETTER] Incrementing sequence for OFFER complete');
             } catch (idErr) {
                 console.warn("⚠️ [OFFER LETTER] Could not increment sequence:", idErr.message);
             }
-
-            // -----------------------------------------------------
-            // NOTIFICATIONS & EMAILS (Added via Request)
-            // -----------------------------------------------------
-            try {
-                // 1. Update Status to 'Offer Issued'
-                updatedApplicant.status = 'Offer Issued';
-                await updatedApplicant.save();
-
-                // Fetch Company Profile & Notification Model
-                const { CompanyProfile, Notification } = getModels(req);
-                const companyProfile = await CompanyProfile.findOne({ tenantId: req.user.tenantId });
-                const companyName = companyProfile?.companyName || 'Gitakshmi Technologies';
-
-                // Construct absolute path for attachment
-                const attachmentPath = path.join(__dirname, '../uploads', relativePath);
-                const jobTitle = updatedApplicant.requirementId?.jobTitle || 'Role';
-
-                // 2. Send Email
-                if (updatedApplicant.email) {
-                    await emailService.sendOfferLetterEmail(
-                        updatedApplicant.email,
-                        updatedApplicant.name,
-                        jobTitle,
-                        companyName,
-                        attachmentPath
-                    );
-                    console.log(`✅ [OFFER LETTER] Email sent to ${updatedApplicant.email}`);
-                }
-
-                // 3. Create Notification for Candidate Portal
-                if (updatedApplicant.candidateId && Notification) {
-                    const tenantId = req.tenantId || req.user.tenantId;
-                    await Notification.create({
-                        tenant: tenantId,
-                        receiverId: updatedApplicant.candidateId,
-                        receiverRole: 'candidate',
-                        entityType: 'OfferLetter',
-                        entityId: generated._id,
-                        title: 'Offer Letter Issued',
-                        message: `Congratulations! Your offer letter for ${jobTitle} has been issued. Please check your email or download it from here.`,
-                        isRead: false
-                    });
-                    console.log(`✅ [OFFER LETTER] Notification created for candidate ${updatedApplicant.candidateId}`);
-                }
-
-            } catch (notifyErr) {
-                console.error("⚠️ [OFFER LETTER] Failed to send notifications:", notifyErr.message);
-                // Non-blocking error
-            }
         }
 
+        // --- CREATE OFFER LIFECYCLE RECORD ---
+        try {
+            if (!preview) {
+                // Calculate expiry (Default 48 hours for now)
+                const expiry = new Date();
+                expiry.setHours(expiry.getHours() + 48);
+
+                // Calculate Re-Offer Logic (Using Global Model)
+                const previousOffersCount = await GlobalOfferModel.countDocuments({
+                    candidateId: applicantId,
+                    tenantId: req.user.tenantId
+                });
+
+                const newStatus = 'Sent';
+
+                // Handle Re-Offer Logic (Mark previous as not latest)
+                await GlobalOfferModel.updateMany(
+                    { candidateId: applicantId, isLatest: true, tenantId: req.user.tenantId },
+                    { $set: { isLatest: false } }
+                );
+
+                // Safe CTC extraction
+                let offerCTC = 0;
+                if (applicant.salarySnapshot && applicant.salarySnapshot.ctc) {
+                    offerCTC = applicant.salarySnapshot.ctc;
+                } else if (req.calculatedSalaryData && req.calculatedSalaryData.computedCTC) {
+                    offerCTC = req.calculatedSalaryData.computedCTC.yearly;
+                }
+
+                // Create Offer in Global Collection
+                const newOffer = new GlobalOfferModel({
+                    tenantId: req.user.tenantId,
+                    candidateId: applicantId,
+                    jobId: applicant.requirementId?._id,
+                    jobTitle: applicant.requirementId?.jobTitle || applicant.currentDesignation || 'Role',
+                    department: applicant.requirementId?.department?.name || applicant.department,
+                    location: location || applicant.location,
+
+                    // Salary
+                    ctc: offerCTC,
+                    salary: offerCTC,
+                    salaryStructure: applicant.salarySnapshot || req.calculatedSalaryData,
+
+                    // Letter Details
+                    letterPath: relativePath,
+                    letterUrl: downloadUrl,
+                    pdfUrl: downloadUrl, // consistency
+                    offerCode: refNo,
+
+                    // Snapshot Fields
+                    candidateName: applicant.name,
+                    candidateEmail: applicant.email,
+
+                    // Dates
+                    joiningDate: joiningDate ? new Date(joiningDate) : null,
+                    offerDate: new Date(),
+                    expiryDate: expiry,
+
+                    token: crypto.randomBytes(32).toString('hex'),
+                    status: newStatus,
+                    isLatest: true,
+                    reofferCount: previousOffersCount,
+                    history: [{
+                        action: 'Created',
+                        status: newStatus,
+                        by: req.user?.name || req.user?.userId || 'HR',
+                        timestamp: new Date(),
+                        metadata: { notes: `Offer Letter Generated (Ref: ${refNo})` }
+                    }],
+                    createdBy: req.user?.userId
+                });
+
+                await newOffer.save();
+
+                // Update Applicant in Tenant DB
+                const ApplicantModel = getApplicantModel(req);
+                await ApplicantModel.findByIdAndUpdate(applicantId, {
+                    offerId: newOffer._id,
+                    status: newStatus === 'ReOffered' ? 'Re-Offered' : 'Offer Issued'
+                });
+
+                console.log(`✅ [OFFER LETTER] Created Enterprise Offer Record: ${newOffer._id} (Status: ${newStatus})`);
+            }
+        } catch (offerErr) {
+            console.error("⚠️ [OFFER LETTER] Failed to create Offer Lifecycle record:", offerErr);
+        }
+
+        console.log('🏁 [OFFER LETTER] Process finished successfully. Sending response...');
         res.json({
             success: true,
             downloadUrl: downloadUrl,
@@ -2284,12 +2240,17 @@ exports.generateOfferLetter = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("🔥 [OFFER LETTER] FATAL ERROR:", error);
-        if (error.stack) console.error(error.stack);
+        console.error("❌ [OFFER LETTER] Generate Offer Letter Error:", error.message);
+        console.error("❌ [OFFER LETTER] Error stack:", error.stack);
+        console.error("❌ [OFFER LETTER] Error details:", {
+            name: error.name,
+            message: error.message,
+            code: error.code
+        });
         res.status(500).json({
             success: false,
-            message: "Internal Server Error during offer letter generation",
-            error: error.message
+            error: error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 };
@@ -2331,8 +2292,12 @@ exports.previewJoiningLetter = async (req, res) => {
         const Applicant = getApplicantModel(req);
         const { Employee, LetterTemplate } = getModels(req);
 
-        console.log('🔥 [PREVIEW JOINING LETTER] Request received:', { applicantId, employeeId, templateId });
-        console.log('🔥 [PREVIEW JOINING LETTER] User context:', req.user ? { userId: req.user.userId, tenantId: req.user.tenantId } : 'null');
+        console.log('🔥 [PREVIEW JOINING LETTER] Inputs:', { applicantId, employeeId, templateId });
+        const tenantId = req.user?.tenantId || req.tenantId;
+        if (!tenantId) {
+            console.error('❌ [PREVIEW JOINING LETTER] Missing tenantId');
+            return res.status(400).json({ success: false, message: "Tenant ID required" });
+        }
 
         // Validate input
         if (!templateId || (!applicantId && !employeeId)) {
@@ -2810,7 +2775,7 @@ exports.previewJoiningLetter = async (req, res) => {
             const pdfFileName = path.basename(pdfAbsolutePath);
 
             finalRelativePath = `previews/${pdfFileName}`;
-            finalPdfUrl = `${process.env.BACKEND_URL}/uploads/${finalRelativePath}`;
+            finalPdfUrl = `/uploads/${finalRelativePath}`;
 
             console.log('✅ [PREVIEW JOINING LETTER] PDF Preview Ready:', finalPdfUrl);
 
@@ -3140,35 +3105,14 @@ exports.generateGenericLetter = async (req, res) => {
         if (template.templateType === 'WORD') {
             if (!template.filePath) throw new Error('Template file path missing');
 
-            const normalizedTemplatePath = normalizeFilePath(template.filePath);
-            if (!fs.existsSync(normalizedTemplatePath)) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Template file not found on server. Please re-upload the template.'
-                });
-            }
-
-            const buffer = fs.readFileSync(normalizedTemplatePath);
+            const buffer = fs.readFileSync(template.filePath);
             const zip = new PizZip(buffer);
-            sanitizeDocxTemplateDelimiters(zip);
-            let doc;
-            try {
-                doc = new Docxtemplater(zip, {
-                    paragraphLoop: true,
-                    linebreaks: true,
-                    delimiters: { start: '{{', end: '}}' }
-                });
-            } catch (compileErr) {
-                console.error('❌ [generateGenericLetter] Template compile error:', compileErr);
-                return res.status(400).json(buildTemplateCompileError(compileErr));
-            }
+            const doc = new Docxtemplater(zip, {
+                paragraphLoop: true,
+                linebreaks: true,
+            });
 
-            try {
-                doc.render(placeholderData);
-            } catch (renderErr) {
-                console.error('❌ [generateGenericLetter] Template render error:', renderErr);
-                return res.status(400).json(buildTemplateCompileError(renderErr));
-            }
+            doc.render(placeholderData);
             const generatedBuffer = doc.getZip().generate({ type: 'nodebuffer' });
 
             // Save temporary docx file for conversion with proper naming
@@ -3183,8 +3127,10 @@ exports.generateGenericLetter = async (req, res) => {
                 console.log(`📄 [generateGenericLetter] DOCX Path: ${tempDocxPath}`);
                 console.log(`📄 [generateGenericLetter] Output Dir: ${outputDir}`);
 
+
                 const libreOfficeService = require('../services/LibreOfficeService');
                 libreOfficeService.convertToPdfSync(tempDocxPath, outputDir);
+
 
                 // Verify PDF was created with the expected name
                 if (!fs.existsSync(outputPath)) {
@@ -3195,7 +3141,9 @@ exports.generateGenericLetter = async (req, res) => {
                     throw new Error(`PDF file was not created at expected path: ${outputPath}`);
                 }
 
+
                 console.log(`✅ [generateGenericLetter] PDF conversion successful: ${outputPath}`);
+
 
                 // Cleanup temporary docx
                 try {
@@ -3294,7 +3242,6 @@ exports.getGeneratedLetters = async (req, res) => {
 
         const letters = await GeneratedLetter.find(filter)
             .populate('employeeId', 'firstName lastName employeeId')
-            .populate('applicantId', 'name')
             .populate('templateId', 'name type')
             .sort('-createdAt');
 
@@ -3382,7 +3329,6 @@ exports.actionLetterApproval = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
-
 // Helper to round to 2 decimals
 const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
 
@@ -3454,7 +3400,7 @@ exports.revokeLetter = async (req, res) => {
         const docService = new DocumentManagementService(req.tenantDB);
         const emailService = new EmailNotificationService(process.env);
 
-        const { GeneratedLetter, Applicant, Employee, LetterRevocation } = getModels(req);
+        const { GeneratedLetter, Applicant, Employee } = getModels(req);
 
         // Get document
         const letter = await GeneratedLetter.findById(documentId);
@@ -3546,7 +3492,7 @@ exports.revokeLetter = async (req, res) => {
                 documentId,
                 revokedAt: revocation.revokedAt,
                 reason,
-                notificationSent: !!(recipient && recipient.email)
+                notificationSent: !!recipient
             }
         });
 

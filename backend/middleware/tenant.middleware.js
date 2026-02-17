@@ -7,7 +7,7 @@ const getTenantDB = require('../utils/tenantDB');
 module.exports = async function tenantResolver(req, res, next) {
   try {
     // Defensive logging for debugging
-    console.log(`[TENANT_MIDDLEWARE] ${req.method} ${req.path}`);
+    console.error(`[TENANT_MIDDLEWARE] ${req.method} ${req.path}`);
 
     // Skip tenant resolution for OPTIONS requests (CORS preflight) and Health Check
     if (req.method === 'OPTIONS' || req.path === '/api/health' || req.path === '/health') {
@@ -35,7 +35,6 @@ module.exports = async function tenantResolver(req, res, next) {
 
     // Try to read tenantId from already-populated req.user or from header
     let tenantId = req.user?.tenantId || req.user?.tenant || req.headers["x-tenant-id"];
-    let tokenCompanyCode = req.user?.companyCode || req.headers["x-company-code"] || null;
 
     // If no req.user yet (middleware may run before auth middleware), try to extract tenantId from JWT
     if (!tenantId) {
@@ -47,7 +46,6 @@ module.exports = async function tenantResolver(req, res, next) {
           try {
             const payload = jwt.verify(token, process.env.JWT_SECRET || "hrms_secret_key_123");
             tenantId = payload.tenantId || payload.tenant || tenantId;
-            tokenCompanyCode = payload.companyCode || payload.company_code || tokenCompanyCode;
             console.log(`[TENANT_MIDDLEWARE] Extracted tenantId from token: ${tenantId}`);
           } catch (e) {
             console.log(`[TENANT_MIDDLEWARE] Failed to verify token: ${e.message}`);
@@ -87,36 +85,14 @@ module.exports = async function tenantResolver(req, res, next) {
       const t = await Tenant.findOne({ code: tenantId }).select('_id').lean();
       if (t) {
         req.tenantId = t._id.toString();
-        tenantId = req.tenantId;
         console.log(`[TENANT_MIDDLEWARE] Resolved tenant code ${tenantId} to ID ${req.tenantId}`);
       } else {
         console.warn(`[TENANT_MIDDLEWARE] Could not resolve tenant code: ${tenantId}`);
       }
-    } else {
-      // If tenantId looks valid but doesn't exist (stale tokens), try resolving via companyCode
-      // This prevents "departments not showing" when the token contains an old tenantId but a correct companyCode.
-      let Tenant;
-      try {
-        Tenant = mongoose.model('Tenant');
-      } catch (e) {
-        Tenant = require('../models/Tenant');
-      }
-
-      const exists = await Tenant.findById(tenantId).select('_id code').lean();
-      if (!exists && tokenCompanyCode) {
-        const t = await Tenant.findOne({ code: tokenCompanyCode }).select('_id').lean();
-        if (t) {
-          req.tenantId = t._id.toString();
-          tenantId = req.tenantId;
-          console.warn(`[TENANT_MIDDLEWARE] TenantId not found; resolved via companyCode=${tokenCompanyCode} -> ${req.tenantId}`);
-        } else {
-          console.warn(`[TENANT_MIDDLEWARE] TenantId not found and companyCode could not be resolved: ${tokenCompanyCode}`);
-        }
-      }
     }
 
     // dbManager (called by getTenantDB) handles caching and model registration
-    req.tenantDB = await getTenantDB(req.tenantId || tenantId);
+    req.tenantDB = await getTenantDB(tenantId);
 
     next();
   } catch (err) {

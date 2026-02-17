@@ -525,27 +525,14 @@ exports.handleInstagramCallback = async (req, res) => {
             }
         });
 
-        const shortLivedToken = tokenResponse.data.access_token;
-        console.log('✅ Short-lived User Token received');
-
-        // Exchange for Long-lived User Access Token (Required for multi-tenant mapping)
-        console.log('🔄 Exchanging for long-lived User Access Token...');
-        const longLivedResponse = await axios.get('https://graph.facebook.com/v19.0/oauth/access_token', {
-            params: {
-                grant_type: 'fb_exchange_token',
-                client_id: INSTAGRAM_CONFIG.clientId,
-                client_secret: INSTAGRAM_CONFIG.clientSecret,
-                fb_exchange_token: shortLivedToken
-            }
-        });
-        const longLivedUserToken = longLivedResponse.data.access_token;
-        console.log('✅ Long-lived User Access Token obtained');
+        const accessToken = tokenResponse.data.access_token;
+        console.log('✅ Access Token received');
 
         // Fetch User's Pages to find connected Instagram Business Account
         console.log('📡 Fetching Pages to find Instagram Business Account...');
         const accountsResponse = await axios.get(INSTAGRAM_CONFIG.userAccountsUrl, {
             params: {
-                access_token: longLivedUserToken,
+                access_token: accessToken,
                 fields: 'name,access_token,id,instagram_business_account,picture{url}'
             }
         });
@@ -565,24 +552,22 @@ exports.handleInstagramCallback = async (req, res) => {
                 console.log(`✅ Found Instagram Business Account: ${igId} on Page: ${page.name}`);
 
                 // Upsert SocialAccount for Instagram
-                // accessToken: The Page Access Token (PAT) for the first found page (current behavior)
-                // refreshToken: The Long-lived USER Access Token (Essential for finding correct PAT later)
+                // We use the PAGE ACCESS TOKEN for Instagram Graph API calls
                 const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000); // ~60 days
 
                 await SocialAccount.findOneAndUpdate(
                     { tenantId, platform: 'instagram' },
                     {
-                        accessToken: encrypt(page.access_token),
-                        refreshToken: encrypt(longLivedUserToken), // Store User Token here
+                        accessToken: encrypt(page.access_token), // IG uses Page Token
                         expiresAt: expiresAt,
                         platformUserId: igId,
-                        instagramUserId: igId,
+                        instagramUserId: igId, // New field
                         platformUserName: page.name + ' (IG)',
                         pageId: page.id,
                         pageName: page.name,
-                        facebookPageId: page.id,
+                        facebookPageId: page.id, // New field
                         isConnected: true,
-                        isActive: true,
+                        isActive: true, // New field
                         status: 'connected',
                         connectedBy: userId || null
                     },
@@ -739,140 +724,78 @@ exports.createPost = async (req, res) => {
         const finalImageUrls = imageUrls || (imageUrl ? [imageUrl] : []);
         const finalMainImage = imageUrl || (finalImageUrls.length > 0 ? finalImageUrls[0] : null);
 
-        // Convert relative paths to absolute public URLs
-        const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5003}`;
-        const convertToPublicUrl = (url) => {
-            if (!url) return null;
-            if (url.startsWith('http://') || url.startsWith('https://')) return url;
-            return url.startsWith('/') ? `${backendUrl}${url}` : `${backendUrl}/${url}`;
-        };
-
-        const publicImageUrls = finalImageUrls.map(url => convertToPublicUrl(url)).filter(Boolean);
-        const publicMainImage = convertToPublicUrl(finalMainImage);
-
-        // Instagram-specific validation warning
-        if (platforms.includes('instagram')) {
-            const hasLocalhost = backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1');
-            const isHttps = backendUrl.startsWith('https://');
-
-            if (hasLocalhost || !isHttps) {
-                console.warn('⚠️ Instagram post with localhost or HTTP URL detected. This will likely fail.');
-                console.warn(`   Backend URL: ${backendUrl}`);
-                console.warn('   💡 TIP: Use ngrok or deploy to a public HTTPS server for Instagram posts.');
-            }
-        }
-
-        // Create post with initial status
-        // If scheduledAt is provided → 'scheduled'
-        // If NO scheduledAt → 'publishing' (immediate)
-        const initialStatus = scheduledAt ? 'scheduled' : 'publishing';
-
+        // Create post
         const post = new SocialPost({
             tenantId,
             content,
-            imageUrl: publicMainImage,
-            imageUrls: publicImageUrls,
+            imageUrl: finalMainImage,
+            imageUrls: finalImageUrls,
             link,
             platforms,
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
             createdBy: userId,
-            status: initialStatus
+            status: scheduledAt ? 'scheduled' : 'published'
         });
 
         await post.save();
 
-        console.log('✅ Post saved to DB (Async Init):', post._id);
+        console.log('✅ Post created in DB:', post._id);
 
-        // ---------------------------------------------------------
-        // ASYNC PROCESSING STRATEGY
-        // 1. Send Immediate Response
-        // 2. Process in background
-        // ---------------------------------------------------------
-
-        // Return immediate success to client
-        res.json({
-            ...post.toObject(),
-            message: scheduledAt
-                ? 'Post scheduled successfully'
-                : 'Post accepted for publishing. It will be live shortly.',
-            status: 'processing_background' // Virtual status for frontend
-        });
-
-        // Background Processing
+        // If not scheduled, publish immediately to selected platforms
         if (!scheduledAt) {
-            // Use setImmediate to detach from current event loop tick
-            setImmediate(async () => {
+            const accounts = await SocialAccount.find({
+                tenantId,
+                platform: { $in: platforms },
+                isConnected: true
+            });
+
+            const platformResponses = {};
+
+            for (const account of accounts) {
                 try {
-                    console.log(`🚀 [Background] Starting publish for post ${post._id}...`);
+                    console.log(`🚀 Publishing to ${account.platform}...`);
+                    const service = getService(account);
+                    if (service) {
+                        const response = await service.createPost({
+                            content,
+                            imageUrl: finalMainImage,
+                            imageUrls: finalImageUrls,
+                            link
+                        });
 
-                    const accounts = await SocialAccount.find({
-                        tenantId,
-                        platform: { $in: platforms },
-                        isConnected: true
-                    });
-
-                    const platformResponses = {};
-
-                    for (const account of accounts) {
-                        try {
-                            console.log(`🚀 [Background] Publishing to ${account.platform}...`);
-                            const service = getService(account);
-                            if (service) {
-                                const response = await service.createPost({
-                                    content,
-                                    imageUrl: publicMainImage,
-                                    imageUrls: publicImageUrls,
-                                    link
-                                });
-
-                                if (response.success) {
-                                    // Store response directly (it already has success, platform, id, etc.)
-                                    platformResponses[account.platform] = response;
-                                    console.log(`✅ [Background] Published to ${account.platform}`);
-                                    console.log(`   Response:`, response);
-                                } else {
-                                    console.error(`❌ [Background] Failed to publish to ${account.platform}:`, response.error);
-                                    platformResponses[account.platform] = { success: false, error: response.error };
-                                }
-                            }
-                        } catch (error) {
-                            console.error(`❌ [Background] Failed to publish to ${account.platform}:`, error);
-                            platformResponses[account.platform] = { success: false, error: error.message };
+                        if (response.success) {
+                            platformResponses[account.platform] = { success: true, data: response };
+                            console.log(`✅ Published to ${account.platform}`);
+                        } else {
+                            console.error(`❌ Failed to publish to ${account.platform}:`, response.error);
+                            platformResponses[account.platform] = { success: false, error: response.error };
                         }
                     }
-
-                    // Update Post Status based on results
-                    const allFailed = Object.values(platformResponses).every(r => !r.success);
-                    const someFailed = Object.values(platformResponses).some(r => !r.success);
-
-                    let finalStatus = 'published';
-                    if (allFailed && accounts.length > 0) finalStatus = 'failed';
-                    else if (someFailed) finalStatus = 'partial_success';
-
-                    await SocialPost.findByIdAndUpdate(post._id, {
-                        status: finalStatus,
-                        platformResponses: platformResponses,
-                        publishedAt: new Date()
-                    });
-
-                    console.log(`🏁 [Background] Post ${post._id} processing complete. Status: ${finalStatus}`);
-
-                } catch (bgError) {
-                    console.error(`💥 [Background] Critical error processing post ${post._id}:`, bgError);
-                    await SocialPost.findByIdAndUpdate(post._id, {
-                        status: 'failed',
-                        errorLog: bgError.message
-                    });
+                } catch (error) {
+                    console.error(`❌ Failed to publish to ${account.platform}:`, error);
+                    platformResponses[account.platform] = { success: false, error: error.message };
                 }
-            });
+            }
+
+            post.platformResponses = platformResponses;
+
+            // Check if all failed
+            const allFailed = Object.values(platformResponses).every(r => !r.success);
+            const someFailed = Object.values(platformResponses).some(r => !r.success);
+
+            if (allFailed && accounts.length > 0) {
+                post.status = 'failed';
+            } else if (someFailed) {
+                post.status = 'partial_success';
+            }
+
+            await post.save();
         }
 
+        res.json(post);
     } catch (error) {
         console.error('Failed to create post:', error);
-        // If we haven't sent response yet
-        if (!res.headersSent) {
-            res.status(500).json({ message: error.message });
-        }
+        res.status(500).json({ message: error.message });
     }
 };
 
@@ -1005,117 +928,86 @@ exports.updatePost = async (req, res) => {
         if (link !== undefined) post.link = link;
         if (platforms !== undefined) post.platforms = platforms;
 
-        // Mark as edited (initially)
-        // We keep it as 'edited' or maybe 'processing_edit' if we had that status
-        // But 'edited' is fine, we just update the effective content in DB immediately
+        // Mark as edited
         post.status = 'edited';
         post.editedAt = new Date();
 
-        await post.save();
+        // Handle Platform Updates (Delete + Repost logic for LinkedIn)
+        if (post.platformResponses && post.platformResponses.size > 0) {
+            console.log('🔄 Post has platform responses, attempting to update on platforms...');
 
-        console.log('✅ Post updated in DB (Async Init):', id);
+            const accounts = await SocialAccount.find({
+                tenantId,
+                platform: { $in: post.platforms },
+                isConnected: true
+            });
 
-        // Return immediate success to client
-        res.json({
-            success: true,
-            post: post,
-            message: 'Post updated successfully. Changes will be reflected on social platforms shortly.'
-        });
+            for (const account of accounts) {
+                const service = getService(account);
+                const platformResponse = post.platformResponses.get(account.platform);
 
-        // ---------------------------------------------------------
-        // ASYNC BACKGROUND PROCESSING
-        // ---------------------------------------------------------
-        setImmediate(async () => {
-            try {
-                // Buffer to re-fetch post if needed, but we have the object 'post'
-                // However, 'post' properties were updated in memory and saved.
+                // Only update if previously successful
+                if (service && platformResponse?.success && platformResponse?.data?.id) {
+                    const oldUrn = platformResponse.data.id;
+                    console.log(`🔄 Updating on ${account.platform} (Delete + Repost)...`);
 
-                // Handle Platform Updates (Delete + Repost logic for LinkedIn/others)
-                if (post.platformResponses && post.platformResponses.size > 0) {
-                    console.log(`🔄 [Background] Starting background update for post ${post._id}...`);
-
-                    const accounts = await SocialAccount.find({
-                        tenantId,
-                        platform: { $in: post.platforms },
-                        isConnected: true
-                    });
-
-                    // We need to track if we need to save the post again with new platform IDs
-                    let needsSave = false;
-
-                    for (const account of accounts) {
-                        try {
-                            const service = getService(account);
-                            const platformResponse = post.platformResponses.get(account.platform);
-
-                            // Check if previously successful - look for ID in multiple possible locations
-                            const hasExistingPost = platformResponse?.success &&
-                                (platformResponse?.id || platformResponse?.igMediaId ||
-                                    platformResponse?.data?.id || platformResponse?.data?.igMediaId);
-
-                            if (service && hasExistingPost) {
-                                const oldUrn = platformResponse?.id || platformResponse?.igMediaId ||
-                                    platformResponse?.data?.id || platformResponse?.data?.igMediaId;
-                                console.log(`🔄 [Background] Updating on ${account.platform} (Delete + Repost)...`);
-                                console.log(`   Old ID:`, oldUrn);
-
-                                // 1. Delete old post
-                                if (service.deletePost) {
-                                    await service.deletePost(oldUrn);
-                                }
-
-                                // 2. Create new post
-                                // Prepare data (use new values or fallback to existing)
-                                const postData = {
-                                    content: content !== undefined ? content : post.content,
-                                    // Use updated images or fallback to existing
-                                    imageUrl: imageUrl !== undefined ? imageUrl : post.imageUrl,
-                                    imageUrls: imageUrls !== undefined ? imageUrls : post.imageUrls,
-                                    link: link !== undefined ? link : post.link
-                                };
-
-                                const newResponse = await service.createPost(postData);
-
-                                // 3. Update platform response with NEW ID - store response directly
-                                if (newResponse.success) {
-                                    post.platformResponses.set(account.platform, newResponse);
-                                    needsSave = true;
-                                    console.log(`✅ [Background] Successfully reposted to ${account.platform}. New ID:`, newResponse.id || newResponse.igMediaId);
-                                } else {
-                                    console.error(`❌ [Background] Failed to repost to ${account.platform}:`, newResponse.error);
-                                    post.platformResponses.set(account.platform, {
-                                        success: false,
-                                        error: 'Update failed: ' + newResponse.error
-                                    });
-                                    needsSave = true;
-                                }
-                            }
-                        } catch (bgError) {
-                            console.error(`❌ [Background] Error updating on ${account.platform}:`, bgError);
+                    try {
+                        // 1. Delete old post
+                        if (service.deletePost) {
+                            await service.deletePost(oldUrn);
                         }
-                    }
 
-                    if (needsSave) {
-                        await post.save();
-                        console.log(`💾 [Background] Post ${post._id} platform data updated.`);
+                        // 2. Create new post
+                        // Prepare data (use new values or fallback to existing)
+                        const postData = {
+                            content: content !== undefined ? content : post.content,
+                            // Use updated images or fallback to existing
+                            imageUrl: imageUrl !== undefined ? imageUrl : post.imageUrl,
+                            imageUrls: imageUrls !== undefined ? imageUrls : post.imageUrls,
+                            link: link !== undefined ? link : post.link
+                        };
+
+                        const newResponse = await service.createPost(postData);
+
+                        // 3. Update platform response with NEW ID
+                        if (newResponse.success) {
+                            post.platformResponses.set(account.platform, {
+                                success: true,
+                                data: newResponse.data || newResponse,
+                                error: null
+                            });
+                            console.log(`✅ Successfully reposted to ${account.platform}. New ID:`, newResponse.id);
+                        } else {
+                            // Keep old success status but log error? 
+                            // Or mark as failed? Better to keep track of failure.
+                            console.error(`❌ Failed to repost to ${account.platform}:`, newResponse.error);
+                            post.platformResponses.set(account.platform, {
+                                success: false,
+                                data: null, // Data lost
+                                error: 'Update failed: ' + newResponse.error
+                            });
+                        }
+
+                    } catch (err) {
+                        console.error(`❌ Error updating on ${account.platform}:`, err);
                     }
                 }
-
-                console.log(`🏁 [Background] Post ${post._id} update processing complete.`);
-
-            } catch (criticalError) {
-                console.error(`💥 [Background] Critical error updating post ${post._id}:`, criticalError);
             }
-        });
+        }
 
+        await post.save();
+
+        console.log('✅ Post updated successfully:', id);
+        res.json({
+            success: true,
+            post: post
+        });
     } catch (error) {
         console.error('❌ Failed to update post:', error);
-        if (!res.headersSent) {
-            res.status(500).json({
-                success: false,
-                message: error.message
-            });
-        }
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 };
 
@@ -1127,125 +1019,74 @@ exports.deletePost = async (req, res) => {
         const { id } = req.params;
         const tenantId = req.headers['x-tenant-id'] || req.tenantId;
 
-        console.log('🗑️ Post deletion request:', { postId: id, tenantId });
-
-        // 1. Find the post
-        const post = await SocialPost.findOne({ _id: id, tenantId });
-        if (!post) {
-            return res.status(404).json({ success: false, message: 'Post not found' });
-        }
-
-        const results = {};
-        const platformsToDelete = [...post.platforms];
-        const successfulPlatforms = [];
-        const failedPlatforms = [];
-
-        // 2. Platform-wise deletion
-        for (const platform of platformsToDelete) {
-            try {
-                console.log(`🗑️ Attempting to delete from ${platform}...`);
-
-                // Find platform account
-                const account = await SocialAccount.findOne({
-                    tenantId,
-                    platform,
-                    isConnected: true
-                });
-
-                if (!account) {
-                    console.warn(`⚠️ Account for ${platform} missing or disconnected.`);
-                    results[platform] = { success: false, message: 'Account disconnected' };
-                    failedPlatforms.push(platform);
-                    continue;
-                }
-
-                // Initialize Platform Service
-                const service = getService(account);
-                if (!service || !service.deletePost) {
-                    console.warn(`⚠️ No delete capability for ${platform} service.`);
-                    results[platform] = { success: false, message: 'Platform does not support deletion via API' };
-                    failedPlatforms.push(platform);
-                    continue;
-                }
-
-                // Get Media ID for this platform
-                // platformResponses is a Map in Mongoose
-                const platformResponse = post.platformResponses?.get?.(platform) || post.platformResponses?.[platform];
-                const platformPostId = platformResponse?.igMediaId || platformResponse?.id ||
-                    platformResponse?.data?.igMediaId || platformResponse?.data?.id;
-
-                if (!platformPostId) {
-                    console.warn(`⚠️ No platform Post ID found for ${platform}. Marking as success to allow DB cleanup.`);
-                    results[platform] = { success: true, message: 'Not found on platform, record cleaned' };
-                    successfulPlatforms.push(platform);
-                } else {
-                    // Call Service Delete API
-                    const delResult = await service.deletePost(platformPostId);
-
-                    if (delResult.success) {
-                        console.log(`✅ ${platform} deletion successful`);
-                        results[platform] = { success: true };
-                        successfulPlatforms.push(platform);
-                    } else {
-                        console.error(`❌ ${platform} deletion failed:`, delResult.error);
-                        results[platform] = {
-                            success: false,
-                            message: delResult.error || 'Platform error',
-                            code: delResult.code
-                        };
-                        failedPlatforms.push(platform);
-                    }
-                }
-            } catch (error) {
-                console.error(`❌ Unexpected error deleting from ${platform}:`, error);
-                results[platform] = { success: false, message: error.message };
-                failedPlatforms.push(platform);
-            }
-        }
-
-        // 3. Update Database based on results
-        // Remove successful platforms from the post record
-        for (const platform of successfulPlatforms) {
-            post.platforms = post.platforms.filter(p => p !== platform);
-            if (post.platformResponses && post.platformResponses.delete) {
-                post.platformResponses.delete(platform);
-            } else if (post.platformResponses) {
-                delete post.platformResponses[platform];
-            }
-        }
-
-        // Determine final status
-        if (post.platforms.length === 0) {
-            // ALL deleted or no platforms were left
-            post.status = 'deleted';
-            post.isDeleted = true;
-            post.deletedAt = new Date();
-            console.log('✅ Post fully deleted from all platforms and database');
-        } else {
-            // Some platforms still remain
-            post.status = 'partially_deleted';
-            console.log(`⚠️ Post partially deleted. Remaining platforms: ${post.platforms.join(', ')}`);
-        }
-
-        // Save changes to DB
-        await post.save();
-
-        // 4. Return success response with platform details
-        // As per requirements: return 200 with platform-wise results
-        return res.json({
-            success: true,
-            results: results,
-            isFullyDeleted: post.platforms.length === 0
+        console.log('🗑️ Delete post request:', {
+            postId: id,
+            tenantId
         });
 
+        // Find post and verify ownership
+        const post = await SocialPost.findOne({ _id: id, tenantId });
+
+        if (!post) {
+            console.log('❌ Post not found:', id);
+            return res.status(404).json({
+                success: false,
+                message: 'Post not found'
+            });
+        }
+
+        console.log('✅ Post found, marking as deleted...');
+
+        // Soft delete - mark as deleted instead of removing
+        post.status = 'deleted';
+        post.isDeleted = true;
+        post.deletedAt = new Date();
+        await post.save();
+
+        console.log('✅ Post marked as deleted:', id);
+
+        // API-Level Delete for LinkedIn (and others)
+        try {
+            // Find connected accounts for the post's platforms
+            const accounts = await SocialAccount.find({
+                tenantId,
+                platform: { $in: post.platforms },
+                isConnected: true
+            });
+
+            for (const account of accounts) {
+                const service = getService(account);
+
+                // check if we have a successful response for this platform
+                const platformResponse = post.platformResponses?.get(account.platform);
+
+                if (service && platformResponse?.success && platformResponse?.data?.id) {
+                    const urn = platformResponse.data.id;
+                    try {
+                        console.log(`🗑️ Deleting from ${account.platform}:`, urn);
+                        // Call delete on the platform
+                        if (service.deletePost) {
+                            await service.deletePost(urn);
+                        }
+                    } catch (err) {
+                        console.error(`⚠️ Failed to delete from ${account.platform} (continuing local delete):`, err.message);
+                    }
+                }
+            }
+        } catch (apiError) {
+            console.error('⚠️ Error during platform deletion (continuing local delete):', apiError);
+        }
+
+        res.json({
+            success: true,
+            message: 'Post deleted successfully',
+            id
+        });
     } catch (error) {
-        console.error('❌ Fatal Error in deletePost:', error);
+        console.error('❌ Failed to delete post:', error);
         res.status(500).json({
             success: false,
-            message: 'An internal error occurred during deletion',
-            error: error.message
+            message: error.message
         });
     }
 };
-
-// Add other controller exports below if needed

@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import * as faceapi from 'face-api.js';
 
 
-const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
+const FaceAttendance = () => {
   const { user } = useAuth();
   const [mode, setMode] = useState('attendance'); // 'attendance' or 'register'
   const [cameraActive, setCameraActive] = useState(false);
@@ -27,9 +27,6 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestReason, setRequestReason] = useState('');
   const [submittingRequest, setSubmittingRequest] = useState(false);
-  const [violationModal, setViolationModal] = useState({ show: false, violations: [] });
-  const requestedAction = (actionType || 'AUTO').toString().toUpperCase();
-  const attendanceActionLabel = requestedAction === 'OUT' ? 'Check Out' : 'Check In';
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -593,7 +590,6 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
       // Prepare request data with embeddings
       const requestData = {
         faceEmbedding: faceEmbedding,
-        actionType: requestedAction,
         location: {
           lat: loc.lat,
           lng: loc.lng,
@@ -619,13 +615,6 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
         const violations = res.data.data?.status?.policyViolations || [];
         if (violations.length > 0) {
           setViolationModal({ show: true, violations });
-        }
-
-        // Notify parent that attendance was marked successfully
-        try {
-          if (typeof onSuccess === 'function') onSuccess(res.data);
-        } catch (e) {
-          console.warn('onSuccess callback failed:', e);
         }
 
         setTimeout(() => {
@@ -788,6 +777,9 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
     );
   }
 
+  // State for policy violations modal
+  const [violationModal, setViolationModal] = useState({ show: false, violations: [] });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
@@ -799,9 +791,7 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
           <h1 className="text-4xl sm:text-5xl font-bold text-white mb-2 tracking-tight">
             Face Recognition Attendance
           </h1>
-          <p className="text-blue-200 text-lg">
-            Secure {attendanceActionLabel.toLowerCase()} with face and location verification
-          </p>
+          <p className="text-blue-200 text-lg">Secure check-in with face & location verification</p>
         </div>
 
         {/* Mode Toggle */}
@@ -917,7 +907,7 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
                         {mode === 'attendance' ? (
                           <>
                             <CheckCircle className="w-5 h-5" />
-                            {`Capture & ${attendanceActionLabel}`}
+                            Capture & Mark Attendance
                           </>
                         ) : (
                           <>

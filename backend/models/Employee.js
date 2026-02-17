@@ -8,11 +8,7 @@ const EmployeeSchema = new mongoose.Schema({
   gender: { type: String, enum: ['Male', 'Female', 'Other'], required: false },
   employeeId: { type: String, trim: true, unique: true, index: true },
   dob: { type: Date },
-  contactNo: {
-    type: String,
-    trim: true,
-    match: [/^[6-9]\d{9}$/, 'Please fill a valid 10-digit Indian mobile number (starts with 6-9)']
-  },
+  contactNo: { type: String, trim: true },
   email: {
     type: String,
     trim: true,
@@ -40,11 +36,7 @@ const EmployeeSchema = new mongoose.Schema({
   fatherName: { type: String, trim: true },
   motherName: { type: String, trim: true },
   emergencyContactName: { type: String, trim: true },
-  emergencyContactNumber: {
-    type: String,
-    trim: true,
-    match: [/^[6-9]\d{9}$/, 'Please fill a valid 10-digit Indian emergency contact number (6-9)']
-  },
+  emergencyContactNumber: { type: String, trim: true },
 
   tempAddress: {
     line1: { type: String, trim: true },

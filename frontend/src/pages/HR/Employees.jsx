@@ -147,14 +147,8 @@ export default function Employees() {
     async function fetchJoiningTemplates() {
       try {
         const res = await api.get('/letters/templates?type=joining');
-        setJoiningTemplates(Array.isArray(res.data) ? res.data : []);
-      } catch (err) {
-        // Silently handle 403/404 - user may not have permission
-        if (err.response?.status !== 403 && err.response?.status !== 404) {
-          console.error("Failed to load joining templates", err);
-        }
-        setJoiningTemplates([]); // Always set to valid array
-      }
+        setJoiningTemplates(res.data || []);
+      } catch (err) { console.error("Failed to load joining templates", err); }
     }
     fetchJoiningTemplates();
   }, [fetchFilterOptions]);
@@ -318,57 +312,41 @@ export default function Employees() {
       </div>
 
       {/* Stats Section */}
-      {/* Stats Section */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-5 rounded-xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="p-3 bg-white/20 backdrop-blur-sm text-white rounded-lg shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
-              <Users size={24} />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-blue-100 uppercase tracking-widest">Total Employees</div>
-              <div className="text-2xl font-black text-white mt-0.5 tracking-tight">{stats?.total || 0}</div>
-            </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+            <Users size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Employees</div>
+            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.total || 0}</div>
           </div>
         </div>
-
-        <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-5 rounded-xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="p-3 bg-white/20 backdrop-blur-sm text-white rounded-lg shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
-              <User size={24} />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-emerald-100 uppercase tracking-widest">Active</div>
-              <div className="text-2xl font-black text-white mt-0.5 tracking-tight">{stats?.active || 0}</div>
-            </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+            <User size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active</div>
+            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.active || 0}</div>
           </div>
         </div>
-
-        <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-5 rounded-xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="p-3 bg-white/20 backdrop-blur-sm text-white rounded-lg shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
-              <Briefcase size={24} />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-purple-100 uppercase tracking-widest">Departments</div>
-              <div className="text-2xl font-black text-white mt-0.5 tracking-tight">{stats?.depts || 0}</div>
-            </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
+            <Briefcase size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Departments</div>
+            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.depts || 0}</div>
           </div>
         </div>
-
-        <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-5 rounded-xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="p-3 bg-white/20 backdrop-blur-sm text-white rounded-lg shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
-              <CalendarIcon size={24} />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-amber-100 uppercase tracking-widest">New Joiners</div>
-              <div className="text-2xl font-black text-white mt-0.5 tracking-tight">{stats?.newJoiners || 0}</div>
-            </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+            <CalendarIcon size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New Joiners</div>
+            <div className="text-xl font-bold text-slate-900 mt-0.5">{stats?.newJoiners || 0}</div>
           </div>
         </div>
       </div>
@@ -540,16 +518,16 @@ export default function Employees() {
               {viewMode === 'list' ? (
                 <>
                   {/* Desktop/Tablet Table View */}
-                  <div className="hidden md:block overflow-x-auto border border-slate-200 bg-white scrollbar-thin scrollbar-thumb-slate-200">
-                    <table className="min-w-[1000px] w-full text-left text-sm divide-y divide-slate-200">
+                  <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
+                    <table className="min-w-full text-left text-sm divide-y divide-slate-200">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[25%]">Name</th>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[15%]">Role</th>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[25%]">Contact</th>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[10%]">Department</th>
-                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap w-[15%]">Manager</th>
-                          <th className="px-6 py-4 text-right font-semibold text-slate-700 whitespace-nowrap w-[10%]">Actions</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Name</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Role</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Contact</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Department</th>
+                          <th className="px-6 py-4 text-left font-semibold text-slate-700 whitespace-nowrap">Manager</th>
+                          <th className="px-6 py-4 text-right font-semibold text-slate-700 whitespace-nowrap">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 bg-white">
@@ -915,61 +893,32 @@ export default function Employees() {
         }}
       />
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-        <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-          <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
-          Employees by Department
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { name: 'HR', gradient: 'from-blue-500 to-indigo-600', icon: Users },
-            { name: 'Tech', gradient: 'from-emerald-500 to-teal-600', icon: Briefcase },
-            { name: 'Accounts', gradient: 'from-purple-500 to-pink-600', icon: IndianRupee },
-            { name: 'Admin', gradient: 'from-amber-500 to-orange-600', icon: User }
-          ].map((dept) => {
-            const deptEmps = employees.filter(e => e.department === dept.name);
-            const DeptIcon = dept.icon;
-
-            return (
-              <div key={dept.name} className={`bg-gradient-to-br ${dept.gradient} rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all relative overflow-hidden group`}>
-                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
-
-                <div className="flex items-center justify-between mb-4 relative z-10">
-                  <div className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-lg border border-white/20">
-                    <DeptIcon size={18} />
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 sm:p-6">
+        <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-3">Employees by Department</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {DEPARTMENTS.map((dept) => (
+            <div key={dept} className="border border-slate-200 rounded-lg p-3">
+              <div className="font-semibold text-slate-800 mb-2">{dept}</div>
+              <div className="space-y-1 text-sm text-slate-600">
+                {employees.filter(e => e.department === dept).map(e => (
+                  <div key={e._id} className="flex justify-between">
+                    <span>{[e.firstName, e.lastName].filter(Boolean).join(' ') || e.email}</span>
+                    <span className="text-xs text-slate-500">{e.role || '-'}</span>
                   </div>
-                  <span className="text-[10px] font-black text-white/80 uppercase tracking-widest bg-white/10 px-2 py-1 rounded-full border border-white/10">
-                    {deptEmps.length} Employees
-                  </span>
-                </div>
-
-                <div className="relative z-10">
-                  <h4 className="font-black text-white text-lg mb-3 tracking-tight">{dept.name}</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto no-scrollbar">
-                    {deptEmps.length > 0 ? (
-                      deptEmps.map(e => (
-                        <div key={e._id} className="flex justify-between items-center bg-white/10 backdrop-blur-sm p-2 rounded-lg border border-white/5 hover:bg-white/20 transition-colors">
-                          <span className="text-xs font-bold text-white truncate max-w-[100px]">
-                            {[e.firstName, e.lastName].filter(Boolean).join(' ') || e.email}
-                          </span>
-                          <span className="text-[9px] font-black text-white/60 uppercase tracking-tighter">
-                            {e.role || '-'}
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-xs text-white/50 italic py-2">No employees assigned</div>
-                    )}
-                  </div>
-                </div>
+                ))}
+                {employees.filter(e => e.department === dept).length === 0 && (
+                  <div className="text-xs text-slate-400">No employees</div>
+                )}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
-    </div>
+    </div >
   );
 }
+
+
 
 function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const [step, setStep] = useState((employee?.status === 'Draft' ? employee?.lastStep : 1) || 1);
@@ -1032,14 +981,8 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const loadPolicies = useCallback(async () => {
     try {
       const res = await api.get('/hr/leave-policies');
-      setPolicies(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      // Silently handle 403/404 - user may not have permission
-      if (err.response?.status !== 403 && err.response?.status !== 404) {
-        console.error("Failed to load policies", err);
-      }
-      setPolicies([]); // Always set to valid array
-    }
+      setPolicies(res.data || []);
+    } catch (err) { console.error("Failed to load policies", err); }
   }, []);
 
 
@@ -1081,25 +1024,11 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
   // Fetch departments for dropdown
   const loadDepartments = useCallback(async () => {
     try {
-      let res;
-      try {
-        res = await api.get('/hr/departments');
-      } catch {
-        // Backward-compatible fallback for older backend mount shape
-        res = await api.get('/hr/hr/departments');
-      }
-      const deptList = res.data?.data || res.data || [];
-      setDepartments(Array.isArray(deptList) ? deptList : []);
+      const res = await api.get('/hr/departments');
+      const deptList = Array.isArray(res.data) ? res.data : [];
+      setDepartments(deptList);
     } catch (err) {
       console.error('Failed to load departments', err);
-      const backendMsg = err?.response?.data?.message || err?.response?.data?.error || '';
-      const maybeModuleBlocked = /module|access denied|forbidden/i.test(String(backendMsg));
-      const errorMsg =
-        err?.hrms?.message ||
-        (maybeModuleBlocked ? 'HR module is disabled or access is denied for this company.' : backendMsg) ||
-        err?.message ||
-        'Failed to load departments';
-      notification.error({ message: 'Departments', description: errorMsg, placement: 'topRight' });
       setDepartments([]);
     }
   }, []);
@@ -1142,19 +1071,14 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
     loadDepartments();
     loadManagers();
     loadPolicies();
-  }, []); // Run once on mount
-
-  useEffect(() => {
     // Allow preview if creating new OR editing a Draft
-    if (step === 7 && (!employee || employee.status === 'Draft')) {
-      loadEmployeeCodePreview();
-    }
-  }, [step, employee?.status, loadEmployeeCodePreview]); // Only re-run when step or employee status changes
+    if (step === 7 && (!employee || employee.status === 'Draft')) loadEmployeeCodePreview();
+  }, [loadDepartments, loadManagers, loadEmployeeCodePreview, step, employee]);
 
   const [employeeCode, setEmployeeCode] = useState('');
 
   const phoneRe = /^\d{10,15}$/;
-  const pinRe = useMemo(() => /^[1-9][0-9]{5}$/, []);
+  const pinRe = useMemo(() => /^\d{5,10}$/, []);
   const ifscRe = useMemo(() => /^[A-Z]{4}0[0-9A-Z]{6}$/, []);
 
   const handlePincodeLookup = useCallback(async (pin, target = 'temp') => {
@@ -1190,24 +1114,17 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
         countryVal = (po && po.Country) || '';
       }
       if (city || stateVal || countryVal) {
-        if (ignoreAutoFill.current) return;
+        if (ignoreAutoFill.current) return; // Prevent overwriting city if triggered by city lookup
 
         const v = { city, stateVal, countryVal, ts: Date.now() };
         cache[pin] = v;
         try { sessionStorage.setItem(key, JSON.stringify(cache)); } catch { /* ignore sessionStorage errors */ }
-
         if (target === 'temp') setTempAddress(p => {
-          const next = { ...p };
-          if (city) next.city = city;
-          if (stateVal) next.state = stateVal;
-          if (countryVal) next.country = countryVal;
+          const next = { ...p, city: city || p.city, state: stateVal || p.state, country: countryVal || p.country };
           return (next.city === p.city && next.state === p.state && next.country === p.country) ? p : next;
         });
         else setPermAddress(p => {
-          const next = { ...p };
-          if (city) next.city = city;
-          if (stateVal) next.state = stateVal;
-          if (countryVal) next.country = countryVal;
+          const next = { ...p, city: city || p.city, state: stateVal || p.state, country: countryVal || p.country };
           return (next.city === p.city && next.state === p.state && next.country === p.country) ? p : next;
         });
       }
@@ -1290,24 +1207,12 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
           if (target === 'temp') {
             ignoreAutoFill.current = true;
-            setTempAddress(p => {
-              const next = { ...p };
-              if (stateVal) next.state = stateVal;
-              if (countryVal) next.country = countryVal;
-              if (pinVal && !p.pinCode) next.pinCode = pinVal;
-              return next;
-            });
-            setTimeout(() => { ignoreAutoFill.current = false; }, 500);
+            setTempAddress(p => ({ ...p, state: stateVal || p.state, country: countryVal || p.country, pinCode: pinVal }));
+            setTimeout(() => { ignoreAutoFill.current = false; }, 2000);
           } else {
             ignoreAutoFill.current = true;
-            setPermAddress(p => {
-              const next = { ...p };
-              if (stateVal) next.state = stateVal;
-              if (countryVal) next.country = countryVal;
-              if (pinVal && !p.pinCode) next.pinCode = pinVal;
-              return next;
-            });
-            setTimeout(() => { ignoreAutoFill.current = false; }, 500);
+            setPermAddress(p => ({ ...p, state: stateVal || p.state, country: countryVal || p.country, pinCode: pinVal }));
+            setTimeout(() => { ignoreAutoFill.current = false; }, 2000);
           }
         } else {
           // Fallback to Global Search (Nominatim)
@@ -1321,7 +1226,8 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
       console.log("Indian API missed, trying global...", e);
 
       // Clear stale data immediately to prevent wrong info persistence
-      // Don't clear user input automatically if lookup fails, let them correct it
+      if (target === 'temp') setTempAddress(p => ({ ...p, state: '', country: '', pinCode: '' }));
+      else setPermAddress(p => ({ ...p, state: '', country: '', pinCode: '' }));
 
       try {
         const globalRes = await fetch(`https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}&format=json&addressdetails=1&limit=1`, {
@@ -1337,24 +1243,12 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
             if (target === 'temp') {
               ignoreAutoFill.current = true;
-              setTempAddress(p => {
-                const next = { ...p };
-                if (stateVal) next.state = stateVal;
-                if (countryVal) next.country = countryVal;
-                if (pinVal && !p.pinCode) next.pinCode = pinVal;
-                return next;
-              });
-              setTimeout(() => { ignoreAutoFill.current = false; }, 500);
+              setTempAddress(p => ({ ...p, state: stateVal || p.state, country: countryVal || p.country, pinCode: pinVal }));
+              setTimeout(() => { ignoreAutoFill.current = false; }, 2000);
             } else {
               ignoreAutoFill.current = true;
-              setPermAddress(p => {
-                const next = { ...p };
-                if (stateVal) next.state = stateVal;
-                if (countryVal) next.country = countryVal;
-                if (pinVal && !p.pinCode) next.pinCode = pinVal;
-                return next;
-              });
-              setTimeout(() => { ignoreAutoFill.current = false; }, 500);
+              setPermAddress(p => ({ ...p, state: stateVal || p.state, country: countryVal || p.country, pinCode: pinVal }));
+              setTimeout(() => { ignoreAutoFill.current = false; }, 2000);
             }
           }
         }
@@ -1419,7 +1313,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
   const validateStep = (stepNum) => {
     const e = {};
     if (stepNum === 1) {
-      if (!firstName || firstName.length < 3 || !/^[A-Za-z\s.]+$/.test(firstName)) e.firstName = 'First name required (min 3 chars, letters, spaces, dots allowed)';
+      if (!firstName || firstName.length < 3 || !/^[A-Za-z]+$/.test(firstName)) e.firstName = 'First name required (min 3 chars, letters only)';
       if (!middleName || middleName.length < 3) e.middleName = 'Middle name is required (min 3 chars)';
       if (!lastName || lastName.length < 3) e.lastName = 'Last name is required (min 3 chars)';
       if (!gender) e.gender = 'Gender is required';
@@ -1430,8 +1324,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
         const birth = new Date(dob); const age = Math.floor((Date.now() - birth.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
         if (age < 18) e.dob = 'Employee must be at least 18 years old';
       }
-      const indianPhoneRe = /^[6-9]\d{9}$/;
-      if (!contactNo || !indianPhoneRe.test(contactNo)) e.contactNo = 'Valid 10-digit Indian phone required (starts with 6-9)';
+      if (!contactNo || !phoneRe.test(contactNo)) e.contactNo = 'Phone must be 10-15 digits';
       // Email and Password validation removed
 
       if (!maritalStatus) e.maritalStatus = 'Marital Status is required';
@@ -1447,7 +1340,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
       if (motherName && motherName.length < 3) e.motherName = 'Mother name must be at least 3 chars';
 
       if (!emergencyContactName || emergencyContactName.length < 3) e.emergencyContactName = 'Emergency contact name required (min 3 chars)';
-      if (!emergencyContactNumber || !indianPhoneRe.test(emergencyContactNumber)) e.emergencyContactNumber = 'Valid 10-digit Indian emergency contact required (6-9)';
+      if (!emergencyContactNumber || !phoneRe.test(emergencyContactNumber)) e.emergencyContactNumber = 'Emergency contact number invalid';
     }
 
     if (stepNum === 2) {
@@ -2134,15 +2027,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-semibold text-slate-700">Phone Number</label>
-                  <input
-                    type="tel"
-                    maxLength="10"
-                    onInput={e => e.target.value = e.target.value.replace(/\D/g, '')}
-                    value={contactNo}
-                    onChange={e => setContactNo(e.target.value)}
-                    className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.contactNo ? 'border-red-500' : 'border-slate-300'}`}
-                    placeholder="10-digit mobile number"
-                  />
+                  <input value={contactNo} onChange={e => setContactNo(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.contactNo ? 'border-red-500' : 'border-slate-300'}`} />
                   {errors.contactNo && <div className="text-xs text-red-600 mt-1">{errors.contactNo}</div>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -2153,15 +2038,7 @@ function EmployeeForm({ employee, onClose, viewOnly = false }) {
                   </div>
                   <div>
                     <label className="text-sm font-semibold text-slate-700">Emergency Contact #</label>
-                    <input
-                      type="tel"
-                      maxLength="10"
-                      onInput={e => e.target.value = e.target.value.replace(/\D/g, '')}
-                      value={emergencyContactNumber}
-                      onChange={e => setEmergencyContactNumber(e.target.value)}
-                      className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactNumber ? 'border-red-500' : 'border-slate-300'}`}
-                      placeholder="10-digit mobile number"
-                    />
+                    <input value={emergencyContactNumber} onChange={e => setEmergencyContactNumber(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactNumber ? 'border-red-500' : 'border-slate-300'}`} />
                     {errors.emergencyContactNumber && <div className="text-xs text-red-600 mt-1">{errors.emergencyContactNumber}</div>}
                   </div>
                 </div>
@@ -3001,6 +2878,5 @@ const FileLink = ({ url, label }) => {
       <span className="text-sm font-medium truncate flex-1">{label || 'View Document'}</span>
       <svg className="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
     </a>
-
   );
 };

@@ -1,3 +1,8 @@
+/**
+ * useDocumentManagement Hook
+ * Custom React hook for managing document state and operations
+ */
+
 import { useState, useCallback, useEffect } from 'react';
 import DocumentManagementService from '../services/DocumentManagementService';
 
@@ -9,8 +14,10 @@ export function useDocumentManagement(documentId) {
     const [error, setError] = useState(null);
     const [hasAccess, setHasAccess] = useState(true);
 
+    /**
+     * Fetch document status
+     */
     const fetchStatus = useCallback(async () => {
-        if (!documentId) return null;
         setLoading(true);
         setError(null);
         try {
@@ -20,14 +27,17 @@ export function useDocumentManagement(documentId) {
         } catch (err) {
             const errorMsg = err.message || 'Failed to fetch document status';
             setError(errorMsg);
+            console.error('Error fetching status:', err);
             throw err;
         } finally {
             setLoading(false);
         }
     }, [documentId]);
 
+    /**
+     * Fetch audit trail
+     */
     const fetchAuditTrail = useCallback(async (filters = {}) => {
-        if (!documentId) return [];
         setLoading(true);
         setError(null);
         try {
@@ -37,14 +47,17 @@ export function useDocumentManagement(documentId) {
         } catch (err) {
             const errorMsg = err.message || 'Failed to fetch audit trail';
             setError(errorMsg);
+            console.error('Error fetching audit trail:', err);
             throw err;
         } finally {
             setLoading(false);
         }
     }, [documentId]);
 
+    /**
+     * Fetch revocation history
+     */
     const fetchRevocationHistory = useCallback(async () => {
-        if (!documentId) return [];
         setLoading(true);
         setError(null);
         try {
@@ -54,73 +67,103 @@ export function useDocumentManagement(documentId) {
         } catch (err) {
             const errorMsg = err.message || 'Failed to fetch revocation history';
             setError(errorMsg);
+            console.error('Error fetching revocation history:', err);
             throw err;
         } finally {
             setLoading(false);
         }
     }, [documentId]);
 
-    const revoke = useCallback(async (reason, reasonDetails = '') => {
-        if (!documentId) return null;
+    /**
+     * Revoke document
+     */
+    const revoke = useCallback(async (reason, details = '') => {
         setLoading(true);
         setError(null);
         try {
-            const result = await DocumentManagementService.revokeLetter(documentId, reason, reasonDetails);
+            const result = await DocumentManagementService.revokeLetter(documentId, reason, details);
+            // Refresh status after revocation
             await fetchStatus();
             return result;
         } catch (err) {
             const errorMsg = err.message || 'Failed to revoke document';
             setError(errorMsg);
+            console.error('Error revoking document:', err);
             throw err;
         } finally {
             setLoading(false);
         }
     }, [documentId, fetchStatus]);
 
-    const reinstate = useCallback(async (revocationId, reinstatedReason = '') => {
+    /**
+     * Reinstate document (Super-Admin)
+     */
+    const reinstate = useCallback(async (revocationId, reason = '') => {
         setLoading(true);
-        setError(null);
+        setError(false);
         try {
-            const result = await DocumentManagementService.reinstateLetter(revocationId, reinstatedReason);
+            const result = await DocumentManagementService.reinstateLetter(revocationId, reason);
+            // Refresh status after reinstatement
             await fetchStatus();
             return result;
         } catch (err) {
             const errorMsg = err.message || 'Failed to reinstate document';
             setError(errorMsg);
+            console.error('Error reinstating document:', err);
             throw err;
         } finally {
             setLoading(false);
         }
-    }, [fetchStatus]);
+    }, [documentId, fetchStatus]);
 
+    /**
+     * Check access before viewing
+     */
     const checkAccess = useCallback(async () => {
-        if (!documentId) return { hasAccess: true };
-        const result = await DocumentManagementService.checkDocumentAccess(documentId);
-        const allowed = result.hasAccess !== false;
-        setHasAccess(allowed);
-        if (!allowed) {
-            setError(result.message || 'You do not have access to this document');
+        try {
+            const result = await DocumentManagementService.checkDocumentAccess(documentId);
+            setHasAccess(result.hasAccess);
+            if (!result.hasAccess) {
+                setError(result.message);
+            }
+            return result;
+        } catch (err) {
+            console.error('Error checking access:', err);
+            setHasAccess(false);
+            setError(err.message || 'Failed to verify access');
+            throw err;
         }
-        return result;
     }, [documentId]);
 
+    /**
+     * Clear errors
+     */
     const clearError = useCallback(() => {
         setError(null);
     }, []);
 
+    /**
+     * Initial load: fetch status and check access
+     */
     useEffect(() => {
         if (documentId) {
-            Promise.all([fetchStatus(), checkAccess()]).catch(() => null);
+            Promise.all([
+                fetchStatus().catch(() => null),
+                checkAccess().catch(() => null)
+            ]);
         }
     }, [documentId, fetchStatus, checkAccess]);
 
     return {
+        // State
         status,
         auditTrail,
         revocationHistory,
         loading,
         error,
         hasAccess,
+
+        // Methods
         fetchStatus,
         fetchAuditTrail,
         fetchRevocationHistory,
@@ -128,9 +171,11 @@ export function useDocumentManagement(documentId) {
         reinstate,
         checkAccess,
         clearError,
-        isRevoked: !!status?.isRevoked,
-        canRevoke: !!status && !status?.isRevoked,
-        canReinstate: !!status?.revocationId
+
+        // Convenience
+        isRevoked: status?.isRevoked || false,
+        canRevoke: status && !status.isRevoked,
+        canReinstate: status?.canBeReinstate || false
     };
 }
 

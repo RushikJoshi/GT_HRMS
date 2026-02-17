@@ -163,11 +163,9 @@ exports.approveCorrection = async (req, res) => {
         }
 
         // MAKER-CHECKER RULE: Checker cannot be the Maker
-        // COMMENTED OUT: Allow self-approval for testing/flexibility
-        // if (String(adjustment.createdBy) === String(req.user.id)) {
-        //     return res.status(403).json({ success: false, message: "Maker-Checker violation: You cannot approve your own adjustment request." });
-        // }
-
+        if (String(adjustment.createdBy) === String(req.user.id)) {
+            return res.status(403).json({ success: false, message: "Maker-Checker violation: You cannot approve your own adjustment request." });
+        }
 
         adjustment.status = 'APPROVED';
         adjustment.approvedBy = req.user.id;

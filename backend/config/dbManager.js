@@ -29,8 +29,6 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const DepartmentSchema = require("../models/Department");
     const LeaveRequestSchema = require("../models/LeaveRequest");
     const AttendanceSchema = require("../models/Attendance");
-    const ActivitySchema = require("../models/Activity");
-    const UserSchema = require("../models/User");
     const RequirementSchema = require("../models/Requirement");
     const ApplicantSchema = require("../models/Applicant");
     const OfferLetterTemplateSchema = require("../models/OfferLetterTemplate");
@@ -85,10 +83,12 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const VendorRegistrationSchema = require("../models/vendor.model.js");
     const VendorBankDetailsSchema = require("../models/vendorBank.model.js");
     const VendorFormConfigSchema = require("../models/VendorFormConfig.model.js");
-    const DocumentAuditSchema = require("../models/DocumentAudit");
-    const DocumentAccessSchema = require("../models/DocumentAccess");
-    const LetterRevocationSchema = require("../models/LetterRevocation");
-    const DocumentViewConfigSchema = require("../models/DocumentViewConfig");
+    const PipelineTemplateSchema = require("../models/PipelineTemplate");
+    const JobPipelineSchema = require("../models/JobPipeline");
+    const CandidateStageHistorySchema = require("../models/CandidateStageHistory");
+    // const FeedbackTemplateSchema = require("../models/FeedbackTemplate");
+    // const CandidateStageFeedbackSchema = require("../models/CandidateStageFeedback");
+
 
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
@@ -116,8 +116,6 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("Department", DepartmentSchema);
     register("LeaveRequest", LeaveRequestSchema);
     register("Attendance", AttendanceSchema);
-    register("Activity", ActivitySchema);
-    register("User", UserSchema);
     register("Requirement", RequirementSchema);
     register("Applicant", ApplicantSchema);
     register("OfferLetterTemplate", OfferLetterTemplateSchema);
@@ -155,6 +153,13 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("Position", PositionSchema);
     register("CompanyIdConfig", CompanyIdConfigSchema);
 
+    // Recruitment Pipeline Models
+    register("PipelineTemplate", PipelineTemplateSchema);
+    register("JobPipeline", JobPipelineSchema);
+    register("CandidateStageHistory", CandidateStageHistorySchema);
+    // register("FeedbackTemplate", FeedbackTemplateSchema);
+    // register("CandidateStageFeedback", CandidateStageFeedbackSchema);
+
     // BGV Models
     register("BGVDocument", BGVDocumentSchema);
     register("BGVCase", BGVCaseSchema);
@@ -172,10 +177,6 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("VendorRegistration", VendorRegistrationSchema);
     register("VendorBankDetails", VendorBankDetailsSchema);
     register("VendorFormConfig", VendorFormConfigSchema);
-    register("DocumentAudit", DocumentAuditSchema);
-    register("DocumentAccess", DocumentAccessSchema);
-    register("LetterRevocation", LetterRevocationSchema);
-    register("DocumentViewConfig", DocumentViewConfigSchema);
 
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {
@@ -184,6 +185,8 @@ function registerModels(db, tenantId, forceRefresh = false) {
         db.model("PayrollAdjustment", PayrollAdjustmentSchema);
       } catch (e) { console.warn("Failed to load PayrollAdjustment", e.message); }
     }
+
+    // Offer model is now GLOBAL (Shared Collection), no longer per-tenant
 
     // CRITICAL: Register EmployeeCompensation for payroll
     if (!db.models.EmployeeCompensation) {

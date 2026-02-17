@@ -56,7 +56,7 @@ const generatedLetterSchema = new mongoose.Schema({
     // Status Flow
     status: {
         type: String,
-        enum: ['draft', 'pending', 'approved', 'rejected', 'generated', 'issued', 'sent', 'viewed', 'accepted', 'rejected_by_candidate', 'expired', 'revoked'],
+        enum: ['draft', 'pending', 'approved', 'rejected', 'sent', 'viewed', 'accepted', 'rejected_by_candidate', 'expired', 'generated'],
         default: 'draft'
     },
 
@@ -83,4 +83,3 @@ generatedLetterSchema.index({ tenantId: 1, letterType: 1 });
 
 // Multi-tenant fix: Export ONLY Schema (not mongoose.model)
 module.exports = generatedLetterSchema;
-

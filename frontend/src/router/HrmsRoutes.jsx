@@ -6,13 +6,13 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 // Layouts
 import PsaLayout from '../layouts/PsaLayout';
 import HrLayout from '../layouts/HrLayout';
 import EssLayout from '../layouts/EssLayout';
 import ProtectedRoute from '../components/layout/ProtectedRoute';
-import ProtectedModule from '../components/common/ProtectedModule';
 
 // Auth Pages
 import Login from '../pages/Auth/Login';
@@ -141,77 +141,66 @@ export default function HrmsRoutes() {
         }
       >
         <Route index element={<HRDashboard />} />
-        {/* --- HR MODULE --- */}
-        <Route element={<ProtectedModule module="hr"><Outlet /></ProtectedModule>}>
-          <Route path="employees" element={<Employees />} />
-          <Route path="users" element={<UserManagement />} />
-          <Route path="departments" element={<Departments />} />
-          <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
-          <Route path="leave-approvals" element={<ProtectedModule module="leave"><LeaveApprovals /></ProtectedModule>} />
-          <Route path="leave-approvals/regularization" element={<ProtectedModule module="leave"><RegularizationApprovals category="Leave" /></ProtectedModule>} />
-          <Route path="leave-policies" element={<ProtectedModule module="leave"><LeavePolicies /></ProtectedModule>} />
-          <Route path="org" element={<OrgStructure />} />
-          <Route path="org-tree" element={<CeoOrg />} />
-          <Route path="access" element={<AccessControl />} />
+        <Route path="employees" element={<Employees />} />
+        <Route path="users" element={<UserManagement />} />
+        <Route path="departments" element={<Departments />} />
+        <Route path="leaves" element={<Navigate to="leave-approvals" replace />} />
+        <Route path="leave-approvals" element={<LeaveApprovals />} />
+        <Route path="leave-approvals/regularization" element={<RegularizationApprovals category="Leave" />} />
+        <Route path="attendance" element={<AttendanceAdmin />} />
+        <Route path="attendance/correction" element={<RegularizationApprovals category="Attendance" />} />
+        <Route path="attendance-calendar" element={<CalendarManagement />} />
+        <Route path="leave-policies" element={<LeavePolicies />} />
+        <Route path="requirements" element={<RequirementPage />} />
+        <Route path="create-requirement" element={<CreateRequirement />} />
+        <Route path="applicants" element={<Applicants />} />
+        <Route path="job/:jobId/candidates" element={<Applicants jobSpecific={true} />} />
+        <Route path="internal-applicants" element={<Applicants internalMode={true} />} />
+        {/* <Route path="candidate-status" element={<CandidateStatusTracker />} /> */}
+        {/* <Route path="candidate-status/:id" element={<CandidateTimeline />} /> */}
+        <Route path="org" element={<OrgStructure />} />
+        <Route path="org-tree" element={<CeoOrg />} />
+        <Route path="access" element={<AccessControl />} />
+        <Route path="offer-templates" element={<OfferTemplates />} />
+        <Route path="attendance-history" element={<AttendanceHistory />} />
 
-          {/* Letters */}
-          <Route path="letter-templates" element={<LetterTemplates />} />
-          <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
-          <Route path="letter-settings" element={<LetterSettings />} />
+        {/* Vendor Management */}
+        <Route path="vendor/list" element={<VendorList />} />
+        <Route path="vendor/step1" element={<VendorFormStep1 />} />
+        <Route path="vendor/step2/:vendorId" element={<VendorFormStep2 />} />
+        <Route path="vendor/details/:id" element={<VendorDetails />} />
 
-          {/* BGV */}
-          <Route path="my-tasks" element={<ProtectedModule module="backgroundVerification"><MyTasks /></ProtectedModule>} />
-        </Route>
+        {/* Letters */}
+        <Route path="letter-templates" element={<LetterTemplates />} />
+        <Route path="letter-templates/:templateId/preview" element={<TemplatePreview />} />
+        <Route path="letter-settings" element={<LetterSettings />} />
 
-        {/* --- ATTENDANCE MODULE --- */}
-        <Route element={<ProtectedModule module="attendance"><Outlet /></ProtectedModule>}>
-          <Route path="attendance" element={<AttendanceAdmin />} />
-          <Route path="attendance/correction" element={<RegularizationApprovals category="Attendance" />} />
-          <Route path="attendance-calendar" element={<CalendarManagement />} />
-          <Route path="attendance-history" element={<AttendanceHistory />} />
-          <Route path="face-attendance" element={<FaceAttendance />} />
-        </Route>
+        {/* Payroll */}
+        <Route path="salary-structure/:candidateId" element={<SalaryStructure />} />
+        <Route path="payroll/dashboard" element={<PayrollDashboard />} />
+        <Route path="payroll/salary-components" element={<SalaryComponents />} />
+        <Route path="payroll/earnings/new" element={<NewEarning />} />
+        <Route path="payroll/earnings/edit/:id" element={<NewEarning />} />
+        <Route path="payroll/deductions/new" element={<NewDeduction />} />
+        <Route path="payroll/deductions/edit/:id" element={<NewDeduction />} />
+        <Route path="payroll/benefits/new" element={<NewBenefit />} />
+        <Route path="payroll/benefits/edit/:id" element={<NewBenefit />} />
+        <Route path="payroll/salary-templates/new" element={<NewSalaryTemplate />} />
+        <Route path="payroll/rules" element={<PayrollRules />} />
+        <Route path="payroll/process" element={<ProcessPayroll />} />
+        <Route path="payroll/run" element={<RunPayroll />} />
+        <Route path="payroll/payslips" element={<Payslips />} />
+        <Route path="payroll/payslip-design" element={<PaySlipDesign />} />
 
-        {/* --- RECRUITMENT MODULE --- */}
-        <Route element={<ProtectedModule module="recruitment"><Outlet /></ProtectedModule>}>
-          <Route path="requirements" element={<RequirementPage />} />
-          <Route path="create-requirement" element={<CreateRequirement />} />
-          <Route path="applicants" element={<Applicants />} />
-          <Route path="job/:jobId/candidates" element={<Applicants jobSpecific={true} />} />
-          <Route path="internal-applicants" element={<Applicants internalMode={true} />} />
-          <Route path="candidate-status" element={<CandidateStatusTracker />} />
-          <Route path="candidate-status/:id" element={<CandidateTimeline />} />
-          <Route path="offer-templates" element={<OfferTemplates />} />
+        {/* Settings */}
+        <Route path="settings/company" element={<CompanySettings />} />
 
-          {/* Vendor Management */}
-          <Route path="vendor/list" element={<VendorList />} />
-          <Route path="vendor/step1" element={<VendorFormStep1 />} />
-          <Route path="vendor/step2/:vendorId" element={<VendorFormStep2 />} />
-          <Route path="vendor/details/:id" element={<VendorDetails />} />
+        {/* Career Builder */}
+        <Route path="career-builder" element={<CareerBuilder />} />
+        <Route path="apply-builder" element={<ApplyPageBuilder />} />
 
-          {/* Career Builder */}
-          <Route path="career-builder" element={<CareerBuilder />} />
-          <Route path="apply-builder" element={<ApplyPageBuilder />} />
-        </Route>
-
-        {/* --- PAYROLL MODULE --- */}
-        <Route element={<ProtectedModule module="payroll"><Outlet /></ProtectedModule>}>
-          <Route path="salary-structure/:candidateId" element={<SalaryStructure />} />
-          <Route path="payroll/dashboard" element={<PayrollDashboard />} />
-          <Route path="payroll/salary-components" element={<SalaryComponents />} />
-          <Route path="payroll/earnings/new" element={<NewEarning />} />
-          <Route path="payroll/earnings/edit/:id" element={<NewEarning />} />
-          <Route path="payroll/deductions/new" element={<NewDeduction />} />
-          <Route path="payroll/deductions/edit/:id" element={<NewDeduction />} />
-          <Route path="payroll/benefits/new" element={<NewBenefit />} />
-          <Route path="payroll/benefits/edit/:id" element={<NewBenefit />} />
-          <Route path="payroll/salary-templates/new" element={<NewSalaryTemplate />} />
-          <Route path="payroll/rules" element={<PayrollRules />} />
-          <Route path="payroll/process" element={<ProcessPayroll />} />
-          <Route path="payroll/run" element={<RunPayroll />} />
-          <Route path="payroll/payslips" element={<Payslips />} />
-          <Route path="payroll/payslip-design" element={<PaySlipDesign />} />
-        </Route>
+        {/* 🔥 NEW: BGV Routes */}
+        <Route path="my-tasks" element={<MyTasks />} />
 
         {/* Global inside HR */}
         <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
@@ -224,9 +213,7 @@ export default function HrmsRoutes() {
         path="employee"
         element={
           <ProtectedRoute allowedRoles={['employee', 'manager']}>
-            <ProtectedModule module="employeePortal">
-              <EssLayout />
-            </ProtectedModule>
+            <EssLayout />
           </ProtectedRoute>
         }
       >

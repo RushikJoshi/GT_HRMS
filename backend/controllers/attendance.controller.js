@@ -53,7 +53,7 @@ if (!MASTER_FACE_KEY) {
 }
 // ====== ENCRYPTION CONFIG ======
 const ENCRYPTION_KEY = process.env.FACE_EMBEDDING_KEY || 'default-key-32-char-string-here!';
-const FACE_MATCH_THRESHOLD = 0.50; // CRITICAL: Euclidean distance threshold - 0.60 is standard for face-api.js
+const FACE_MATCH_THRESHOLD = 0.60; // CRITICAL: Euclidean distance threshold - 0.60 is standard for face-api.js
 
 // 🔹 Point-in-polygon helper
 const isInsidePolygon = (point, polygon) => {
@@ -298,7 +298,7 @@ const validateGeoFencing = (latitude, longitude, settings) => {
         return { valid: true }; // No office location set, skip circular check
     }
 
-    // Haversine formula to calculate 
+    // Haversine formula to calculate distance
     const R = 6371e3; // Earth radius in meters
     const φ1 = settings.officeLatitude * Math.PI / 180;
     const φ2 = latitude * Math.PI / 180;
@@ -2254,19 +2254,11 @@ function isValidLocation(loc) {
 
 exports.verifyFaceAttendance = async (req, res) => {
     try {
-        const { faceEmbedding, location, actionType } = req.body;
+        const { faceEmbedding, location } = req.body;
         const employeeId = req.user.id;
         const tenantId = req.tenantId;
-        const now = new Date();
 
-        const requestedAction = (actionType || 'AUTO').toString().toUpperCase();
-        if (!['IN', 'OUT', 'AUTO'].includes(requestedAction)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid actionType. Allowed values: IN, OUT, AUTO."
-            });
-        }
-
+        // ---------- VALIDATION ----------
         if (!Array.isArray(faceEmbedding) || faceEmbedding.length !== 128) {
             return res.status(400).json({
                 success: false,
@@ -2274,6 +2266,7 @@ exports.verifyFaceAttendance = async (req, res) => {
             });
         }
 
+        // Validate all values are numbers
         const isValidEmbedding = faceEmbedding.every(val => typeof val === 'number' && !isNaN(val));
         if (!isValidEmbedding) {
             return res.status(400).json({
@@ -2289,8 +2282,9 @@ exports.verifyFaceAttendance = async (req, res) => {
             });
         }
 
-        const { FaceData, Attendance, Employee, AttendanceSettings, AuditLog } = getModels(req);
+        const { FaceData, Attendance, Employee, AttendanceSettings } = getModels(req);
 
+        // ---------- FETCH REGISTERED FACE ----------
         const registeredFace = await FaceData.findOne({
             tenant: tenantId,
             employee: employeeId,
@@ -2298,60 +2292,124 @@ exports.verifyFaceAttendance = async (req, res) => {
         });
 
         if (!registeredFace) {
+            console.log('❌ FACE REJECTED - No registered face found for employee:', employeeId);
             return res.status(404).json({
                 success: false,
                 message: 'Face not registered for this employee. Please register first.'
             });
         }
 
+        // Verify face belongs to current employee
         if (registeredFace.employee.toString() !== employeeId.toString()) {
+            console.log('❌ FACE REJECTED - Face does not belong to current employee');
+            console.log('   Registered to:', registeredFace.employee.toString());
+            console.log('   Current user:', employeeId.toString());
             return res.status(403).json({
                 success: false,
-                message: 'Face does not belong to your account. Access denied.'
+                message: 'Face does not belong to your account. Access denied.',
+                status: 'REJECTED'
             });
         }
 
+        // ---------- DECRYPT STORED EMBEDDING ----------
         const faceRecognitionService = FaceRecognitionService;
         let storedEmbedding;
+
         try {
             storedEmbedding = faceRecognitionService.decryptEmbedding(
                 registeredFace.faceEmbedding,
                 ENCRYPTION_KEY
             );
+            console.log('✅ Embedding decrypted successfully for comparison');
         } catch (err) {
+            console.error('❌ Failed to decrypt stored embedding:', err);
             return res.status(500).json({
                 success: false,
                 message: 'Failed to verify face - decryption error'
             });
         }
 
-        if (!Array.isArray(storedEmbedding) || storedEmbedding.length !== 128) {
+        // Ensure decrypted is an array
+        if (!Array.isArray(storedEmbedding)) {
+            console.error('❌ Decrypted embedding is not an array:', typeof storedEmbedding);
             return res.status(500).json({
                 success: false,
                 message: 'Invalid stored embedding format'
             });
         }
 
-        const isValidStoredEmbedding = storedEmbedding.every(val => typeof val === 'number' && !isNaN(val));
-        if (!isValidStoredEmbedding) {
+        // Validate decrypted embedding is properly formed
+        if (storedEmbedding.length !== 128) {
+            console.error('❌ Decrypted embedding has wrong dimension:', storedEmbedding.length);
+            return res.status(500).json({
+                success: false,
+                message: 'Invalid stored embedding dimensions'
+            });
+        }
+
+        const isValidDecryptedEmbedding = storedEmbedding.every(val => typeof val === 'number' && !isNaN(val));
+        if (!isValidDecryptedEmbedding) {
+            console.error('❌ Decrypted embedding contains invalid values');
             return res.status(500).json({
                 success: false,
                 message: 'Invalid stored embedding values'
             });
         }
 
-        const distance = euclideanDistance(faceEmbedding, storedEmbedding);
+        const distance = euclideanDistance(
+            faceEmbedding,
+            storedEmbedding
+        );
+
+        console.log("Goted Distance :- ", distance);
+
+        console.log('\n' + '='.repeat(80));
+        console.log('🔍 CRITICAL: FACE MATCHING VALIDATION');
+        console.log('='.repeat(80));
+        console.log('Employee ID:', employeeId);
+        console.log('Tenant ID:', tenantId);
+        console.log('');
+        console.log('INCOMING EMBEDDING:');
+        // console.log('  - Length:', faceEmbedding.length);
+        // console.log('  - First 10 values:', faceEmbedding.slice(0, 10).map(v => parseFloat(v.toFixed(6))));
+        // console.log('  - Sum:', faceEmbedding.reduce((a, b) => a + b, 0).toFixed(4));
+        // console.log('  - Mean:', (faceEmbedding.reduce((a, b) => a + b, 0) / faceEmbedding.length).toFixed(4));
+        // console.log('');
+        console.log('STORED EMBEDDING:');
+        // console.log('  - Length:', storedEmbedding.length);
+        // console.log('  - First 10 values:', storedEmbedding.slice(0, 10).map(v => parseFloat(v.toFixed(6))));
+        // console.log('  - Sum:', storedEmbedding.reduce((a, b) => a + b, 0).toFixed(4));
+        // console.log('  - Mean:', (storedEmbedding.reduce((a, b) => a + b, 0) / storedEmbedding.length).toFixed(4));
+        // console.log('');
+        console.log('DISTANCE SCORE:');
+        console.log('  - Euclidean Distance:', distance);
+        console.log('  - Distance (formatted):', distance.toFixed(6));
+        console.log('  - Is Valid Number?:', !isNaN(distance) && isFinite(distance));
+        console.log('');
+        console.log('THRESHOLD CHECK:');
+        console.log('  - Maximum Distance Threshold:', FACE_MATCH_THRESHOLD);
+        console.log('  - Distance <= Threshold?:', distance <= FACE_MATCH_THRESHOLD);
+        console.log('  - Difference from Threshold:', (FACE_MATCH_THRESHOLD - distance).toFixed(6));
+        console.log('='.repeat(80) + '\n');
+
+        // CRITICAL CHECK 1: Distance must be a valid number
         if (!isFinite(distance)) {
+            console.log('❌ CRITICAL REJECTION - Distance is not a valid number:', distance);
             return res.status(500).json({
                 success: false,
-                message: 'Face comparison failed - invalid distance calculation'
+                message: 'Face comparison failed - invalid distance calculation',
+                status: 'REJECTED'
             });
         }
 
+        // CRITICAL CHECK 2: Distance must be BELOW OR EQUAL threshold to match
         if (distance > FACE_MATCH_THRESHOLD) {
+            console.log('❌ FACE REJECTED - DISTANCE TOO HIGH');
+            console.log('   Incoming face does NOT match registered face');
+            console.log(`   Distance: ${distance.toFixed(6)} > Threshold: ${FACE_MATCH_THRESHOLD}`);
             return res.status(403).json({
                 success: false,
-                message: 'Face verification failed. Face mismatch.',
+                message: 'Face verification FAILED. Face mismatch.',
                 details: `Face does not match registered template (Score: ${distance.toFixed(3)})`,
                 debug: {
                     distance: Number(distance.toFixed(6)),
@@ -2360,23 +2418,42 @@ exports.verifyFaceAttendance = async (req, res) => {
             });
         }
 
+        console.log(`✅ FACE APPROVED - Distance: ${distance.toFixed(6)} is acceptable`);
+
+        console.log(tenantId);
+        // ---------- EMPLOYEE ----------
         const employee = await Employee.findById(employeeId).lean();
+
+        // Use the master Tenant model imported at the top of the file
+        // Use findOne({ tenant: tenantId }) because tenantId is a field, not the document's _id
+        const attendanceSettings = await AttendanceSettings.findOne({ tenant: tenantId }).lean();
+
         if (!employee) {
             return res.status(404).json({ success: false, message: 'Employee not found' });
         }
 
-        let attendanceSettings = await AttendanceSettings.findOne({ tenant: tenantId }).lean();
-        if (!attendanceSettings) {
-            attendanceSettings = await new AttendanceSettings({ tenant: tenantId }).save();
-            attendanceSettings = attendanceSettings.toObject();
-        }
+        // ---------- LOCATION ACCURACY ----------
+        // Default: 150m (increased from 100m for better real-world GPS performance)
+        // Grace margin: 20% tolerance for GPS fluctuations
+
+        console.log("attendanceSettings ", attendanceSettings)
 
         const baseAllowedAccuracy = attendanceSettings?.allowedAccuracy || 100;
-        const effectiveAllowedAccuracy = baseAllowedAccuracy * 1.2;
+        const graceMargin = 1.2; // 20% tolerance
+        const effectiveAllowedAccuracy = baseAllowedAccuracy * graceMargin;
+
+        console.log('📍 Location Accuracy Check:', {
+            received: location.accuracy,
+            baseAllowed: baseAllowedAccuracy,
+            effectiveAllowed: effectiveAllowedAccuracy,
+            withinLimit: location.accuracy <= effectiveAllowedAccuracy
+        });
+
         if (location.accuracy && location.accuracy > effectiveAllowedAccuracy) {
+            console.error(`❌ Location accuracy too low: ${location.accuracy}m > ${effectiveAllowedAccuracy}m (base: ${baseAllowedAccuracy}m + 20% grace)`);
             return res.status(400).json({
                 success: false,
-                message: `Location accuracy too low. Required: ${baseAllowedAccuracy}m (with 20% tolerance: ${Math.round(effectiveAllowedAccuracy)}m), Got: ${Math.round(location.accuracy)}m.`,
+                message: `Location accuracy too low. Required: ${baseAllowedAccuracy}m (with 20% tolerance: ${effectiveAllowedAccuracy}m), Got: ${Math.round(location.accuracy)}m. Please move to an area with better GPS signal.`,
                 details: {
                     receivedAccuracy: Math.round(location.accuracy),
                     requiredAccuracy: baseAllowedAccuracy,
@@ -2386,52 +2463,11 @@ exports.verifyFaceAttendance = async (req, res) => {
             });
         }
 
-        if (
-            attendanceSettings.locationRestrictionMode === 'geo' ||
-            attendanceSettings.locationRestrictionMode === 'both' ||
-            attendanceSettings.geoFencingEnabled
-        ) {
-            const geoValidation = validateGeoFencing(location.lat, location.lng, attendanceSettings);
-            if (!geoValidation.valid) {
-                await new AuditLog({
-                    tenant: tenantId,
-                    entity: 'Attendance',
-                    entityId: employeeId,
-                    action: 'FACE_PUNCH_GEO_VIOLATION',
-                    performedBy: employeeId,
-                    changes: { before: null, after: { location, error: geoValidation.error } },
-                    meta: { employeeId, source: 'face' }
-                }).save();
+        console.log('✅ Location accuracy acceptable:', location.accuracy, 'm');
 
-                return res.status(403).json({
-                    success: false,
-                    message: geoValidation.error,
-                    code: 'GEO_FENCING_VIOLATION'
-                });
-            }
-        }
-
-        if (attendanceSettings.locationRestrictionMode === 'ip' || attendanceSettings.locationRestrictionMode === 'both') {
-            const clientIP = getClientIP(req);
-            const ipValidation = validateIPAddress(clientIP, attendanceSettings);
-            if (!ipValidation.valid) {
-                return res.status(403).json({
-                    success: false,
-                    message: ipValidation.error,
-                    code: 'IP_RESTRICTION_VIOLATION'
-                });
-            }
-        }
-
-        let today;
-        if (req.body.dateStr) {
-            const [y, m, d] = req.body.dateStr.split('-').map(Number);
-            today = new Date(y, m - 1, d);
-            today.setHours(0, 0, 0, 0);
-        } else {
-            today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            today.setHours(0, 0, 0, 0);
-        }
+        // ---------- ATTENDANCE ----------
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
         let attendance = await Attendance.findOne({
             employee: employeeId,
@@ -2439,216 +2475,44 @@ exports.verifyFaceAttendance = async (req, res) => {
             date: today
         });
 
-        let nextAction = requestedAction;
-        if (requestedAction === 'AUTO') {
-            const lastLog = attendance?.logs?.[attendance.logs.length - 1];
-            nextAction = !attendance || !lastLog || lastLog.type === 'OUT' ? 'IN' : 'OUT';
-        }
-
-        if (!attendance && nextAction === 'OUT') {
-            return res.status(400).json({
-                success: false,
-                message: 'Cannot check out before check in.'
-            });
-        }
-
-        if (nextAction === 'IN') {
-            const dayOfWeek = today.getDay();
-            const weeklyOffDays = attendanceSettings.weeklyOffDays || [0];
-            if (!attendance && weeklyOffDays.includes(dayOfWeek)) {
-                const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                return res.status(403).json({
-                    success: false,
-                    message: `Cannot check in on ${dayNames[dayOfWeek]}. It is configured as a weekly off day.`,
-                    code: 'WEEKLY_OFF_VIOLATION'
-                });
-            }
+        if (attendance?.checkIn) {
+            return res.status(400).json({ success: false, message: 'Attendance already marked' });
         }
 
         if (!attendance) {
-            const [h, m] = (attendanceSettings.shiftStartTime || '09:00').split(':').map(Number);
-            const shiftStart = new Date(today);
-            shiftStart.setHours(h, m, 0, 0);
-            const lateThreshold = new Date(
-                shiftStart.getTime() + (attendanceSettings.lateMarkThresholdMinutes || attendanceSettings.graceTimeMinutes || 0) * 60000
-            );
-            const isLate = now > lateThreshold;
-
             attendance = new Attendance({
                 tenant: tenantId,
                 employee: employeeId,
                 date: today,
-                checkIn: now,
                 status: 'present',
-                isLate,
-                logs: [{
-                    time: now,
-                    type: 'IN',
-                    location: `${location.lat},${location.lng}`,
-                    device: 'Face Recognition'
-                }]
-            });
-
-            await attendance.save();
-            await FaceData.updateOne(
-                { _id: registeredFace._id },
-                { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date() } }
-            );
-
-            return res.json({
-                success: true,
-                message: 'Check in successful',
-                data: {
-                    action: 'IN',
-                    attendanceId: attendance._id,
-                    checkInTime: attendance.checkIn,
-                    checkOutTime: attendance.checkOut || null,
-                    distance: Number(distance.toFixed(4)),
-                    status: {
-                        status: attendance.status,
-                        policyViolations: []
-                    }
-                }
+                logs: []
             });
         }
 
-        const lastLog = attendance.logs?.[attendance.logs.length - 1];
-        if (nextAction === 'IN') {
-            if (lastLog && lastLog.type === 'IN') {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Already checked in. Please check out first.'
-                });
-            }
-        } else {
-            if (!lastLog || lastLog.type !== 'IN') {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Cannot check out without an active check in.'
-                });
-            }
-        }
-
-        if (attendanceSettings.punchMode === 'single') {
-            if (nextAction === 'IN' && attendance.checkIn) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Single punch mode: Only one check in allowed per day.'
-                });
-            }
-            if (nextAction === 'OUT' && attendance.checkOut) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Single punch mode: You have already completed your shift for today.'
-                });
-            }
-        }
-
-        if (attendanceSettings.punchMode === 'multiple') {
-            const currentPunchCount = attendance.logs?.length || 0;
-            if (currentPunchCount >= (attendanceSettings.maxPunchesPerDay || 10) && attendanceSettings.maxPunchAction === 'block') {
-                return res.status(400).json({
-                    success: false,
-                    message: `Maximum punch limit reached (${attendanceSettings.maxPunchesPerDay}). Contact HR for manual override.`,
-                    code: 'MAX_PUNCH_LIMIT_EXCEEDED'
-                });
-            }
-        }
-
+        attendance.checkIn = new Date();
         attendance.logs.push({
-            time: now,
-            type: nextAction,
+            time: new Date(),
+            type: 'IN',
             location: `${location.lat},${location.lng}`,
-            device: 'Face Recognition'
+            device: 'Face Recognition',
+            ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress
         });
-
-        if (nextAction === 'IN') {
-            if (!attendance.checkIn) attendance.checkIn = now;
-        } else {
-            attendance.checkOut = now;
-            const [eH, eM] = (attendanceSettings.shiftEndTime || '18:00').split(':').map(Number);
-            const shiftEnd = new Date(today);
-            shiftEnd.setHours(eH, eM, 0, 0);
-            attendance.isEarlyOut = now < shiftEnd;
-        }
-
-        attendance.workingHours = calculateWorkingHours(attendance.logs);
-        if (attendance.workingHours > 0) {
-            attendance.overtimeHours = calculateOvertimeHours(
-                attendance.workingHours,
-                attendanceSettings.shiftStartTime || "09:00",
-                attendanceSettings.shiftEndTime || "17:00",
-                attendanceSettings.overtimeAfterShiftHours
-            );
-        }
-
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const [accumulatedLateCount, accumulatedEarlyExitCount] = await Promise.all([
-            Attendance.countDocuments({
-                employee: employeeId,
-                tenant: tenantId,
-                date: { $gte: startOfMonth, $lt: today },
-                isLate: true
-            }),
-            Attendance.countDocuments({
-                employee: employeeId,
-                tenant: tenantId,
-                date: { $gte: startOfMonth, $lt: today },
-                isEarlyOut: true
-            })
-        ]);
-
-        const rulesResult = applyAttendanceRules({
-            date: today,
-            employeeId,
-            logs: attendance.logs,
-            workingHours: attendance.workingHours,
-            baseStatus: attendance.status,
-            settings: attendanceSettings,
-            accumulatedLateCount,
-            accumulatedEarlyExitCount
-        });
-
-        attendance.status = rulesResult.status;
-        attendance.isLate = rulesResult.isLate;
-        attendance.isEarlyOut = rulesResult.isEarlyOut;
-        attendance.workingHours = rulesResult.workingHours;
-        attendance.lateMinutes = rulesResult.lateMinutes;
-        attendance.earlyExitMinutes = rulesResult.earlyExitMinutes;
-        attendance.isWFH = !!rulesResult.isWFH;
-        attendance.isOnDuty = !!rulesResult.isOnDuty;
-        attendance.isCompOffDay = !!rulesResult.isCompOffDay;
-        attendance.isNightShift = !!rulesResult.isNightShift;
-        attendance.lopDays = typeof rulesResult.lopDays === 'number' ? rulesResult.lopDays : attendance.lopDays;
-        attendance.ruleEngineVersion = rulesResult.engineVersion || 1;
-        attendance.ruleEngineMeta = rulesResult.meta || attendance.ruleEngineMeta;
 
         await attendance.save();
+
+        // ---------- UPDATE FACE USAGE ----------
         await FaceData.updateOne(
             { _id: registeredFace._id },
             { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date() } }
         );
 
-        return res.json({
+        // ---------- SUCCESS ----------
+        res.json({
             success: true,
-            message: nextAction === 'OUT' ? 'Check out successful' : 'Check in successful',
-            data: {
-                action: nextAction,
-                attendanceId: attendance._id,
-                checkInTime: attendance.checkIn,
-                checkOutTime: attendance.checkOut || null,
-                workingHours: attendance.workingHours || 0,
-                distance: Number(distance.toFixed(4)),
-                status: {
-                    status: attendance.status,
-                    isLate: attendance.isLate,
-                    isEarlyOut: attendance.isEarlyOut,
-                    lateMinutes: attendance.lateMinutes,
-                    earlyExitMinutes: attendance.earlyExitMinutes,
-                    policyViolations: rulesResult.policyViolations || []
-                }
-            }
+            message: 'Attendance marked successfully',
+            data: { attendanceId: attendance._id, checkInTime: attendance.checkIn, distance: Number(distance.toFixed(4)) }
         });
+
     } catch (err) {
         console.error('Face attendance error:', err);
         res.status(500).json({ success: false, message: 'Internal server error' });

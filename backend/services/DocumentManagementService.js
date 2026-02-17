@@ -284,7 +284,7 @@ class DocumentManagementService {
             }
 
             // Update revocation record
-            const updatedRevocation = await LetterRevocation.findByIdAndUpdate(
+            await LetterRevocation.findByIdAndUpdate(
                 revocationId,
                 {
                     status: 'reinstated',
@@ -292,8 +292,7 @@ class DocumentManagementService {
                     reinstatedByRole: reinstateData.reinstatedByRole,
                     reinstatedAt: new Date(),
                     reinstatedReason: reinstateData.reinstatedReason
-                },
-                { new: true }
+                }
             );
 
             // Restore letter status
@@ -307,7 +306,7 @@ class DocumentManagementService {
             );
 
             console.log(`✅ [REINSTATE] Letter reinstated: ${revocation.generatedLetterId}`);
-            return updatedRevocation;
+            return revocation;
         } catch (error) {
             console.error(`❌ [REINSTATE] Error reinstating letter:`, error.message);
             throw error;
@@ -367,7 +366,9 @@ class DocumentManagementService {
             const { GeneratedLetter, LetterRevocation } = this.getModels();
 
             const letter = await GeneratedLetter.findById(documentId);
-            if (!letter) return { status: 'not_found', isRevoked: false };
+            if (!letter) {
+                return { status: 'not_found' };
+            }
 
             const revocation = await LetterRevocation.findOne({
                 generatedLetterId: documentId,
@@ -377,16 +378,12 @@ class DocumentManagementService {
             });
 
             return {
-                documentId: letter._id,
-                status: revocation ? 'revoked' : letter.status,
                 letterStatus: letter.status,
                 isRevoked: !!revocation,
-                revocationId: revocation?._id || null,
                 revocationReason: revocation?.reason || null,
                 revocationDetails: revocation?.reasonDetails || null,
                 revokedAt: revocation?.revokedAt || null,
-                revokedBy: revocation?.revokedBy || null,
-                canBeReinstate: !!revocation
+                revokedBy: revocation?.revokedBy || null
             };
         } catch (error) {
             console.error(`❌ [STATUS] Error checking document status:`, error.message);

@@ -99,9 +99,9 @@ export default function IssueLetterWizard() {
                 employeeId: selectedEmployee._id,
                 customData
             };
-
+            
             console.log('📤 Sending payload:', payload);
-
+            
             const res = await api.post('/letters/generate-generic', payload);
 
             showToast('success', 'Success', res.data.message);
@@ -116,7 +116,7 @@ export default function IssueLetterWizard() {
 
     const renderStep1 = () => (
         <div className="space-y-6 animate-in slide-in-from-right duration-300">
-            <div className="bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-100 dark:border-slate-800 p-8 shadow-sm">
                 <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-6 flex items-center gap-2">
                     <User className="text-blue-500" /> 1. Select Recipient
                 </h3>
@@ -161,7 +161,7 @@ export default function IssueLetterWizard() {
 
     const renderStep2 = () => (
         <div className="space-y-6 animate-in slide-in-from-right duration-300">
-            <div className="bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-100 dark:border-slate-800 p-8 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter flex items-center gap-2">
                         <FileText className="text-blue-500" /> 2. Select Letter Template
@@ -195,7 +195,7 @@ export default function IssueLetterWizard() {
 
     const renderStep3 = () => (
         <div className="space-y-6 animate-in slide-in-from-right duration-300">
-            <div className="bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-100 dark:border-slate-800 p-8 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter flex items-center gap-2">
                         <CheckCircle className="text-blue-500" /> 3. Review & Customize
@@ -271,7 +271,7 @@ export default function IssueLetterWizard() {
     );
 
     return (
-        <div className="w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
             <div className="mb-8">
                 <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Letter Wizard</h1>
                 <div className="flex items-center gap-2 text-slate-400 font-bold text-xs mt-2">

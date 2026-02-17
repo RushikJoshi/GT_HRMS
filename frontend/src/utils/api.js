@@ -14,9 +14,8 @@ let rawBaseUrl = import.meta.env.VITE_API_URL;
 // Safety Fallbacks
 if (!rawBaseUrl) {
   rawBaseUrl = import.meta.env.DEV
-    ? 'http://localhost:5000/api' :
-    'https://hrms.gitakshmi.com/api';
-    // : 'https://hrms.dev.gitakshmi.com/api';
+    ? 'http://localhost:5000/api'
+    : 'https://hrms.dev.gitakshmi.com/api';
 }
 
 // Ensure consistency: Remove trailing slash
@@ -49,31 +48,6 @@ api.interceptors.request.use((config) => {
     token = localStorage.getItem('token');
   }
 
-  // Dev convenience: fall back to env-provided HR token (kept out of builds)
-  try {
-    const isDev = Boolean(import.meta.env && import.meta.env.DEV);
-    const devToken = import.meta.env && import.meta.env.VITE_DEV_HR_TOKEN;
-    if (!token && isDev && devToken) {
-      let isExpired = false;
-      try {
-        const payload = jwtDecode(devToken);
-        if (payload?.exp && payload.exp * 1000 < Date.now()) isExpired = true;
-      } catch (e) {
-        // if decode fails, still try using it (some dev tokens may not be JWTs)
-      }
-
-      if (isExpired) {
-        console.warn('VITE_DEV_HR_TOKEN is expired. Please refresh it in frontend/.env');
-      } else {
-        token = devToken;
-        // Persist so subsequent requests + AuthContext see it
-        try { sessionStorage.setItem('token', devToken); } catch (e) { /* ignore */ }
-      }
-    }
-  } catch (e) {
-    // ignore
-  }
-
   if (token) {
     // Attach JWT token for authentication
     config.headers.Authorization = `Bearer ${token}`;
@@ -88,20 +62,6 @@ api.interceptors.request.use((config) => {
       // Log warning but don't fail - some tokens might not have tenantId (e.g., super admin)
       console.warn('Failed to decode token for tenantId:', error.message);
     }
-  }
-
-  // Fallback: if tenantId was stored separately, attach it even if token decode failed.
-  // This helps tenant routing when middleware runs before auth on the backend.
-  try {
-    const existing = config?.headers?.['X-Tenant-ID'] || config?.headers?.['x-tenant-id'];
-    if (!existing) {
-      const storedTenantId = sessionStorage.getItem('tenantId') || localStorage.getItem('tenantId');
-      if (storedTenantId) {
-        config.headers['X-Tenant-ID'] = storedTenantId;
-      }
-    }
-  } catch (e) {
-    // ignore
   }
   // If request body is FormData, do not set Content-Type here so the browser can add the correct boundary
   try {
@@ -146,6 +106,8 @@ export function parseAxiosError(error) {
   return { type: 'server', message: backendMessage || 'Server error. Try again later.' };
 }
 
+let isRedirecting = false;
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -153,11 +115,37 @@ api.interceptors.response.use(
     try {
       error.hrms = parseAxiosError(error);
     } catch (e) {
-      // ignore parsing issues
       error.hrms = { type: 'unknown', message: 'Unknown error' };
     }
 
-    // Emit a user-facing toast for network errors (only once)
+    // Handle 401 Unauthorized (Expired or Invalid Token)
+    if (error.response && error.response.status === 401) {
+      if (!isRedirecting) {
+        isRedirecting = true;
+
+        // 1. Clear all security tokens
+        removeToken();
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('tenantId');
+        localStorage.removeItem('token');
+
+        // 2. Dispatch global event for UI (Context/App.jsx) to show toast
+        window.dispatchEvent(new CustomEvent('auth:expired', {
+          detail: { message: 'Session expired. Please login again.' }
+        }));
+
+        console.warn('🔐 Auth Conflict: 401 detected. Redirecting to login...');
+
+        // 3. Short delay to allow Toast/Cleanup, then hard redirect
+        setTimeout(() => {
+          isRedirecting = false;
+          window.location.href = '/login';
+        }, 1500);
+      }
+      return Promise.reject(error);
+    }
+
+    // Handle Network Errors
     if (error.hrms?.type === 'network') {
       if (!window.__HRMS_API_ERROR) {
         window.__HRMS_API_ERROR = error.hrms.message;
@@ -165,18 +153,6 @@ api.interceptors.response.use(
           window.showToast('error', 'Network Error', window.__HRMS_API_ERROR);
         }
       }
-    }
-
-    if (error.response && error.response.status === 401) {
-      // Token invalid/expired - remove it
-      removeToken();
-      // Remove Authorization header so next request won't have it
-      delete api.defaults.headers.common["Authorization"];
-
-      // Emit global event so AuthContext can handle logout if needed
-      window.dispatchEvent(new Event('auth:unauthorized'));
-
-      console.log('401 Unauthorized - token cleared. ProtectedRoute will redirect.');
     }
 
     return Promise.reject(error);

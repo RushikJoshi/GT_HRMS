@@ -25,5 +25,13 @@ router.post('/apply-job', publicController.applyJob);
 router.get('/career-customization/:tenantId', publicController.getCareerCustomization);
 
 router.post('/resume/parse', publicController.parseResumePublic);
+router.get('/test-ai', publicController.testGeminiAI);
+
+const offerController = require('../controllers/offer.controller');
+
+// Offer Management (Public)
+router.get('/offer/:token', offerController.getPublicOffer);
+router.post('/offer/:token/accept', offerController.acceptOffer);
+router.post('/offer/:token/reject', offerController.rejectOffer);
 
 module.exports = router;

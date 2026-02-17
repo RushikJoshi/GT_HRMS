@@ -22,7 +22,6 @@ import InternalJobs from './InternalJobs';
 import MyApplications from './MyApplications';
 import FaceAttendance from './FaceAttendance';
 import WorkingHoursCard from '../../components/WorkingHoursCard';
-import GlobalModal from '../../components/GlobalModal';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -196,34 +195,61 @@ export default function EmployeeDashboard() {
 
   // State for policy violations modal
   const [violationModal, setViolationModal] = useState({ show: false, violations: [] });
-  const [showFaceModal, setShowFaceModal] = useState(false);
-  const [faceAction, setFaceAction] = useState('IN');
 
-  // Open face verification modal instead of directly punching
   const handleClockInOut = async () => {
-    // Determine action based on current state
-    const action = isCheckedIn && !isCheckedOut ? 'OUT' : 'IN';
-    setFaceAction(action);
-    setShowFaceModal(true);
-  };
-
-  // Callback when FaceAttendance reports success
-  const onFaceAttendanceSuccess = async (resData) => {
-    // close modal
-    setShowFaceModal(false);
-    // Refresh dashboard
-    await fetchDashboardData();
-
-    // Show success toast
     try {
-      const msg = resData?.message || 'Attendance recorded successfully';
-      showToast('success', 'Success', msg);
+      setClocking(true);
+      setClockError(null);
+
+      // Helper to get location
+      const getLocation = () => {
+        return new Promise((resolve) => {
+          if (!navigator.geolocation) {
+            resolve(null);
+          } else {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                resolve({
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude
+                });
+              },
+              (error) => {
+                console.warn("Location access denied or failed", error);
+                // Don't block, just resolve null (Remote)
+                resolve(null);
+              },
+              { timeout: 8000 }
+            );
+          }
+        });
+      };
+
+      const locationData = await getLocation();
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+      const payload = locationData
+        ? { ...locationData, location: 'Office/Remote', device: 'Web', dateStr }
+        : { location: 'Remote', device: 'Web', dateStr };
+
+      // Use unified punch endpoint
+      const res = await api.post('/attendance/punch', payload);
+      showToast('success', 'Success', res.data?.message || 'Attendance Updated');
 
       // Check for policy violations
-      const violations = resData?.data?.status?.policyViolations || resData?.policy?.violations || [];
-      if (violations.length > 0) setViolationModal({ show: true, violations });
-    } catch (e) {
-      console.warn('onFaceAttendanceSuccess handling failed', e);
+      const violations = res.data?.policy?.violations || [];
+      if (violations.length > 0) {
+        setViolationModal({ show: true, violations });
+      }
+
+      await fetchDashboardData();
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || "Failed to punch in/out. Please try again.";
+      setClockError(errorMsg);
+      showToast('error', 'Error', errorMsg);
+    } finally {
+      setClocking(false);
     }
   };
 
@@ -356,34 +382,6 @@ export default function EmployeeDashboard() {
                 error={clockError}
                 isFinalCheckOut={isFinalCheckOut}
               />
-
-              {/* Face Attendance Modal (overlay) */}
-              {/* {showFaceModal && (
-                <div className="fixed inset-0 z-[99999] flex items-center max-w-6xl justify-center ">
-                  <div className="absolute inset-0 bg-black/60" onClick={() => setShowFaceModal(false)} />
-                  <div className="relative w-full max-w-6xl max-h-[90vh] overflow-auto z-70 justify-start p-6 ml-25 md:ml-0 lg:ml-0">
-                    <div className="bg-transparent p-0">
-                      <FaceAttendance
-                        onSuccess={onFaceAttendanceSuccess}
-                        onClose={() => setShowFaceModal(false)}
-                        actionType={faceAction}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )} */}
-
-              <GlobalModal
-                isOpen={showFaceModal}
-                onClose={() => setShowFaceModal(false)}
-                maxWidth="max-w-6xl"
-              >
-                <FaceAttendance
-                  onSuccess={onFaceAttendanceSuccess}
-                  onClose={() => setShowFaceModal(false)}
-                  actionType={faceAction}
-                />
-              </GlobalModal>
 
               {/* Policy Framework Console (Moved for balance) */}
               <div className="bg-slate-900 border border-slate-800 text-white p-6 rounded-3xl shadow-2xl overflow-hidden relative group">

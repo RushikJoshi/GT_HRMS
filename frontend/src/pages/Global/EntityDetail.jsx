@@ -63,69 +63,52 @@ export default function EntityDetail() {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-4 md:p-8">
-            <div className="max-w-[1600px] mx-auto space-y-8">
-                {/* 1. PREMIUM HEADER BANNER */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-emerald-600 p-10 rounded-3xl shadow-sm relative overflow-hidden mb-8">
-                    <div className="relative z-10 flex items-center gap-6">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className="w-12 h-12 rounded-2xl flex items-center justify-center bg-white/20 backdrop-blur-md text-white hover:bg-white/30 transition-all border border-white/20 shadow-lg group"
-                        >
-                            <ChevronLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
-                        </button>
-                        <div>
-                            <h1 className="text-4xl font-black text-white tracking-tight capitalize mb-1">
-                                {entityType} Details
-                            </h1>
-                            <p className="text-emerald-100 font-bold uppercase tracking-[0.3em] text-[10px]">
-                                ID: {entityId}
-                            </p>
-                        </div>
+            <div className="max-w-5xl mx-auto space-y-6">
+                {/* Header */}
+                <div className="flex items-center gap-4 mb-2">
+                    <button onClick={() => navigate(-1)} className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                        <ChevronLeft className="w-5 h-5 text-slate-600" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white capitalize">
+                            {entityType} Details
+                        </h1>
+                        <p className="text-sm text-slate-500">ID: {entityId}</p>
                     </div>
-                    {/* Decorative BG element */}
-                    <div className="absolute top-0 right-0 w-64 h-full bg-white/10 blur-3xl rounded-full pointer-events-none -mr-16 -mt-10"></div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Details Panel */}
                     <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border-2 border-blue-50 shadow-sm transition-all hover:shadow-md relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50/50 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-blue-100 transition-all duration-700"></div>
-
-                            <h3 className="text-xl font-black text-slate-900 dark:text-white mb-8 flex items-center gap-3 relative z-10">
-                                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                                    <Info size={20} />
-                                </div>
+                        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+                                <Info className="w-5 h-5 text-blue-500" />
                                 Information
                             </h3>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {entity.employee && (
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400">
-                                            <User size={24} />
-                                        </div>
+                                    <div className="flex items-start gap-3">
+                                        <User className="w-5 h-5 text-slate-400 mt-1" />
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee</label>
-                                            <div className="text-lg font-black text-slate-900 dark:text-slate-100 mt-0.5">
+                                            <label className="text-xs font-bold text-slate-400 uppercase text-[10px] tracking-wider">Employee</label>
+                                            <div className="text-slate-800 dark:text-slate-200 font-black pt-0.5">
                                                 {entity.employee.firstName} {entity.employee.lastName}
                                             </div>
-                                            <div className="text-xs text-slate-500 font-bold">{entity.employee.email}</div>
+                                            <div className="text-xs text-slate-500 font-medium">{entity.employee.email}</div>
                                         </div>
                                     </div>
                                 )}
 
                                 {entity.startDate && (
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400">
-                                            <Calendar size={24} />
-                                        </div>
+                                    <div className="flex items-start gap-3">
+                                        <Calendar className="w-5 h-5 text-slate-400 mt-1" />
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Event Date</label>
-                                            <div className="text-lg font-black text-slate-900 dark:text-slate-100 mt-0.5">
+                                            <label className="text-xs font-bold text-slate-400 uppercase text-[10px] tracking-wider">Event Date</label>
+                                            <div className="text-slate-800 dark:text-slate-200 font-black pt-0.5">
                                                 {formatDateDDMMYYYY(entity.startDate)}
                                             </div>
-                                            <div className="text-xs text-slate-500 font-bold">Correction applied for this day</div>
+                                            <div className="text-xs text-slate-500 font-medium">Correction applied for this day</div>
                                         </div>
                                     </div>
                                 )}
@@ -133,58 +116,55 @@ export default function EntityDetail() {
                                 {/* Regularization Specific Fields */}
                                 {entityType === 'Regularization' && (
                                     <>
-                                        <div className="flex items-start gap-4">
-                                            <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl">
-                                                <Info size={20} className="text-slate-400" />
+                                        <div className="flex items-start gap-3">
+                                            <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                                                <Info className="w-4 h-4 text-slate-400" />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Workflow Category</label>
-                                                <div className={`text-xs font-black uppercase tracking-[0.1em] mt-1.5 px-3 py-1 rounded-lg inline-block ${entity.category === 'Attendance' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                                                <label className="text-xs font-bold text-slate-400 uppercase text-[10px] tracking-wider">Workflow Category</label>
+                                                <div className={`text-xs font-black uppercase tracking-tight mt-1 ${entity.category === 'Attendance' ? 'text-indigo-600' : 'text-amber-600'}`}>
                                                     {entity.category} Correction
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-start gap-4">
-                                            <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl">
-                                                <AlertTriangle size={20} className="text-slate-400" />
+                                        <div className="flex items-start gap-3">
+                                            <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                                                <AlertTriangle className="w-4 h-4 text-slate-400" />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Exception Type</label>
-                                                <div className="text-slate-900 dark:text-slate-100 font-black text-sm mt-1.5 uppercase tracking-tight">
+                                                <label className="text-xs font-bold text-slate-400 uppercase text-[10px] tracking-wider">Exception Type</label>
+                                                <div className="text-slate-800 dark:text-slate-200 font-black text-xs mt-1 uppercase">
                                                     {entity.issueType}
                                                 </div>
                                             </div>
                                         </div>
 
                                         {entity.requestedData && (
-                                            <div className="md:col-span-2 p-8 bg-blue-50/30 dark:bg-blue-900/10 rounded-[2rem] border-2 border-dashed border-blue-100/50 dark:border-blue-900/20">
-                                                <h4 className="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
-                                                    Requested Correction Details
-                                                </h4>
-                                                <div className="grid grid-cols-2 gap-12">
+                                            <div className="md:col-span-2 p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-3xl border border-blue-100/50 dark:border-blue-900/20 shadow-inner">
+                                                <h4 className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-4">Requested Correction Details</h4>
+                                                <div className="grid grid-cols-2 gap-8">
                                                     {entity.category === 'Attendance' ? (
                                                         <>
-                                                            <div className="space-y-2">
-                                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modified Check In</label>
-                                                                <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                                            <div className="space-y-1">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Modified Check In</label>
+                                                                <div className="text-xl font-black text-slate-800 dark:text-white tracking-tighter">
                                                                     {entity.requestedData.checkIn ? new Date(entity.requestedData.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                                                                 </div>
                                                             </div>
-                                                            <div className="space-y-2">
-                                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modified Check Out</label>
-                                                                <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                                            <div className="space-y-1">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Modified Check Out</label>
+                                                                <div className="text-xl font-black text-slate-800 dark:text-white tracking-tighter">
                                                                     {entity.requestedData.checkOut ? new Date(entity.requestedData.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                                                                 </div>
                                                             </div>
                                                         </>
                                                     ) : (
-                                                        <div className="space-y-2">
-                                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Leave Type</label>
-                                                            <div className="text-2xl font-black text-blue-600 dark:text-blue-400 uppercase tracking-tighter">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Target Leave Type</label>
+                                                            <div className="text-xl font-black text-blue-600 dark:text-blue-400 uppercase tracking-tighter">
                                                                 {entity.requestedData.requestedLeaveType || 'N/A'}
                                                             </div>
-                                                            <div className="text-[11px] font-bold text-slate-400 italic">Changed from: {entity.requestedData.originalLeaveType || 'None'}</div>
+                                                            <div className="text-[10px] font-bold text-slate-400 italic">Changed from: {entity.requestedData.originalLeaveType || 'None'}</div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -193,20 +173,20 @@ export default function EntityDetail() {
                                     </>
                                 )}
 
-                                <div className="md:col-span-2 border-t border-slate-100 dark:border-slate-800 pt-8">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee Reason / Justification</label>
-                                    <div className="mt-4 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl text-slate-700 dark:text-slate-300 text-base font-bold leading-relaxed border border-slate-100 dark:border-slate-800 italic">
+                                <div className="md:col-span-2 border-t border-slate-100 dark:border-slate-700 pt-6">
+                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Employee Reason / Justification</label>
+                                    <div className="mt-3 p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl text-slate-700 dark:text-slate-300 text-sm font-bold leading-relaxed border border-slate-100 dark:border-slate-800 italic">
                                         "{entity.reason || entity.message || "No description provided."}"
                                     </div>
                                 </div>
 
                                 {entity.status && (
-                                    <div className="md:col-span-2 flex items-center justify-between mt-6 bg-white dark:bg-slate-800/50 p-6 rounded-3xl border-2 border-slate-50 dark:border-slate-800 shadow-sm">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-3 h-3 rounded-full ${entity.status === 'Approved' ? 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.6)]' : entity.status === 'Rejected' ? 'bg-red-500' : 'bg-amber-500 animate-pulse'}`}></div>
-                                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Current Status</label>
+                                    <div className="md:col-span-2 flex items-center justify-between mt-4 bg-white dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${entity.status === 'Approved' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : entity.status === 'Rejected' ? 'bg-red-500' : 'bg-amber-500 animate-pulse'}`}></div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Status</label>
                                         </div>
-                                        <span className={`px-6 py-2 rounded-xl text-[11px] font-black uppercase tracking-[0.1em] border shadow-sm ${entity.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-100' :
+                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${entity.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-100' :
                                             entity.status === 'Rejected' ? 'bg-red-50 text-red-700 border-red-100' :
                                                 'bg-amber-50 text-amber-600 border-amber-100'
                                             }`}>

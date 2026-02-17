@@ -47,7 +47,7 @@ export default function CandidateCard({
                 resumeUrl: candidate.resumeUrl, 
                 filename,
                 path,
-                fullRequestUrl: `http://localhost:5000/api${path}` || `https://hrms.gitakshmi.com/api${path}`
+                fullRequestUrl: `http://localhost:5000/api${path}`
             });
 
             // Use axios 'api' instance to fetch as blob (includes Auth headers)

@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../modules/socialMedia/controllers/socialMedia.controller');
 const auth = require('../middleware/auth.jwt');
-const checkModuleAccess = require('../middleware/moduleAccess.middleware');
 const upload = require('../modules/socialMedia/middleware/upload');
 
 // Custom authorization for social media - accepts company-level users
@@ -34,7 +33,6 @@ router.get('/:platform/callback', controller.handleOAuthCallback);
 
 // Protected routes - use custom authorization
 router.use(auth.authenticate);
-router.use(checkModuleAccess('socialMediaIntegration'));
 router.use(authorizeSocialMedia);
 
 // Image upload route

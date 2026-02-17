@@ -130,42 +130,6 @@ export default function RunPayroll() {
         }
     }
 
-    async function handleApprove(runId) {
-        if (!window.confirm("Are you sure you want to approve this payroll run? Once approved, payslips will be generated and finalizing the payroll will be locked.")) return;
-
-        setLoading(true);
-        setError('');
-        setSuccess('');
-        try {
-            await api.post(`/payroll/runs/${runId}/approve`);
-            setSuccess("Payroll run approved successfully!");
-            loadRuns();
-        } catch (err) {
-            console.error(err);
-            setError(err.response?.data?.message || err.response?.data?.error || "Failed to approve payroll");
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    async function handleMarkPaid(runId) {
-        if (!window.confirm("Mark this payroll as PAID? This will record the payment date and notify employees.")) return;
-
-        setLoading(true);
-        setError('');
-        setSuccess('');
-        try {
-            await api.post(`/payroll/runs/${runId}/mark-paid`);
-            setSuccess("Payroll marked as paid successfully!");
-            loadRuns();
-        } catch (err) {
-            console.error(err);
-            setError(err.response?.data?.message || err.response?.data?.error || "Failed to mark as paid");
-        } finally {
-            setLoading(false);
-        }
-    }
-
     const clearFilters = () => {
         setFilters({
             employeeType: [],
@@ -294,22 +258,12 @@ export default function RunPayroll() {
                                             <StatusBadge status={run.status} />
                                         </td>
                                         <td className="px-5 py-4 whitespace-nowrap text-slate-600 text-sm">
-                                            <div className="flex flex-col">
-                                                <span>
-                                                    <span className="font-bold text-slate-800">{run.processedEmployees}</span>
-                                                    <span className="mx-1 text-slate-300">/</span>
-                                                    <span className="text-xs text-slate-400">
-                                                        {run.isFiltered ? `${run.totalEmployees} (Match)` : run.totalEmployees}
-                                                        {run.totalTenantEmployees > 0 && ` of ${run.totalTenantEmployees}`}
-                                                    </span>
-                                                </span>
-                                                {run.failedEmployees > 0 && (
-                                                    <span className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-0.5">
-                                                        <AlertTriangle className="h-2.5 w-2.5" />
-                                                        {run.failedEmployees} Failed
-                                                    </span>
-                                                )}
-                                            </div>
+                                            <span className="font-bold text-slate-800">{run.processedEmployees}</span>
+                                            <span className="mx-1 text-slate-300">/</span>
+                                            <span className="text-xs text-slate-400">
+                                                {run.isFiltered ? `${run.totalEmployees} (Match)` : run.totalEmployees}
+                                                {run.totalTenantEmployees > 0 && ` of ${run.totalTenantEmployees}`}
+                                            </span>
                                         </td>
                                         <td className="px-5 py-4 whitespace-nowrap font-bold text-blue-700 text-sm">
                                             ₹{run.totalNetPay?.toLocaleString()}
@@ -338,15 +292,7 @@ export default function RunPayroll() {
                                                 </Tooltip>
                                             )}
                                             {run.status === 'APPROVED' && (
-                                                <button
-                                                    onClick={() => handleMarkPaid(run._id)}
-                                                    className="text-blue-600 hover:text-blue-800 font-bold px-3 py-1.5 rounded-lg hover:bg-blue-50 mr-2 text-xs transition-colors"
-                                                >
-                                                    Mark Paid
-                                                </button>
-                                            )}
-                                            {run.status === 'PAID' && (
-                                                <span className="text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider inline-block">Paid & Verified</span>
+                                                <span className="text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider inline-block">Ready to Pay</span>
                                             )}
                                         </td>
                                     </tr>

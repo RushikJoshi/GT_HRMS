@@ -17,17 +17,17 @@ class OAuthService {
                 redirectUri: process.env.LINKEDIN_REDIRECT_URI || `${process.env.BACKEND_URL}/api/social/linkedin/callback`
             },
             facebook: {
-                authUrl: 'https://www.facebook.com/v19.0/dialog/oauth',
-                tokenUrl: 'https://graph.facebook.com/v19.0/oauth/access_token',
+                authUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
+                tokenUrl: 'https://graph.facebook.com/v18.0/oauth/access_token',
                 scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management',
                 clientId: process.env.FACEBOOK_APP_ID,
                 clientSecret: process.env.FACEBOOK_APP_SECRET,
                 redirectUri: process.env.FACEBOOK_REDIRECT_URI || `${process.env.BACKEND_URL}/api/social/facebook/callback`
             },
             instagram: {
-                authUrl: 'https://www.facebook.com/v19.0/dialog/oauth',
-                tokenUrl: 'https://graph.facebook.com/v19.0/oauth/access_token',
-                scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish,instagram_manage_content',
+                authUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
+                tokenUrl: 'https://graph.facebook.com/v18.0/oauth/access_token',
+                scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish',
                 clientId: process.env.FACEBOOK_APP_ID, // Instagram uses Facebook OAuth
                 clientSecret: process.env.FACEBOOK_APP_SECRET,
                 redirectUri: process.env.INSTAGRAM_REDIRECT_URI || `${process.env.BACKEND_URL}/api/social/instagram/callback`

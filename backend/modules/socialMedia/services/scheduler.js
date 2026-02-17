@@ -64,37 +64,6 @@ const checkScheduledPosts = async () => {
                         const service = getService(account);
 
                         if (service) {
-                            // Instagram-specific validation before publishing
-                            if (account.platform === 'instagram') {
-                                // Validate images are still accessible
-                                const imagesToValidate = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
-
-                                if (imagesToValidate.length === 0) {
-                                    platformResponses.set(account.platform, {
-                                        success: false,
-                                        error: 'Instagram requires at least one image. Text-only posts are not supported.'
-                                    });
-                                    failCount++;
-                                    continue;
-                                }
-
-                                // Check if images are HTTPS and accessible
-                                let validationFailed = false;
-                                for (const imgUrl of imagesToValidate) {
-                                    if (!imgUrl.startsWith('https://')) {
-                                        platformResponses.set(account.platform, {
-                                            success: false,
-                                            error: `Instagram requires HTTPS URLs. Found: ${imgUrl.substring(0, 50)}...`
-                                        });
-                                        failCount++;
-                                        validationFailed = true;
-                                        break;
-                                    }
-                                }
-
-                                if (validationFailed) continue;
-                            }
-
                             const response = await service.createPost({
                                 content: post.content,
                                 imageUrl: post.imageUrl,

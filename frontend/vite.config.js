@@ -1,3 +1,4 @@
+/* eslint-env node */
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -7,14 +8,10 @@ export default defineConfig(({ mode }) => {
   const DEV_PORT = env.VITE_DEV_PORT ? Number(env.VITE_DEV_PORT) : 5173;
   // Backend port should match server.js (default 5000, or PORT env var)
   // Extract from VITE_API_URL if available, otherwise default to 5000
-  const BACKEND_URL = env.BACKEND_URL ||
-    (env.VITE_API_URL ? env.VITE_API_URL.replace('/api', '') : 'http://localhost:5000');
+
+
   const HMR_PROTOCOL = env.VITE_HMR_PROTOCOL || 'ws';
   const HMR_HOST = env.VITE_HMR_HOST;
-  const HMR_PORT = env.VITE_HMR_PORT ? Number(env.VITE_HMR_PORT) : DEV_PORT;
-
-  // Determine if we're in a network environment (Docker, remote access, etc.)
-  const isNetworkMode = env.VITE_NETWORK_MODE === 'true' || HMR_HOST;
 
   return {
     plugins: [react()],
@@ -26,21 +23,21 @@ export default defineConfig(({ mode }) => {
         protocol: HMR_PROTOCOL,
         // Only set host if explicitly configured, otherwise let Vite auto-detect
         ...(HMR_HOST && HMR_HOST !== 'localhost' ? { host: HMR_HOST } : {}),
-        port: HMR_PORT,
+        // port: HMR_PORT,
         // When host is true, client should connect to the same port
-        ...(isNetworkMode ? { clientPort: HMR_PORT } : {}),
+        // ...(isNetworkMode ? { clientPort: HMR_PORT } : {}),
       },
       watch: {
         usePolling: false,
       },
       proxy: {
         '/socket.io': {
-          target: 'http://localhost:5003',
+          target: 'http://127.0.0.1:5003',
           changeOrigin: true,
           ws: true,
         },
         '/api': {
-          target: 'http://localhost:5003',
+          target: 'http://127.0.0.1:5003',
           changeOrigin: true,
           secure: false,
           ws: true,

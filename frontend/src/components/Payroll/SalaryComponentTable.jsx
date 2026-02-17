@@ -8,7 +8,7 @@ export default function SalaryComponentTable({
     onDelete
 }) {
     return (
-        <div className="bg-white border border-slate-200 overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
             {/* Desktop Table View */}
             <div className="table-responsive mobile-card-hide">
                 <table className="w-full text-left text-sm">

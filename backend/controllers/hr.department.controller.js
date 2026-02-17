@@ -151,7 +151,7 @@ exports.create = async function (req, res) {
 exports.update = async function (req, res) {
   try {
     const tenantId = req.tenantId;
-    const { Department, Employee } = getModels(req);
+    const { Department } = getModels(req);
 
     const updatePayload = {
       name: req.body.name,
@@ -161,17 +161,6 @@ exports.update = async function (req, res) {
 
     if (req.body.code) updatePayload.code = req.body.code.trim().toUpperCase();
     if (req.body.status) updatePayload.status = req.body.status;
-    // Allow updating department head (used by employee creation flow when marking an employee as "Dep Head")
-    // `null` clears the head; omit field to keep existing.
-    if (req.body.head !== undefined) updatePayload.head = req.body.head || null;
-
-    // Validate head (must be an employee within this tenant) when provided
-    if (req.body.head) {
-      const headExists = await Employee.findOne({ _id: req.body.head, tenant: tenantId }).select('_id').lean();
-      if (!headExists) {
-        return res.status(400).json({ error: "Department head not found in this tenant" });
-      }
-    }
 
     // Check for duplicate code if updating
     if (req.body.code) {

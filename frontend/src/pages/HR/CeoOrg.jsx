@@ -142,7 +142,7 @@ export default function CeoOrg() {
                                 <div className="divide-y">
                                   {manager.employees.map((emp) => (
                                     <div key={emp._id} className="p-5 hover:bg-white transition flex items-center gap-4 border-l-4 border-l-slate-300">
-                                      <div className="w-10 h-10 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center font-bold flex-shrink-0">{`${(emp.firstName || '').slice(0, 1)}${(emp.lastName || '').slice(0, 1)}`.toUpperCase() || '?'}</div>
+                                      <div className="w-10 h-10 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center font-bold flex-shrink-0">{`${(emp.firstName || '').slice(0,1)}${(emp.lastName || '').slice(0,1)}`.toUpperCase() || '?'}</div>
                                       <div className="flex-grow">
                                         <p className="font-semibold text-slate-900">{emp.firstName} {emp.lastName}</p>
                                         <p className="text-sm text-slate-600">{emp.employeeId} • {emp.role || 'Employee'}</p>
