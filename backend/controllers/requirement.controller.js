@@ -1,56 +1,65 @@
 const RecruitmentService = require('../services/Recruitment.service');
 
+exports.saveDraft = async (req, res) => {
+    try {
+        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
+        const { step, data, draftId } = req.body;
+
+        if (!step) return res.status(400).json({ message: "Step number is required" });
+
+        const result = await RecruitmentService.saveDraft(tenantId, parseInt(step), data, req.user.id, draftId);
+        res.status(200).json({ success: true, draftId: result._id, draft: result });
+    } catch (error) {
+        console.error('[saveDraft ERROR]', error);
+        res.status(400).json({ message: error.message });
+    }
+};
+
+exports.publishJob = async (req, res) => {
+    try {
+        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
+        const { draftId } = req.body;
+
+        if (!draftId) return res.status(400).json({ message: "Draft ID is required to publish" });
+
+        const result = await RecruitmentService.publishJob(tenantId, draftId, req.user.id);
+        res.status(201).json({ success: true, message: "Job published successfully", job: result });
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+exports.getDraft = async (req, res) => {
+    try {
+        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
+        const { RequirementDraft } = await RecruitmentService.getModels(tenantId);
+        const draft = await RequirementDraft.findOne({ _id: req.params.id, tenant: tenantId });
+        if (!draft) return res.status(404).json({ message: "Draft not found" });
+        res.json(draft);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 exports.createRequirement = async (req, res) => {
     try {
         const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-        console.log('[DEBUG] createRequirement - User:', req.user);
-        console.log('[DEBUG] createRequirement - TenantID:', tenantId);
-        console.log("REQ BODY:", req.body);
-
-        if (!tenantId) {
-            console.error('[DEBUG] Missing Tenant ID');
-            return res.status(400).json({ message: 'Tenant information missing from session.' });
-        }
-
-        // Validate Experience Months & Vacancy
-        const { minExperienceMonths, maxExperienceMonths, vacancy } = req.body;
-
-        if (vacancy && Number(vacancy) < 1) {
-            return res.status(400).json({ message: "Vacancy must be at least 1" });
-        }
-
-        if (minExperienceMonths !== undefined && maxExperienceMonths !== undefined && Number(maxExperienceMonths) > 0) {
-            if (Number(minExperienceMonths) > Number(maxExperienceMonths)) {
-                return res.status(400).json({
-                    message: "Minimum experience cannot be greater than maximum experience"
-                });
-            }
-        }
-
-        // Enforce Open Status
-        const payload = { ...req.body, status: 'Open' };
-
-        const result = await RecruitmentService.createRequirement(tenantId, payload, req.user.id);
+        const result = await RecruitmentService.createRequirement(tenantId, req.body, req.user.id);
         res.status(201).json(result);
     } catch (error) {
-        console.error('[DEBUG] createRequirement Error:', error.message);
-        if (error.errors) {
-            console.error('[DEBUG] Validation Errors:', JSON.stringify(error.errors, null, 2));
-        }
-        res.status(400).json({
-            message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-            details: error.errors
-        });
+        res.status(400).json({ message: error.message });
     }
 };
 
 exports.getRequirements = async (req, res) => {
     try {
         const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
+        console.log('[GET_REQUIREMENTS] TenantId:', tenantId, 'Query:', req.query);
         const result = await RecruitmentService.getRequirements(tenantId, req.query);
         res.json(result);
     } catch (error) {
+        console.error('[GET_REQUIREMENTS] Error:', error.message);
+        console.error('[GET_REQUIREMENTS] Stack:', error.stack);
         res.status(500).json({ message: error.message });
     }
 };
@@ -69,16 +78,7 @@ exports.getRequirementById = async (req, res) => {
 exports.getInternalJobs = async (req, res) => {
     try {
         const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-
-        if (!tenantId) {
-            return res.status(400).json({ error: "Tenant identification missing" });
-        }
-
-        // Fetch Internal/Both jobs that are Open
-        const query = {
-            status: 'Open',
-            visibility: { $in: ['Internal', 'Both'] }
-        };
+        const query = { status: 'Open', visibility: { $in: ['Internal', 'Both'] } };
         const requirements = await RecruitmentService.getRequirements(tenantId, query);
         res.json(requirements);
     } catch (error) {
@@ -89,16 +89,7 @@ exports.getInternalJobs = async (req, res) => {
 exports.applyInternal = async (req, res) => {
     try {
         const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-        const { id } = req.params; // Requirement ID
-        const user = req.user; // Token payload: { id, employeeId, role, ... }
-
-        if (!user || (!user.id && !user.employeeId)) {
-            return res.status(400).json({ message: "User information missing" });
-        }
-
-        // Pass full user context to service. 
-        // Service will fetch details from DB if email/name is missing in token.
-        const result = await RecruitmentService.applyInternal(tenantId, id, user);
+        const result = await RecruitmentService.applyInternal(tenantId, req.params.id, req.user);
         res.status(201).json({ message: "Successfully applied internally", applicationId: result._id });
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -108,14 +99,30 @@ exports.applyInternal = async (req, res) => {
 exports.getMyApplications = async (req, res) => {
     try {
         const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-        const user = req.user;
+        const result = await RecruitmentService.getApplicantApplications(tenantId, req.user);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
-        if (!user || (!user.id && !user.employeeId)) {
-            return res.status(400).json({ message: "User information missing" });
-        }
 
-        const applications = await RecruitmentService.getApplicantApplications(tenantId, user);
-        res.json(applications);
+exports.updateStatus = async (req, res) => {
+    try {
+        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
+        const { status } = req.body;
+        const result = await RecruitmentService.updateRequirement(tenantId, req.params.id, { status }, req.user.id);
+        res.json({ success: true, message: "Status updated successfully", requirement: result });
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+exports.getApplicants = async (req, res) => {
+    try {
+        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
+        const result = await RecruitmentService.getTenantApplications(tenantId);
+        res.json(result);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -124,17 +131,6 @@ exports.getMyApplications = async (req, res) => {
 exports.updateRequirement = async (req, res) => {
     try {
         const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-
-        // Validation for Experience Months Update
-        const { minExperienceMonths, maxExperienceMonths } = req.body;
-        if (minExperienceMonths !== undefined && maxExperienceMonths !== undefined && Number(maxExperienceMonths) > 0) {
-            if (Number(minExperienceMonths) > Number(maxExperienceMonths)) {
-                return res.status(400).json({
-                    message: "Minimum experience cannot be greater than maximum experience"
-                });
-            }
-        }
-
         const result = await RecruitmentService.updateRequirement(tenantId, req.params.id, req.body, req.user.id);
         res.json(result);
     } catch (error) {
@@ -142,67 +138,6 @@ exports.updateRequirement = async (req, res) => {
     }
 };
 
-exports.submitForApproval = async (req, res) => {
-    try {
-        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-        const result = await RecruitmentService.submitForApproval(tenantId, req.params.id, req.user.id);
-        res.json(result);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
-    }
-};
-
-exports.approveReject = async (req, res) => {
-    try {
-        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-        const { status, remarks } = req.body; // status: 'Approved' or 'Rejected'
-        const result = await RecruitmentService.approveReject(tenantId, req.params.id, status, remarks, req.user.id);
-        res.json(result);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
-    }
-};
-
-exports.publish = async (req, res) => {
-    try {
-        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-        const result = await RecruitmentService.publish(tenantId, req.params.id, req.user.id);
-        res.json(result);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
-    }
-};
-
-exports.close = async (req, res) => {
-    try {
-        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-        const result = await RecruitmentService.close(tenantId, req.params.id, req.user.id);
-        res.json(result);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
-    }
-};
-
-exports.updateStatus = async (req, res) => {
-    try {
-        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-        const { status } = req.body;
-
-        if (!['Open', 'Closed'].includes(status)) {
-            return res.status(400).json({ message: "Invalid status. Use 'Open' or 'Closed'." });
-        }
-
-        if (status === 'Closed') {
-            await RecruitmentService.close(tenantId, req.params.id, req.user.id);
-        } else {
-            await RecruitmentService.publish(tenantId, req.params.id, req.user.id); // Reusing publish for 'Open'
-        }
-
-        res.json({ message: `Job status updated to ${status}` });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
 
 exports.deleteRequirement = async (req, res) => {
     try {
@@ -211,32 +146,5 @@ exports.deleteRequirement = async (req, res) => {
         res.json({ message: 'Requirement deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
-    }
-};
-
-// --- Applicants ---
-
-exports.getApplicants = async (req, res) => {
-    try {
-        const tenantId = req.tenantId || req.user.tenantId || req.user.tenant;
-        const applicants = await RecruitmentService.getTenantApplications(tenantId);
-        res.json(applicants);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// --- Public / Candidate ---
-
-exports.applyJob = async (req, res) => {
-    try {
-        const { jobId } = req.params;
-        const candidateId = req.user.id; // From auth token
-        const applicationData = req.body;
-
-        const result = await RecruitmentService.applyForJob(jobId, candidateId, applicationData);
-        res.status(201).json(result);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
     }
 };

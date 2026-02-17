@@ -71,7 +71,7 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const EmployeeCtcVersionSchema = require("../models/EmployeeCtcVersion"); // Start (Active v7.2 - Refresh Timestamp: 2026-01-19T18:55:00)
     const PayslipTemplateSchema = require("../models/PayslipTemplate");
     const PositionSchema = require("../models/Position");
-    const CompanyIdConfigSchema = require("../models/CompanyIdConfig");
+    // CompanyIdConfig is a GLOBAL model - not loaded here
     const BGVCaseSchema = require("../models/BGVCase");
     const BGVCheckSchema = require("../models/BGVCheck");
     const BGVEmailLogSchema = require("../models/BGVEmailLog");
@@ -89,6 +89,7 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const DocumentAccessSchema = require("../models/DocumentAccess");
     const LetterRevocationSchema = require("../models/LetterRevocation");
     const DocumentViewConfigSchema = require("../models/DocumentViewConfig");
+    const RequirementDraftSchema = require("../models/RequirementDraft");
 
     // Helper to register or FORCE refresh
     const register = (name, schema, isCritical = false) => {
@@ -153,7 +154,7 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("Counter", CounterSchema);
     register("PayslipTemplate", PayslipTemplateSchema);
     register("Position", PositionSchema);
-    register("CompanyIdConfig", CompanyIdConfigSchema);
+    // CompanyIdConfig is a GLOBAL model, not tenant-specific - do not register here
 
     // BGV Models
     register("BGVDocument", BGVDocumentSchema);
@@ -176,6 +177,7 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("DocumentAccess", DocumentAccessSchema);
     register("LetterRevocation", LetterRevocationSchema);
     register("DocumentViewConfig", DocumentViewConfigSchema);
+    register("RequirementDraft", RequirementDraftSchema);
 
     // NEW: Payroll Adjustment
     if (!db.models.PayrollAdjustment) {

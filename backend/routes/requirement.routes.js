@@ -28,8 +28,13 @@ router.put('/template', reqTmplCtrl.updateTemplate);
 // router.post('/template/reset', reqTmplCtrl.resetTemplate);
 
 // Routes
+router.post('/draft', reqCtrl.saveDraft);
+router.get('/draft/:id', reqCtrl.getDraft);
+router.post('/publish', reqCtrl.publishJob);
+
 router.post('/create', reqCtrl.createRequirement);
 router.patch('/:id/status', reqCtrl.updateStatus);
+
 router.put('/:id', reqCtrl.updateRequirement);
 router.delete('/:id', reqCtrl.deleteRequirement);
 router.get('/internal-jobs', reqCtrl.getInternalJobs);

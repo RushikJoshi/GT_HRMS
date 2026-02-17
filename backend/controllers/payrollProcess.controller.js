@@ -9,9 +9,9 @@ const getModels = (req) => {
         PayrollRun: req.tenantDB.model('PayrollRun'),
         PayrollRunItem: req.tenantDB.model('PayrollRunItem'),
         Applicant: req.tenantDB.model('Applicant'),
-        EmployeeCompensation: req.tenantDB.model('EmployeeCompensation', require('../models/EmployeeCompensation')),
+        EmployeeCompensation: req.tenantDB.model('EmployeeCompensation'),
         Payslip: req.tenantDB.model('Payslip'),
-        DeductionMaster: req.tenantDB.model('DeductionMaster', require('../models/DeductionMaster'))
+        DeductionMaster: req.tenantDB.model('DeductionMaster')
     };
 };
 

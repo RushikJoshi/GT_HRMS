@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const getModels = (req) => {
     return {
-        PayrollAdjustment: req.tenantDB.model('PayrollAdjustment', require('../models/PayrollAdjustment')),
+        PayrollAdjustment: req.tenantDB.model('PayrollAdjustment'),
         PayrollRun: req.tenantDB.model('PayrollRun'),
         Employee: req.tenantDB.model('Employee'),
         Payslip: req.tenantDB.model('Payslip')

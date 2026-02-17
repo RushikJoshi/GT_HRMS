@@ -1,0 +1,85 @@
+﻿node : ΓÜá∩╕Å  WARNING: 
+GEMINI_API_KEY is missing in 
+.env file.
+At line:1 char:39
++ ... :NODE_OPTIONS="--trace-
+warnings"; node 
+backend/server.js 2>&1 | 
+Out-F ...
++                            
+           
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (ΓÜá∩╕Å   
+   WARNING...g in .env fil   
+ e.:String) [], RemoteExc    
+eption
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+AI generation and parsing 
+features will NOT work.
+Model registration warning: 
+The 2nd parameter to 
+`mongoose.model()` should be 
+a schema or a POJO
+[DEBUG] Loading Tenant Routes...
+[DEBUG] Registering /me route...
+[2026-02-17 08:24:44] DEBUG Creating transport: nodemailer (7.0.13; +https://nodemailer.com/; SMTP/7.0.13[client:7.0.13])
+≡ƒôí [EmailService] Connecting as: undefined
+≡ƒôí [EmailService] Password Length: 0 characters (No spaces)
+[ROUTES] calendarCtrl exports: [
+  'getCalendar',
+  'getAttendanceCalendar',
+  'getAttendanceCalendarDetail'
+]
+[ROUTES][WARN] calendarCtrl.g
+etCalendarDetail is missing 
+- route /hr/calendar/detail 
+skipped
+[OFFER_TEMPLATE_ROUTES] Loading offer template routes
+node:buffer:325
+  throw new 
+ERR_INVALID_ARG_TYPE(
+  ^
+
+TypeError 
+[ERR_INVALID_ARG_TYPE]: The 
+first argument must be of 
+type string or an instance 
+of Buffer, ArrayBuffer, or 
+Array or an Array-like 
+Object. Received undefined
+    at Function.from 
+(node:buffer:325:9)
+    at Object.<anonymous> (C:
+\HRMS\backend\controllers\att
+endance.controller.js:42:32)
+    at Module._compile (node:
+internal/modules/cjs/loader:1
+730:14)
+    at Object..js (node:inter
+nal/modules/cjs/loader:1895:1
+0)
+    at Module.load (node:inte
+rnal/modules/cjs/loader:1465:
+32)
+    at Function._load (node:i
+nternal/modules/cjs/loader:12
+82:12)
+    at 
+TracingChannel.traceSync (nod
+e:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:i
+nternal/modules/cjs/loader:23
+5:24)
+    at Module.require (node:i
+nternal/modules/cjs/loader:14
+87:12)
+    at require (node:internal
+/modules/helpers:135:16) {
+  code: 
+'ERR_INVALID_ARG_TYPE'
+}
+
+Node.js v22.17.0
