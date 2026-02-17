@@ -7,7 +7,7 @@ const getTenantDB = require('../utils/tenantDB');
 module.exports = async function tenantResolver(req, res, next) {
   try {
     // Defensive logging for debugging
-    console.error(`[TENANT_MIDDLEWARE] ${req.method} ${req.path}`);
+    console.log(`[TENANT_MIDDLEWARE] ${req.method} ${req.path}`);
 
     // Skip tenant resolution for OPTIONS requests (CORS preflight) and Health Check
     if (req.method === 'OPTIONS' || req.path === '/api/health' || req.path === '/health') {
