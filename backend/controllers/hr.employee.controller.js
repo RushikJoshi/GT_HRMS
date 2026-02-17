@@ -72,7 +72,7 @@ async function generateEmployeeId({ req, tenantId, department, firstName, lastNa
     // 1. Get next ID via centralized utility
     const result = await companyIdConfig.generateIdInternal({
       tenantId: tenantId,
-      entityType: 'EMPLOYEE',
+      entityType: 'EMP',  // Changed from 'EMPLOYEE' to 'EMP' to match the config key
       increment: true,
       extraReplacements: {
         '{{DEPT}}': (department || 'GEN').substring(0, 3).toUpperCase(),
