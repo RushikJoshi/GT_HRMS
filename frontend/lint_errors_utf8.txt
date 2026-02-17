@@ -1,0 +1,57 @@
+﻿
+C:\Users\baldaniya nitesh\Documents\GitHub\Gitakshmi_HRMS\frontend\src\pages\HR\Applicants.jsx
+   138:8    warning  React Hook useEffect has a missing dependency: 'navigate'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+   189:8    warning  React Hook useEffect has a missing dependency: 'activeTab'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+   324:12   error    'uploading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                       no-unused-vars
+   326:11   error    'triggerFileUpload' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u               no-unused-vars
+   334:11   error    'handleFileSelect' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                no-unused-vars
+   388:12   error    'showReviewModal' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                 no-unused-vars
+   389:12   error    'reviewForm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                      no-unused-vars
+   389:24   error    'setReviewForm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+   449:25   error    'setCompanyInfo' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                  no-unused-vars
+   588:11   error    'openReviewPrompt' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                no-unused-vars
+   691:8    warning  React Hook useEffect has a missing dependency: 'refreshData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   696:11   error    'areAllDocumentsVerified' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+   718:17   error    'notification' is not defined                                                                                   no-undef
+   723:17   error    'notification' is not defined                                                                                   no-undef
+   734:13   error    'notification' is not defined                                                                                   no-undef
+   739:13   error    'notification' is not defined                                                                                   no-undef
+   757:13   error    'fileInput' is not defined                                                                                      no-undef
+   757:24   error    'fileInput' is not defined                                                                                      no-undef
+   759:9    error    'notification' is not defined                                                                                   no-undef
+   770:13   error    'notification' is not defined                                                                                   no-undef
+   792:13   error    'notification' is not defined                                                                                   no-undef
+   797:13   error    'notification' is not defined                                                                                   no-undef
+   808:13   error    'notification' is not defined                                                                                   no-undef
+   812:13   error    'notification' is not defined                                                                                   no-undef
+   899:13   error    'notification' is not defined                                                                                   no-undef
+   935:21   error    'notification' is not defined                                                                                   no-undef
+   937:21   error    'notification' is not defined                                                                                   no-undef
+   991:13   error    'notification' is not defined                                                                                   no-undef
+  1034:13   error    'notification' is not defined                                                                                   no-undef
+  1038:11   error    'downloadJoiningLetter' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u           no-unused-vars
+  1054:13   error    'notification' is not defined                                                                                   no-undef
+  1074:11   error    'downloadResume' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                  no-unused-vars
+  1085:13   error    'notification' is not defined                                                                                   no-undef
+  1091:13   error    'notification' is not defined                                                                                   no-undef
+  1105:11   error    'openSalaryPreview' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u               no-unused-vars
+  1114:11   error    'confirmSalary' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                   no-unused-vars
+  1134:13   error    'notification' is not defined                                                                                   no-undef
+  1166:17   error    'notification' is not defined                                                                                   no-undef
+  1168:17   error    'notification' is not defined                                                                                   no-undef
+  1177:13   error    'notification' is not defined                                                                                   no-undef
+  1214:17   error    'notification' is not defined                                                                                   no-undef
+  1216:17   error    'notification' is not defined                                                                                   no-undef
+  1282:44   error    'notification' is not defined                                                                                   no-undef
+  1617:112  error    'downloadJoining' is not defined                                                                                no-undef
+  2314:55   error    'e' is defined but never used                                                                                   no-unused-vars
+
+C:\Users\baldaniya nitesh\Documents\GitHub\Gitakshmi_HRMS\frontend\src\pages\HR\Employees.jsx
+  435:21  error  Parsing error: Unexpected token `}`. Did you mean `&rbrace;` or `{"}"}`?
+
+C:\Users\baldaniya nitesh\Documents\GitHub\Gitakshmi_HRMS\frontend\src\pages\HR\SalaryStructure.jsx
+   1:38  error    'useMemo' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                no-unused-vars
+  54:8   warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+Γ£û 48 problems (44 errors, 4 warnings)
+

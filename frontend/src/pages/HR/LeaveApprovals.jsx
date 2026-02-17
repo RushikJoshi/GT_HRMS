@@ -140,17 +140,17 @@ export default function LeaveApprovals({
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden border border-slate-200 dark:border-slate-700">
                     <div className="table-responsive mobile-card-hide">
 
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full text-left text-sm">
+                        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
+                            <table className="min-w-[900px] w-full text-left text-sm">
                                 <thead>
                                     <tr className="bg-slate-50 border-b border-slate-200">
-                                        <th className="px-6 py-3 font-semibold text-slate-500">Employee</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-500">Type</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-500">Dates</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-500">Duration</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-500 text-center">Reason</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-500">Status</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-500 text-right">Actions</th>
+                                        <th className="px-6 py-3 font-semibold text-slate-500 w-[20%]">Employee</th>
+                                        <th className="px-6 py-3 font-semibold text-slate-500 w-[12%]">Type</th>
+                                        <th className="px-6 py-3 font-semibold text-slate-500 w-[20%]">Dates</th>
+                                        <th className="px-6 py-3 font-semibold text-slate-500 w-[10%]">Duration</th>
+                                        <th className="px-6 py-3 font-semibold text-slate-500 text-center w-[12%]">Reason</th>
+                                        <th className="px-6 py-3 font-semibold text-slate-500 w-[14%]">Status</th>
+                                        <th className="px-6 py-3 font-semibold text-slate-500 text-right w-[12%]">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">

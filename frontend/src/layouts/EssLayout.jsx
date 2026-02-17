@@ -70,7 +70,7 @@ export default function EssLayout() {
   const fullName = profile ? `${profile.firstName} ${profile.lastName}` : user?.name || 'Employee';
 
   return (
-    <div className={`flex h-full bg-[#F8FAFC] dark:bg-[#0F172A] transition-colors duration-300 ${theme === 'dark' ? 'dark' : ''}`}>
+    <div className={`flex h-screen bg-[#F8FAFC] dark:bg-[#0F172A] transition-colors duration-300 ${theme === 'dark' ? 'dark' : ''}`}>
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
@@ -80,7 +80,7 @@ export default function EssLayout() {
       )}
 
       {/* Sidebar - Fixed on desktop */}
-      <div className={`fixed w-72 h-full transform transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <div className={`fixed w-72 h-screen transform transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <EmployeeSidebar
           activeTab={activeTab}
           setActiveTab={(tab) => {
@@ -92,7 +92,7 @@ export default function EssLayout() {
       </div>
 
       {/* Main Content Wrapper */}
-      <div className="flex-1 flex flex-col w-full md:ml-72 h-full overflow-hidden">
+      <div className="flex-1 flex flex-col w-full md:ml-72 min-h-screen overflow-hidden">
         {/* Header */}
         <header className="flex justify-between items-center px-8 h-24 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 sticky top-0 z-20">
           <div className="flex items-center gap-6">

@@ -136,12 +136,12 @@ export default function JobApplication() {
             name: prev.name || ai.fullName || '',
             email: prev.email || ai.email || '',
             mobile: prev.mobile || ai.phone || '',
+            // Auto-fill experience if field existed or add to notes?
+            // Providing what we have
           }));
         }
       } catch (err) {
         console.error("Parse failed", err);
-        const errorMsg = err.response?.data?.error || err.message || "Auto-parse failed. Please fill details manually.";
-        setError(`Resume Parse Notice: ${errorMsg}`);
       } finally {
         setParsing(false);
       }

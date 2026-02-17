@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const activityCtrl = require('../controllers/activity.controller');
+const ctrl = require('../controllers/activity.controller');
 const auth = require('../middleware/auth.jwt');
 
-// Regular activity endpoints (Tenant context)
-router.get('/', auth.authenticate, activityCtrl.getRecent);
-router.post('/', auth.authenticate, activityCtrl.create);
-router.delete('/:id', auth.authenticate, activityCtrl.delete);
+// PSA: Get all activities across all tenants
+router.get('/psa/all', auth.authenticate, auth.requirePsa, ctrl.getAllActivities);
 
-// PSA endpoint (Across all tenants)
-router.get('/psa/all', auth.authenticate, auth.requirePsa, activityCtrl.getAllActivities);
+// Tenant-scoped: Get activities for current tenant
+router.get('/', auth.authenticate, ctrl.getRecent);
+router.post('/', auth.authenticate, ctrl.create);
+router.delete('/:id', auth.authenticate, ctrl.delete);
 
 module.exports = router;

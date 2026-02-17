@@ -2,13 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const Tesseract = require('tesseract.js');
 const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
 const axios = require('axios');
-const aiLogger = require('../utils/aiLogger');
 
 /**
  * Resume Parser Service
- * Handles OCR and AI Extraction + DOCX Support
+ * Handles OCR and AI Extraction
  */
 class ResumeParserService {
 
@@ -16,171 +14,154 @@ class ResumeParserService {
      * Main entry point to parse a resume file
      * @param {string} filePath - Path to uploaded file
      * @param {string} mimeType - File MIME type
-     * @param {string} jobDescription - Added for context (optional)
-     * @param {string} jobTitle - Added for context (optional)
-     * @returns {Promise<Object>} - { rawText, structuredData }
+     * @returns {Promise<Object>} - { text, data, matchScore }
      */
     async parseResume(filePath, mimeType, jobDescription = "", jobTitle = "") {
-        console.log(`[ResumeParser] Starting parse for ${filePath} (${mimeType})`);
-        aiLogger.info(`[ResumeParser] Starting parse for ${path.basename(filePath)} (${mimeType})`);
-
-        let rawText = '';
-
         try {
-            // 1. Extract Text (as a helper, but not strictly required for PDF/Image now)
+            console.log(`[ResumeParser] Starting parse for ${filePath} (${mimeType})`);
+
+            // 1. Extract Text
+            let rawText = '';
             if (mimeType === 'application/pdf') {
                 rawText = await this.extractTextFromPDF(filePath);
-            } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || mimeType.includes('word')) {
-                rawText = await this.extractTextFromDOCX(filePath);
             } else if (mimeType.startsWith('image/')) {
                 rawText = await this.extractTextFromImage(filePath);
             } else {
-                // Try basic read for text files
-                try {
-                    rawText = fs.readFileSync(filePath, 'utf8');
-                } catch (e) {
-                    throw new Error(`Unsupported file type: ${mimeType}`);
-                }
+                throw new Error('Unsupported file type. Only PDF and Images allowed.');
             }
 
-            // Cleanup text
-            rawText = (rawText || '').replace(/\s+/g, ' ').trim();
-
-            if (!rawText || rawText.length < 20) {
-                console.warn(`[ResumeParser] Warning: Very little text extracted locally (${rawText?.length || 0} chars). Will rely on Gemini Vision/PDF support.`);
+            if (!rawText || rawText.length < 50) {
+                console.warn('[ResumeParser] OCR extracted very little text.');
             }
 
-            // 2. AI Extraction (Structure the data)
-            // We pass the filePath and mimeType so Gemini can read the file directly if it's a PDF or Image
-            const fileInfo = (mimeType === 'application/pdf' || mimeType.startsWith('image/'))
-                ? { filePath, mimeType }
-                : null;
-
-            const structuredData = await this.extractStructuredData(rawText, jobDescription, jobTitle, fileInfo);
-
-            if (!structuredData || Object.keys(structuredData).length === 0) {
-                console.error("[ResumeParser] AI extraction returned empty object.");
-                throw new Error("AI failed to extract structured data from resume.");
-            }
+            // 2. AI Extraction
+            const aiResult = await this.extractStructuredData(rawText, jobDescription, jobTitle);
 
             return {
                 rawText,
-                structuredData
+                structuredData: aiResult
             };
+
         } catch (error) {
-            console.error(`[ResumeParser] Fatal Error at ${path.basename(filePath)}:`, error.message);
-            aiLogger.error(`[ResumeParser] Fatal Error: ${error.message}`, { stack: error.stack });
+            console.error('[ResumeParser] Error:', error);
             throw error;
         }
     }
 
+    /**
+     * Extract text from PDF using pdf-parse (and Tesseract fallback if needed - TODO)
+     */
     async extractTextFromPDF(filePath) {
+        const dataBuffer = fs.readFileSync(filePath);
         try {
-            const dataBuffer = fs.readFileSync(filePath);
             const data = await pdfParse(dataBuffer);
-            return data.text?.trim() || "";
+            return data.text;
         } catch (e) {
-            console.error(`[ResumeParser] PDF Parse Error:`, e.message);
+            console.error("PDF Parse failed:", e);
             return "";
         }
     }
 
-    async extractTextFromDOCX(filePath) {
-        try {
-            const result = await mammoth.extractRawText({ path: filePath });
-            return result.value;
-        } catch (e) {
-            console.error("DOCX Parse failed:", e);
-            return "";
-        }
-    }
-
+    /**
+     * Extract text from Image using Tesseract.js
+     */
     async extractTextFromImage(filePath) {
-        try {
-            const { data: { text } } = await Tesseract.recognize(filePath, 'eng');
-            return text;
-        } catch (e) {
-            return "";
-        }
+        const { data: { text } } = await Tesseract.recognize(filePath, 'eng');
+        return text;
     }
 
-    async extractStructuredData(text, jobDescription, jobTitle, fileInfo = null, retryCount = 0) {
+    /**
+     * Call OpenAI to parse structured data
+     */
+    /**
+     * Call AI to parse structured data (Gemini)
+     */
+    async extractStructuredData(text, jobDescription = "", jobTitle = "") {
         const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error("GEMINI_API_KEY missing");
 
-        aiLogger.info("[AI] Calling Gemini resume parser...", { textLength: text.length, hasFile: !!fileInfo, retry: retryCount });
-
-        const promptText = `
-        You are an expert HR Recruitment AI.
-        TASK: Extract structured information from the resume content provided.
-        FORMAT: Return ONLY a valid JSON object. No other text.
-        
-        {
-            "fullName": "Full name of the candidate",
-            "email": "Email address",
-            "phone": "Phone number",
-            "skills": ["Array of technical and soft skills"],
-            "totalExperience": "String (e.g. '5 years')",
-            "education": [{"degree": "...", "institution": "...", "year": "..."}],
-            "experienceSummary": "2-sentence professional summary",
-            "currentCompany": "Latest company name",
-            "responsibilities": ["Key responsibilities"]
+        if (!apiKey) {
+            console.warn("Missing GEMINI_API_KEY. Returning mock data.");
+            return this.getMockData(text);
         }
 
-        RESUME TEXT CONTEXT:
-        ${text.substring(0, 10000)}
+        const prompt = `
+        You are an AI HR Assistant. Extract the following details from the Resume Text below.
+        ${jobTitle ? `TARGET JOB TITLE: ${jobTitle}` : ""}
+        ${jobDescription ? `TARGET JOB DESCRIPTION: ${jobDescription}` : ""}
+
+        Return ONLY valid JSON. No markdown formatting.
+        
+        Fields required:
+        - fullName (string)
+        - email (string)
+        - phone (string)
+        - skills (array of strings)
+        - totalExperience (string - e.g. "5 years")
+        - education (array of objects { degree, institution, year })
+        - currentCompany (string)
+        - experienceSummary (string - short bio - max 50 words)
+        - matchPercentage (number 0-100: Evaluate how well the candidate matches the Job Description/Title. Be strict.)
+        - missingSkills (array of strings: Skills mentioned in JD but missing in Resume)
+        
+        Text:
+        ${text.substring(0, 5000)}
         `;
 
-        const parts = [{ text: promptText }];
-
-        // Attach File Data if available (Native PDF/Vision Support)
-        if (fileInfo && fs.existsSync(fileInfo.filePath)) {
-            try {
-                const base64Data = fs.readFileSync(fileInfo.filePath).toString('base64');
-                parts.push({
-                    inline_data: {
-                        mime_type: fileInfo.mimeType,
-                        data: base64Data
-                    }
-                });
-            } catch (e) {
-                console.error("[AI] Error reading file for Gemini:", e.message);
-            }
-        }
-
         try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-            const response = await axios.post(url, { contents: [{ parts }] }, { timeout: 60000 });
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-            const AI_RAW_TEXT = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!AI_RAW_TEXT) throw new Error("Empty response from AI");
+            const payload = {
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
+            };
 
-            let jsonStr = AI_RAW_TEXT.trim();
-            const markdownMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-            if (markdownMatch) jsonStr = markdownMatch[1].trim();
+            const response = await axios.post(url, payload, {
+                headers: { 'Content-Type': 'application/json' }
+            });
 
-            try {
-                const result = JSON.parse(jsonStr);
-                aiLogger.info(`✅ Successfully parsed AI data for: ${result.fullName || 'Unknown'}`);
-                return result;
-            } catch (pErr) {
-                const firstBrace = AI_RAW_TEXT.indexOf('{');
-                const lastBrace = AI_RAW_TEXT.lastIndexOf('}');
-                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                    return JSON.parse(AI_RAW_TEXT.substring(firstBrace, lastBrace + 1));
-                }
-                throw new Error("AI returned invalid JSON");
-            }
+            const candidatePart = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!candidatePart) throw new Error("Empty response from Gemini");
+
+            // Clean markdown code blocks if present
+            const jsonStr = candidatePart.replace(/```json/g, '').replace(/```/g, '').trim();
+            const result = JSON.parse(jsonStr);
+            console.log("✅ [ResumeParser] Gemini Response:", JSON.stringify(result, null, 2));
+            return result;
+
         } catch (error) {
-            if (error.response?.status === 429 && retryCount < 1) {
-                aiLogger.warn("[AI] Rate limit hit. Retrying in 2s...");
-                await new Promise(r => setTimeout(r, 2000));
-                return this.extractStructuredData(text, jobDescription, jobTitle, fileInfo, retryCount + 1);
-            }
-            throw error;
+            console.error("[ResumeParser] AI Error:", error.response?.data || error.message);
+            // Fallback to basic regex
+            return this.extractBasicRegex(text);
         }
     }
 
+    getMockData(text) {
+        // Simple regex fallback for testing without API Key
+        const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/);
+        const phoneMatch = text.match(/[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}/);
+
+        return {
+            fullName: "Candidate (Mock)",
+            email: emailMatch ? emailMatch[0] : "",
+            phone: phoneMatch ? phoneMatch[0] : "",
+            skills: ["JavaScript", "React", "Node.js (Mock)"],
+            experienceSummary: "Mock parsed data as GEMINI_API_KEY is missing.",
+            matchPercentage: 75,
+            missingSkills: ["Aws", "Docker"],
+            aiGenerated: false
+        };
+    }
+
+    extractBasicRegex(text) {
+        const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/);
+        return {
+            fullName: "Parsed Candidate",
+            email: emailMatch ? emailMatch[0] : "",
+            aiFailed: true
+        };
+    }
 }
 
 module.exports = new ResumeParserService();

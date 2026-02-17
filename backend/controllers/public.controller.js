@@ -272,22 +272,12 @@ exports.applyJob = [
             requirement.jobTitle || ""
           );
         } catch (parseErr) {
-          console.error("❌ [APPLY_JOB] Resume Parsing Failed:", parseErr.message);
-
-          const isRateLimit = parseErr.message.includes("Rate limit");
-          return res.status(isRateLimit ? 429 : 500).json({
-            error: isRateLimit ? "Service temporarily busy (AI Rate Limit)" : "Failed to process resume with AI",
-            details: parseErr.message
-          });
+          console.error("⚠️ [APPLY_JOB] Parsing Failed:", parseErr.message);
         }
       }
       const { rawText, structuredData } = parseResult;
 
-      // 4. UNIVERSAL MATCHING (Production Weighted Logic)
-      const MatchingEngine = require('../services/MatchingEngine.service.js');
-      const matchResult = MatchingEngine.calculateMatch(structuredData, requirement);
-
-      // 5. Merge Data
+      // 4. Merge Data
       if (!name && structuredData.fullName) name = structuredData.fullName;
       if (!email && structuredData.email) email = structuredData.email;
       if (!mobile && structuredData.phone) mobile = structuredData.phone;
@@ -310,29 +300,15 @@ exports.applyJob = [
 
       const Applicant = tenantDB.models.Applicant || tenantDB.model("Applicant", ApplicantSchema);
 
-      if (!email) {
-        return res.status(400).json({ error: "Email address is required to apply" });
-      }
-
       const exists = await Applicant.findOne({
         requirementId,
         email: email.toLowerCase()
       });
 
-      if (exists) {
-        // ALLOW RE-APPLICATION during development/testing or if status is still 'Applied'
-        if (exists.status === 'Applied') {
-          console.log(`ℹ️ [APPLY_JOB] Found existing 'Applied' application for ${email}. Overwriting/Updating...`);
-          // We don't return 409, we just delete the old one or we will update it later.
-          // For simplicity and to ensure clean state matching, let's delete the old one.
-          await Applicant.deleteOne({ _id: exists._id });
-        } else {
-          return res.status(409).json({
-            error: "You have already applied for this job and your application is already in progress.",
-            status: exists.status
-          });
-        }
-      }
+      if (exists)
+        return res.status(409).json({
+          error: "You have already applied for this job"
+        });
 
       const resumeFilename = req.file?.filename || null;
 
@@ -511,16 +487,15 @@ exports.applyJob = [
         timeline: [{
           status: 'Applied',
           message: 'Your application has been received and is under review.',
-          updatedBy: null,
+          updatedBy: 'Candidate',
           timestamp: new Date()
         }],
 
         // AI Fields
-        rawOCRText: rawText || "",
-        aiParsedData: structuredData || {},
-        parsedSkills: structuredData?.skills || [],
-        matchPercentage: matchResult.totalScore || structuredData?.matchPercentage || 0,
-        matchResult: matchResult, // Save the detailed weighted breakdown
+        rawOCRText: rawText,
+        aiParsedData: structuredData,
+        parsedSkills: structuredData.skills || [],
+        matchPercentage: structuredData.matchPercentage || 0,
         parsingStatus: rawText ? 'Completed' : 'Pending',
 
         // Reference Fields
@@ -607,11 +582,7 @@ exports.applyJob = [
       });
     } catch (err) {
       console.error("❌ [APPLY_JOB] Apply job error:", err);
-      // Log to file for deep debugging
-      const fs = require('fs');
-      const logStr = `[${new Date().toISOString()}] APPLY_JOB ERROR: ${err.message}\nStack: ${err.stack}\n\n`;
-      fs.appendFileSync(path.join(__dirname, '../logs/debug_errors.log'), logStr);
-
+      console.error("Stack trace:", err.stack);
       res.status(500).json({ error: "Failed to submit application", details: err.message });
     }
   }
@@ -730,41 +701,7 @@ exports.parseResumePublic = [
 
     } catch (err) {
       console.error("❌ [PARSE_RESUME_PUBLIC] Error:", err.message);
-      // Log to file for deep debugging
-      const fs = require('fs');
-      const logStr = `[${new Date().toISOString()}] PARSE_RESUME_PUBLIC ERROR: ${err.message}\nStack: ${err.stack}\n\n`;
-      fs.appendFileSync(path.join(__dirname, '../logs/debug_errors.log'), logStr);
-
-      const isRateLimit = err.message.includes("Rate limit");
-      res.status(isRateLimit ? 429 : 500).json({
-        error: isRateLimit ? "AI Rate limit hit" : "Failed to parse resume",
-        details: err.message
-      });
+      res.status(500).json({ error: "Failed to parse resume" });
     }
   }
 ];
-
-/* ----------------------------------------------------
-   TEST GEMINI AI CONNECTIVITY
----------------------------------------------------- */
-exports.testGeminiAI = async (req, res) => {
-  try {
-    console.log("🤖 [TEST_AI] Testing Gemini AI connectivity...");
-    const testText = "Experienced React developer with 5 years in Node.js and MongoDB.";
-    const result = await ResumeParserService.extractStructuredData(testText, "Frontend Developer", "React Lead");
-
-    res.json({
-      success: true,
-      message: "Gemini AI is working correctly!",
-      parsedData: result
-    });
-  } catch (err) {
-    console.error("❌ [TEST_AI] Diagnostic failed:", err.message);
-    res.status(500).json({
-      success: false,
-      error: "Gemini AI Connection Failed",
-      details: err.message
-    });
-  }
-};
-

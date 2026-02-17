@@ -19,7 +19,7 @@ export default function HRLayout() {
   };
 
   return (
-    <div className="h-full bg-slate-50 dark:bg-slate-900 flex overflow-hidden">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
@@ -29,7 +29,7 @@ export default function HRLayout() {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed w-64 md:w-72 h-full transform transition-transform duration-300 ease-in-out z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed w-64 md:w-72 h-screen transform transition-transform duration-300 ease-in-out z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <HRSidebar
           onNavigate={() => { if (window.innerWidth < 768) setSidebarOpen(false); }}
           toggleCollapse={() => setSidebarOpen(false)}
@@ -37,7 +37,7 @@ export default function HRLayout() {
       </div>
 
       {/* Main Content */}
-      <div className={`flex-1 flex flex-col w-full transition-all duration-300 ease-in-out h-full overflow-hidden ${sidebarOpen ? 'md:ml-72' : 'ml-0'}`}>
+      <div className={`flex-1 flex flex-col w-full transition-all duration-300 ease-in-out min-h-screen ${sidebarOpen ? 'md:ml-72' : 'ml-0'}`}>
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-3 md:p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center gap-2 w-full sm:w-auto">

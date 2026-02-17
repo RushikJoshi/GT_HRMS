@@ -1,13 +1,5 @@
 require('dotenv').config();
-console.log("🚀 [System] Environment variables loaded.");
-console.log("🔑 [Check] GEMINI_API_KEY present:", process.env.GEMINI_API_KEY ? "YES (MASHED: " + process.env.GEMINI_API_KEY.substring(0, 6) + "...)" : "NO ❌");
-
-if (!process.env.GEMINI_API_KEY) {
-    console.error("❌ FATAL: GEMINI_API_KEY is missing in .env file.");
-    console.error("The system cannot parse resumes without AI. Shutting down.");
-    process.exit(1);
-}
-
+// Restart trigger V10 - Engine logic update 2026-02-04
 const http = require('http');
 // RESTART TRIGGER V7 - Force restart for schema update
 const mongoose = require('mongoose');
@@ -145,18 +137,12 @@ async function startServer() {
             try {
                 if (process.env.NGROK_AUTHTOKEN) await ngrok.authtoken(process.env.NGROK_AUTHTOKEN);
                 const url = await ngrok.connect({ addr: PORT });
+                // Make the dynamic URL available to app.js (via process.env)
+                process.env.NGROK_URL = url;
                 console.log('🌍 NGROK URL:', url);
             } catch (e) {
                 console.warn('ngrok failed:', e.message);
             }
-        }
-
-        // Start Offer Cron Service
-        try {
-            const OfferCronService = require('./services/CronJobService');
-            OfferCronService.start();
-        } catch (err) {
-            console.error('❌ Failed to start Offer Cron service:', err.message);
         }
     });
 }
@@ -206,4 +192,3 @@ if (require.main === module) {
 }
 
 module.exports = server;
-// Force Restart v3

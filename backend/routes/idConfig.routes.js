@@ -12,12 +12,13 @@ const express = require('express');
 const router = express.Router();
 const idConfigController = require('../controllers/idConfig.controller');
 
-// Middleware
-const { authenticate, authorize } = require('../middleware/auth.jwt');
+// Middleware (adjust paths as needed)
+const { authenticateToken, getTenantDB } = require('../middleware/auth');
+const { requireRole } = require('../middleware/rbac');
 
-// Apply authentication
-router.use(authenticate);
-// Note: tenantMiddleware is applied globally in app.js, so DB binding happens there.
+// Apply authentication and tenant middleware
+router.use(authenticateToken);
+router.use(getTenantDB);
 
 // ═══════════════════════════════════════════════════════════════════
 // ID CONFIGURATION ENDPOINTS
@@ -29,7 +30,7 @@ router.use(authenticate);
  * @access  Private (Admin, HR)
  */
 router.get('/',
-    authorize(['admin', 'hr', 'psa']),
+    requireRole('admin', 'hr', 'psa'),
     idConfigController.getIdConfiguration
 );
 
@@ -39,7 +40,7 @@ router.get('/',
  * @access  Private (Admin, HR)
  */
 router.get('/status',
-    authorize(['admin', 'hr', 'psa']),
+    requireRole('admin', 'hr', 'psa'),
     idConfigController.getConfigurationStatus
 );
 
@@ -50,7 +51,7 @@ router.get('/status',
  * @query   department, year, month (optional)
  */
 router.get('/:entityType/preview',
-    authorize(['admin', 'hr', 'psa']),
+    requireRole('admin', 'hr', 'psa'),
     idConfigController.previewIdFormat
 );
 
@@ -73,7 +74,7 @@ router.get('/:entityType/preview',
  *          }
  */
 router.patch('/:entityType',
-    authorize(['admin', 'psa']),
+    requireRole('admin', 'psa'),
     idConfigController.updateIdConfiguration
 );
 
@@ -83,7 +84,7 @@ router.patch('/:entityType',
  * @access  Private (Admin only)
  */
 router.post('/:entityType/reset',
-    authorize(['admin', 'psa']),
+    requireRole('admin', 'psa'),
     idConfigController.resetIdConfiguration
 );
 

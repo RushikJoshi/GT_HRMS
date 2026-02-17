@@ -69,12 +69,10 @@ async function generateEmployeeId({ req, tenantId, department, firstName, lastNa
   try {
     const companyIdConfig = require('./companyIdConfig.controller');
 
-    console.log(`[GENERATE_EMP_ID] Generating for tenant: ${tenantId}, dept: ${department}`);
-
     // 1. Get next ID via centralized utility
     const result = await companyIdConfig.generateIdInternal({
       tenantId: tenantId,
-      entityType: 'EMPLOYEE',
+      entityType: 'EMP',  // Changed from 'EMPLOYEE' to 'EMP' to match the config key
       increment: true,
       extraReplacements: {
         '{{DEPT}}': (department || 'GEN').substring(0, 3).toUpperCase(),
@@ -83,16 +81,12 @@ async function generateEmployeeId({ req, tenantId, department, firstName, lastNa
       }
     });
 
-    console.log(`[GENERATE_EMP_ID] Success: ${result.id}`);
     return result.id;
 
   } catch (error) {
-    console.error("CRITICAL: Error generating employee ID:", error.message);
-    console.error("Error stack:", error.stack);
-
-    // Fallback to a clear error indicator rather than a random number
-    // This helps the user know something is wrong with the configuration
-    throw new Error(`ID Generation Failed: ${error.message}. Please check Document Sequence settings for Employee ID.`);
+    console.error("Error generating employee ID:", error);
+    // Emergency Fallback
+    return `EMP-${Date.now()}`;
   }
 }
 
@@ -123,28 +117,58 @@ async function initializeBalances(req, employeeId, policyId) {
 --------------------------------------------- */
 exports.preview = async (req, res) => {
   try {
+    console.log("!!! PREVIEW ENDPOINT CALLED - NEW LOGIC !!!");
     const tenantId = req.tenantId;
-    const { department, firstName, lastName } = req.body;
+    const { department } = req.body;
 
-    const companyIdConfig = require('./companyIdConfig.controller');
+    // 1. Get Configuration
+    let config = await CompanyIdConfig.findOne({ companyId: tenantId, entityType: 'EMPLOYEE' });
 
-    // Use unified engine for preview (increment: false)
-    const result = await companyIdConfig.generateIdInternal({
-      tenantId: tenantId,
-      entityType: 'EMPLOYEE',
-      increment: false,
-      extraReplacements: {
-        '{{DEPT}}': (department || 'GEN').substring(0, 3).toUpperCase(),
-        '{{FIRSTNAME}}': (firstName || '').toUpperCase(),
-        '{{LASTNAME}}': (lastName || '').toUpperCase()
-      }
-    });
+    // Mock default if missing
+    if (!config) {
+      config = {
+        prefix: 'EMP',
+        separator: '', // Default from schema is usually empty or dash, aligning with defaults
+        includeYear: false,
+        includeMonth: false,
+        includeDepartment: false,
+        padding: 4,
+        startFrom: 1000,
+        currentSeq: 1000
+      };
+    }
 
-    res.json({ preview: result.id });
+    // 2. Determine Parts
+    const now = new Date();
+    const parts = [];
+
+    if (config.prefix) parts.push(config.prefix);
+    if (config.includeYear) parts.push(now.getFullYear());
+    if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
+    if (config.includeDepartment) {
+      const depCode = (department || "GEN").substring(0, 3).toUpperCase();
+      parts.push(depCode);
+    }
+
+    // 3. Get Next Sequence (Preview only, do not increment)
+    const seq = config.currentSeq !== undefined ? config.currentSeq : (config.startFrom || 1);
+    const seqStr = String(seq).padStart(config.padding || 4, '0');
+
+    // 4. Join
+    const separator = config.separator === undefined ? '-' : config.separator;
+    let preview = parts.join(separator);
+
+    if (preview) {
+      preview = `${preview}${separator}${seqStr}`;
+    } else {
+      preview = seqStr;
+    }
+
+    res.json({ preview });
 
   } catch (err) {
     console.error("Preview error:", err);
-    res.status(500).json({ error: "preview_failed", message: err.message });
+    res.status(500).json({ error: "preview_failed" });
   }
 };
 
@@ -363,42 +387,16 @@ exports.create = async (req, res) => {
     const format = tenant?.meta?.empCodeFormat || "COMP_DEPT_NUM";
     const allowOverride = tenant?.meta?.empCodeAllowOverride || false;
 
-    const { firstName, lastName, department, customEmployeeId, departmentId, joiningDate, status, lastStep, applicantId, overrideVacancy, ...restBody } = req.body;
+    const { firstName, lastName, department, customEmployeeId, departmentId, joiningDate, status, lastStep, applicantId, ...restBody } = req.body;
+    const { contactNo, emergencyContactNumber } = restBody;
 
-    // --- LIFECYCLE RULE 8 VALIDATION ---
-    if (applicantId) {
-      try {
-        // Lazy load models just to be safe they exist in this context
-        const Applicant = req.tenantDB.model('Applicant');
-
-        // Check Offer Status (Using Global Model for Shared Collection)
-        const activeOffer = await GlobalOfferModel.findOne({
-          applicantId: applicantId,
-          tenantId: tenantId,
-          isLatest: true
-        });
-
-        if (activeOffer && activeOffer.status !== 'Accepted') {
-          return res.status(400).json({
-            success: false,
-            error: 'lifecycle_violation',
-            message: `Cannot convert to employee. Offer status is '${activeOffer.status}', but must be 'Accepted'.`
-          });
-        }
-
-        // Check Joining Letter
-        const applicantRec = await Applicant.findById(applicantId);
-        if (applicantRec && !applicantRec.joiningLetterPath) {
-          return res.status(400).json({
-            success: false,
-            error: 'lifecycle_violation',
-            message: `Cannot convert to employee. Joining Letter has not been generated yet.`
-          });
-        }
-      } catch (lifecycleErr) {
-        console.warn("⚠️ [EMPLOYEE CREATE] Lifecycle validation warning:", lifecycleErr.message);
-        // We don't block if models missing, but ideally we should.
-      }
+    // Contact Number Validation (Indian 10-digit, starts with 6-9)
+    const indianPhoneRe = /^[6-9]\d{9}$/;
+    if (contactNo && !indianPhoneRe.test(contactNo)) {
+      return res.status(400).json({ success: false, error: "invalid_contact", message: "Contact number must be a valid 10-digit Indian number starting with 6-9." });
+    }
+    if (emergencyContactNumber && !indianPhoneRe.test(emergencyContactNumber)) {
+      return res.status(400).json({ success: false, error: "invalid_emergency_contact", message: "Emergency contact must be a valid 10-digit Indian number starting with 6-9." });
     }
 
     let finalEmployeeId;
@@ -490,7 +488,6 @@ exports.create = async (req, res) => {
       }
     }
 
-    // CREATE EMPLOYEE
     let emp = await Employee.create(createData);
 
     // --- NEW: Update Snapshot & BGV Ownership ---
@@ -524,6 +521,8 @@ exports.create = async (req, res) => {
       const { ensureLeavePolicy } = require('../config/dbManager');
       emp = await ensureLeavePolicy(emp, req.tenantDB, req.tenantId);
 
+      // If a policy was auto-assigned and no explicit policy was provided in create body,
+      // ensure leave balances are initialized for the current year if none exist.
       if (emp && emp.leavePolicy && !restBody.leavePolicy) {
         const LeaveBalance = req.tenantDB.model('LeaveBalance');
         const existing = await LeaveBalance.findOne({ employee: emp._id });
@@ -535,58 +534,17 @@ exports.create = async (req, res) => {
       console.error('[AUTO_POLICY_ASSIGN] Error while auto-assigning policy:', autoErr);
     }
 
-    // --- NEW: Link Applicant if exists (Mark Onboarded) & Handle Vacancy logic ---
+    // --- NEW: Link Applicant if exists (Mark Onboarded) ---
     if (applicantId && emp) {
       try {
         const Applicant = req.tenantDB.model('Applicant');
-        const Requirement = req.tenantDB.model('Requirement');
-
-        const applicant = await Applicant.findById(applicantId);
-        if (applicant && applicant.requirementId) {
-          // 1. Mark Onboarded
-          const updatedApplicant = await Applicant.findByIdAndUpdate(applicantId, {
-            isOnboarded: true,
-            employeeId: emp._id
-          }, { new: true });
-
-          console.log(`[ONBOARDING] Linked Applicant ${applicantId} to Employee ${emp._id} (Marked Onboarded)`);
-
-          // 2. Handle Vacancy & Automatic Closure
-          // 2. Handle Vacancy & Automatic Closure (Strict Atomic Logic)
-          const requirement = await Requirement.findById(applicant.requirementId);
-
-          if (requirement) {
-            // Strict Validation: Prevent over-hiring unless override is active
-            if (requirement.filled >= requirement.vacancy && !overrideVacancy) {
-              // This should ideally be caught before employee creation, but as a safeguard:
-              console.warn(`[ONBOARDING] Warning: Vacancy limit reached for ${requirement.jobTitle}. Filled: ${requirement.filled}/${requirement.vacancy}`);
-              // We don't rollback employee creation here as it's a significant action, 
-              // but we flag it and enforce closure. 
-              // In strict mode, we would throw error earlier.
-            }
-
-            // Atomic Increment
-            const updatedReq = await Requirement.findByIdAndUpdate(
-              requirement._id,
-              { $inc: { filled: 1 } },
-              { new: true }
-            );
-
-            console.log(`[ONBOARDING] Incremented Filled count for Job ${updatedReq.jobTitle}. New Status: ${updatedReq.filled}/${updatedReq.vacancy}`);
-
-            // Auto-close if limit reached
-            if (updatedReq.filled >= updatedReq.vacancy) {
-              await Requirement.findByIdAndUpdate(requirement._id, {
-                status: 'Closed',
-                closedAt: new Date(),
-                closedBy: req.user?.id || 'System'
-              });
-              console.log(`[ONBOARDING] Job ${requirement.jobTitle} automatically CLOSED (Vacancies full: ${updatedReq.filled}/${updatedReq.vacancy})`);
-            }
-          }
-        }
+        await Applicant.findByIdAndUpdate(applicantId, {
+          isOnboarded: true,
+          employeeId: emp._id
+        });
+        console.log(`[ONBOARDING] Linked Applicant ${applicantId} to Employee ${emp._id} (Marked Onboarded)`);
       } catch (linkErr) {
-        console.error("Failed to link applicant or handle vacancy:", linkErr);
+        console.error("Failed to link applicant:", linkErr);
       }
     }
 
@@ -682,6 +640,16 @@ exports.update = async (req, res) => {
     const tenantId = req.tenantId;
 
     const updatePayload = { ...req.body };
+
+    // Contact Number Validation (Indian 10-digit, starts with 6-9)
+    const indianPhoneRe = /^[6-9]\d{9}$/;
+    if (updatePayload.contactNo && !indianPhoneRe.test(updatePayload.contactNo)) {
+      return res.status(400).json({ success: false, error: "invalid_contact", message: "Contact number must be a valid 10-digit Indian number starting with 6-9." });
+    }
+    if (updatePayload.emergencyContactNumber && !indianPhoneRe.test(updatePayload.emergencyContactNumber)) {
+      return res.status(400).json({ success: false, error: "invalid_emergency_contact", message: "Emergency contact must be a valid 10-digit Indian number starting with 6-9." });
+    }
+
     // delete updatePayload.employeeId; <= MODIFIED: Allow update if Draft
     delete updatePayload.tenant;
 

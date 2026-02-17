@@ -63,7 +63,7 @@ export const showConfirmToast = ({
     notification.warning({
         message: title,
         description,
-        actions: btn,
+        btn,
         key,
         duration: 0, // Persist until interaction
         placement: 'topRight',

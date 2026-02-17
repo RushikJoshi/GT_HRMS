@@ -35,8 +35,6 @@ function getModels(req) {
     };
 }
 
-const MatchingEngineService = require('../services/MatchingEngine.service');
-
 exports.applyJob = async (req, res) => {
     try {
         const { jobId } = req.body;
@@ -48,38 +46,19 @@ exports.applyJob = async (req, res) => {
 
         // 2. Get Tenant Context & Fetch Job Details
         const { Applicant, Requirement } = getModels(req);
-        // Fetch ALL fields needed for matching
-        const job = await Requirement.findById(jobId);
-        if (!job) return res.status(404).json({ message: "Job Opening not found" });
-        if (job.status !== 'Open') return res.status(400).json({ message: "This Job Opening is closed and no longer accepting applications." });
+        const job = await Requirement.findById(jobId).select('jobTitle description');
+        const jobTitle = job?.jobTitle || "";
+        const jobDesc = job?.description || "";
 
-        const jobTitle = job.jobTitle || "";
-        const jobDesc = job.description || "";
-
-        // 1. Parse Resume (OCR + AI + Regex Fallback)
+        // 1. Parse Resume (OCR + AI)
         let parseResult = { rawText: "", structuredData: {} };
         try {
             parseResult = await ResumeParserService.parseResume(req.file.path, req.file.mimetype, jobDesc, jobTitle);
         } catch (e) {
-            console.error("❌ [APPLY_JOB] Resume Parsing Failed:", e.message);
-            return res.status(500).json({
-                message: "AI Resume Parsing failed. Cannot proceed with application.",
-                error: e.message
-            });
+            console.error("[APPLY_JOB] Resume Parsing Failed, continuing with raw file:", e.message);
         }
 
         const { rawText, structuredData } = parseResult;
-
-        // 2. RUN MATCHING ENGINE
-        let matchResult = {};
-        try {
-            // Merge rawText into structuredData for semantic matching
-            const resumeFullData = { ...structuredData, rawText };
-            matchResult = MatchingEngineService.calculateMatch(resumeFullData, job);
-            console.log(`[APPLY_JOB] Match Score: ${matchResult.matchPercentage}%`);
-        } catch (matchErr) {
-            console.error("[APPLY_JOB] Matching Failed:", matchErr);
-        }
 
         // 3. Create Applicant
         const applicant = new Applicant({
@@ -93,8 +72,6 @@ exports.applyJob = async (req, res) => {
             // AI Fields
             rawOCRText: rawText,
             aiParsedData: structuredData,
-            matchPercentage: matchResult.matchPercentage || 0,
-            matchResult: matchResult, // Store full breakdown
             parsedSkills: structuredData.skills || [],
             parsingStatus: rawText ? 'Completed' : 'Failed',
 
@@ -111,8 +88,6 @@ exports.applyJob = async (req, res) => {
             success: true,
             message: "Application submitted successfully",
             applicantId: applicant._id,
-            matchPercentage: matchResult.matchPercentage,
-            recommendation: matchResult.recommendation,
             profile: structuredData
         });
 
@@ -137,11 +112,6 @@ exports.updateApplicantStatus = async (req, res) => {
 
         if (!applicant.timeline) applicant.timeline = [];
 
-        // Fetch job to get detailed workflow info
-        const { Requirement } = getModels(req);
-        const job = await Requirement.findById(applicant.requirementId);
-        const stageConfig = job?.detailedWorkflow?.find(s => s.stageName === status);
-
         const autoMessages = {
             'Shortlisted': 'Candidate has been shortlisted for further rounds.',
             'Interview': 'Candidate moved to interview stage.',
@@ -152,26 +122,12 @@ exports.updateApplicantStatus = async (req, res) => {
             'Hired': 'Candidate has joined the company.'
         };
 
-        const timelineEvent = {
+        applicant.timeline.push({
             status: status,
             message: feedback || autoMessages[status] || `Application status updated to ${status}`,
             updatedBy: req.user?.name || "HR",
             timestamp: new Date()
-        };
-
-        // Enrich with stage configuration if available
-        if (stageConfig) {
-            timelineEvent.stageType = stageConfig.stageType;
-            timelineEvent.interviewerId = stageConfig.assignedInterviewerId;
-            timelineEvent.interviewMode = stageConfig.interviewMode;
-            timelineEvent.durationMinutes = stageConfig.durationMinutes;
-
-            if (stageConfig.notes) {
-                timelineEvent.stageNotes = stageConfig.notes;
-            }
-        }
-
-        applicant.timeline.push(timelineEvent);
+        });
 
         // --- SYNC TO TRACKER ---
         try {
@@ -208,39 +164,6 @@ exports.updateApplicantStatus = async (req, res) => {
         }
 
         await applicant.save();
-
-        // --- AUTO-CLOSE JOB IF VACANCY FILLED ---
-        if (status === 'Selected' || status === 'Hired' || status === 'Finalized') {
-            try {
-                const { Requirement } = getModels(req);
-                const reqId = applicant.requirementId?._id || applicant.requirementId;
-                const reqDoc = await Requirement.findById(reqId);
-
-                if (reqDoc && reqDoc.status === 'Open') {
-                    // MODIFIED: Only count candidates who are explicitly converted to employees
-                    // This prevents closing the job if an offer/joining letter is generated but the candidate hasn't joined yet.
-                    const hiredCount = await Applicant.countDocuments({
-                        requirementId: reqId,
-                        status: { $in: ['Selected', 'Hired', 'Finalized'] },
-                        employeeId: { $ne: null } // Check for successful employee conversion
-                    });
-
-                    console.log(`[AUTO_CLOSE_CHECK] Job: ${reqDoc.jobTitle}, Vacancy: ${reqDoc.vacancy}, Converted Employees: ${hiredCount}`);
-
-                    if (hiredCount >= reqDoc.vacancy) {
-                        reqDoc.status = 'Closed';
-                        reqDoc.closedAt = new Date();
-                        reqDoc.closedBy = req.user?.id || 'System';
-                        await reqDoc.save();
-                        console.log(`[AUTO_CLOSE] Job ${reqDoc.jobTitle} closed automatically (Vacancy met by converted employees).`);
-                    } else {
-                        console.log(`[AUTO_CLOSE_CHECK] Job remains OPEN. Converted: ${hiredCount}/${reqDoc.vacancy}. (Candidates pending conversion do not count)`);
-                    }
-                }
-            } catch (autoCloseErr) {
-                console.error("[AUTO_CLOSE_ERROR]", autoCloseErr);
-            }
-        }
 
         if (oldStatus !== status) {
             try {
@@ -552,39 +475,82 @@ exports.parseResume = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: "No resume file uploaded" });
 
-        const { Requirement } = getModels(req);
-        const { jobId } = req.body;
-        let jobDoc = null;
-        if (jobId) {
-            jobDoc = await Requirement.findById(jobId);
+        const filePath = req.file.path;
+        const originalName = req.file.originalname;
+        const ext = path.extname(originalName).toLowerCase();
+        let extractedText = "";
+
+        // 1. OCR / Text Extraction
+        console.log(`[RESUME_PARSE] Processing ${originalName}...`);
+
+        try {
+            if (ext === '.pdf') {
+                // Use pdf-parse
+                const dataBuffer = fs.readFileSync(filePath);
+                const pdfData = await pdfParse(dataBuffer);
+                extractedText = pdfData.text;
+            } else {
+                // Image (png, jpg, jpeg)
+                const { data: { text } } = await Tesseract.recognize(filePath, 'eng');
+                extractedText = text;
+            }
+        } catch (ocrErr) {
+            console.error("OCR Error:", ocrErr);
+            return res.status(500).json({ message: "OCR Extraction failed", error: ocrErr.message });
         }
 
-        console.log(`[RESUME_PARSE_HR] AI Parsing triggered for ${req.file.originalname}`);
+        // 2. AI Extraction
+        if (!process.env.GEMINI_API_KEY) {
+            return res.json({
+                success: true,
+                message: "Text extracted. Add GEMINI_API_KEY to .env to get structured JSON.",
+                rawText: extractedText,
+                parsed: null
+            });
+        }
 
-        const result = await ResumeParserService.parseResume(
-            req.file.path,
-            req.file.mimetype,
-            jobDoc?.description || "",
-            jobDoc?.jobTitle || ""
-        );
+        const aiResponse = await callGeminiAI(extractedText);
 
-        res.json({
-            success: true,
-            parsed: result.structuredData,
-            rawText: result.rawText
-        });
+        let parsedData = null;
+        try {
+            // Clean markdown json blocks if any
+            const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            parsedData = JSON.parse(jsonStr);
+        } catch (e) {
+            console.warn("AI JSON Parse failed", e);
+            parsedData = { raw: aiResponse };
+        }
+
+        res.json({ success: true, parsed: parsedData, rawText: extractedText });
 
         // Cleanup
-        setTimeout(() => {
-            try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) { }
-        }, 1000);
+        try { fs.unlinkSync(filePath); } catch (e) { }
 
     } catch (e) {
-        console.error("Parse Resume HR Error:", e);
-        res.status(500).json({ message: "AI Extraction failed", error: e.message });
+        console.error("Parse Resume Error:", e);
+        res.status(500).json({ message: e.message });
     }
 };
 
+async function callGeminiAI(text) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+    const payload = {
+        contents: [{
+            parts: [{ text: RESUME_PARSER_PROMPT + "\n\nREST OF TEXT:\n" + text }]
+        }]
+    };
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+}
 
 exports.getResumeFile = async (req, res) => {
     try {

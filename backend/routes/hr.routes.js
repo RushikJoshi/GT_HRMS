@@ -1,12 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth.jwt');
+const checkModuleAccess = require('../middleware/moduleAccess.middleware');
+const leaveCheck = checkModuleAccess('leave');
 
 const empCtrl = require('../controllers/hr.employee.controller');
 const deptCtrl = require('../controllers/hr.department.controller');
 const policyCtrl = require('../controllers/leavePolicy.controller');
 const requestCtrl = require('../controllers/leaveRequest.controller');
 const applicantCtrl = require('../controllers/applicant.controller');
+const trackerCtrl = require('../controllers/trackerController');
 
 // Multer Config for Resume Parsing
 const multer = require('multer');
@@ -20,7 +23,6 @@ const upload = multer({ dest: uploadDir });
    EMPLOYEES
 ----------------------------------------- */
 router.get('/hr/employees', auth.authenticate, auth.requireHr, empCtrl.list);
-router.get('/employees', auth.authenticate, auth.requireHr, empCtrl.list); // Alias for frontend compatibility
 router.post('/hr/employees', auth.authenticate, auth.requireHr, empCtrl.create);
 
 // APPLICANTS - RESUME PARSING
@@ -69,25 +71,25 @@ router.get('/hr/departments/hierarchy/full', auth.authenticate, auth.requireHr, 
    LEAVE POLICIES
 ----------------------------------------- */
 // Test route
-router.get('/hr/leave-policies/test', auth.authenticate, auth.requireHr, (req, res) => {
+router.get('/hr/leave-policies/test', auth.authenticate, leaveCheck, auth.requireHr, (req, res) => {
    res.json({ message: 'Test route works', user: req.user, tenantId: req.tenantId });
 });
 
-router.post('/hr/leave-policies', auth.authenticate, auth.requireHr, policyCtrl.createPolicy);
-router.get('/hr/leave-policies', auth.authenticate, auth.requireHr, policyCtrl.getPolicies);
-router.get('/hr/leave-policies/:id', auth.authenticate, auth.requireHr, policyCtrl.getPolicyById);
-router.put('/hr/leave-policies/:id', auth.authenticate, auth.requireHr, policyCtrl.updatePolicy);
-router.post('/hr/leave-policies/:id/sync', auth.authenticate, auth.requireHr, policyCtrl.syncPolicy);
-router.patch('/hr/leave-policies/:id/status', auth.authenticate, auth.requireHr, policyCtrl.togglePolicyStatus);
-router.delete('/hr/leave-policies/:id', auth.authenticate, auth.requireHr, policyCtrl.deletePolicy);
-router.post('/hr/assign-policy', auth.authenticate, auth.requireHr, policyCtrl.assignPolicyToEmployee);
+router.post('/hr/leave-policies', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.createPolicy);
+router.get('/hr/leave-policies', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.getPolicies);
+router.get('/hr/leave-policies/:id', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.getPolicyById);
+router.put('/hr/leave-policies/:id', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.updatePolicy);
+router.post('/hr/leave-policies/:id/sync', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.syncPolicy);
+router.patch('/hr/leave-policies/:id/status', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.togglePolicyStatus);
+router.delete('/hr/leave-policies/:id', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.deletePolicy);
+router.post('/hr/assign-policy', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.assignPolicyToEmployee);
 
 // DEBUG: Create & assign default policy to all employees (HR only)
-router.post('/hr/leave-policies/ensure-default', auth.authenticate, auth.requireHr, policyCtrl.ensureDefaultPolicyForTenant);
+router.post('/hr/leave-policies/ensure-default', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.ensureDefaultPolicyForTenant);
 
 // Accrual Endpoints (HR only)
-router.post('/hr/leave-policies/accrual/run-monthly', auth.authenticate, auth.requireHr, policyCtrl.accrueMonthly);
-router.post('/hr/leave-policies/accrual/run-carryforward', auth.authenticate, auth.requireHr, policyCtrl.carryForward);
+router.post('/hr/leave-policies/accrual/run-monthly', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.accrueMonthly);
+router.post('/hr/leave-policies/accrual/run-carryforward', auth.authenticate, leaveCheck, auth.requireHr, policyCtrl.carryForward);
 
 /* -----------------------------------------
    REGULARIZATION (Admin)
@@ -100,9 +102,9 @@ router.post('/hr/regularization/:id/reject', auth.authenticate, auth.requireHr, 
 /* -----------------------------------------
    LEAVE REQUESTS (HR APPROVALS)
 ----------------------------------------- */
-router.get('/hr/leaves/requests', auth.authenticate, auth.requireHr, requestCtrl.getAllLeaves);
-router.post('/hr/leaves/requests/:id/approve', auth.authenticate, auth.requireAdminOrHr, requestCtrl.approveLeave);
-router.post('/hr/leaves/requests/:id/reject', auth.authenticate, auth.requireAdminOrHr, requestCtrl.rejectLeave);
+router.get('/hr/leaves/requests', auth.authenticate, leaveCheck, auth.requireHr, requestCtrl.getAllLeaves);
+router.post('/hr/leaves/requests/:id/approve', auth.authenticate, leaveCheck, auth.requireAdminOrHr, requestCtrl.approveLeave);
+router.post('/hr/leaves/requests/:id/reject', auth.authenticate, leaveCheck, auth.requireAdminOrHr, requestCtrl.rejectLeave);
 
 // Calendar (HR) - Month overview and day detail
 const calendarCtrl = require('../controllers/calendar.controller');
@@ -144,7 +146,13 @@ router.use('/hr/career', require('./career.routes'));
 router.get('/hr/bulk/template', auth.authenticate, auth.requireAdminOrHr, empCtrl.downloadBulkUploadTemp);
 router.post('/hr/bulk/upload', auth.authenticate, auth.requireAdminOrHr, empCtrl.bulkUploadEmployees);
 /* -----------------------------------------
-   CANDIDATE STATUS TRACKER - REMOVED
+   CANDIDATE STATUS TRACKER
 ----------------------------------------- */
+router.get('/hr/candidate-status', trackerCtrl.getCandidates);
+router.get('/hr/candidate-status/:id', trackerCtrl.getCandidateById);
+router.get('/hr/candidate-status/:id/timeline', trackerCtrl.getTimeline);
+router.get('/hr/candidate/:id/status', trackerCtrl.getStatus); // NEW ROUTE
+router.post('/hr/candidate-status/:id/status', trackerCtrl.updateStatus);
+router.post('/hr/candidate-status/seed', trackerCtrl.seedData);
 
 module.exports = router;

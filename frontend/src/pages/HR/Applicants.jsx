@@ -2,63 +2,17 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api'; // Centralized axios instance with auth & tenant headers
-import { normalizeStatus } from './PipelineStatusManager';
+import { getNextStage, normalizeStatus } from './PipelineStatusManager';
 import { useAuth } from '../../context/AuthContext';
 import OfferLetterPreview from '../../components/OfferLetterPreview';
 import AssignSalaryModal from '../../components/AssignSalaryModal';
 import { DatePicker, Pagination, Select, Modal, TimePicker, notification, Dropdown, Menu } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications'; // Imports fixed
 import dayjs from 'dayjs';
-import { Eye, Download, Edit2, RefreshCw, Upload, FileText, Settings, Plus, Trash2, X, GripVertical, Star, Clock, Lock, ChevronRight, ChevronDown, RotateCcw, UserX, PlusCircle, UserPlus, Info, Search, Calendar, Shield, ArrowRight, CircleCheck, Save } from 'lucide-react';
+import { Eye, Download, Edit2, RefreshCw, IndianRupee, Upload, FileText, CheckCircle, Settings, Plus, Trash2, X, GripVertical, Star, XCircle, Clock, ShieldCheck, Lock, ChevronRight, ChevronDown, RotateCcw, UserCheck, UserX, PlusCircle, UserPlus, Info, Search, Calendar, Shield } from 'lucide-react';
 import DynamicPipelineEngine from './DynamicPipelineEngine';
 import InterviewScheduleModal from './modals/InterviewScheduleModal';
 import JobBasedBGVModal from './modals/JobBasedBGVModal';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
-import { arrayMove, SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { DraggableStageTab } from './components/DraggableStageTab';
-import { SortableStageItem } from './components/SortableStageItem';
-import StageForm from './components/StageForm';
-import FeedbackFormRenderer from './components/FeedbackFormRenderer';
-
-
-// --- Helper Components ---
-
-const OfferCountdown = ({ expiryDate }) => {
-    const [timeLeft, setTimeLeft] = React.useState('');
-    const [isExpired, setIsExpired] = React.useState(false);
-
-    React.useEffect(() => {
-        const calculateTime = () => {
-            if (!expiryDate) return;
-            const now = dayjs();
-            const expiry = dayjs(expiryDate);
-            const diffMs = expiry.diff(now);
-
-            if (diffMs <= 0) {
-                setIsExpired(true);
-                setTimeLeft('Expired');
-                return;
-            }
-
-            const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-            let timeString = '';
-            if (days > 0) timeString += `${days}d `;
-            timeString += `${hours}h ${minutes}m`;
-
-            setTimeLeft(timeString);
-        };
-
-        calculateTime();
-        const timer = setInterval(calculateTime, 60000); // 1 min tick
-        return () => clearInterval(timer);
-    }, [expiryDate]);
-
-    if (isExpired) return null; // Logic handled by parent status check, or show generic expired here
-    return <span className="text-amber-600 font-bold text-[10px] flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded whitespace-nowrap border border-amber-100">⏳ Expires in: {timeLeft}</span>;
-};
 
 export default function Applicants({ internalMode = false, jobSpecific = false }) {
     const navigate = useNavigate();
@@ -78,11 +32,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [requirements, setRequirements] = useState([]);
     const [selectedRequirement, setSelectedRequirement] = useState(null); // Full requirement object
     const [selectedReqId, setSelectedReqId] = useState('all');
-    const [jobPipeline, setJobPipeline] = useState(null);
-    const [pipelineLoading, setPipelineLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [timeFilter, setTimeFilter] = useState('all'); // Added Time Filter State
-
+    const [jobTypeFilter, setJobTypeFilter] = useState('all'); // Added Job Type Filter
 
     // Tab State: Dynamic based on Requirement Workflow
     // Start with default tabs for 'all' view
@@ -90,12 +42,12 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [workflowTabs, setWorkflowTabs] = useState(['Applied', 'Shortlisted', 'Interview', 'HR Round', 'Finalized', 'Rejected']);
 
     // Custom Rounds State - Load from localStorage or use defaults
-    const [customRounds] = useState(() => {
+    const [customRounds, setCustomRounds] = useState(() => {
         const saved = localStorage.getItem('hrms_custom_rounds');
         if (saved) {
             try {
                 return JSON.parse(saved);
-            } catch {
+            } catch (e) {
                 return ['HR Round', 'Tech Round', 'Final Round'];
             }
         }
@@ -145,7 +97,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     // New Interview Round State
     const [addRoundModalVisible, setAddRoundModalVisible] = useState(false);
     const [newRoundName, setNewRoundName] = useState('');
-    const [candidateForNewRound] = useState(null);
+    const [candidateForNewRound, setCandidateForNewRound] = useState(null);
 
     // BGV Initiation State (Package-Driven)
     const [showBGVModal, setShowBGVModal] = useState(false);
@@ -163,29 +115,16 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         gameType: 'Coding'
     });
 
-    // Add Stage Modal State
-    const [showAddStageModal, setShowAddStageModal] = useState(false);
-    const [showManageStagesModal, setShowManageStagesModal] = useState(false);
-    const [newStageNameInput, setNewStageNameInput] = useState('');
-    const [isAddingStage, setIsAddingStage] = useState(false);
 
-    // Drag and Drop Reorder State
-    const [isManageMode, setIsManageMode] = useState(false);
-    const [hasUnsavedOrder, setHasUnsavedOrder] = useState(false);
-    const [isSavingOrder, setIsSavingOrder] = useState(false);
-    const [tempWorkflowOrder, setTempWorkflowOrder] = useState([]);
-
-    // Drag and Drop Sensors
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8, // 8px movement required to start drag
-            },
-        })
-    );
-
-
-
+    const openWorkflowEditor = () => {
+        if (!selectedRequirement) return;
+        // Ensure we have at least the basic structure if empty
+        const current = selectedRequirement.workflow && selectedRequirement.workflow.length > 0
+            ? [...selectedRequirement.workflow]
+            : ['Applied', 'Shortlisted', 'Interview', 'Finalized'];
+        setEditingWorkflow(current);
+        setShowWorkflowEditModal(true);
+    };
 
     const handleStageAdd = () => {
         if (newStageName.trim()) {
@@ -238,200 +177,6 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
-    // Add Stage to Workflow Handler (Local preparation, save happens in Manage Stages modal)
-    const handleAddStageToWorkflow = (stageData) => {
-        const stageName = stageData.stageName.trim();
-
-        if (workflowTabs.includes(stageName) || tempWorkflowOrder.some(s => s.stageName === stageName)) {
-            showToast('error', 'Error', 'This stage already exists in the pipeline');
-            return;
-        }
-
-        // Prepare new order: Insert before "Finalized" if it exists, otherwise at the end
-        let newOrder = [...tempWorkflowOrder];
-        const finalizedIndex = newOrder.findIndex(s => s.stageName === 'Finalized');
-
-        const newStageObj = {
-            ...stageData,
-            positionIndex: newOrder.length
-        };
-
-        if (finalizedIndex !== -1) {
-            newOrder.splice(finalizedIndex, 0, newStageObj);
-        } else {
-            newOrder.push(newStageObj);
-        }
-
-        // Update indices
-        newOrder.forEach((s, idx) => s.positionIndex = idx);
-
-        setTempWorkflowOrder(newOrder);
-        setShowAddStageModal(false);
-        setNewStageNameInput('');
-        setShowManageStagesModal(true);
-
-        showToast('info', 'Info', `"${stageName}" added to list. Position it and click Save.`);
-    };
-
-    // Handle Edit Stage
-    const [editingStageData, setEditingStageData] = useState(null);
-    const [showEditStageModal, setShowEditStageModal] = useState(false);
-
-    const onStageEdit = (stage) => {
-        setEditingStageData(stage);
-        setShowEditStageModal(true);
-    };
-
-    const handleUpdateStage = (updatedData) => {
-        const newOrder = tempWorkflowOrder.map(s =>
-            s.stageName === editingStageData.stageName ? { ...s, ...updatedData } : s
-        );
-        setTempWorkflowOrder(newOrder);
-        setShowEditStageModal(false);
-        setEditingStageData(null);
-        showToast('success', 'Stage Updated', 'Stage configuration updated in draft.');
-    };
-
-    const onStageDelete = (stage) => {
-        showConfirmToast({
-            title: 'Delete Stage',
-            description: `Remove "${stage.stageName}" from pipeline?`,
-            okText: 'Delete',
-            okType: 'danger',
-            onConfirm: () => {
-                const newOrder = tempWorkflowOrder.filter(s => s.stageName !== stage.stageName);
-                newOrder.forEach((s, idx) => s.positionIndex = idx);
-                setTempWorkflowOrder(newOrder);
-                showToast('info', 'Stage Removed', 'Stage removed from list. Click Save to commit.');
-            }
-        });
-    };
-
-    // Handle Modal Drag End
-    const handleModalDragEnd = (event) => {
-        const { active, over } = event;
-        if (!over || active.id === over.id) return;
-
-        // FIXED STAGES logic: Applied is always at 0, Shortlisted at 1
-        const activeName = active.id;
-        const overName = over.id;
-
-        if (['Applied', 'Shortlisted', 'Finalized'].includes(activeName)) {
-            showToast('error', 'Locked Stage', `"${activeName}" is a system stage and cannot be moved.`);
-            return;
-        }
-
-        const oldIndex = tempWorkflowOrder.findIndex(s => s.stageName === activeName);
-        const newIndex = tempWorkflowOrder.findIndex(s => s.stageName === overName);
-
-        // Don't allow moving over Applied/Shortlisted
-        if (newIndex <= 1) return;
-
-        // Don't allow moving over Finalized
-        const findex = tempWorkflowOrder.findIndex(s => s.stageName === 'Finalized');
-        if (newIndex >= findex) return;
-
-        const newOrder = arrayMove(tempWorkflowOrder, oldIndex, newIndex);
-        newOrder.forEach((s, idx) => s.positionIndex = idx);
-        setTempWorkflowOrder(newOrder);
-    };
-
-
-    // Handle Drag End - Reorder Stages
-    const handleDragEnd = (event) => {
-        const { active, over } = event;
-
-        if (!over || active.id === over.id) {
-            return;
-        }
-
-        const oldIndex = workflowTabs.indexOf(active.id);
-        const newIndex = workflowTabs.indexOf(over.id);
-
-        // Prevent moving "Applied" or "Finalized"
-        if (active.id === 'Applied' || active.id === 'Finalized') {
-            showToast('error', 'Error', `"${active.id}" stage cannot be moved`);
-            return;
-        }
-
-        // Prevent moving to first position (before "Applied")
-        if (newIndex === 0) {
-            showToast('error', 'Error', '"Applied" must always be the first stage');
-            return;
-        }
-
-        // Prevent moving to last position if "Finalized" exists
-        const finalizedIndex = workflowTabs.indexOf('Finalized');
-        if (finalizedIndex !== -1 && newIndex === workflowTabs.length - 1) {
-            showToast('error', 'Error', '"Finalized" must always be the last stage');
-            return;
-        }
-
-        const newOrder = arrayMove(workflowTabs, oldIndex, newIndex);
-        setWorkflowTabs(newOrder);
-        setTempWorkflowOrder(newOrder);
-        setHasUnsavedOrder(true);
-    };
-
-    // Save Reordered Workflow
-    const handleSaveWorkflowOrder = async () => {
-        if (!selectedRequirement) {
-            showToast('error', 'Error', 'No job selected');
-            return;
-        }
-
-        try {
-            setIsSavingOrder(true);
-
-            // Filter out 'Rejected' as it's a virtual/terminal tab not stored in Requirement.workflow
-            const filteredWorkflow = tempWorkflowOrder.filter(stage => stage !== 'Rejected');
-
-            const response = await api.put(`/requirements/${selectedRequirement._id}/reorder-stages`, {
-                workflow: filteredWorkflow
-            });
-
-            if (response.data.success) {
-                // Refresh requirements
-                const res = await api.get('/requirements');
-                const data = res.data.requirements || res.data || [];
-                setRequirements(data);
-
-                // Update current selection
-                const updatedReq = data.find(r => r._id === selectedRequirement._id);
-                setSelectedRequirement(updatedReq);
-
-                setHasUnsavedOrder(false);
-                setTempWorkflowOrder([]);
-                setIsManageMode(false);
-
-                showToast('success', 'Success', 'Workflow order saved successfully!');
-            }
-        } catch (err) {
-            console.error('Save Order Error:', err);
-            const errorMsg = err.response?.data?.message || 'Failed to save workflow order';
-            showToast('error', 'Error', errorMsg);
-
-            // Revert to original order on error
-            if (selectedRequirement?.workflow) {
-                setWorkflowTabs(selectedRequirement.workflow);
-            }
-            setHasUnsavedOrder(false);
-        } finally {
-            setIsSavingOrder(false);
-        }
-    };
-
-    // Cancel Reorder
-    const handleCancelReorder = () => {
-        if (selectedRequirement?.workflow) {
-            setWorkflowTabs(selectedRequirement.workflow);
-        }
-        setHasUnsavedOrder(false);
-        setTempWorkflowOrder([]);
-        setIsManageMode(false);
-    };
-
-
 
     useEffect(() => {
         // Fetch Requirements for dropdown
@@ -464,7 +209,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             // Clear the state to prevent re-triggering
             navigate('/hr/applicants', { replace: true });
         }
-    }, [applicants, location.state, navigate]);
+    }, [applicants, location.state]);
 
     // Auto-select job when in jobSpecific mode
     useEffect(() => {
@@ -492,40 +237,29 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     }, [showAllCandidates]);
 
 
+    // Handle Requirement Selection
+    const handleRequirementChange = (reqId) => {
+        setSelectedReqId(reqId);
+        if (reqId === 'all') {
+            setSelectedRequirement(null);
+            // setWorkflowTabs handle by useEffect
+            setActiveTab('all');
+        } else {
+            const req = requirements.find(r => r._id === reqId);
+            setSelectedRequirement(req);
 
-    // Reset Manage Mode when job changes
-    useEffect(() => {
-        setIsManageMode(false);
-        setHasUnsavedOrder(false);
-        setTempWorkflowOrder([]);
-    }, [selectedReqId]);
+            // Set default active tab
+            if (req && req.workflow && req.workflow.length > 0) {
+                setActiveTab(req.workflow[0]);
+            } else {
+                setActiveTab('Applied');
+            }
+        }
+    };
 
     // Dynamic Tab Calculation (Includes Custom/Ad-hoc Stages)
-    // --- Fetch Job Pipeline ---
-    useEffect(() => {
-        const fetchPipeline = async () => {
-            if (selectedReqId === 'all') {
-                setJobPipeline(null);
-                return;
-            }
-            try {
-                setPipelineLoading(true);
-                const res = await api.get(`/pipeline/job/${selectedReqId}`);
-                setJobPipeline(res.data);
-            } catch (err) {
-                console.error("Failed to fetch job pipeline:", err);
-            } finally {
-                setPipelineLoading(false);
-            }
-        };
-        fetchPipeline();
-    }, [selectedReqId]);
-
     useEffect(() => {
         const MASTER_STAGES = ['Applied', 'Shortlisted', 'Interview', 'HR Round', 'Finalized'];
-
-        // If user is currently reordering, don't overwrite with dynamic calculation
-        if (hasUnsavedOrder) return;
 
         if (selectedReqId === 'all') {
             const globalStages = ['Applied', 'Finalized', 'Rejected'];
@@ -555,52 +289,52 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             const foundStatuses = [...new Set(relevantApplicants.map(a => a.status))];
 
             const extraStatuses = foundStatuses.filter(s =>
-                !['Selected', 'Rejected', 'Finalized', 'Offer Generated', 'Salary Assigned', 'Offer Issued', 'Offer Accepted', 'Hired', 'Joining Letter Issued', 'Offer Expired', 'Re-Offered', 'Interview Scheduled', 'Interview Rescheduled', 'Interview Completed', 'New Round'].includes(s)
+                !baseParams.includes(s) &&
+                !['Selected', 'Rejected', 'Finalized', 'Offer Generated', 'Salary Assigned', 'Offer Issued', 'Offer Accepted', 'Hired', 'Joining Letter Issued', 'Offer Expired', 'Interview Scheduled', 'Interview Rescheduled', 'Interview Completed', 'New Round'].includes(s)
             );
 
             // Insert extra statuses before 'HR Round' if present, else before 'Finalized'
             let insertPos = baseParams.indexOf('HR Round');
             if (insertPos === -1) insertPos = baseParams.indexOf('Finalized');
 
-            // Filter out statuses that are already in baseParams to prevent duplicates
-            const uniqueExtraStatuses = extraStatuses.filter(s => !baseParams.includes(s));
-
             if (insertPos > -1) {
-                baseParams.splice(insertPos, 0, ...uniqueExtraStatuses);
+                baseParams.splice(insertPos, 0, ...extraStatuses);
             } else {
-                baseParams.push(...uniqueExtraStatuses);
+                baseParams.push(...extraStatuses);
             }
 
             // Ensure Finalized is always last
             if (!baseParams.includes('Finalized')) baseParams.push('Finalized');
 
-            // Use Job Pipeline if available, but only if it's healthy
-            let finalTabs = baseParams;
-            if (jobPipeline && jobPipeline.stages && jobPipeline.stages.length > 0) {
-                const pipelineHasCorruption = jobPipeline.stages.some(s => !s.stageName || s.stageName === "Untitled Stage");
-                if (!pipelineHasCorruption) {
-                    let pipelineStages = jobPipeline.stages.map(s => s.stageName);
-                    if (!pipelineStages.includes('Finalized')) pipelineStages.push('Finalized');
-                    if (!pipelineStages.includes('HR Round')) pipelineStages.splice(pipelineStages.indexOf('Finalized'), 0, 'HR Round');
-                    finalTabs = pipelineStages;
-                } else {
-                    console.warn("[DEBUG] CORRUPTED PIPELINE DETECTED IN UI - Falling back to defaults");
-                }
-            }
-
-            setWorkflowTabs([...new Set(finalTabs.filter(p => typeof p === 'string' && p.trim().length > 0))]);
-            if (!finalTabs.includes(activeTab)) {
-                setActiveTab(finalTabs[0]);
+            setWorkflowTabs(baseParams);
+            if (!baseParams.includes(activeTab)) {
+                setActiveTab(baseParams[0]);
             }
         }
-    }, [selectedReqId, selectedRequirement, jobPipeline, applicants, activeTab, hasUnsavedOrder]);
+    }, [selectedReqId, selectedRequirement, applicants]);
 
     // Custom Stage State
     const [isCustomStageModalVisible, setIsCustomStageModalVisible] = useState(false);
     const [customStageName, setCustomStageName] = useState('');
     const [candidateForCustomStage, setCandidateForCustomStage] = useState(null);
 
-
+    const handleNextStage = (applicant) => {
+        const currentIndex = workflowTabs.indexOf(activeTab);
+        if (currentIndex !== -1 && currentIndex < workflowTabs.length - 1) {
+            const nextStage = workflowTabs[currentIndex + 1];
+            // If next is 'Finalized', we mark as 'Selected' (or specific logic)
+            // But usually 'Finalized' is just a bucket. usage of 'Selected' status puts them there?
+            // Let's assume 'Selected' if next is Finalized, otherwise the stage name.
+            if (nextStage === 'Finalized') {
+                handleStatusChangeRequest(applicant, 'Selected');
+            } else {
+                handleStatusChangeRequest(applicant, nextStage);
+            }
+        } else {
+            // Fallback if no next stage (shouldn't happen if logic is correct)
+            handleStatusChangeRequest(applicant, 'Selected');
+        }
+    };
 
     const handleAddCustomStage = async () => {
         if (!customStageName.trim() || !candidateForCustomStage) return;
@@ -624,79 +358,129 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     // --- NEW PIPELINE LOGIC FUNCTIONS ---
 
     // Add Virtual Interview Round (Frontend only simulation as requested)
+    const handleAddInterviewRound = (app) => {
+        setCandidateForNewRound(app);
+        setAddRoundModalVisible(true);
+    };
 
-
+    // Add Custom Other Round with Game/Assessment
+    const handleAddCustomRound = (app) => {
+        setCandidateForNewRound(app);
+        setAddCustomRoundModalVisible(true);
+    };
 
     const renderHiringDropdown = (app) => {
-        if (app.status === 'Finalized' || app.status === 'Hired') return (
-            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-full w-full justify-center">
-                <CircleCheck size={14} className="text-emerald-600" />
-                <span className="text-[10px] font-black text-emerald-700 tracking-widest uppercase italic">Candidate Finalized</span>
+        if (app.status === 'Finalized') return (
+            <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-100 rounded-full w-full justify-center">
+                <CheckCircle size={14} className="text-blue-600" />
+                <span className="text-[10px] font-black text-blue-700 tracking-widest uppercase">Finalized</span>
             </div>
         );
 
-        if (app.status === 'Rejected') return (
-            <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 border border-rose-100 rounded-full w-full justify-center">
-                <UserX size={14} className="text-rose-600" />
-                <span className="text-[10px] font-black text-rose-700 tracking-widest uppercase">Application Rejected</span>
+        if (app.status === 'Joining Letter Issued') return (
+            <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border border-purple-100 rounded-full w-full justify-center">
+                <CheckCircle size={14} className="text-purple-600" />
+                <span className="text-[10px] font-black text-purple-700 tracking-widest uppercase">Joining Letter Issued</span>
             </div>
         );
 
-        // Dynamic Pipeline Logic
-        const pipelineStages = jobPipeline?.stages || [];
-        const currentStageIdx = pipelineStages.findIndex(s => s.stageName === app.status);
+        // Rule: Finalize button ONLY in HR Round tab for Selected candidates
+        if (activeTab === 'HR Round' && app.status === 'Selected') {
+            return (
+                <div className="w-full flex gap-2">
+                    <button
+                        onClick={() => { setCandidateToFinalize(app); setFinalizeModalVisible(true); }}
+                        className="flex-1 h-10 rounded-full bg-blue-600 text-white text-[11px] font-black shadow-lg shadow-blue-100 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 px-6"
+                    >
+                        <ShieldCheck size={16} strokeWidth={2.5} />
+                        FINALIZE
+                    </button>
+                    <button
+                        onClick={() => updateStatus(app, 'Rejected')}
+                        className="flex-1 h-10 rounded-full bg-rose-600 text-white text-[11px] font-black shadow-lg shadow-rose-100 hover:bg-rose-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 px-6"
+                    >
+                        <UserX size={16} strokeWidth={2.5} />
+                        REJECT
+                    </button>
+                    <button
+                        onClick={() => handleAddCustomRound(app)}
+                        className="flex-1 h-10 rounded-full bg-amber-600 text-white text-[11px] font-black shadow-lg shadow-amber-100 hover:bg-amber-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 px-6"
+                    >
+                        <PlusCircle size={16} strokeWidth={2.5} />
+                        OTHER ROUND
+                    </button>
+                </div>
+            );
+        }
 
-        // Define terminal states that block movement
-        const isTerminal = ['Finalized', 'Hired', 'Rejected'].includes(app.status);
-        if (isTerminal) return null;
-
-        const nextStages = pipelineStages.slice(currentStageIdx + 1, currentStageIdx + 3); // Show next 2 stages
+        // Get candidate's current position in workflow
+        const candidateStatusIndex = workflowTabs.indexOf(app.status);
+        const activeTabIndex = workflowTabs.indexOf(activeTab);
 
         const menuItems = [
             {
-                key: 'header',
+                key: 'label',
                 label: (
                     <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">
-                        Pipeline Actions
+                        Next Pipeline Step
                     </div>
                 ),
                 disabled: true,
             },
-            ...nextStages.map(stage => ({
-                key: stage._id || stage.stageName,
-                icon: stage.stageType === 'Interview' ? <Clock size={16} className="text-indigo-500" /> : <ChevronRight size={16} className="text-blue-500" />,
-                label: <span className="font-bold text-slate-700">Move to {stage.stageName}</span>,
-                onClick: () => updateStatus(app, stage.stageName, null, stage._id)
-            })),
-            {
-                key: 'finalize_sep',
-                type: 'divider'
-            },
-            {
-                key: 'hr_review',
-                icon: <UserPlus size={16} className="text-purple-500" />,
-                label: <span className="font-bold text-slate-700">Direct to HR Round</span>,
-                onClick: () => updateStatus(app, 'HR Round')
-            },
+            // Show "Move to Shortlisted" only if candidate is still in Applied status
+            ...(app.status === 'Applied' ? [{
+                key: 'shortlist',
+                icon: <UserCheck size={16} className="text-blue-500" />,
+                label: <span className="font-bold text-slate-700">Move to Shortlisted</span>,
+                onClick: () => updateStatus(app, 'Shortlisted'),
+            }] : []),
+            // Show "Move to Interview" only if candidate is in Shortlisted (not beyond)
+            ...(app.status === 'Shortlisted' ? [{
+                key: 'interview',
+                icon: <Clock size={16} className="text-indigo-500" />,
+                label: <span className="font-bold text-slate-700">Move to Interview</span>,
+                onClick: () => updateStatus(app, 'Interview'),
+            }] : []),
+            // Show interview options if in Interview stage or custom rounds
+            ...((app.status === 'Interview' || app.status.includes('Interview') || app.status.includes('Round')) ? [
+                {
+                    key: 'hr_round',
+                    icon: <UserPlus size={16} className="text-purple-500" />,
+                    label: <span className="font-bold text-slate-700">Move to HR Round</span>,
+                    onClick: () => updateStatus(app, 'HR Round'),
+                },
+                {
+                    key: 'add_round',
+                    icon: <PlusCircle size={16} className="text-emerald-500" />,
+                    label: <span className="font-bold text-emerald-600">Add Interview Round</span>,
+                    onClick: () => handleAddInterviewRound(app),
+                }
+            ] : []),
+            // Show "Mark as Selected" only if in HR Round and not already selected
+            ...(app.status === 'HR Round' ? [{
+                key: 'select',
+                icon: <UserCheck size={16} className="text-emerald-500" />,
+                label: <span className="font-bold text-emerald-600">Mark as Selected</span>,
+                onClick: () => updateStatus(app, 'Selected'),
+            }] : []),
+            { type: 'divider', className: 'my-1 border-slate-50' },
             {
                 key: 'reject',
                 icon: <UserX size={16} className="text-rose-500" />,
-                label: <span className="font-bold text-rose-600">Reject Candidate</span>,
-                danger: true,
-                onClick: () => updateStatus(app, 'Rejected')
-            }
+                label: <span className="font-bold text-rose-600">Mark as Rejected</span>,
+                onClick: () => updateStatus(app, 'Rejected'),
+            },
+            // Show "Move Back" only if candidate can actually move back
+            ...(candidateStatusIndex > 0 ? [{
+                key: 'back',
+                icon: <RotateCcw size={16} className="text-slate-400" />,
+                label: <span className="font-bold text-slate-500">Move Back</span>,
+                onClick: () => {
+                    const prevIdx = candidateStatusIndex - 1;
+                    if (prevIdx >= 0) updateStatus(app, workflowTabs[prevIdx]);
+                }
+            }] : [])
         ];
-
-        // Add "Add Stage" option for HR flexibility
-        menuItems.push({
-            key: 'add_round',
-            icon: <PlusCircle size={16} className="text-amber-500" />,
-            label: <span className="font-bold text-slate-700">Insert Evaluation Round</span>,
-            onClick: () => {
-                setTempWorkflowOrder(jobPipeline?.stages || []);
-                setShowAddStageModal(true);
-            }
-        });
 
         return (
             <Dropdown
@@ -712,7 +496,6 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             </Dropdown>
         );
     };
-
     // Drag and Drop Refs
     const dragItem = React.useRef(null);
     const dragOverItem = React.useRef(null);
@@ -743,15 +526,12 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         const normalizedTarget = normalizeStatus(targetTab);
 
         // Step 2: Handle Terminal/Special statuses
-        // Step 2: Handle Terminal/Special statuses
-        const finalizedStatuses = ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired', 'Offer Generated', 'Offer Letter Generated', 'Re-Offered', 'Sent', 'Draft'];
-
         if (normalizedTarget === 'Finalized') {
-            return finalizedStatuses.includes(applicantStatus);
+            return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired'].includes(applicantStatus);
         }
 
         // Candidates who are Finalized or Selected have passed all steps
-        if (finalizedStatuses.includes(applicantStatus)) {
+        if (['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired'].includes(applicantStatus)) {
             return true; // Visible in all tabs
         }
 
@@ -772,15 +552,15 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         return normalizedApp === normalizedTarget;
     };
 
-    const getBaseFilteredApplicants = () => {
+    const getFilteredApplicants = () => {
         let filtered = applicants;
 
         // 1. Filter by Search Query
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(a =>
-                (a.name || '').toLowerCase().includes(query) ||
-                (a.email || '').toLowerCase().includes(query) ||
+                a.name.toLowerCase().includes(query) ||
+                a.email.toLowerCase().includes(query) ||
                 (a.mobile && a.mobile.includes(query))
             );
         }
@@ -790,14 +570,17 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             filtered = filtered.filter(a => a.requirementId?._id === selectedReqId || a.requirementId === selectedReqId);
         }
 
-        // 3. Filter by Internal Mode vs External Mode
+        // 2.5 Filter by Internal Mode vs External Mode
         if (internalMode) {
+            // Internal Page: Show Internal source candidates OR candidates for Internal-only jobs
             filtered = filtered.filter(a => a.source === 'Internal' || a.requirementId?.visibility === 'Internal');
         } else {
+            // External Page: Show Non-Internal source candidates AND Exclude Internal-only jobs
+            // This excludes candidates who applied via internal portal AND jobs that are strictly internal
             filtered = filtered.filter(a => a.source !== 'Internal' && a.requirementId?.visibility !== 'Internal');
         }
 
-        // 4. Filter by Time Range
+        // 3. Filter by Time Range
         if (timeFilter !== 'all') {
             const now = dayjs();
             let startDate;
@@ -811,26 +594,18 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             }
         }
 
-        return filtered;
-    };
 
-    const getFilteredApplicants = () => {
-        const baseFiltered = getBaseFilteredApplicants();
 
-        // 5. Filter by Active Tab (Stage)
+        // 4. Filter by Active Tab (Stage)
         if (selectedReqId === 'all') {
-            const finalizedStatuses = ['Finalized', 'Selected', 'Offer Issued', 'Offer Accepted', 'Offer Expired', 'Joining Letter Issued', 'Hired', 'Re-Offered', 'Sent', 'Draft'];
-
             // Global Pipeline: Show all active in 'Applied', and only terminal in 'Finalized'
-            if (activeTab === 'Finalized') return baseFiltered.filter(a => finalizedStatuses.includes(a?.status));
-            if (activeTab === 'Rejected') return baseFiltered.filter(a => a?.status === 'Rejected');
-
-            // 'Applied' is the default bucket for everything else in Global View
-            return baseFiltered.filter(a => !finalizedStatuses.includes(a?.status) && a?.status !== 'Rejected');
+            if (activeTab === 'Finalized') return filtered.filter(a => ['Finalized', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Offer Expired'].includes(a?.status));
+            if (activeTab === 'Rejected') return filtered.filter(a => a?.status === 'Rejected');
+            return filtered.filter(a => a?.status !== 'Finalized' && a?.status !== 'Rejected');
         }
 
         // Specific Job Workflow: CUMULATIVE LOGIC (Show all who reached this stage)
-        return baseFiltered.filter(a => {
+        return filtered.filter(a => {
             // Exclude Rejected candidates from all rounds except Rejected tab
             if (a.status === 'Rejected' && activeTab !== 'Rejected') {
                 return false;
@@ -846,7 +621,39 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [showPreview, setShowPreview] = useState(false);
     const [showCandidateModal, setShowCandidateModal] = useState(false);
 
+    // File Upload State
+    const fileInputRef = React.useRef(null);
+    const [uploading, setUploading] = useState(false);
 
+    const triggerFileUpload = (applicant) => {
+        setSelectedApplicant(applicant);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ''; // Reset
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleFileSelect = async (e) => {
+        const file = e.target.files[0];
+        if (!file || !selectedApplicant) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setUploading(true);
+        try {
+            await api.post(`/requirements/applicants/${selectedApplicant._id}/upload-salary-excel`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            showToast('success', 'Success', "Excel uploaded successfully! Variables are now available for Letter Templates.");
+            loadApplicants(); // Refresh incase we show status
+        } catch (error) {
+            console.error(error);
+            showToast('error', 'Error', "Upload failed: " + (error.response?.data?.error || error.message));
+        } finally {
+            setUploading(false);
+        }
+    };
     // State moved to top
     const [offerData, setOfferData] = useState({
         joiningDate: '',
@@ -881,17 +688,17 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [showSalaryPreview, setShowSalaryPreview] = useState(false);
 
 
-    // Document Upload State
-    const [showDocumentModal, setShowDocumentModal] = useState(false);
-    const [documentApplicant, setDocumentApplicant] = useState(null);
-    const [documentName, setDocumentName] = useState('');
-    const [documentFile, setDocumentFile] = useState(null);
-    const [uploadedDocuments, setUploadedDocuments] = useState([]);
-
     // Review Modal State
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [reviewForm, setReviewForm] = useState({ rating: 0, feedback: '', scorecard: {} });
     const [showEvaluationDrawer, setShowEvaluationDrawer] = useState(false);
 
-
+    // Document Upload States
+    const [showDocumentModal, setShowDocumentModal] = useState(false);
+    const [documentApplicant, setDocumentApplicant] = useState(null);
+    const [uploadedDocuments, setUploadedDocuments] = useState([]);
+    const [documentName, setDocumentName] = useState('');
+    const [documentFile, setDocumentFile] = useState(null);
     const [evalActiveRound, setEvalActiveRound] = useState(0);
     const [evaluationData, setEvaluationData] = useState({
         rounds: [
@@ -941,9 +748,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
     const [generating, setGenerating] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 40;
+    const pageSize = 10;
     const [templates, setTemplates] = useState([]);
-    const [companyInfo] = useState({
+    const [companyInfo, setCompanyInfo] = useState({
         name: 'Gitakshmi Technologies',
         tagline: 'TECHNOLOGIES',
         address: 'Ahmedabad, Gujarat - 380051',
@@ -1080,38 +887,21 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         });
     };
 
-    const updateStatus = async (applicant, status, review = null, stageId = null) => {
+    const updateStatus = async (applicant, status, review = null) => {
         try {
-            const payload = {
-                targetStage: status,
-                targetStageId: stageId || applicant.currentStageId
-            };
-
+            const payload = { status };
             if (review) {
                 payload.rating = review.rating;
                 payload.feedback = review.feedback;
-                payload.scorecard = review.scorecard;
-                payload.stageNote = review.feedback;
+                payload.scorecard = review.scorecard; // Added scorecard
+                payload.stageName = activeTab;
             }
-
-            // If we have a dedicated job pipeline, use the new movement API
-            if (selectedReqId !== 'all') {
-                const response = await api.post(`/pipeline/applicant/${applicant._id}/move`, payload);
-                if (response.data.success) {
-                    showToast('success', 'Candidate Moved', `Moved to ${status}`);
-                    loadApplicants();
-                    return true;
-                }
-            }
-
-            // Legacy fallback if needed
-            await api.patch(`/requirements/applicants/${applicant._id}/status`, { status });
-            showToast('success', 'Status Switched', `Status updated to ${status}`);
+            await api.patch(`/requirements/applicants/${applicant._id}/status`, payload);
+            showToast('success', 'Success', `Status updated to ${status}`);
             loadApplicants();
             return true;
         } catch (error) {
-            console.error("Status Update Error:", error);
-            showToast('error', 'Movement Failed', error.response?.data?.message || error.message);
+            showToast('error', 'Error', "Failed: " + error.message);
             return false;
         }
     };
@@ -1123,34 +913,34 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             return;
         }
 
-        // 1. Find CURRENT stage context (based strictly on candidate's status string)
-        const currentStage = jobPipeline?.stages?.find(s =>
-            s.stageName?.trim().toLowerCase() === applicant.status?.trim().toLowerCase()
-        );
-
-        // 2. Find TARGET stage context (to ensure we update currentStageId in DB)
-        const targetStage = jobPipeline?.stages?.find(s =>
-            s.stageName?.trim().toLowerCase() === status.trim().toLowerCase()
-        );
-
-        // ONLY show drawer if the CURRENT stage has a template
-        if (currentStage?.feedbackTemplateId && currentStage.feedbackTemplateId !== "") {
-            openReviewPrompt(applicant, status, currentStage._id);
-            return;
-        }
-
-        // Standard Toast for moves with no specific feedback form
         showConfirmToast({
             title: 'Update Status',
             description: `Update status to ${status}? This will trigger an email.`,
             okText: 'Yes, Update',
             cancelText: 'Cancel',
             onConfirm: async () => {
-                await updateStatus(applicant, status, null, targetStage?._id);
+                await updateStatus(applicant, status);
             }
         });
     };
 
+    // NEW HANDLERS FOR INTERVIEW TAB ACTIONS (PART 3 & 4)
+    const handleSelected = (applicant) => {
+        showConfirmToast({
+            title: 'Mark as Selected',
+            description: `Move ${applicant.name} to HR Round?`,
+            okText: 'Yes, Select',
+            cancelText: 'Cancel',
+            onConfirm: async () => {
+                // Update status to "Selected" and move to HR Round
+                const success = await updateStatus(applicant, 'Selected');
+                if (success) {
+                    // Show success message with green badge info
+                    showToast('success', 'Selected', `${applicant.name} has been marked as Selected and moved to HR Round with green badge.`);
+                }
+            }
+        });
+    };
 
     const handleRejected = (applicant) => {
         showConfirmToast({
@@ -1169,29 +959,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     };
 
     const handleMoveToRound = (applicant, roundName) => {
-        // Find current stage context strictly by name
-        const currentStage = jobPipeline?.stages?.find(s =>
-            s.stageName?.trim().toLowerCase() === applicant.status?.trim().toLowerCase()
-        );
-
-        // Find target round context
-        const targetStage = jobPipeline?.stages?.find(s =>
-            s.stageName?.trim().toLowerCase() === roundName.trim().toLowerCase()
-        );
-
-        // Only show evaluation drawer if template exists for CURRENT stage
-        if (currentStage?.feedbackTemplateId && currentStage.feedbackTemplateId !== "") {
-            openReviewPrompt(applicant, roundName, currentStage._id);
-            return;
-        }
-
         showConfirmToast({
             title: 'Move to Another Round',
             description: `Move ${applicant.name} to "${roundName}"?`,
             okText: 'Yes, Move',
             cancelText: 'Cancel',
             onConfirm: async () => {
-                const success = await updateStatus(applicant, roundName, null, targetStage?._id);
+                // Update status to the selected round name
+                const success = await updateStatus(applicant, roundName);
                 if (success) {
                     showToast('success', 'Round Changed', `${applicant.name} has been moved to ${roundName}.`);
                 }
@@ -1210,53 +985,16 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         loadApplicants(); // Refresh to show updated BGV status
     };
 
-    const [stageFeedback, setStageFeedback] = useState({ template: null, feedback: null });
-
-    const openReviewPrompt = async (applicant, status, forcedStageId = null) => {
-        // Reset state before fetching
-        setStageFeedback({ template: null, feedback: null });
-        setShowEvaluationDrawer(false);
-
-        // Fetch specific feedback template for this stage
-        try {
-            // Priority 1: forcedStageId (from current stage we matched by name)
-            // Priority 2: applicant.currentStageId (DB fallback)
-            const stageIdToFetch = forcedStageId || applicant.currentStageId;
-
-            if (stageIdToFetch) {
-                const res = await api.get(`/feedback/stage/${applicant._id}/${stageIdToFetch}`);
-                if (res.data.success && res.data.data.template) {
-                    setSelectedApplicant(applicant);
-                    setSelectedStatusForReview(status);
-                    setReviewRating(0);
-                    setReviewFeedback('');
-                    setStageFeedback(res.data.data);
-                    setShowEvaluationDrawer(true);
-                } else {
-                    console.log("[PIPELINE] No template assigned to this stage. Using simple move.");
-                    // Fallback move logic needs target stage ID
-                    const targetStage = jobPipeline?.stages?.find(s => s.stageName?.trim().toLowerCase() === status.trim().toLowerCase());
-                    updateStatus(applicant, status, null, targetStage?._id);
-                }
-            } else {
-                updateStatus(applicant, status);
-            }
-        } catch (err) {
-            console.error("Feedback fetch error:", err);
-            updateStatus(applicant, status);
-        }
+    const openReviewPrompt = (applicant, status) => {
+        setSelectedApplicant(applicant);
+        setSelectedStatusForReview(status);
+        setReviewRating(0);
+        setReviewFeedback('');
+        setShowEvaluationDrawer(true);
     };
 
-    const submitReviewAndStatus = async (reviewOverride = null) => {
-        let finalStatus = reviewOverride?.decision || selectedStatusForReview;
-
-        if (reviewOverride?.decision === 'Pass' && reviewOverride?.nextStage) {
-            finalStatus = reviewOverride.nextStage;
-        } else if (reviewOverride?.decision === 'Reject') {
-            finalStatus = 'Rejected';
-        }
-
-        if (!selectedApplicant || !finalStatus) return;
+    const submitReviewAndStatus = async () => {
+        if (!selectedApplicant || !selectedStatusForReview) return;
 
         setLoading(true);
         try {
@@ -1265,37 +1003,24 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 await api.put(`/requirements/applicants/${selectedApplicant._id}/interview/complete`);
             }
 
-            // 2. Update status with review
-            const reviewData = reviewOverride ? {
-                rating: 0, // Could calculate if needed
-                feedback: reviewOverride.comments,
-                status: reviewOverride.decision, // Explicitly pass decision
-                scorecard: reviewOverride.answers
-            } : {
+            // 2. Update status with review and full scorecard
+            const success = await updateStatus(selectedApplicant, selectedStatusForReview, {
                 rating: reviewRating,
                 feedback: reviewFeedback,
-                status: 'Reviewed',
                 scorecard: evaluationData
-            };
-
-            // Resolve Target Stage ID (Critical for Pipeline integrity)
-            const targetStageObj = jobPipeline?.stages?.find(s =>
-                s.stageName?.trim().toLowerCase() === finalStatus?.trim().toLowerCase()
-            );
-
-            const success = await updateStatus(selectedApplicant, finalStatus, reviewData, targetStageObj?._id);
+            });
 
             if (success) {
-                const status = finalStatus;
+                const status = selectedStatusForReview; // Save before clear
                 const applicant = selectedApplicant;
 
                 setShowEvaluationDrawer(false);
+                setShowReviewModal(false);
                 setIsFinishingInterview(false);
                 setReviewRating(0);
                 setReviewFeedback('');
                 setSelectedStatusForReview('');
                 setEvalActiveRound(0);
-                setStageFeedback({ template: null, feedback: null });
 
                 // Trigger scheduling if appropriate
                 if (status === 'Shortlisted' || status.includes('Interview')) {
@@ -1324,19 +1049,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     }
 
     async function fetchTemplates() {
-        // Fetch Offer Templates from BOTH new system and legacy system
+        // Fetch Offer Templates
         try {
-            const [offerRes, legacyRes] = await Promise.all([
-                api.get('/letters/templates?type=offer'),
-                api.get('/hr/offer-templates').catch(() => ({ data: [] }))
-            ]);
-
-            const combined = [
-                ...(offerRes.data || []),
-                ...(legacyRes.data || [])
-            ].filter((v, i, a) => a.findIndex(t => t._id === v._id) === i); // Deduplicate by ID
-
-            setTemplates(combined);
+            const offerRes = await api.get('/letters/templates?type=offer');
+            setTemplates(offerRes.data || []);
         } catch (err) {
             console.error("Failed to load offer templates", err);
         }
@@ -1353,14 +1069,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
 
     // Unified data refresh function
-    const refreshData = React.useCallback(async () => {
+    const refreshData = async () => {
         setLoading(true);
         await Promise.all([
             loadApplicants(),
             fetchTemplates()
         ]);
         setLoading(false);
-    }, []);
+    };
 
     useEffect(() => {
         // Load data on mount if user is authenticated
@@ -1369,9 +1085,163 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         if (user || token) {
             refreshData();
         }
-    }, [user, refreshData]); // Keep user as dependency to re-run if auth state changes
+    }, [user]); // Keep user as dependency to re-run if auth state changes
 
+    // ==================== DOCUMENT HELPER FUNCTIONS ====================
 
+    // Helper function to check if all documents are verified
+    const areAllDocumentsVerified = (applicant) => {
+        if (!applicant.customDocuments || applicant.customDocuments.length === 0) {
+            return false; // No documents uploaded, so CTC button should be disabled
+        }
+        return applicant.customDocuments.every(doc => doc.verified === true);
+    };
+
+    // Open document upload modal
+    const openDocumentModal = (applicant) => {
+        setDocumentApplicant(applicant);
+        setUploadedDocuments(applicant.customDocuments || []);
+        setDocumentName('');
+        setDocumentFile(null);
+        setShowDocumentModal(true);
+    };
+
+    // Handle document file selection
+    const handleDocumentFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+            if (!allowedTypes.includes(file.type)) {
+                notification.error({ message: 'Error', description: 'Only PDF, JPG, and PNG files are allowed', placement: 'topRight' });
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                notification.error({ message: 'Error', description: 'File size must be less than 5MB', placement: 'topRight' });
+                return;
+            }
+
+            setDocumentFile(file);
+        }
+    };
+
+    // Add document to list
+    const addDocumentToList = () => {
+        if (!documentName.trim()) {
+            notification.error({ message: 'Error', description: 'Please enter document name', placement: 'topRight' });
+            return;
+        }
+
+        if (!documentFile) {
+            notification.error({ message: 'Error', description: 'Please select a file', placement: 'topRight' });
+            return;
+        }
+
+        const newDoc = {
+            name: documentName.trim(),
+            fileName: documentFile.name,
+            fileSize: documentFile.size,
+            fileType: documentFile.type,
+            file: documentFile,
+            verified: false,
+            uploadedAt: new Date()
+        };
+
+        setUploadedDocuments(prev => [...prev, newDoc]);
+        setDocumentName('');
+        setDocumentFile(null);
+
+        if (fileInput) fileInput.value = '';
+
+        notification.success({ message: 'Success', description: 'Document added to list', placement: 'topRight' });
+    };
+
+    // View Resume
+    const handleViewResume = async (resumeFilename) => {
+        if (!resumeFilename) {
+            notification.warning({ message: 'No Resume', description: 'This applicant does not have a resume file.', placement: 'topRight' });
+            return;
+        }
+        try {
+            const response = await api.get(`/hr/resume/${resumeFilename}`, { responseType: 'blob' });
+            const file = new Blob([response.data], { type: 'application/pdf' });
+            const fileURL = URL.createObjectURL(file);
+            setResumeUrl(fileURL);
+            setIsResumeModalOpen(true);
+        } catch (error) {
+            console.error("View Resume Error:", error);
+            let description = 'Failed to access resume file.';
+
+            if (error.response?.data instanceof Blob) {
+                try {
+                    const text = await error.response.data.text();
+                    const json = JSON.parse(text);
+                    if (json.message) description = json.message;
+                    if (json.debug) console.warn("Resume Debug Info:", json.debug);
+                } catch (e) { /* ignore json parse error */ }
+            } else if (error.response?.data?.message) {
+                description = error.response.data.message;
+            }
+
+            notification.error({ message: 'Error', description, placement: 'topRight' });
+        }
+    };
+
+    // Remove document from list
+    const removeDocumentFromList = (index) => {
+        setUploadedDocuments(prev => prev.filter((_, idx) => idx !== index));
+    };
+
+    // Save all documents to backend
+    const saveDocuments = async () => {
+        if (uploadedDocuments.length === 0) {
+            notification.error({ message: 'Error', description: 'Please add at least one document', placement: 'topRight' });
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+
+            uploadedDocuments.forEach((doc, index) => {
+                if (doc.file) {
+                    formData.append('documents', doc.file);
+                    formData.append(`documentNames[${index}]`, doc.name);
+                }
+            });
+
+            await api.post(
+                `/requirements/applicants/${documentApplicant._id}/documents`,
+                formData,
+                {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                }
+            );
+
+            notification.success({ message: 'Success', description: 'Documents uploaded successfully', placement: 'topRight' });
+            setShowDocumentModal(false);
+            loadApplicants();
+        } catch (err) {
+            console.error('Document upload error:', err);
+            notification.error({ message: 'Error', description: err.response?.data?.message || 'Failed to upload documents', placement: 'topRight' });
+        }
+    };
+
+    // Verify a specific document
+    const verifyDocument = async (applicantId, documentIndex) => {
+        try {
+            await api.patch(
+                `/requirements/applicants/${applicantId}/documents/${documentIndex}/verify`
+            );
+
+            notification.success({ message: 'Success', description: 'Document verified', placement: 'topRight' });
+            loadApplicants();
+        } catch (err) {
+            console.error('Document verification error:', err);
+            notification.error({ message: 'Error', description: 'Failed to verify document', placement: 'topRight' });
+        }
+    };
+
+    // ==================== END DOCUMENT FUNCTIONS ====================
 
     // Ensure templates are fresh when opening the modal
     useEffect(() => {
@@ -1413,8 +1283,34 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
+    const openOfferModal = (applicant) => {
+        setSelectedApplicant(applicant);
 
+        // Auto-generate a default reference number
+        const currentYear = new Date().getFullYear();
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        const refNo = `${companyInfo.refPrefix || 'OFFER'}/${currentYear}/${randomNum}`;
 
+        setOfferData({
+            joiningDate: '',
+            location: applicant.workLocation || 'Ahmedabad',
+            templateId: '',
+            position: applicant.requirementId?.jobTitle || '',
+            probationPeriod: '3 months',
+            templateContent: '',
+            isWordTemplate: false,
+            refNo: refNo,
+            salutation: applicant.salutation || '',
+            address: applicant.address || '',
+            issueDate: dayjs().format('YYYY-MM-DD'),
+            name: applicant.name,
+            dearName: applicant.name, // Default to full name
+            dateFormat: 'Do MMM. YYYY'
+        });
+        setPreviewPdfUrl(null);
+        setShowModal(true);
+        setShowPreview(false);
+    };
 
     const handleOfferChange = (e) => {
         const { name, value } = e.target;
@@ -1545,7 +1441,16 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
-
+    const downloadOffer = (filePath) => {
+        // Handle both cases: just filename or full path
+        let cleanPath = filePath;
+        if (filePath && filePath.includes('/')) {
+            // If path contains slashes, extract just the filename
+            cleanPath = filePath.split('/').pop();
+        }
+        const url = `${API_ROOT}/uploads/offers/${cleanPath}`;
+        window.open(url, '_blank');
+    };
 
     const viewOfferLetter = (filePath) => {
         // Handle both cases: just filename or full path
@@ -1568,81 +1473,6 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         } catch (err) {
             console.error('Failed to view joining letter:', err);
             notification.error({ message: 'Error', description: 'Failed to view joining letter', placement: 'topRight' });
-        }
-    };
-
-    const handleViewResume = (resumePath) => {
-        if (!resumePath) {
-            notification.error({ message: 'Error', description: 'No resume available' });
-            return;
-        }
-
-        // Logic to construct URL
-        let filename = resumePath;
-        if (typeof resumePath === 'object' && resumePath.url) {
-            filename = resumePath.url;
-        }
-
-        if (filename.includes('/') || filename.includes('\\')) {
-            filename = filename.split(/[/\\]/).pop();
-        }
-
-        const url = `${API_ROOT}/hr/resume/${filename}`;
-        setResumeUrl(url);
-        setIsResumeModalOpen(true);
-    };
-
-    const handleDocumentFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-            setDocumentFile(e.target.files[0]);
-        }
-    };
-
-    const addDocumentToList = () => {
-        if (!documentName || !documentFile) {
-            notification.error({ message: 'Error', description: 'Please provide document name and file' });
-            return;
-        }
-        const newDoc = {
-            name: documentName,
-            file: documentFile,
-            fileName: documentFile.name,
-            fileSize: documentFile.size,
-            verified: false
-        };
-        setUploadedDocuments(prev => [...prev, newDoc]);
-        setDocumentFile(null);
-        setDocumentName('');
-        // Reset file input
-        const fileInput = document.getElementById('documentFileInput');
-        if (fileInput) fileInput.value = '';
-    };
-
-    const removeDocumentFromList = (index) => {
-        setUploadedDocuments(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const saveDocuments = async () => {
-        if (uploadedDocuments.length === 0) return;
-
-        try {
-            const formData = new FormData();
-            uploadedDocuments.forEach((doc) => {
-                formData.append('documents', doc.file);
-                formData.append('names', doc.name);
-            });
-
-            await api.post(`/requirements/applicants/${documentApplicant._id}/documents`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            notification.success({ message: 'Success', description: 'Documents uploaded successfully' });
-            setShowDocumentModal(false);
-            setUploadedDocuments([]);
-            loadApplicants(); // Refresh
-        } catch (err) {
-            console.error('Failed to upload documents', err);
-            notification.error({ message: 'Error', description: 'Failed to upload documents' });
         }
     };
 
@@ -1677,7 +1507,26 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     //     }
     // };
 
+    const downloadJoiningLetter = async (applicantId) => {
+        try {
+            const res = await api.get(`/requirements/joining-letter/${applicantId}/download`, {
+                responseType: 'blob'
+            });
 
+            const blob = new Blob([res.data], { type: 'application/pdf' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `Joining_Letter_${applicantId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Failed to download joining letter:', err);
+            notification.error({ message: 'Error', description: 'Failed to download joining letter', placement: 'topRight' });
+        }
+    };
 
     const viewResume = async (input) => {
         if (!input) {
@@ -1772,43 +1621,28 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
-
-
-
-    const handleOpenOfferModal = async (app) => {
-        setSelectedApplicant(app);
-
-        // Initialize with default values
-        const firstName = app.name ? app.name.split(' ')[0] : '';
-        setOfferData(prev => ({
-            ...prev,
-            name: app.name || '',
-            dearName: firstName,
-            address: app.address || '',
-            salutation: app.gender === 'Female' ? 'Ms.' : 'Mr.',
-            joiningDate: app.joiningDate ? dayjs(app.joiningDate).format('YYYY-MM-DD') : '',
-            issueDate: dayjs().format('YYYY-MM-DD'),
-            refNo: 'Fetching ID...'
-        }));
-        setShowModal(true);
-
-        // Auto-fetch Reference Number
-        try {
-            const res = await api.post('/company-id-config/next', { entityType: 'OFFER', increment: false });
-            if (res.data && res.data.data && res.data.data.id) {
-                setOfferData(prev => ({ ...prev, refNo: res.data.data.id }));
-            } else {
-                setOfferData(prev => ({ ...prev, refNo: '' }));
-            }
-        } catch (error) {
-            console.error("Failed to fetch next Offer ID", error);
-            setOfferData(prev => ({ ...prev, refNo: '' }));
+    const closeCandidateModalHelper = () => {
+        setShowCandidateModal(false);
+        if (resumePreviewUrl) {
+            window.URL.revokeObjectURL(resumePreviewUrl);
+            setResumePreviewUrl(null);
         }
     };
+
 
     const openJoiningModal = async (applicant) => {
         if (!applicant.offerLetterPath) {
             notification.warning({ message: 'Warning', description: "Please generate an Offer Letter first.", placement: 'topRight' });
+            return;
+        }
+
+        // BGV must be clear to proceed with Joining Letter
+        if (applicant.bgvStatus !== 'CLEAR') {
+            notification.error({
+                message: 'BGV Pending',
+                description: 'Background Verification must be CLEAR before generating a Joining Letter.',
+                placement: 'topRight'
+            });
             return;
         }
         // Check if salary is assigned (either via snapshot or flat ctc field)
@@ -1840,13 +1674,37 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         setShowJoiningPreview(false);
     };
 
+    const openSalaryModal = (applicant) => {
+        setSelectedApplicant(applicant);
+        setShowSalaryModal(true);
+    };
 
+    const openSalaryPreview = (applicant) => {
+        setSelectedApplicant(applicant);
+        setShowSalaryPreview(true);
+    };
 
     const handleSalaryAssigned = () => {
         loadApplicants(); // Refresh list to show updated salary status
     };
 
-
+    const confirmSalary = async (applicant) => {
+        if (!confirm("Confirm and Lock this salary structure? This will create an immutable snapshot and enable letter generation.")) return;
+        try {
+            setLoading(true);
+            await api.post('/payroll-engine/salary/confirm', {
+                applicantId: applicant._id,
+                reason: 'JOINING'
+            });
+            alert("✅ Salary confirmed and locked!");
+            loadApplicants();
+        } catch (err) {
+            console.error(err);
+            alert("❌ Lock failed: " + (err.response?.data?.message || err.message));
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleJoiningPreview = async () => {
         if (!joiningTemplateId) {
@@ -1901,14 +1759,13 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             if (res.data.downloadUrl) {
                 const url = `${API_ROOT}${res.data.downloadUrl}`;
 
-                // Open in new tab
-                window.open(url, '_blank');
-
-                notification.success({
-                    message: "Success",
-                    description: "Joining letter generated successfully.",
-                    placement: 'topRight'
-                });
+                // Download the PDF
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `Joining_Letter_${selectedApplicant._id}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
 
                 setShowJoiningModal(false);
                 setShowJoiningPreview(false);
@@ -1932,90 +1789,47 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
-    const handleReOffer = (applicant) => {
-        if (!applicant) return;
-        setSelectedApplicant(applicant);
-        setOfferData(prev => ({
-            ...prev,
-            name: applicant.name,
-            refNo: '', // Clear ref so new one generated or asked
-        }));
-        setShowModal(true);
-    };
-
     const handleOnboard = (applicant) => {
-        // --- FRONTEND VACANCY CHECK ---
-        const requirementId = applicant.requirementId?._id || applicant.requirementId;
-        const totalVacancies = applicant.totalVacancies || applicant.requirementId?.vacancy || 1;
+        showConfirmToast({
+            title: 'Confirm Onboarding',
+            description: `Convert ${applicant.name} into an Employee? This will create a new employee profile.`,
+            okText: 'Yes, Convert',
+            cancelText: 'Cancel',
+            onConfirm: async () => {
+                setLoading(true);
+                try {
+                    // Split Name
+                    const nameParts = (applicant.name || '').trim().split(' ');
+                    const firstName = nameParts[0];
+                    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.';
 
-        // Count how many are already onboarded for this SPECIFIC job
-        const alreadyHiredCount = (applicants || []).filter(a =>
-            (a.requirementId?._id === requirementId || a.requirementId === requirementId) &&
-            a.isOnboarded
-        ).length;
+                    // Prepare Payload
+                    const payload = {
+                        firstName,
+                        lastName,
+                        email: applicant.email,
+                        contactNo: applicant.mobile,
+                        joiningDate: applicant.joiningDate || new Date(),
+                        department: applicant.requirementId?.department?.name || 'General',
+                        departmentId: applicant.requirementId?.department?._id,
+                        designation: applicant.requirementId?.jobTitle,
+                        role: 'employee',
+                        applicantId: applicant._id,
+                        status: 'Active',
+                        leavePolicy: null,
+                    };
 
-        const isFull = alreadyHiredCount >= totalVacancies;
-        console.log(`[ONBOARDING_FRONTEND_CHECK] ${applicant.name}, Job: ${requirementId}, Total: ${totalVacancies}, Hired: ${alreadyHiredCount}, isFull: ${isFull}`);
-
-        const performConversion = async (override = false) => {
-            setLoading(true);
-            try {
-                // Split Name
-                const nameParts = (applicant.name || '').trim().split(' ');
-                const firstName = nameParts[0];
-                const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.';
-
-                // Prepare Payload
-                const payload = {
-                    firstName,
-                    lastName,
-                    email: applicant.email,
-                    contactNo: applicant.mobile,
-                    joiningDate: applicant.joiningDate || new Date(),
-                    department: applicant.requirementId?.department?.name || 'General',
-                    departmentId: applicant.requirementId?.department?._id,
-                    designation: applicant.requirementId?.jobTitle,
-                    role: 'employee',
-                    applicantId: applicant._id,
-                    status: 'Active',
-                    leavePolicy: null,
-                    overrideVacancy: override
-                };
-
-                await api.post('/hrms/hr/employees', payload);
-                showToast('success', 'Onboarding Started', `${applicant.name} is now an Active Employee.`);
-                loadApplicants();
-            } catch (err) {
-                console.error(err);
-                showToast('error', 'Onboarding Failed', err.response?.data?.message || err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        const showOnboardConfirmation = (override = false) => {
-            showConfirmToast({
-                title: 'Confirm Onboarding',
-                description: `Convert ${applicant.name} into an Employee? This will create a new employee profile.`,
-                okText: 'Yes, Convert',
-                cancelText: 'Cancel',
-                onConfirm: () => performConversion(override)
-            });
-        };
-
-        if (isFull) {
-            showConfirmToast({
-                title: 'Vacancy Limit Reached',
-                description: `All ${totalVacancies} vacancies for '${applicant.requirementId?.jobTitle || "this job"}' are already filled. Do you want to cover this requirement?`,
-                okText: 'Yes, Cover it',
-                cancelText: 'Cancel',
-                onConfirm: () => {
-                    showOnboardConfirmation(true);
+                    await api.post('/hrms/hr/employees', payload);
+                    showToast('success', 'Onboarding Started', `${applicant.name} is now an Active Employee.`);
+                    loadApplicants();
+                } catch (err) {
+                    console.error(err);
+                    showToast('error', 'Onboarding Failed', err.response?.data?.message || err.message);
+                } finally {
+                    setLoading(false);
                 }
-            });
-        } else {
-            showOnboardConfirmation(false);
-        }
+            }
+        });
     };
 
 
@@ -2066,7 +1880,30 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     </div>
 
                     {/* Job Dropdown - Hidden, replaced with cards below */}
-
+                    {false && (
+                        <div className="lg:w-48 xl:w-64">
+                            <select
+                                className="w-full border border-slate-100 shadow-sm rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/10 outline-none bg-white cursor-pointer"
+                                value={selectedReqId}
+                                onChange={(e) => handleRequirementChange(e.target.value)}
+                            >
+                                <option value="all">Global Pipeline</option>
+                                <optgroup label="Active Recruitments">
+                                    {requirements.filter(r => {
+                                        if (r.status !== 'Open') return false;
+                                        // Strict visibility filtering
+                                        if (internalMode) {
+                                            return r.visibility === 'Internal' || r.visibility === 'Both';
+                                        } else {
+                                            return r.visibility === 'External' || r.visibility === 'Both' || !r.visibility; // Default to External
+                                        }
+                                    }).map(req => (
+                                        <option key={req._id} value={req._id}>{req.jobTitle}</option>
+                                    ))}
+                                </optgroup>
+                            </select>
+                        </div>
+                    )}
 
                     <div className="lg:w-40 xl:w-48">
                         <select
@@ -2145,7 +1982,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
                     {/* Individual Job Cards */}
                     {requirements.filter(r => {
-                        if (!['Open', 'Closed'].includes(r.status)) return false;
+                        if (r.status !== 'Open') return false;
                         if (internalMode) {
                             return r.visibility === 'Internal' || r.visibility === 'Both';
                         } else {
@@ -2170,14 +2007,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                             </span>
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-0.5">
-                                                <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors truncate">
-                                                    {req.jobTitle}
-                                                </h3>
-                                                {req.status === 'Closed' && (
-                                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-tighter rounded">Closed</span>
-                                                )}
-                                            </div>
+                                            <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors truncate">
+                                                {req.jobTitle}
+                                            </h3>
                                             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
                                                 {req.department?.name || req.department || 'General'}
                                             </p>
@@ -2186,15 +2018,12 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
                                     <div className="grid grid-cols-2 gap-2 mt-4">
                                         <div className="bg-slate-50 rounded-lg p-2 border border-slate-100">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Vacancies</p>
-                                            <p className="text-sm font-black text-slate-900">
-                                                {applicants.filter(a => (a.requirementId?._id === req._id || a.requirementId === req._id) && ['Selected', 'Hired', 'Finalized'].includes(a.status)).length}
-                                                <span className="text-slate-400 text-xs"> / {req.vacancy || 0}</span>
-                                            </p>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Openings</p>
+                                            <p className="text-sm font-black text-slate-900">{req.openings || 0}</p>
                                         </div>
                                         <div className="bg-slate-50 rounded-lg p-2 border border-slate-100">
                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Experience</p>
-                                            <p className="text-sm font-black text-slate-900 truncate">{req.minExperienceMonths || 0} - {req.maxExperienceMonths || 0} Y</p>
+                                            <p className="text-sm font-black text-slate-900 truncate">{req.experience || 'Any'}</p>
                                         </div>
                                     </div>
 
@@ -2205,7 +2034,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     </div>
                                 </div>
 
-                                <div className={`bg-gradient-to-r ${req.status === 'Closed' ? 'from-slate-400 to-slate-500' : 'from-blue-500 to-indigo-600'} px-6 py-3`}>
+                                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-3">
                                     <div className="flex items-center justify-between text-white">
                                         <span className="text-xs font-black uppercase tracking-wider">
                                             Applicants
@@ -2226,227 +2055,65 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 <div className="bg-white/50 backdrop-blur-xl rounded-[32px] border border-white/60 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.05)] overflow-hidden">
 
                     {/* Modern Pipeline Stepper */}
-                    <div className="bg-white/80 border-b border-indigo-50/50 px-6 py-5 relative">
-                        <div className="flex items-center justify-between gap-4 mb-4">
-                            <h3 className="text-sm font-bold text-slate-700">Hiring Pipeline</h3>
-                        </div>
+                    <div className="bg-white/80 border-b border-indigo-50/50 px-6 py-5">
+                        <div className="flex items-center gap-2 overflow-x-auto pb-4 pt-2 scrollbar-hide snap-x">
+                            {workflowTabs.map((tab, idx) => {
+                                let sub = applicants;
+                                if (searchQuery) {
+                                    const query = searchQuery.toLowerCase();
+                                    sub = sub.filter(a => (a.name || '').toLowerCase().includes(query) || (a.email || '').toLowerCase().includes(query));
+                                }
 
-                        <div className="flex items-center gap-4">
-                            <div className="flex-1 flex items-center gap-2 overflow-x-auto pb-4 pt-2 scrollbar-hide snap-x">
-                                {workflowTabs.map((tab, idx) => {
-                                    const baseFiltered = getBaseFilteredApplicants();
-                                    let count = baseFiltered.filter(a => {
-                                        if (a.status === 'Rejected' && tab !== 'Rejected') return false;
-                                        if (selectedReqId === 'all') {
-                                            const finalizedStatuses = ['Finalized', 'Selected', 'Offer Issued', 'Offer Accepted', 'Offer Expired', 'Joining Letter Issued', 'Hired'];
-                                            if (tab === 'Finalized') return finalizedStatuses.includes(a.status);
-                                            if (tab === 'Rejected') return a.status === 'Rejected';
-                                            return !finalizedStatuses.includes(a.status) && a.status !== 'Rejected';
-                                        }
-                                        return checkStatusPassage(a.status, tab, workflowTabs);
-                                    }).length;
+                                let count = sub.filter(a => {
+                                    if (selectedReqId !== 'all') {
+                                        if (!(a.requirementId?._id === selectedReqId || a.requirementId === selectedReqId)) return false;
+                                    }
+                                    if (a.status === 'Rejected' && tab !== 'Rejected') return false;
+                                    if (selectedReqId === 'all') {
+                                        if (tab === 'Finalized') return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired'].includes(a.status);
+                                        if (tab === 'Rejected') return (a.status === 'Rejected');
+                                        return a.status !== 'Finalized' && a.status !== 'Rejected';
+                                    }
+                                    return checkStatusPassage(a.status, tab, workflowTabs);
+                                }).length;
 
-                                    const isActive = activeTab === tab;
-                                    const isFinal = tab === 'Finalized';
-                                    const isRejected = tab === 'Rejected';
+                                const isActive = activeTab === tab;
+                                const isFinal = tab === 'Finalized';
+                                const isRejected = tab === 'Rejected';
 
-                                    return (
-                                        <button
-                                            key={`${tab}-${idx}`}
-                                            onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
-                                            className={`
-                                                group relative flex-shrink-0 px-6 py-3 rounded-2xl transition-all duration-500 ease-out snap-center
-                                                flex items-center gap-3 border
-                                                ${isActive
-                                                    ? (isFinal ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-200/50 border-transparent scale-105' :
-                                                        isRejected ? 'bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-200/50 border-transparent scale-105' :
-                                                            'bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200/50 border-transparent scale-105')
-                                                    : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-100 hover:bg-indigo-50/30 hover:text-indigo-600'}
-                                            `}
-                                        >
-                                            <div className="flex flex-col items-start">
-                                                <span className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isActive ? 'text-white/80' : 'text-slate-400 group-hover:text-indigo-400'}`}>
-                                                    Stage 0{idx + 1}
-                                                </span>
-                                                <span className="text-sm font-black tracking-tight">
-                                                    {tab}
-                                                </span>
-                                            </div>
-                                            <span className={`
-                                                flex items-center justify-center h-6 min-w-[24px] px-2 rounded-full text-[11px] font-black
-                                                ${isActive
-                                                    ? 'bg-white/20 text-white backdrop-blur-sm'
-                                                    : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600'}
-                                            `}>
-                                                {count}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Manage Pipeline Dropdown */}
-                            {selectedRequirement && (
-                                <Dropdown
-                                    menu={{
-                                        items: [
-                                            {
-                                                key: 'add-stage',
-                                                label: (
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
-                                                            <Plus className="w-4 h-4" />
-                                                        </div>
-                                                        <div>
-                                                            <div className="text-sm font-bold text-slate-700">Add New Stage</div>
-                                                            <div className="text-[10px] text-slate-400 font-medium">Create a custom round</div>
-                                                        </div>
-                                                    </div>
-                                                ),
-                                                className: "rounded-xl hover:bg-white transition-all p-3",
-                                                onClick: () => {
-                                                    // Initialize temp order so core stages are present
-                                                    const initialDetailed = selectedRequirement.detailedWorkflow && selectedRequirement.detailedWorkflow.length > 0
-                                                        ? selectedRequirement.detailedWorkflow
-                                                        : workflowTabs.map((name, idx) => ({
-                                                            stageName: name,
-                                                            stageType: ['Applied', 'Shortlisted', 'Finalized'].includes(name) ? name : 'Interview',
-                                                            positionIndex: idx
-                                                        }));
-
-                                                    // Enforce uniqueness and ENSURE MANDATORY 'Applied' is first
-                                                    const uniqueItems = [];
-                                                    const seenNames = new Set();
-
-                                                    // 1. Force Applied as first
-                                                    const appliedRef = initialDetailed.find(s => (s.stageName || s.name) === 'Applied');
-                                                    seenNames.add('Applied');
-                                                    uniqueItems.push({
-                                                        ...(appliedRef || {}),
-                                                        stageName: 'Applied',
-                                                        stageType: 'Applied',
-                                                        positionIndex: 0
-                                                    });
-
-                                                    // 2. Add others
-                                                    initialDetailed.forEach(item => {
-                                                        const name = item.stageName || item.name || 'Untitled Stage';
-                                                        if (name === 'Applied') return;
-                                                        if (!seenNames.has(name)) {
-                                                            seenNames.add(name);
-                                                            const mapType = (n, t) => {
-                                                                const low = n.toLowerCase();
-                                                                if (low === 'applied') return 'Applied';
-                                                                if (low === 'shortlisted') return 'Shortlisted';
-                                                                if (low === 'finalized' || low === 'selected') return 'Finalized';
-                                                                if (low === 'rejected') return 'Rejected';
-                                                                if (t === 'assessment') return 'Assessment';
-                                                                if (t === 'interview') return 'Interview';
-                                                                return 'HR';
-                                                            };
-                                                            uniqueItems.push({
-                                                                ...item,
-                                                                stageName: name,
-                                                                stageType: mapType(name, item.stageType || item.type),
-                                                                positionIndex: uniqueItems.length
-                                                            });
-                                                        }
-                                                    });
-
-                                                    // 3. Re-index
-                                                    uniqueItems.forEach((s, idx) => s.positionIndex = idx);
-
-                                                    setTempWorkflowOrder(uniqueItems);
-                                                    setShowAddStageModal(true);
-                                                }
-                                            },
-                                            {
-                                                key: 'manage-stages',
-                                                label: (
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
-                                                            <Settings className="w-4 h-4" />
-                                                        </div>
-                                                        <div>
-                                                            <div className="text-sm font-bold text-slate-700">Manage & Reorder</div>
-                                                            <div className="text-[10px] text-slate-400 font-medium">Rearrange pipeline stages</div>
-                                                        </div>
-                                                    </div>
-                                                ),
-                                                className: "rounded-xl hover:bg-white transition-all p-3",
-                                                onClick: () => {
-                                                    const initialDetailed = selectedRequirement.detailedWorkflow && selectedRequirement.detailedWorkflow.length > 0
-                                                        ? selectedRequirement.detailedWorkflow
-                                                        : workflowTabs.map((name, idx) => ({
-                                                            stageName: name,
-                                                            stageType: ['Applied', 'Shortlisted', 'Finalized'].includes(name) ? name : 'Interview',
-                                                            positionIndex: idx
-                                                        }));
-
-                                                    // Enforce uniqueness and ENSURE MANDATORY 'Applied' is first
-                                                    const uniqueItems = [];
-                                                    const seenNames = new Set();
-
-                                                    // 1. Force Applied as first
-                                                    const appliedRef = initialDetailed.find(s => (s.stageName || s.name) === 'Applied');
-                                                    seenNames.add('Applied');
-                                                    uniqueItems.push({
-                                                        ...(appliedRef || {}),
-                                                        stageName: 'Applied',
-                                                        stageType: 'Applied',
-                                                        positionIndex: 0
-                                                    });
-
-                                                    // 2. Add others
-                                                    initialDetailed.forEach(item => {
-                                                        const name = item.stageName || item.name || 'Untitled Stage';
-                                                        if (name === 'Applied') return;
-                                                        if (!seenNames.has(name)) {
-                                                            seenNames.add(name);
-                                                            const mapType = (n, t) => {
-                                                                const low = n.toLowerCase();
-                                                                if (low === 'applied') return 'Applied';
-                                                                if (low === 'shortlisted') return 'Shortlisted';
-                                                                if (low === 'finalized' || low === 'selected') return 'Finalized';
-                                                                if (low === 'rejected') return 'Rejected';
-                                                                if (t === 'assessment') return 'Assessment';
-                                                                if (t === 'interview') return 'Interview';
-                                                                return 'HR';
-                                                            };
-                                                            uniqueItems.push({
-                                                                ...item,
-                                                                stageName: name,
-                                                                stageType: mapType(name, item.stageType || item.type),
-                                                                positionIndex: uniqueItems.length
-                                                            });
-                                                        }
-                                                    });
-
-                                                    // 3. Re-index
-                                                    uniqueItems.forEach((s, idx) => s.positionIndex = idx);
-
-                                                    setTempWorkflowOrder(uniqueItems);
-                                                    setShowManageStagesModal(true);
-                                                }
-                                            }
-                                        ],
-                                        className: "rounded-2xl border-none shadow-2xl p-2 min-w-[200px]"
-                                    }}
-                                    trigger={['click']}
-                                    placement="bottomRight"
-                                >
+                                return (
                                     <button
-                                        className="group relative flex-shrink-0 px-5 py-3 rounded-2xl transition-all duration-300 
-                                            flex items-center gap-2 border-2 border-dashed border-indigo-200 bg-white text-indigo-600
-                                            hover:bg-indigo-50 hover:border-indigo-400 hover:shadow-md mb-4"
-                                        title="Manage pipeline stages"
+                                        key={tab}
+                                        onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
+                                        className={`
+                                            group relative flex-shrink-0 px-6 py-3 rounded-2xl transition-all duration-500 ease-out snap-center
+                                            flex items-center gap-3 border
+                                            ${isActive
+                                                ? (isFinal ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-200/50 border-transparent scale-105' :
+                                                    isRejected ? 'bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-200/50 border-transparent scale-105' :
+                                                        'bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200/50 border-transparent scale-105')
+                                                : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-100 hover:bg-indigo-50/30 hover:text-indigo-600'}
+                                        `}
                                     >
-                                        <Settings className="w-4 h-4" />
-                                        <span className="text-sm font-bold">Stage Setting</span>
-                                        <ChevronDown className="w-4 h-4" />
+                                        <div className="flex flex-col items-start">
+                                            <span className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isActive ? 'text-white/80' : 'text-slate-400 group-hover:text-indigo-400'}`}>
+                                                Stage 0{idx + 1}
+                                            </span>
+                                            <span className="text-sm font-black tracking-tight">
+                                                {tab}
+                                            </span>
+                                        </div>
+                                        <span className={`
+                                            flex items-center justify-center h-6 min-w-[24px] px-2 rounded-full text-[11px] font-black
+                                            ${isActive
+                                                ? 'bg-white/20 text-white backdrop-blur-sm'
+                                                : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600'}
+                                        `}>
+                                            {count}
+                                        </span>
                                     </button>
-                                </Dropdown>
-                            )}
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -2479,10 +2146,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     .map((app, index) => (
                                         <div
                                             key={app._id || index}
-                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 group hover:-translate-y-1 block relative z-0 hover:z-10"
+                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 overflow-hidden group hover:-translate-y-1 block relative"
                                         >
                                             {/* Status Header Line */}
-                                            <div className={`h-1.5 w-full rounded-t-[24px] ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
+                                            <div className={`h-1.5 w-full ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
                                                 app.status === 'Rejected' ? 'bg-gradient-to-r from-rose-400 to-rose-600' :
                                                     'bg-gradient-to-r from-blue-400 to-indigo-600'
                                                 }`}></div>
@@ -2505,10 +2172,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             )}
                                                         </div>
                                                         <div>
-                                                            <h3
-                                                                onClick={() => openCandidateModal(app)}
-                                                                className="text-lg font-black text-slate-800 leading-tight group-hover:text-blue-600 transition-colors cursor-pointer hover:underline"
-                                                            >
+                                                            <h3 className="text-lg font-black text-slate-800 leading-tight group-hover:text-blue-600 transition-colors">
                                                                 {app.name || 'Anonymous'}
                                                             </h3>
                                                             <div className="flex items-center gap-1.5 mt-1">
@@ -2532,140 +2196,15 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     </div>
                                                     {app.source && (
                                                         <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50">
-                                                            <span className="w-5 flex justify-center text-slate-400">🔗</span>
+                                                            <span className="w-5 flex justify-center">🔗</span>
                                                             <span className="font-medium">{app.source}</span>
                                                         </div>
                                                     )}
-
-                                                    {/* Timeline & Status */}
-                                                    <div className="relative group/timeline w-full">
-                                                        <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50 cursor-pointer hover:bg-white hover:shadow-sm transition-all">
-                                                            <span className="w-5 flex justify-center text-slate-400">🚩</span>
-                                                            <span className="font-medium truncate flex-1 text-slate-700">
-                                                                {app.status} <span className="text-slate-400 font-normal"> • {dayjs(app.updatedAt).format('MMM D')}</span>
-                                                            </span>
-                                                        </div>
-                                                        {/* Recent History Tooltip */}
-                                                        {app.timeline && app.timeline.length > 0 && (
-                                                            <div className="absolute top-full left-0 mt-2 w-64 bg-white p-4 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-slate-100 z-50 hidden group-hover/timeline:block animate-in fade-in zoom-in-95 duration-200">
-                                                                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-3 border-b border-slate-50 pb-2">Recent Activity</p>
-                                                                <div className="space-y-3 relative before:absolute before:left-[5px] before:top-1 before:bottom-1 before:w-px before:bg-slate-100">
-                                                                    {[...app.timeline].reverse().slice(0, 3).map((t, i) => (
-                                                                        <div key={i} className="flex flex-col gap-0.5 relative pl-4">
-                                                                            <div className="absolute left-[2px] top-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 border border-white ring-1 ring-blue-50"></div>
-                                                                            <span className="text-[10px] font-bold text-slate-700">{t.status}</span>
-                                                                            <span className="text-[9px] text-slate-400 font-medium">{dayjs(t.timestamp).format('MMM D, h:mm A')}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {/* AI Match Score with Tooltip */}
+                                                    {/* AI Match Score */}
                                                     {app.matchPercentage !== undefined && (
-                                                        <div className="relative group/match">
-                                                            <div className="flex items-center gap-3 text-xs text-slate-500 bg-purple-50/50 p-2 rounded-lg border border-purple-50 cursor-pointer">
-                                                                <span className="w-5 flex justify-center text-purple-500">✨</span>
-                                                                <span className="font-bold text-purple-700">{app.matchPercentage}% Match</span>
-                                                            </div>
-
-                                                            {/* Detailed Match Tooltip */}
-                                                            <div className="absolute top-full left-0 mt-2 w-[280px] bg-white p-4 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-slate-100 z-50 hidden group-hover/match:block animate-in fade-in zoom-in-95 duration-200">
-                                                                <div className="space-y-3">
-                                                                    <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                                                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Match Analysis</span>
-                                                                        <span className="text-sm font-black text-purple-600">{app.matchPercentage}%</span>
-                                                                    </div>
-
-                                                                    {app.matchResult && (
-                                                                        <>
-                                                                            {/* SCORE BREAKDOWN */}
-                                                                            <div className="grid grid-cols-2 gap-2 mb-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                                                                <div className="flex justify-between items-center text-[10px]">
-                                                                                    <span className="text-slate-500 font-bold">Skills (40%)</span>
-                                                                                    <span className={`font-black ${app.matchResult.finalScoreBreakdown?.skillMatch >= 30 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                                                                                        {app.matchResult.finalScoreBreakdown?.skillMatch || 0}%
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="flex justify-between items-center text-[10px]">
-                                                                                    <span className="text-slate-500 font-bold">Experience (20%)</span>
-                                                                                    <span className={`font-black ${app.matchResult.finalScoreBreakdown?.experienceMatch >= 15 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                                                                                        {app.matchResult.finalScoreBreakdown?.experienceMatch || 0}%
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="flex justify-between items-center text-[10px]">
-                                                                                    <span className="text-slate-500 font-bold">Semantic (20%)</span>
-                                                                                    <span className={`font-black ${app.matchResult.finalScoreBreakdown?.responsibilityMatch >= 15 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                                                                                        {app.matchResult.finalScoreBreakdown?.responsibilityMatch || 0}%
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="flex justify-between items-center text-[10px]">
-                                                                                    <span className="text-slate-500 font-bold">Education (10%)</span>
-                                                                                    <span className={`font-black ${app.matchResult.finalScoreBreakdown?.educationMatch >= 8 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                                                                                        {app.matchResult.finalScoreBreakdown?.educationMatch || 0}%
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="flex justify-between items-center text-[10px] col-span-2 border-t border-slate-200 pt-1 mt-1">
-                                                                                    <span className="text-purple-500 font-bold">Preferred Bonus</span>
-                                                                                    <span className="font-black text-purple-600">
-                                                                                        +{app.matchResult.finalScoreBreakdown?.preferredBonus || 0}%
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-
-                                                                            {/* Matched Skills */}
-                                                                            <div className="mb-2">
-                                                                                <p className="text-[9px] font-black font-mono text-emerald-600 mb-1 flex items-center gap-1 uppercase tracking-tight">
-                                                                                    <CircleCheck size={10} /> Matched Skills ({app.matchResult.matchedSkills?.length || 0})
-                                                                                </p>
-                                                                                <div className="flex flex-wrap gap-1">
-                                                                                    {(app.matchResult.matchedSkills || []).slice(0, 5).map((skill, i) => (
-                                                                                        <span key={i} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded border border-emerald-100">
-                                                                                            {skill}
-                                                                                        </span>
-                                                                                    ))}
-                                                                                    {(app.matchResult.matchedSkills || []).length > 5 && (
-                                                                                        <span className="text-[9px] text-slate-400">+{app.matchResult.matchedSkills.length - 5}</span>
-                                                                                    )}
-                                                                                    {(!app.matchResult.matchedSkills || app.matchResult.matchedSkills.length === 0) && (
-                                                                                        <span className="text-[9px] text-slate-400 italic">None</span>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-
-                                                                            {/* Missing Skills */}
-                                                                            <div>
-                                                                                <p className="text-[9px] font-black font-mono text-rose-500 mb-1 flex items-center gap-1 uppercase tracking-tight">
-                                                                                    <X size={10} /> Missing Skills ({app.matchResult.missingSkills?.length || 0})
-                                                                                </p>
-                                                                                <div className="flex flex-wrap gap-1">
-                                                                                    {(app.matchResult.missingSkills || []).slice(0, 5).map((skill, i) => (
-                                                                                        <span key={i} className="px-1.5 py-0.5 bg-rose-50 text-rose-700 text-[9px] font-bold rounded border border-rose-100">
-                                                                                            {skill}
-                                                                                        </span>
-                                                                                    ))}
-                                                                                    {(app.matchResult.missingSkills || []).length > 5 && (
-                                                                                        <span className="text-[9px] text-slate-400">+{app.matchResult.missingSkills.length - 5}</span>
-                                                                                    )}
-                                                                                    {(!app.matchResult.missingSkills || app.matchResult.missingSkills.length === 0) && (
-                                                                                        <span className="text-[9px] text-slate-400 italic">None</span>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-                                                                        </>
-                                                                    )}
-
-                                                                    {/* Resume Summary */}
-                                                                    {(app.aiParsedData?.experienceSummary || app.intro) && (
-                                                                        <div className="pt-2 border-t border-slate-50">
-                                                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">SUMMARY</p>
-                                                                            <p className="text-[10px] text-slate-600 leading-relaxed line-clamp-3">
-                                                                                {app.aiParsedData?.experienceSummary || app.intro}
-                                                                            </p>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
+                                                        <div className="flex items-center gap-3 text-xs text-slate-500 bg-purple-50/50 p-2 rounded-lg border border-purple-50">
+                                                            <span className="w-5 flex justify-center text-purple-500">✨</span>
+                                                            <span className="font-bold text-purple-700">{app.matchPercentage}% Match</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -2684,116 +2223,114 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     </div>
                                                 )}
 
-                                                {/* Action Area - Only show in job-specific view or when not in Global Pipeline mode */}
-                                                {!showAllCandidates && (
-                                                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                                                        {/* Interview Status */}
-                                                        {app.interview?.date ? (
-                                                            <div className={`p-3 rounded-xl border flex items-center justify-between ${app.interview.completed
-                                                                ? 'bg-emerald-50/50 border-emerald-100'
-                                                                : 'bg-amber-50/50 border-amber-100'
-                                                                }`}>
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={`p-1.5 rounded-lg ${app.interview.completed ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
-                                                                        }`}>
-                                                                        <Clock size={14} />
-                                                                    </div>
-                                                                    <div>
-                                                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Interview</p>
-                                                                        <p className="text-xs font-bold text-slate-700">
-                                                                            {dayjs(app.interview.date).format('MMM D')} • {app.interview.time}
-                                                                        </p>
-                                                                    </div>
+                                                {/* Action Area */}
+                                                <div className="pt-4 border-t border-slate-100 space-y-3">
+                                                    {/* Interview Status */}
+                                                    {app.interview?.date ? (
+                                                        <div className={`p-3 rounded-xl border flex items-center justify-between ${app.interview.completed
+                                                            ? 'bg-emerald-50/50 border-emerald-100'
+                                                            : 'bg-amber-50/50 border-amber-100'
+                                                            }`}>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`p-1.5 rounded-lg ${app.interview.completed ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                                                                    }`}>
+                                                                    <Clock size={14} />
                                                                 </div>
-                                                                {!app.interview.completed && (
-                                                                    <button
-                                                                        onClick={() => markInterviewCompleted(app)}
-                                                                        className="p-1 min-w-[32px] rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200 transition shadow-sm flex items-center justify-center"
-                                                                        title="Mark Complete"
-                                                                    >
-                                                                        <span className="text-sm">✅</span>
-                                                                    </button>
-                                                                )}
+                                                                <div>
+                                                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Interview</p>
+                                                                    <p className="text-xs font-bold text-slate-700">
+                                                                        {dayjs(app.interview.date).format('MMM D')} • {app.interview.time}
+                                                                    </p>
+                                                                </div>
                                                             </div>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => openScheduleModal(app)}
-                                                                className="w-full py-2.5 rounded-xl border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition flex items-center justify-center gap-2 group/btn"
-                                                            >
-                                                                <PlusCircle size={14} className="group-hover/btn:scale-110 transition-transform" />
-                                                                Schedule Interview
-                                                            </button>
-                                                        )}
-
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            {/* Resume Button */}
-                                                            <button
-                                                                onClick={() => handleViewResume(app.resume)}
-                                                                className="col-span-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-2"
-                                                                title="View Resume"
-                                                            >
-                                                                <FileText size={14} /> Resume
-                                                            </button>
-
-                                                            {/* Move/Action Button */}
-                                                            <div className="relative col-span-1">
+                                                            {!app.interview.completed && (
                                                                 <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        const dropdown = e.currentTarget.nextElementSibling;
-                                                                        if (dropdown) dropdown.classList.toggle('hidden');
-                                                                        document.querySelectorAll('.stage-dropdown').forEach(d => {
-                                                                            if (d !== dropdown) d.classList.add('hidden');
-                                                                        });
-                                                                    }}
-                                                                    className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center justify-center gap-2 shadow-lg shadow-slate-200 z-10 relative"
+                                                                    onClick={() => markInterviewCompleted(app)}
+                                                                    className="p-1 min-w-[32px] rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200 transition shadow-sm flex items-center justify-center"
+                                                                    title="Mark Complete"
                                                                 >
-                                                                    <span>Actions</span>
-                                                                    <ChevronDown size={14} />
+                                                                    <CheckCircle size={16} />
                                                                 </button>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => openScheduleModal(app)}
+                                                            className="w-full py-2.5 rounded-xl border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition flex items-center justify-center gap-2 group/btn"
+                                                        >
+                                                            <PlusCircle size={14} className="group-hover/btn:scale-110 transition-transform" />
+                                                            Schedule Interview
+                                                        </button>
+                                                    )}
 
-                                                                <div className="stage-dropdown hidden absolute bottom-full mb-2 left-0 w-full bg-white border border-slate-100 rounded-xl shadow-xl overflow-hidden z-[50] animate-in slide-in-from-bottom-2 fade-in duration-200">
-                                                                    <div className="max-h-[200px] overflow-y-auto">
-                                                                        {workflowTabs.filter(t => !['Finalized', 'Rejected', activeTab].includes(t)).map(stage => (
-                                                                            <button
-                                                                                key={stage}
-                                                                                onClick={() => {
-                                                                                    handleStatusChangeRequest(app, stage);
-                                                                                    document.querySelectorAll('.stage-dropdown').forEach(d => d.classList.add('hidden'));
-                                                                                }}
-                                                                                className="w-full px-4 py-3 text-left text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-blue-600 border-b border-slate-50 last:border-0"
-                                                                            >
-                                                                                Move to {stage}
-                                                                            </button>
-                                                                        ))}
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {/* Resume Button */}
+                                                        <button
+                                                            onClick={() => handleViewResume(app.resume)}
+                                                            className="col-span-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-2"
+                                                            title="View Resume"
+                                                        >
+                                                            <FileText size={14} /> Resume
+                                                        </button>
 
-                                                                        <div className="p-1 bg-slate-50 grid grid-cols-2 gap-1 border-t border-slate-100">
-                                                                            <button onClick={() => { handleStatusChangeRequest(app, 'Selected'); document.querySelectorAll('.stage-dropdown').forEach(d => d.classList.add('hidden')); }} className="py-2 text-[10px] font-black bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition">HIRE</button>
-                                                                            <button onClick={() => { handleStatusChangeRequest(app, 'Rejected'); document.querySelectorAll('.stage-dropdown').forEach(d => d.classList.add('hidden')); }} className="py-2 text-[10px] font-black bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition">REJECT</button>
-                                                                        </div>
+                                                        {/* Move/Action Button */}
+                                                        <div className="relative col-span-1">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const dropdown = e.currentTarget.nextElementSibling;
+                                                                    if (dropdown) dropdown.classList.toggle('hidden');
+                                                                    document.querySelectorAll('.stage-dropdown').forEach(d => {
+                                                                        if (d !== dropdown) d.classList.add('hidden');
+                                                                    });
+                                                                }}
+                                                                className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center justify-center gap-2 shadow-lg shadow-slate-200 z-10 relative"
+                                                            >
+                                                                <span>Actions</span>
+                                                                <ChevronDown size={14} />
+                                                            </button>
+
+                                                            <div className="stage-dropdown hidden absolute bottom-full mb-2 left-0 w-full bg-white border border-slate-100 rounded-xl shadow-xl overflow-hidden z-[50] animate-in slide-in-from-bottom-2 fade-in duration-200">
+                                                                <div className="max-h-[200px] overflow-y-auto">
+                                                                    {workflowTabs.filter(t => !['Finalized', 'Rejected', activeTab].includes(t)).map(stage => (
+                                                                        <button
+                                                                            key={stage}
+                                                                            onClick={() => {
+                                                                                handleStatusChangeRequest(app, stage);
+                                                                                document.querySelectorAll('.stage-dropdown').forEach(d => d.classList.add('hidden'));
+                                                                            }}
+                                                                            className="w-full px-4 py-3 text-left text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-blue-600 border-b border-slate-50 last:border-0"
+                                                                        >
+                                                                            Move to {stage}
+                                                                        </button>
+                                                                    ))}
+
+                                                                    <div className="p-1 bg-slate-50 grid grid-cols-2 gap-1 border-t border-slate-100">
+                                                                        <button onClick={() => { handleStatusChangeRequest(app, 'Selected'); document.querySelectorAll('.stage-dropdown').forEach(d => d.classList.add('hidden')); }} className="py-2 text-[10px] font-black bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition">HIRE</button>
+                                                                        <button onClick={() => { handleStatusChangeRequest(app, 'Rejected'); document.querySelectorAll('.stage-dropdown').forEach(d => d.classList.add('hidden')); }} className="py-2 text-[10px] font-black bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition">REJECT</button>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                )}
+                                                </div>
                                             </div>
-                                        </div >
+                                        </div>
                                     ))}
-                            </div >
+                            </div>
                         ) : (
                             /* TABLE VIEW (Finalized) */
-                            <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                                <table className="w-full text-left">
+                            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 rounded-2xl border border-slate-200">
+                                <table className="w-full text-left min-w-[1000px]">
                                     <thead className="bg-slate-50">
                                         <tr>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Candidate</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Salary</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Offer</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">BGV</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Joining</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Convert</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[20%]">Candidate</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center w-[12%]">Status</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[15%]">Salary</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[15%]">Offer</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center w-[12%]">BGV</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[14%]">Joining</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[12%] text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-slate-50">
@@ -2818,117 +2355,30 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     <td className="px-6 py-4">
                                                         {app.salarySnapshotId || app.salarySnapshot || app.salaryAssigned ? (
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-emerald-600 text-xs font-bold flex items-center gap-1">✅ Locked</span>
-                                                                {!showAllCandidates && (
-                                                                    <button onClick={() => navigate(`/hr/salary-structure/${app._id}`)} className="p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-white border border-transparent hover:border-blue-100 transition-all" title="Edit Salary Structure">
-                                                                        <Edit2 size={12} />
-                                                                    </button>
-                                                                )}
+                                                                <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={10} /> Locked</span>
+                                                                <button onClick={() => navigate(`/hr/salary-structure/${app._id}`)} className="p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-white border border-transparent hover:border-blue-100 transition-all" title="Edit Salary Structure">
+                                                                    <Edit2 size={12} />
+                                                                </button>
                                                             </div>
                                                         ) : (
-                                                            !showAllCandidates ? (
-                                                                <button onClick={() => navigate(`/hr/salary-structure/${app._id}`)} className="w-full py-2 sm:py-3 bg-white border border-slate-200 text-slate-600 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:border-indigo-400 hover:text-indigo-600 transition shadow-sm uppercase tracking-widest whitespace-nowrap">ASSIGN SALARY</button>
-                                                            ) : (
-                                                                <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Pending</span>
-                                                            )
+                                                            <button onClick={() => navigate(`/hr/salary-structure/${app._id}`)} className="w-full py-2 sm:py-3 bg-white border border-slate-200 text-slate-600 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:border-indigo-400 hover:text-indigo-600 transition shadow-sm uppercase tracking-widest whitespace-nowrap">ASSIGN SALARY</button>
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        {(app.latestOffer || app.offerId) ? (() => {
-                                                            const latestOffer = app.latestOffer || app.offerId;
-                                                            // Calculate Effective Status (Handle Client-Side Expiry)
-                                                            const isTimeExpired = latestOffer.expiryDate && new Date(latestOffer.expiryDate) < new Date();
-                                                            const effectiveStatus = (latestOffer.status === 'Sent' && isTimeExpired) ? 'Expired' : latestOffer.status;
-
-                                                            return (
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div
-                                                                        className="flex items-center gap-2 cursor-pointer group"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            navigate(`/hr/offers/${latestOffer._id}`);
-                                                                        }}
-                                                                        title="Click to manage full offer lifecycle"
-                                                                    >
-                                                                        {effectiveStatus === 'Accepted' && (
-                                                                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-wide border border-emerald-200 group-hover:bg-emerald-200 transition">
-                                                                                ACCEPTED
-                                                                            </span>
-                                                                        )}
-                                                                        {effectiveStatus === 'Rejected' && (
-                                                                            <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-black uppercase tracking-wide border border-rose-200 group-hover:bg-rose-200 transition">
-                                                                                REJECTED
-                                                                            </span>
-                                                                        )}
-                                                                        {(effectiveStatus === 'Sent' || effectiveStatus === 'ReOffered') && (
-                                                                            <div className="flex flex-col gap-1">
-                                                                                <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-wide border border-amber-200 w-fit group-hover:bg-amber-200 transition">
-                                                                                    {effectiveStatus === 'ReOffered' ? 'Re-Offered' : 'Sent'}
-                                                                                </span>
-                                                                                {/* Timer */}
-                                                                                <OfferCountdown expiryDate={latestOffer.expiryDate} />
-                                                                            </div>
-                                                                        )}
-                                                                        {effectiveStatus === 'Expired' && (
-                                                                            <div className="flex flex-col gap-1">
-                                                                                <span className="px-2 py-0.5 rounded bg-slate-100 text-rose-500 text-[10px] font-black uppercase tracking-wide border border-slate-200 w-fit group-hover:bg-slate-200 transition">
-                                                                                    EXPIRED
-                                                                                </span>
-                                                                                {latestOffer.expiryDate && (
-                                                                                    <span className="text-[9px] text-slate-400 font-bold">
-                                                                                        {dayjs(latestOffer.expiryDate).format('DD MMM, h:mm a')}
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-
-                                                                    {/* Actions based on Status */}
-                                                                    <div className="flex items-center gap-2">
-                                                                        {/* View Button */}
-                                                                        <button
-                                                                            onClick={() => viewOfferLetter(app.offerLetterPath)}
-                                                                            className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm"
-                                                                            title="View Letter"
-                                                                        >
-                                                                            <Eye size={14} />
-                                                                        </button>
-
-                                                                        {/* Re-Offer Logic */}
-                                                                        {(effectiveStatus === 'Expired' || effectiveStatus === 'Rejected') && (
-                                                                            <button
-                                                                                onClick={() => handleReOffer(app)}
-                                                                                className="px-3 py-1 bg-blue-600 text-white text-[9px] font-bold rounded-lg shadow-sm hover:bg-blue-700 transition"
-                                                                            >
-                                                                                Re-Offer
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
+                                                        {app.offerLetterPath ? (
+                                                            <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
+                                                                <button onClick={() => viewOfferLetter(app.offerLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
+                                                                    <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
                                                                 </div>
-                                                            );
-                                                        })()
-                                                            : (
-                                                                (app.offerLetterPath || (app.offerId && app.offerId.letterPath)) ? (
-                                                                    <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                                                        <button onClick={() => viewOfferLetter(app.offerLetterPath || (app.offerId && app.offerId.letterPath))} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
-                                                                        <div className="flex flex-col">
-                                                                            <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
-                                                                            <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
-                                                                        </div>
-                                                                        {!showAllCandidates && (
-                                                                            <button onClick={() => handleOpenOfferModal(app)} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Offer">
-                                                                                <Edit2 size={12} />
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    !showAllCandidates ? (
-                                                                        <button onClick={() => handleOpenOfferModal(app)} className="w-full py-2 sm:py-3 bg-blue-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest">GENERATE</button>
-                                                                    ) : (
-                                                                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Pending</span>
-                                                                    )
-                                                                )
-                                                            )}
+                                                                <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Offer">
+                                                                    <Edit2 size={12} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="w-full py-2 sm:py-3 bg-blue-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest">GENERATE</button>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         <div className="flex flex-col items-center gap-1">
@@ -2958,37 +2408,33 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     <td className="px-6 py-4">
                                                         {app.joiningLetterPath ? (
                                                             <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                                                <button onClick={() => viewJoiningLetter(app._id)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
+                                                                <button onClick={() => viewJoiningLetter(app.joiningLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
                                                                 <div className="flex flex-col">
                                                                     <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">JOINING</span>
                                                                     <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase">ISSUED</span>
                                                                 </div>
-                                                                {!showAllCandidates && (
-                                                                    <button onClick={() => openJoiningModal(app)} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Joining Letter">
-                                                                        <Edit2 size={12} />
-                                                                    </button>
-                                                                )}
+                                                                <button onClick={() => openJoiningModal(app)} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Joining Letter">
+                                                                    <Edit2 size={12} />
+                                                                </button>
                                                             </div>
                                                         ) : (
-                                                            !showAllCandidates ? (
-                                                                (((app.latestOffer || app.offerId)?.status === 'Accepted') || (!(app.latestOffer || app.offerId) && (app.offerLetterPath || (app.offerId && app.offerId.letterPath)))) ? (
-                                                                    <button onClick={() => openJoiningModal(app)} className="w-full py-2 sm:py-3 bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 uppercase tracking-widest">GENERATE</button>
-                                                                ) : (
-                                                                    <button disabled className="w-full py-2 sm:py-3 bg-slate-200 text-slate-400 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl cursor-not-allowed uppercase tracking-widest flex flex-col items-center leading-tight">
-                                                                        <span>GENERATE</span>
-                                                                        <span className="text-[7px] font-bold opacity-70">AWAITING ACCEPTANCE</span>
-                                                                    </button>
-                                                                )
-                                                            ) : (
-                                                                <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Pending</span>
-                                                            )
+                                                            <button
+                                                                onClick={() => openJoiningModal(app)}
+                                                                disabled={app.bgvStatus !== 'CLEAR'}
+                                                                className={`w-full py-2 sm:py-3 text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl transition shadow-lg uppercase tracking-widest ${app.bgvStatus === 'CLEAR'
+                                                                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-100'
+                                                                    : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                                                                    }`}
+                                                                title={app.bgvStatus !== 'CLEAR' ? "BGV must be CLEAR to generate joining letter" : ""}
+                                                            >
+                                                                {app.bgvStatus === 'CLEAR' ? 'GENERATE' : 'LOCKED'}
+                                                            </button>
                                                         )}
                                                     </td>
-
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-6 py-4 text-right">
                                                         {app.isOnboarded ? (
                                                             <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
-                                                                <CircleCheck size={14} />
+                                                                <CheckCircle size={14} />
                                                                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Converted</span>
                                                             </div>
                                                         ) : (
@@ -3008,191 +2454,945 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     </tbody>
                                 </table>
                             </div>
-                        )
-                        }
+                        )}
+                    </div>
+                    <div className="px-8 py-5 bg-slate-50/20 flex items-center justify-between border-t border-slate-50">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[2px]">
+                            Metrics: {getFilteredApplicants().length} Candidates Synced
+                        </div>
+                        <Pagination
+                            current={currentPage}
+                            pageSize={pageSize}
+                            total={getFilteredApplicants().length}
+                            onChange={(page) => setCurrentPage(page)}
+                            showSizeChanger={false}
+                            responsive={true}
+                            size="small"
+                        />
                     </div>
                 </div>
             )}
-            {showEvaluationDrawer && selectedApplicant && (
-                <div className="fixed inset-0 z-[100] flex justify-end">
-                    {/* Backdrop */}
-                    <div
-                        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
-                        onClick={() => setShowEvaluationDrawer(false)}
-                    />
 
-                    {/* Drawer Content */}
-                    <div className="relative w-full max-w-2xl bg-white h-screen shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out overflow-hidden">
-                        {/* Header */}
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                            <div>
-                                <h1 className="text-xl font-black text-slate-800 tracking-tight">Candidate Evaluation</h1>
-                                <p className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest flex items-center gap-2">
-                                    <span className="text-blue-600 font-black">{selectedApplicant.name}</span>
-                                    <span className="opacity-20 italic">|</span>
-                                    <span>{selectedApplicant.requirementId?.jobTitle}</span>
+            {/* Offer Generation Modal */}
+            {
+                showModal && selectedApplicant && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                            <h2 className="text-xl font-bold text-gray-900 mb-4">Generate Offer Letter</h2>
+
+                            <form onSubmit={(e) => { e.preventDefault(); handlePreview(); }} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Candidate Name</label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        value={offerData.name}
+                                        onChange={handleOfferChange}
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Role: {selectedApplicant.requirementId?.jobTitle}</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Name (For 'Dear ...' section)</label>
+                                    <input
+                                        type="text"
+                                        name="dearName"
+                                        value={offerData.dearName}
+                                        onChange={handleOfferChange}
+                                        placeholder="e.g. First Name only"
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Date Format</label>
+                                    <select
+                                        name="dateFormat"
+                                        value={offerData.dateFormat}
+                                        onChange={handleOfferChange}
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                    >
+                                        <option value="Do MMM. YYYY">17th Jan. 2026 (Default)</option>
+                                        <option value="DD/MM/YYYY">17/01/2026</option>
+                                        <option value="Do MMMM YYYY">17th January 2026</option>
+                                        <option value="YYYY-MM-DD">2026-01-17</option>
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-4">
+                                    <div className="col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700">Title</label>
+                                        <select
+                                            name="salutation"
+                                            value={offerData.salutation}
+                                            onChange={handleOfferChange}
+                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                        >
+                                            <option value="">--</option>
+                                            <option value="Mr.">Mr.</option>
+                                            <option value="Ms.">Ms.</option>
+                                            <option value="Mrs.">Mrs.</option>
+                                            <option value="Dr.">Dr.</option>
+                                        </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                        <label className="block text-sm font-medium text-gray-700">Offer Template</label>
+                                        <select
+                                            name="templateId"
+                                            value={offerData.templateId}
+                                            onChange={handleOfferChange}
+                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                        >
+                                            <option value="">-- Select Template --</option>
+                                            {templates.map(t => (
+                                                <option key={t._id} value={t._id}>{t.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Reference Number</label>
+                                    <input
+                                        type="text"
+                                        name="refNo"
+                                        value={offerData.refNo || ''}
+                                        onChange={handleOfferChange}
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                        placeholder="e.g. OFFER/2025/001"
+                                    />
+                                </div>
+                                <div>
+                                    <div className="flex gap-4">
+                                        <div className="w-1/2">
+                                            <label className="block text-sm font-medium text-gray-700">Joining Date *</label>
+                                            <DatePicker
+                                                disabledDate={(current) => current && current < dayjs().startOf('day')}
+                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 h-[42px]"
+                                                format="DD-MM-YYYY"
+                                                placeholder="DD-MM-YYYY"
+                                                value={offerData.joiningDate ? dayjs(offerData.joiningDate) : null}
+                                                onChange={(date) => setOfferData(prev => ({ ...prev, joiningDate: date ? date.format('YYYY-MM-DD') : '' }))}
+                                            />
+                                        </div>
+                                        <div className="w-1/2">
+                                            <label className="block text-sm font-medium text-gray-700">Letter Issue Date</label>
+                                            <DatePicker
+                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 h-[42px]"
+                                                format="DD-MM-YYYY"
+                                                placeholder="DD-MM-YYYY"
+                                                value={offerData.issueDate ? dayjs(offerData.issueDate) : null}
+                                                onChange={(date) => setOfferData(prev => ({ ...prev, issueDate: date ? date.format('YYYY-MM-DD') : '' }))}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="hidden">
+                                    <label className="block text-sm font-medium text-gray-700">Work Location</label>
+                                    <input
+                                        type="text"
+                                        name="location"
+                                        value={offerData.location}
+                                        onChange={handleOfferChange}
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                        placeholder="e.g. New York, Remote"
+                                    />
+                                </div>
+                                <div className="col-span-full">
+                                    <label className="block text-sm font-medium text-gray-700">Candidate Address</label>
+                                    <textarea
+                                        name="address"
+                                        value={offerData.address}
+                                        onChange={handleOfferChange}
+                                        rows="3"
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                        placeholder="Full address with pin code..."
+                                    />
+                                </div>
+
+                                <div className="flex justify-between items-center bg-slate-50 -mx-6 -mb-6 p-6 mt-6 rounded-b-lg">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowModal(false)}
+                                        className="px-6 py-2.5 text-slate-500 font-bold hover:text-slate-700 transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="submit"
+                                            disabled={generating}
+                                            className="h-12 px-6 bg-blue-600 text-white font-black rounded-xl shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {generating ? (
+                                                <>
+                                                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                                    <span>GENERATING...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CheckCircle size={18} />
+                                                    <span>GENERATE OFFER</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Joining Letter Generation Modal */}
+            {
+                showJoiningModal && selectedApplicant && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                            <h2 className="text-xl font-bold text-gray-900 mb-4">Generate Joining Letter</h2>
+                            <div className="mb-4 text-sm text-gray-600 space-y-2">
+                                <p><strong>Candidate:</strong> {selectedApplicant.name}</p>
+                                <p><strong>Joining Date:</strong> {selectedApplicant.joiningDate ? new Date(selectedApplicant.joiningDate).toLocaleDateString() : 'N/A'}</p>
+                                <p><strong>Location:</strong> {selectedApplicant.location || selectedApplicant.workLocation || 'N/A'}</p>
+                                <p className="text-xs text-orange-600 mt-2 bg-orange-50 p-2 rounded">
+                                    Note: Joining Date and Location are pulled from the Offer Letter data.
                                 </p>
                             </div>
-                            <button
-                                onClick={() => {
-                                    setShowEvaluationDrawer(false);
-                                    setIsFinishingInterview(false);
-                                }}
-                                className="p-2 hover:bg-slate-50 rounded-full transition-colors"
-                            >
-                                <X size={24} className="text-slate-400" />
-                            </button>
-                        </div>
 
-                        {/* Middle Area (Scrollable) */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
-                            {/* CONTINUITY: Show Previous Feedbacks History */}
-                            {selectedApplicant.assessmentHistory && selectedApplicant.assessmentHistory.length > 0 && (
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-1.5 h-4 bg-blue-600 rounded-full"></div>
-                                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Previous Stage Feedbacks</h3>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-3">
-                                        {selectedApplicant.assessmentHistory.map((item, idx) => (
-                                            <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 relative group">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <div>
-                                                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight bg-blue-50 px-2 py-0.5 rounded">
-                                                            {item.stageName}
-                                                        </span>
-                                                        <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-tighter">
-                                                            {dayjs(item.date).format('MMM D, YYYY')}
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg shadow-sm border border-slate-50">
-                                                        <span className="text-sm font-black text-slate-700">{item.rating || 0}</span>
-                                                        <span className="text-[8px] text-slate-300">/ 5</span>
-                                                    </div>
-                                                </div>
-                                                <p className="text-xs text-slate-600 font-medium leading-relaxed italic">
-                                                    "{item.feedback || 'No comments provided.'}"
-                                                </p>
-                                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Select Template</label>
+                                    <select
+                                        value={joiningTemplateId}
+                                        onChange={(e) => setJoiningTemplateId(e.target.value)}
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                    >
+                                        <option value="">-- Select Template --</option>
+                                        {joiningTemplates.map(t => (
+                                            <option key={t._id} value={t._id}>{t.name}</option>
                                         ))}
-                                    </div>
-                                    <div className="h-px bg-gradient-to-r from-transparent via-slate-100 to-transparent my-6"></div>
+                                    </select>
                                 </div>
-                            )}
-                            {stageFeedback.template ? (
-                                <FeedbackFormRenderer
-                                    template={stageFeedback.template}
-                                    initialFeedback={stageFeedback.feedback}
-                                    availableStages={workflowTabs.filter(t => !['Applied', 'Finalized'].includes(t))}
-                                    submitting={loading}
-                                    onSubmit={async (data) => {
-                                        try {
-                                            setLoading(true);
-                                            const stageId = selectedApplicant.currentStageId || selectedApplicant.pipelineHistory?.[selectedApplicant.pipelineHistory.length - 1]?.stageId;
 
-                                            // Submit feedback to dedicated collection
-                                            await api.post('/feedback/submit', {
-                                                candidateId: selectedApplicant._id,
-                                                jobId: selectedApplicant.requirementId?._id,
-                                                stageId,
-                                                templateId: stageFeedback.template._id,
-                                                interviewerName: user?.name,
-                                                ...data
-                                            });
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Reference Number</label>
+                                    <input
+                                        type="text"
+                                        value={joiningRefNo}
+                                        onChange={(e) => setJoiningRefNo(e.target.value)}
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                        placeholder="e.g. JL/2025/001"
+                                    />
+                                </div>
 
-                                            // Proceed with status update in the main pipeline
-                                            await submitReviewAndStatus(data); // Pass updated decision and comments
-                                        } catch (err) {
-                                            notification.error({ message: 'Error', description: 'Failed to record feedback' });
-                                        } finally {
-                                            setLoading(false);
-                                        }
-                                    }}
-                                />
-                            ) : (
-                                <>
-                                    {/* Round Navigation Tabs */}
-                                    <div className="flex gap-2 p-1 bg-slate-50 rounded-xl">
-                                        {evaluationData.rounds.map((round, idx) => (
-                                            <button
-                                                key={round.id}
-                                                onClick={() => setEvalActiveRound(idx)}
-                                                className={`flex-1 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all
-                                                    ${evalActiveRound === idx
-                                                        ? 'bg-white text-blue-600 shadow-sm'
-                                                        : 'text-slate-400 hover:text-slate-600'}`}
-                                            >
-                                                {round.name}
-                                            </button>
-                                        ))}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Letter Issue Date</label>
+                                    <DatePicker
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 h-[42px]"
+                                        format="DD-MM-YYYY"
+                                        placeholder="DD-MM-YYYY"
+                                        value={joiningIssueDate ? dayjs(joiningIssueDate) : null}
+                                        onChange={(date) => setJoiningIssueDate(date ? date.format('YYYY-MM-DD') : '')}
+                                    />
+                                </div>
+
+                                <div className="flex justify-end space-x-3 mt-6">
+                                    <button
+                                        onClick={() => setShowJoiningModal(false)}
+                                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleJoiningPreview}
+                                        disabled={generating}
+                                        className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                                    >
+                                        {generating ? 'Loading...' : 'Preview'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Joining Letter Preview Modal */}
+            {
+                showJoiningPreview && selectedApplicant && (
+                    <div className="fixed inset-0 bg-black bg-opacity-75 z-50 overflow-y-auto">
+                        <div className="min-h-screen py-8 px-4">
+                            {/* Sticky Header with Buttons */}
+                            <div className="sticky top-0 z-10 bg-gradient-to-b from-black via-black to-transparent pb-6 mb-4">
+                                <div className="max-w-5xl mx-auto flex justify-between items-center gap-3">
+                                    <h2 className="text-xl font-bold text-white">Joining Letter Preview</h2>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowJoiningPreview(false)}
+                                            className="px-4 py-2 bg-white text-slate-700 rounded-lg hover:bg-slate-100 shadow-lg font-medium transition"
+                                        >
+                                            ✕ Close Preview
+                                        </button>
+                                        <button
+                                            onClick={handleJoiningGenerate}
+                                            disabled={generating}
+                                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg font-medium disabled:opacity-50 transition"
+                                        >
+                                            {generating ? 'Generating...' : '✓ Generate & Download'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Scrollable Preview Content */}
+                            <div className="max-w-5xl mx-auto">
+                                {joiningPreviewUrl ? (
+                                    <iframe
+                                        src={joiningPreviewUrl}
+                                        className="w-full h-[80vh] rounded-lg shadow-xl bg-white"
+                                        title="Joining Letter PDF Preview"
+                                    />
+                                ) : (
+                                    <div className="w-full h-[80vh] rounded-lg shadow-xl bg-white flex items-center justify-center">
+                                        <p className="text-gray-500">Loading preview...</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Bottom Padding */}
+                            <div className="h-8"></div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Offer Letter Preview Modal (Unified for both Offer & Joining) */}
+            {
+                showPreview && selectedApplicant && (
+                    <div className="fixed inset-0 bg-black bg-opacity-75 z-50 overflow-y-auto">
+                        <div className="min-h-screen py-8 px-4">
+                            {/* Sticky Header with Buttons */}
+                            <div className="sticky top-0 z-10 bg-gradient-to-b from-black via-black to-transparent pb-6 mb-4">
+                                <div className="max-w-5xl mx-auto flex justify-between items-center gap-3">
+                                    <h2 className="text-xl font-bold text-white">Offer Letter Preview</h2>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowPreview(false)}
+                                            className="px-4 py-2 bg-white text-slate-700 rounded-lg hover:bg-slate-100 shadow-lg font-medium transition"
+                                        >
+                                            ✕ Close Preview
+                                        </button>
+                                        <button
+                                            onClick={(e) => submitOffer(e)}
+                                            disabled={generating}
+                                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg font-medium disabled:opacity-50 transition"
+                                        >
+                                            {generating ? 'Downloading...' : '✓ Download PDF'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Scrollable Preview Content */}
+                            <div className="max-w-5xl mx-auto">
+                                {offerData.isWordTemplate && previewPdfUrl ? (
+                                    <iframe
+                                        src={previewPdfUrl}
+                                        className="w-full h-[80vh] rounded-lg shadow-xl bg-white"
+                                        title="PDF Preview"
+                                    />
+                                ) : (
+                                    <OfferLetterPreview
+                                        applicant={selectedApplicant}
+                                        offerData={offerData}
+                                        companyInfo={companyInfo}
+                                    />
+                                )}
+                            </div>
+
+                            {/* Bottom Padding */}
+                            <div className="h-8"></div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Assign Salary Modal */}
+            {
+                showSalaryModal && selectedApplicant && (
+                    <AssignSalaryModal
+                        isOpen={showSalaryModal}
+                        onClose={() => {
+                            setShowSalaryModal(false);
+                            setSelectedApplicant(null);
+                        }}
+                        applicant={selectedApplicant}
+                        onSuccess={handleSalaryAssigned}
+                    />
+                )
+            }
+
+            {/* Salary Preview Modal */}
+            {
+                showSalaryPreview && selectedApplicant && (selectedApplicant.salarySnapshotId || selectedApplicant.salarySnapshot) && (() => {
+                    // Logic: Use populated object if available, else fallback to embedded snapshot. 
+                    // If salarySnapshotId is a string (unpopulated ID), we MUST use local snapshot.
+                    const snapshot = (typeof selectedApplicant.salarySnapshotId === 'object' && selectedApplicant.salarySnapshotId !== null)
+                        ? selectedApplicant.salarySnapshotId
+                        : selectedApplicant.salarySnapshot;
+                    const earnings = snapshot.earnings || [];
+                    const deductions = snapshot.employeeDeductions || snapshot.deductions || [];
+                    const takeHome = snapshot.breakdown?.takeHome || snapshot.takeHome?.monthly || snapshot.takeHome || 0;
+                    const ctcYearly = snapshot.ctc?.yearly || snapshot.ctc || 0;
+                    const grossMonthly = snapshot.breakdown?.grossA || snapshot.grossA?.monthly || snapshot.grossA || 0;
+
+                    return (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+                                {/* Header */}
+                                <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-800">Salary Structure</h3>
+                                        <p className="text-sm text-slate-500">{selectedApplicant.name} • {selectedApplicant.requirementId?.jobTitle}</p>
+                                    </div>
+                                    <button onClick={() => setShowSalaryPreview(false)} className="p-2 hover:bg-slate-200 rounded-full transition text-slate-500">
+                                        ✕
+                                    </button>
+                                </div>
+
+                                {/* Body - Scrollable */}
+                                <div className="p-6 overflow-y-auto space-y-6">
+                                    {/* Grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {/* Earnings */}
+                                        <div className="space-y-3">
+                                            <h4 className="text-xs font-bold text-emerald-600 uppercase tracking-wider border-b border-emerald-100 pb-2">Earnings (Monthly)</h4>
+                                            <div className="space-y-2">
+                                                {earnings.map((e, i) => (
+                                                    <div key={i} className="flex justify-between text-sm group border-b border-dashed border-slate-100 pb-1 last:border-0">
+                                                        <span className="text-slate-600 group-hover:text-slate-900">{e.name}</span>
+                                                        <span className="font-medium text-slate-800">₹{e.monthlyAmount?.toLocaleString()}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-slate-800 mt-2">
+                                                <span>Gross Earnings</span>
+                                                <span>₹{grossMonthly.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Deductions */}
+                                        <div className="space-y-3">
+                                            <h4 className="text-xs font-bold text-rose-600 uppercase tracking-wider border-b border-rose-100 pb-2">Deductions (Monthly)</h4>
+                                            <div className="space-y-2">
+                                                {deductions.length > 0 ? (
+                                                    deductions.map((d, i) => (
+                                                        <div key={i} className="flex justify-between text-sm group border-b border-dashed border-slate-100 pb-1 last:border-0">
+                                                            <span className="text-slate-600 group-hover:text-slate-900">{d.name}</span>
+                                                            <span className="font-medium text-rose-600">-₹{d.monthlyAmount?.toLocaleString()}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <p className="text-xs text-slate-400 italic">No deductions</p>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    {/* Active Evaluation Criteria (LEGACY) */}
-                                    <div className="space-y-6">
-                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-3">
-                                            <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">0{evalActiveRound + 1}</span>
-                                            {evaluationData.rounds[evalActiveRound].name}
-                                        </h3>
+                                    {/* Summary Card */}
+                                    <div className="bg-slate-900 text-white rounded-xl p-5 shadow-lg ring-1 ring-white/10">
+                                        <div className="grid grid-cols-2 gap-4 text-center divide-x divide-slate-700/50">
+                                            <div>
+                                                <div className="text-slate-400 text-[10px] uppercase tracking-widest mb-1">Monthly Net Pay</div>
+                                                <div className="text-2xl font-bold text-emerald-400">₹{takeHome.toLocaleString()}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-slate-400 text-[10px] uppercase tracking-widest mb-1">Annual CTC</div>
+                                                <div className="text-xl font-bold text-white">₹{ctcYearly.toLocaleString()}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                        {evaluationData.rounds[evalActiveRound].categories.map((cat, catIdx) => (
-                                            <div key={catIdx} className="space-y-4">
-                                                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{cat.name}</h4>
-                                                <div className="space-y-2">
-                                                    {cat.skills.map((skill, skillIdx) => (
-                                                        <div key={skillIdx} className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50/50 border border-slate-100/50 rounded-2xl group hover:bg-white hover:shadow-xl hover:shadow-slate-100 transition-all duration-300">
-                                                            <div className="col-span-12 md:col-span-5">
-                                                                <p className="text-xs font-black text-slate-700">{skill.name}</p>
-                                                            </div>
-                                                            <div className="col-span-12 md:col-span-3 flex gap-2">
-                                                                {[1, 2, 3, 4, 5].map(num => (
-                                                                    <button
-                                                                        key={num}
-                                                                        onClick={() => {
-                                                                            const newData = { ...evaluationData };
-                                                                            newData.rounds[evalActiveRound].categories[catIdx].skills[skillIdx].rating = num;
-                                                                            setEvaluationData(newData);
-                                                                            const allRatings = evaluationData.rounds.flatMap(r => r.categories.flatMap(c => c.skills.map(s => s.rating))).filter(r => r > 0);
-                                                                            if (allRatings.length > 0) {
-                                                                                const avg = Math.round(allRatings.reduce((a, b) => a + b, 0) / allRatings.length);
-                                                                                setReviewRating(avg);
-                                                                            }
-                                                                        }}
-                                                                        className={`w-8 h-8 rounded-full text-[11px] font-black transition-all flex items-center justify-center
-                                                                            ${skill.rating === num
-                                                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110'
-                                                                                : 'bg-white text-slate-400 border border-slate-200 hover:border-blue-400 font-bold'}`}
-                                                                    >
-                                                                        {num}
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                            <div className="col-span-12 md:col-span-4">
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="Short Note..."
-                                                                    value={skill.comment}
-                                                                    onChange={(e) => {
-                                                                        const newData = { ...evaluationData };
-                                                                        newData.rounds[evalActiveRound].categories[catIdx].skills[skillIdx].comment = e.target.value;
-                                                                        setEvaluationData(newData);
-                                                                        // Sync with main feedback
-                                                                        setReviewFeedback(e.target.value);
-                                                                    }}
-                                                                    className="w-full text-[10px] p-2 bg-white border border-slate-100 rounded-lg outline-none focus:border-blue-500 transition-colors"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                {/* Footer */}
+                                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                                    <button
+                                        onClick={() => { setShowSalaryPreview(false); navigate(`/hr/salary-structure/${selectedApplicant._id}`); }}
+                                        className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                    >
+                                        Edit Structure
+                                    </button>
+                                    <button
+                                        onClick={() => setShowSalaryPreview(false)}
+                                        className="px-6 py-2 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition shadow-lg"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()
+            }
+
+            {/* INTERVIEW MODAL */}
+            {/* INTERVIEW MODAL - REFACTORED */}
+            {/* INTERVIEW MODAL - REFACTORED */}
+
+            <InterviewScheduleModal
+                visible={showInterviewModal}
+                onCancel={() => setShowInterviewModal(false)}
+                onSubmit={handleInterviewSubmit}
+                initialData={interviewData}
+                isReschedule={isReschedule}
+                loading={loading}
+                companyHolidays={companyHolidays}
+            />
+
+
+            {/* Custom Stage Modal */}
+            {
+                isCustomStageModalVisible && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
+                            <h2 className="text-lg font-bold text-slate-800 mb-4">Add Custom Stage</h2>
+                            <p className="text-sm text-slate-600 mb-4">Enter the name for the new ad-hoc stage. This will be added for <b>{candidateForCustomStage?.name}</b>.</p>
+
+                            <input
+                                type="text"
+                                value={customStageName}
+                                onChange={(e) => setCustomStageName(e.target.value)}
+                                placeholder="e.g. Manager Review 2"
+                                className="w-full p-2 border border-slate-300 rounded mb-4"
+                                autoFocus
+                            />
+
+                            <div className="flex gap-2 justify-end">
+                                <button onClick={() => setIsCustomStageModalVisible(false)} className="px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded">Cancel</button>
+                                <button onClick={handleAddCustomStage} className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 font-medium">Add & Move</button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Workflow Edit Modal */}
+            {
+                showWorkflowEditModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold text-slate-800">Edit Hiring Workflow</h2>
+                                <button onClick={() => setShowWorkflowEditModal(false)} className="text-slate-400 hover:text-slate-600">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <p className="text-sm text-slate-500 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                Customize the hiring process for <b>{selectedRequirement?.jobTitle}</b>.
+                                Adding steps here updates the job for all candidates.
+                            </p>
+
+                            <div className="space-y-3 mb-6 max-h-[300px] overflow-y-auto pr-2">
+                                {editingWorkflow.map((stage, index) => (
+                                    <div
+                                        key={index}
+                                        className={`flex items-center gap-2 p-2 bg-slate-50 rounded border border-slate-200 group ${stage === 'Applied' || stage === 'Finalized' ? 'opacity-80' : 'cursor-move hover:border-blue-300'}`}
+                                        draggable={stage !== 'Applied' && stage !== 'Finalized'}
+                                        onDragStart={(e) => {
+                                            dragItem.current = index;
+                                            e.target.classList.add('opacity-50');
+                                        }}
+                                        onDragEnter={(e) => {
+                                            dragOverItem.current = index;
+                                        }}
+                                        onDragEnd={(e) => {
+                                            e.target.classList.remove('opacity-50');
+                                            handleSort();
+                                        }}
+                                        onDragOver={(e) => e.preventDefault()}
+                                    >
+                                        {/* Grip Handle for Draggable Items */}
+                                        {stage !== 'Applied' && stage !== 'Finalized' ? (
+                                            <div className="text-slate-400 cursor-grab active:cursor-grabbing">
+                                                <GripVertical size={16} />
+                                            </div>
+                                        ) : (
+                                            <div className="w-4"></div> // Spacer
+                                        )}
+
+                                        <div className="flex-1 text-sm font-medium text-slate-700">
+                                            {index + 1}. {stage}
+                                        </div>
+                                        {/* Prevent removing critical stages if needed, or allow full flexibility */}
+                                        {stage !== 'Applied' && stage !== 'Finalized' && (
+                                            <button
+                                                onClick={() => handleStageRemove(index)}
+                                                className="text-slate-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex gap-2 mb-6">
+                                <input
+                                    type="text"
+                                    value={newStageName}
+                                    onChange={(e) => setNewStageName(e.target.value)}
+                                    placeholder="New Stage Name (e.g. Logic Test)"
+                                    className="flex-1 p-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleStageAdd()}
+                                />
+                                <button
+                                    onClick={handleStageAdd}
+                                    className="bg-blue-100 text-blue-600 p-2 rounded hover:bg-blue-200 transition"
+                                >
+                                    <Plus size={20} />
+                                </button>
+                            </div>
+
+                            <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
+                                <button
+                                    onClick={() => setShowWorkflowEditModal(false)}
+                                    className="px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={saveWorkflowChanges}
+                                    disabled={loading}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md text-sm font-medium disabled:opacity-50"
+                                >
+                                    {loading ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+            {/* End of Workflow Edit Modal */}
+            {/* Candidate Details & Resume Modal */}
+            {
+                showCandidateModal && selectedApplicant && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center overflow-y-auto p-4 sm:p-6">
+                        <div className="bg-white w-full max-w-7xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                        {selectedApplicant.name}
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusColor(selectedApplicant.status)}`}>
+                                            {selectedApplicant.status}
+                                        </span>
+                                    </h2>
+                                    <p className="text-sm text-slate-500">Applied for <span className="font-medium text-slate-700">{selectedApplicant.requirementId?.jobTitle}</span></p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => {
+                                            const resumeLink = selectedApplicant.resumeFileUrl || (selectedApplicant.resume && typeof selectedApplicant.resume === 'object' ? selectedApplicant.resume.url : selectedApplicant.resume);
+                                            downloadResume(resumeLink);
+                                        }}
+                                        className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm flex items-center gap-2"
+                                    >
+                                        <Download size={16} /> Download Resume
+                                    </button>
+                                    <button
+                                        onClick={() => setShowCandidateModal(false)}
+                                        className="p-2 hover:bg-slate-200 rounded-full transition text-slate-500"
+                                    >
+                                        <X size={24} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                                {/* Sidebar: Candidate Details */}
+                                <div className="w-full lg:w-1/3 bg-white border-r border-slate-200 overflow-y-auto p-6 space-y-6">
+                                    <section>
+                                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Personal Information</h3>
+                                        <div className="space-y-4">
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-0.5 text-slate-400"><FileText size={16} /></div>
+                                                <div>
+                                                    <p className="text-xs text-slate-500">Father's Name</p>
+                                                    <p className="text-sm font-medium text-slate-800">{selectedApplicant.fatherName || '-'}</p>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-0.5 text-slate-400">@</div>
+                                                <div>
+                                                    <p className="text-xs text-slate-500">Email Address</p>
+                                                    <p className="text-sm font-medium text-slate-800 break-all">{selectedApplicant.email}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-0.5 text-slate-400">#</div>
+                                                <div>
+                                                    <p className="text-xs text-slate-500">Phone / Mobile</p>
+                                                    <p className="text-sm font-medium text-slate-800">{selectedApplicant.mobile || selectedApplicant.phone || '-'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-0.5 text-slate-400">📅</div>
+                                                <div>
+                                                    <p className="text-xs text-slate-500">Date of Birth</p>
+                                                    <p className="text-sm font-medium text-slate-800">
+                                                        {selectedApplicant.dob ? dayjs(selectedApplicant.dob).format('DD MMM YYYY') : '-'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-0.5 text-slate-400">📍</div>
+                                                <div>
+                                                    <p className="text-xs text-slate-500">Address</p>
+                                                    <p className="text-sm text-slate-700 leading-relaxed">{selectedApplicant.address || '-'}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
 
-                        {/* Footer - Bottom Action Bar */}
-                        {!stageFeedback.template && (
+                                    <div className="border-t border-slate-100 my-2"></div>
+
+                                    <section>
+                                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Professional Details</h3>
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p className="text-xs text-slate-500">Experience</p>
+                                                    <p className="text-sm font-medium text-slate-800">{selectedApplicant.experience || '0'} Years</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-slate-500">Notice Period</p>
+                                                    <p className="text-sm font-medium text-slate-800">{selectedApplicant.noticePeriod ? 'Yes' : 'No'}</p>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <p className="text-xs text-slate-500">Current Company</p>
+                                                <p className="text-sm font-medium text-slate-800">{selectedApplicant.currentCompany || '-'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-slate-500">Designation</p>
+                                                <p className="text-sm font-medium text-slate-800">{selectedApplicant.currentDesignation || '-'}</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p className="text-xs text-slate-500">Current CTC</p>
+                                                    <p className="text-sm font-medium text-slate-800">{selectedApplicant.currentCTC || '-'}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-slate-500">Expected CTC</p>
+                                                    <p className="text-sm font-medium text-emerald-600">{selectedApplicant.expectedCTC || '-'}</p>
+                                                </div>
+                                            </div>
+
+                                            {selectedApplicant.linkedin && (
+                                                <div>
+                                                    <p className="text-xs text-slate-500 mb-1">LinkedIn Profile</p>
+                                                    <a href={selectedApplicant.linkedin} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline truncate block">
+                                                        {selectedApplicant.linkedin}
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+
+                                    {selectedApplicant.intro && (
+                                        <>
+                                            <div className="border-t border-slate-100 my-2"></div>
+                                            <section>
+                                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Introduction / Notes</h3>
+                                                <p className="text-sm text-slate-600 italic leading-relaxed bg-slate-50 p-3 rounded">
+                                                    "{selectedApplicant.intro}"
+                                                </p>
+                                            </section>
+                                        </>
+                                    )}
+
+                                    {/* AI Insights Section */}
+                                    {selectedApplicant.aiParsedData && (
+                                        <>
+                                            <div className="border-t border-slate-100 my-2"></div>
+                                            <section>
+                                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                    <span className="text-purple-600">✨</span> AI Insights
+                                                </h3>
+                                                <div className="bg-purple-50 p-3 rounded-xl border border-purple-100">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-xs font-bold text-purple-700">Match Score</span>
+                                                        <span className="text-sm font-black text-purple-600">{selectedApplicant.matchPercentage}%</span>
+                                                    </div>
+                                                    {/* Skills */}
+                                                    <div className="flex flex-wrap gap-1 mb-2">
+                                                        {selectedApplicant.parsedSkills?.map((skill, i) => (
+                                                            <span key={i} className="px-2 py-0.5 bg-white text-purple-600 text-[10px] font-bold rounded border border-purple-100">
+                                                                {skill}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    {/* Summary */}
+                                                    {selectedApplicant.aiParsedData.experienceSummary && (
+                                                        <p className="text-xs text-purple-800 leading-relaxed">
+                                                            {selectedApplicant.aiParsedData.experienceSummary}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </section>
+                                        </>
+                                    )}
+
+                                </div>
+
+                                {/* Main Area: Resume Preview */}
+                                <div className="flex-1 bg-slate-100 flex items-center justify-center p-4">
+                                    {resumePreviewUrl ? (
+                                        <iframe
+                                            src={resumePreviewUrl}
+                                            className="w-full h-full rounded-lg shadow-input bg-white"
+                                            title="Resume Preview"
+                                        />
+                                    ) : (selectedApplicant.resume || selectedApplicant.resumeFileUrl) ? (
+                                        <div className="text-center p-8 bg-white rounded-xl shadow-sm max-w-md">
+                                            <FileText size={48} className="mx-auto text-slate-300 mb-4" />
+                                            <p className="text-lg font-medium text-slate-800 mb-2">Preview not available</p>
+                                            <p className="text-slate-500 mb-6">This file type cannot be previewed directly in the browser or is still loading.</p>
+                                            <button
+                                                onClick={() => downloadResume(selectedApplicant.resume || selectedApplicant.resumeFileUrl)}
+                                                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                                            >
+                                                <Download size={18} /> Download File
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center text-slate-400">
+                                            <p className="font-bold uppercase tracking-widest text-[10px]">No resume uploaded</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+            {/* Premium Candidate Evaluation Drawer */}
+            {
+                showEvaluationDrawer && selectedApplicant && (
+                    <div className="fixed inset-0 z-[100] flex justify-end">
+                        {/* Backdrop */}
+                        <div
+                            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
+                            onClick={() => setShowEvaluationDrawer(false)}
+                        />
+
+                        {/* Drawer Content */}
+                        <div className="relative w-full max-w-2xl bg-white h-screen shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out overflow-hidden">
+                            {/* Header */}
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                                <div>
+                                    <h1 className="text-xl font-black text-slate-800 tracking-tight">Candidate Evaluation</h1>
+                                    <p className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest flex items-center gap-2">
+                                        <span className="text-blue-600 font-black">{selectedApplicant.name}</span>
+                                        <span className="opacity-20 italic">|</span>
+                                        <span>{selectedApplicant.requirementId?.jobTitle}</span>
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setShowEvaluationDrawer(false);
+                                        setIsFinishingInterview(false);
+                                    }}
+                                    className="p-2 hover:bg-slate-50 rounded-full transition-colors"
+                                >
+                                    <X size={24} className="text-slate-400" />
+                                </button>
+                            </div>
+
+                            {/* Middle Area (Scrollable) */}
+                            <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
+
+                                {/* Round Navigation Tabs */}
+                                <div className="flex gap-2 p-1 bg-slate-50 rounded-xl">
+                                    {evaluationData.rounds.map((round, idx) => (
+                                        <button
+                                            key={round.id}
+                                            onClick={() => setEvalActiveRound(idx)}
+                                            className={`flex-1 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all
+                                            ${evalActiveRound === idx
+                                                    ? 'bg-white text-blue-600 shadow-sm'
+                                                    : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            {round.name}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Active Evaluation Criteria */}
+                                <div className="space-y-6">
+                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-3">
+                                        <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">0{evalActiveRound + 1}</span>
+                                        {evaluationData.rounds[evalActiveRound].name}
+                                    </h3>
+
+                                    {evaluationData.rounds[evalActiveRound].categories.map((cat, catIdx) => (
+                                        <div key={catIdx} className="space-y-4">
+                                            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{cat.name}</h4>
+                                            <div className="space-y-2">
+                                                {cat.skills.map((skill, skillIdx) => (
+                                                    <div key={skillIdx} className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50/50 border border-slate-100/50 rounded-2xl group hover:bg-white hover:shadow-xl hover:shadow-slate-100 transition-all duration-300">
+                                                        <div className="col-span-12 md:col-span-5">
+                                                            <p className="text-xs font-black text-slate-700">{skill.name}</p>
+                                                        </div>
+                                                        <div className="col-span-12 md:col-span-3 flex gap-2">
+                                                            {[1, 2, 3, 4, 5].map(num => (
+                                                                <button
+                                                                    key={num}
+                                                                    onClick={() => {
+                                                                        const newData = { ...evaluationData };
+                                                                        newData.rounds[evalActiveRound].categories[catIdx].skills[skillIdx].rating = num;
+                                                                        setEvaluationData(newData);
+                                                                        const allRatings = evaluationData.rounds.flatMap(r => r.categories.flatMap(c => c.skills.map(s => s.rating))).filter(r => r > 0);
+                                                                        if (allRatings.length > 0) {
+                                                                            const avg = Math.round(allRatings.reduce((a, b) => a + b, 0) / allRatings.length);
+                                                                            setReviewRating(avg);
+                                                                        }
+                                                                    }}
+                                                                    className={`w-8 h-8 rounded-full text-[11px] font-black transition-all flex items-center justify-center
+                                                                    ${skill.rating === num
+                                                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110'
+                                                                            : 'bg-white text-slate-400 border border-slate-200 hover:border-blue-400 font-bold'}`}
+                                                                >
+                                                                    {num}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <div className="col-span-12 md:col-span-4">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Short Note..."
+                                                                value={skill.comment}
+                                                                onChange={(e) => {
+                                                                    const newData = { ...evaluationData };
+                                                                    newData.rounds[evalActiveRound].categories[catIdx].skills[skillIdx].comment = e.target.value;
+                                                                    setEvaluationData(newData);
+                                                                    // Sync with main feedback
+                                                                    setReviewFeedback(e.target.value);
+                                                                }}
+                                                                className="w-full text-[10px] p-2 bg-white border border-slate-100 rounded-lg outline-none focus:border-blue-500 transition-colors"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Footer - Bottom Action Bar */}
                             <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-6 flex items-center justify-between shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
                                 <div className="flex items-center gap-6">
                                     <div>
@@ -3234,10 +3434,9 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     {loading ? 'Processing...' : 'Complete Evaluation'}
                                 </button>
                             </div>
-                        )}
+                        </div>
                     </div>
-                </div>
-            )
+                )
             }
 
             {/* Document Upload Modal */}
@@ -3257,7 +3456,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     onClick={() => setShowDocumentModal(false)}
                                     className="p-2 hover:bg-white rounded-lg transition-colors"
                                 >
-                                    <span className="text-slate-400 text-xl font-bold">✖</span>
+                                    <XCircle size={20} className="text-slate-400" />
                                 </button>
                             </div>
 
@@ -3315,7 +3514,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                         <div className="text-sm font-bold text-slate-800">{doc.name}</div>
                                                         <div className="text-xs text-slate-500 mt-1">
                                                             {doc.fileName} • {(doc.fileSize / 1024).toFixed(1)} KB
-                                                            {doc.verified && <span className="ml-2 text-emerald-600">✔ Verified</span>}
+                                                            {doc.verified && <span className="ml-2 text-emerald-600">✓ Verified</span>}
                                                         </div>
                                                     </div>
                                                     {!doc.verified && (
@@ -3364,7 +3563,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                         <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-md overflow-hidden transform animate-in zoom-in-95 duration-300 border border-slate-100">
                             <div className="p-8 text-center text-slate-900">
                                 <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner animate-pulse">
-                                    <span className="text-4xl">✅</span>
+                                    <ShieldCheck size={40} strokeWidth={2.5} />
                                 </div>
                                 <h2 className="text-2xl font-black mb-2">Finalize Candidate?</h2>
                                 <p className="text-slate-500 font-medium">
@@ -3408,168 +3607,6 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     </div>
                 )
             }
-
-            {/* GENERATE OFFER MODAL - REDESIGNED TO MATCH USER SCREENSHOT */}
-            <Modal
-                title={null}
-                open={showModal}
-                onCancel={() => setShowModal(false)}
-                footer={null}
-                centered
-                width={500}
-                className="premium-modal no-header-modal"
-                styles={{ body: { padding: '24px' } }}
-            >
-                <div className="space-y-4">
-                    <h2 className="text-xl font-bold text-slate-800 mb-6">Generate Offer Letter</h2>
-
-                    {/* Candidate Name */}
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500">Candidate Name</label>
-                        <input
-                            type="text"
-                            name="name"
-                            value={offerData.name}
-                            onChange={handleOfferChange}
-                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-700 text-sm"
-                        />
-                        <p className="text-[10px] text-slate-400">Role: {selectedApplicant?.requirementId?.jobTitle || 'N/A'}</p>
-                    </div>
-
-                    {/* Name for Dear section */}
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500">Name (For 'Dear ...' section)</label>
-                        <input
-                            type="text"
-                            name="dearName"
-                            value={offerData.dearName}
-                            onChange={handleOfferChange}
-                            placeholder="e.g. First Name only"
-                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-700 text-sm"
-                        />
-                    </div>
-
-                    {/* Date Format */}
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500">Date Format</label>
-                        <select
-                            name="dateFormat"
-                            value={offerData.dateFormat}
-                            onChange={handleOfferChange}
-                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-700 text-sm"
-                        >
-                            <option value="Do MMM. YYYY">17th Jan. 2026 (Default)</option>
-                            <option value="DD-MM-YYYY">17-01-2026</option>
-                            <option value="MMMM Do, YYYY">January 17th, 2026</option>
-                            <option value="YYYY-MM-DD">2026-01-17</option>
-                        </select>
-                    </div>
-
-                    {/* Title & Offer Template */}
-                    <div className="grid grid-cols-12 gap-3">
-                        <div className="col-span-4 space-y-1">
-                            <label className="text-xs font-medium text-slate-500">Title</label>
-                            <select
-                                name="salutation"
-                                value={offerData.salutation}
-                                onChange={handleOfferChange}
-                                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-700 text-sm"
-                            >
-                                <option value="">--</option>
-                                <option value="Mr.">Mr.</option>
-                                <option value="Ms.">Ms.</option>
-                                <option value="Mrs.">Mrs.</option>
-                            </select>
-                        </div>
-                        <div className="col-span-8 space-y-1">
-                            <label className="text-xs font-medium text-slate-500">Offer Template</label>
-                            <select
-                                name="templateId"
-                                value={offerData.templateId}
-                                onChange={handleOfferChange}
-                                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-700 text-sm"
-                            >
-                                <option value="">-- Select Template --</option>
-                                {templates.map(t => (
-                                    <option key={t._id} value={t._id}>{t.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Reference Number */}
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500">Reference Number</label>
-                        <input
-                            type="text"
-                            name="refNo"
-                            value={offerData.refNo}
-                            onChange={handleOfferChange}
-                            placeholder="e.g. OFFER/2025/001"
-                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-700 text-sm"
-                        />
-                    </div>
-
-                    {/* Joining Date & Letter Issue Date */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                            <label className="text-xs font-medium text-slate-500">Joining Date *</label>
-                            <input
-                                type="date"
-                                name="joiningDate"
-                                value={offerData.joiningDate}
-                                onChange={handleOfferChange}
-                                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-700 text-sm"
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-xs font-medium text-slate-500">Letter Issue Date</label>
-                            <input
-                                type="date"
-                                name="issueDate"
-                                value={offerData.issueDate}
-                                onChange={handleOfferChange}
-                                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-700 text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Candidate Address */}
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500">Candidate Address</label>
-                        <textarea
-                            name="address"
-                            value={offerData.address}
-                            onChange={handleOfferChange}
-                            placeholder="Full address with pin code..."
-                            rows={3}
-                            className="w-full p-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-700 text-sm resize-none"
-                        />
-                    </div>
-
-                    {/* Footer Buttons */}
-                    <div className="flex justify-between items-center pt-6">
-                        <button
-                            onClick={() => setShowModal(false)}
-                            className="px-6 py-2 text-slate-600 font-bold hover:text-slate-800 transition-colors"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={submitOffer}
-                            disabled={generating || !offerData.templateId || !offerData.joiningDate}
-                            className="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-lg shadow-lg shadow-blue-200 hover:bg-blue-700 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:translate-y-0 flex items-center gap-2"
-                        >
-                            {generating ? (
-                                <RefreshCw className="animate-spin" size={18} />
-                            ) : (
-                                <ArrowRight size={18} />
-                            )}
-                            GENERATE OFFER
-                        </button>
-                    </div>
-                </div>
-            </Modal>
 
             {/* Rule 5: Add Interview Round Modal */}
             <Modal
@@ -3828,188 +3865,18 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             </Modal>
 
             {/* BGV Initiation Modal (Package-Driven) */}
-            {
-                showBGVModal && bgvCandidate && (
-                    <JobBasedBGVModal
-                        applicant={bgvCandidate}
-                        jobTitle={bgvCandidate.requirementId?.jobTitle || 'N/A'}
-                        onClose={() => {
-                            setShowBGVModal(false);
-                            setBgvCandidate(null);
-                        }}
-                        onSuccess={handleBGVSuccess}
-                    />
-                )
-            }
-
-            {/* Salary Assignment Modal */}
-            <AssignSalaryModal
-                isOpen={showSalaryModal}
-                onClose={() => setShowSalaryModal(false)}
-                applicant={selectedApplicant}
-                onSuccess={() => {
-                    loadApplicants();
-                    setShowSalaryModal(false);
-                }}
-            />
-
-            {/* Add Stage Modal */}
-            <Modal
-                title={null}
-                footer={null}
-                open={showAddStageModal}
-                onCancel={() => setShowAddStageModal(false)}
-                width={700}
-                className="rounded-[32px] overflow-hidden"
-                centered
-            >
-                <div className="p-2">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-600">
-                            <Plus className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-black text-slate-800 tracking-tight">Enterprise Stage Config</h2>
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Define interview round details</p>
-                        </div>
-                    </div>
-
-                    <StageForm
-                        onCancel={() => setShowAddStageModal(false)}
-                        onSubmit={handleAddStageToWorkflow}
-                    />
-                </div>
-            </Modal>
-
-            {/* Manage Stages Modal */}
-            <Modal
-                title={null}
-                open={showManageStagesModal}
-                onCancel={() => setShowManageStagesModal(false)}
-                footer={null}
-                centered
-                width={500}
-                className="rounded-3xl overflow-hidden"
-            >
-                <div className="p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-                            <Settings className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-bold text-slate-800">Manage Pipeline</h3>
-                            <p className="text-sm text-slate-500">Drag to reorder your hiring stages</p>
-                        </div>
-                    </div>
-
-                    <div className="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                        <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={handleModalDragEnd}
-                        >
-                            <SortableContext
-                                items={tempWorkflowOrder.map(s => s.stageName)}
-                                strategy={verticalListSortingStrategy}
-                            >
-                                {tempWorkflowOrder.map((stage, idx) => (
-                                    <SortableStageItem
-                                        key={stage.stageName}
-                                        stage={stage}
-                                        index={idx}
-                                        isLocked={['Applied', 'Shortlisted', 'Finalized'].includes(stage.stageName)}
-                                        onEdit={onStageEdit}
-                                        onDelete={onStageDelete}
-                                    />
-                                ))}
-                            </SortableContext>
-                        </DndContext>
-                    </div>
-
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mt-6">
-                        <div className="flex gap-2 text-xs text-blue-700">
-                            <Info className="w-4 h-4 flex-shrink-0" />
-                            <p>Changing the order affects the pipeline view. "Applied", "Shortlisted", "HR Round" and "Finalized" are locked at their positions.</p>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3 pt-6 border-t border-slate-100 mt-6">
-                        <button
-                            onClick={async () => {
-                                try {
-                                    setIsSavingOrder(true);
-
-                                    // Use the new Enterprise Pipeline Reorder API
-                                    const response = await api.put(`/pipeline/job/${selectedRequirement._id}/reorder`, {
-                                        stages: tempWorkflowOrder
-                                    });
-
-                                    if (response.data) {
-                                        // Refresh state
-                                        const pipelineRes = await api.get(`/pipeline/job/${selectedRequirement._id}`);
-                                        setJobPipeline(pipelineRes.data);
-
-                                        const reqRes = await api.get('/requirements');
-                                        const reqData = reqRes.data.requirements || reqRes.data || [];
-                                        setRequirements(reqData);
-
-                                        setShowManageStagesModal(false);
-                                        showToast('success', 'Pipeline Secured', 'Recruitment pipeline architecture updated successfully!');
-                                    }
-                                } catch (err) {
-                                    console.error('Save Pipeline Error:', err);
-                                    showToast('error', 'Save Failed', err.response?.data?.message || 'Failed to update enterprise pipeline');
-                                } finally {
-                                    setIsSavingOrder(false);
-                                }
-                            }}
-                            disabled={isSavingOrder}
-                            className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:shadow-indigo-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                            {isSavingOrder ? (
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <>
-                                    <Save className="w-4 h-4" />
-                                    Commit Architecture
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </Modal>
-
-            {/* Edit Stage Modal */}
-            <Modal
-                title={null}
-                footer={null}
-                open={showEditStageModal}
-                onCancel={() => setShowEditStageModal(false)}
-                width={700}
-                className="rounded-[32px] overflow-hidden"
-                centered
-            >
-                <div className="p-2">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600">
-                            <Settings className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-black text-slate-800 tracking-tight">Modify Stage Architecture</h2>
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{editingStageData?.stageName}</p>
-                        </div>
-                    </div>
-
-                    <StageForm
-                        initialData={editingStageData}
-                        onCancel={() => setShowEditStageModal(false)}
-                        onSubmit={handleUpdateStage}
-                        isLocked={['Applied', 'Shortlisted', 'Finalized'].includes(editingStageData?.stageName)}
-                    />
-                </div>
-            </Modal>
+            {showBGVModal && bgvCandidate && (
+                <JobBasedBGVModal
+                    applicant={bgvCandidate}
+                    jobTitle={bgvCandidate.requirementId?.jobTitle || 'N/A'}
+                    onClose={() => {
+                        setShowBGVModal(false);
+                        setBgvCandidate(null);
+                    }}
+                    onSuccess={handleBGVSuccess}
+                />
+            )}
         </div >
     );
 }
-
 

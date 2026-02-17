@@ -11,11 +11,11 @@
 const express = require('express');
 const router = express.Router();
 const workflowController = require('../controllers/recruitment.workflow.controller');
-const { authenticate } = require('../middleware/auth.jwt');
+const { authenticateToken, getTenantDB } = require('../middleware/auth'); // Adjust path as needed
 
-// Apply authentication middleware to all routes
-router.use(authenticate);
-// Tenant DB binding is handled by global tenantMiddleware in app.js
+// Apply authentication and tenant middleware to all routes
+router.use(authenticateToken);
+router.use(getTenantDB);
 
 // ═══════════════════════════════════════════════════════════════════
 // APPLICATION MANAGEMENT
@@ -25,6 +25,13 @@ router.use(authenticate);
  * @route   POST /api/recruitment/applications
  * @desc    Create new job application
  * @access  Public (Candidate) / Private (HR)
+ * @body    {
+ *            jobId: ObjectId,
+ *            candidateId: ObjectId,
+ *            candidateInfo: { name, email, mobile, ... },
+ *            source: 'CAREER_PORTAL' | 'REFERRAL' | ...,
+ *            priority: 'LOW' | 'MEDIUM' | 'HIGH'
+ *          }
  */
 router.post('/applications', workflowController.createApplication);
 
@@ -32,6 +39,10 @@ router.post('/applications', workflowController.createApplication);
  * @route   PATCH /api/recruitment/applications/:applicationId/status
  * @desc    Update application status
  * @access  Private (HR)
+ * @body    {
+ *            status: 'SHORTLISTED' | 'INTERVIEW' | 'SELECTED' | 'REJECTED' | ...,
+ *            reason: 'Optional reason for status change'
+ *          }
  */
 router.patch('/applications/:applicationId/status', workflowController.updateApplicationStatus);
 
@@ -51,6 +62,15 @@ router.get('/pipeline', workflowController.getRecruitmentPipeline);
  * @route   POST /api/recruitment/applications/:applicationId/interviews
  * @desc    Schedule interview for application
  * @access  Private (HR)
+ * @body    {
+ *            date: Date,
+ *            time: String,
+ *            mode: 'Online' | 'Offline',
+ *            location: String (URL or Address),
+ *            interviewerName: String,
+ *            interviewerId: ObjectId,
+ *            notes: String
+ *          }
  */
 router.post('/applications/:applicationId/interviews', workflowController.scheduleInterview);
 
@@ -62,6 +82,19 @@ router.post('/applications/:applicationId/interviews', workflowController.schedu
  * @route   POST /api/recruitment/applications/:applicationId/offer
  * @desc    Create offer letter for selected candidate
  * @access  Private (HR)
+ * @body    {
+ *            salaryStructureId: ObjectId,
+ *            department: String,
+ *            designation: String,
+ *            location: String,
+ *            reportingTo: String,
+ *            joiningDate: Date,
+ *            probationPeriod: Number (months),
+ *            noticePeriod: Number (days),
+ *            validUntil: Date,
+ *            benefits: [{ name, description }],
+ *            specialTerms: [{ term }]
+ *          }
  */
 router.post('/applications/:applicationId/offer', workflowController.createOffer);
 
@@ -76,6 +109,9 @@ router.post('/offers/:offerId/send', workflowController.sendOffer);
  * @route   POST /api/recruitment/offers/:offerId/accept
  * @desc    Candidate accepts offer
  * @access  Public (Candidate with token) / Private (HR on behalf)
+ * @body    {
+ *            acceptanceNotes: String (optional)
+ *          }
  */
 router.post('/offers/:offerId/accept', workflowController.acceptOffer);
 
@@ -87,6 +123,10 @@ router.post('/offers/:offerId/accept', workflowController.acceptOffer);
  * @route   POST /api/recruitment/offers/:offerId/convert-to-employee
  * @desc    Convert accepted offer to employee
  * @access  Private (HR)
+ * @body    {
+ *            actualJoiningDate: Date (optional),
+ *            department: String (optional - for employee ID generation)
+ *          }
  */
 router.post('/offers/:offerId/convert-to-employee', workflowController.convertToEmployee);
 

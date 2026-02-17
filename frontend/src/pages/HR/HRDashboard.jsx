@@ -113,20 +113,23 @@ export default function HRDashboard() {
         <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Dashboard</h1>
       </div>
 
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-violet-700 p-6 md:p-8 rounded-2xl shadow-xl text-white">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl"></div>
-        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-40 h-40 bg-blue-500 opacity-20 rounded-full blur-2xl"></div>
-
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2 opacity-90">
-            <Building2 size={18} />
-            <span className="text-sm font-bold uppercase tracking-widest">Company Overview</span>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-emerald-600 p-8 rounded-xl border border-emerald-500 shadow-sm relative overflow-hidden">
+        <div className="space-y-1 relative z-10">
+          <div className="flex items-center gap-2 text-emerald-100 font-medium text-sm mb-1">
+            <Building2 size={16} className="text-emerald-200" />
+            <span className="uppercase tracking-widest">Company Overview</span>
           </div>
-          <div className="flex items-end gap-3">
-            <h1 className="text-3xl md:text-4xl font-black tracking-tight">{tenant?.name || '—'}</h1>
-            <span className="text-lg md:text-xl font-medium opacity-70 mb-1">({tenant?.code})</span>
+          <h1 className="text-4xl font-bold text-white tracking-tight">{tenant?.name || '—'}</h1>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-emerald-100 font-medium opacity-80">({tenant?.code})</span>
+            <span className="flex items-center gap-2 px-3 py-1 bg-white text-emerald-700 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-sm">
+              <Activity size={12} className="animate-pulse" /> SYSTEM ONLINE
+            </span>
           </div>
         </div>
+
+        {/* Decorative BG */}
+        <div className="absolute top-0 right-0 w-64 h-full bg-gradient-to-l from-emerald-500 to-transparent opacity-30 pointer-events-none"></div>
       </div>
 
       {/* Attendance Overview - NEW */}
@@ -135,245 +138,252 @@ export default function HRDashboard() {
         <Activity className="text-indigo-500" />
         Today's Attendance Overview
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
-          <div className="absolute right-0 top-0 w-24 h-24 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-          <div className="relative z-10">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-emerald-100/50 text-emerald-600 rounded-lg">
-                <UserCheck size={24} />
-              </div>
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase tracking-wider">Live</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+
+        {/* Card 1: Punched In */}
+        <div className="bg-gradient-to-br from-emerald-400 to-teal-500 relative overflow-hidden p-8 rounded-xl flex flex-col justify-between h-48 shadow-sm transition-all duration-300 hover:scale-[1.01] hover:shadow-md group">
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex justify-between items-start relative z-10">
+            <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center text-white border border-white/20 shadow-inner group-hover:scale-110 transition-transform duration-500">
+              <UserCheck size={26} />
             </div>
-            <div className="text-3xl font-black text-slate-800">{attendanceStats?.totalPunchedIn || 0}</div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mt-1">Punched In</div>
+            <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-[10px] font-bold text-white uppercase tracking-widest border border-white/10">
+              Live
+            </span>
+          </div>
+          <div className="relative z-10 space-y-1">
+            <h3 className="text-5xl font-bold text-white tracking-tight drop-shadow-sm">{attendanceStats?.totalPunchedIn || 0}</h3>
+            <p className="text-sm font-semibold text-white/90 uppercase tracking-widest leading-relaxed">Punched In</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
-          <div className="absolute right-0 top-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-          <div className="relative z-10">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-blue-100/50 text-blue-600 rounded-lg">
-                <Layers size={24} />
-              </div>
+        {/* Card 2: Multiple Punches */}
+        <div className="bg-gradient-to-br from-blue-400 to-cyan-500 relative overflow-hidden p-8 rounded-xl flex flex-col justify-between h-48 shadow-sm transition-all duration-300 hover:scale-[1.01] hover:shadow-md group">
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex justify-between items-start relative z-10">
+            <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center text-white border border-white/20 shadow-inner group-hover:scale-110 transition-transform duration-500">
+              <Layers size={26} />
             </div>
-            <div className="text-3xl font-black text-slate-800">{attendanceStats?.multiplePunches || 0}</div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mt-1">Multiple Punches</div>
+            <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-[10px] font-bold text-white uppercase tracking-widest border border-white/10">
+              Flags
+            </span>
+          </div>
+          <div className="relative z-10 space-y-1">
+            <h3 className="text-5xl font-bold text-white tracking-tight drop-shadow-sm">{attendanceStats?.multiplePunches || 0}</h3>
+            <p className="text-sm font-semibold text-white/90 uppercase tracking-widest leading-relaxed">Multiple Punches</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
-          <div className="absolute right-0 top-0 w-24 h-24 bg-rose-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-          <div className="relative z-10">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-rose-100/50 text-rose-600 rounded-lg">
-                <AlertTriangle size={24} />
-              </div>
-              <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-full uppercase tracking-wider">Alert</span>
+        {/* Card 3: Missing Out */}
+        <div className="bg-gradient-to-br from-rose-500 to-orange-500 relative overflow-hidden p-8 rounded-xl flex flex-col justify-between h-48 shadow-sm transition-all duration-300 hover:scale-[1.01] hover:shadow-md group">
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex justify-between items-start relative z-10">
+            <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center text-white border border-white/20 shadow-inner group-hover:scale-110 transition-transform duration-500">
+              <AlertTriangle size={26} />
             </div>
-            <div className="text-3xl font-black text-slate-800">{attendanceStats?.missingPunchOut || 0}</div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mt-1">Missing Out</div>
+            <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-[10px] font-bold text-white uppercase tracking-widest border border-white/10">
+              Alert
+            </span>
+          </div>
+          <div className="relative z-10 space-y-1">
+            <h3 className="text-5xl font-bold text-white tracking-tight drop-shadow-sm">{attendanceStats?.missingPunchOut || 0}</h3>
+            <p className="text-sm font-semibold text-white/90 uppercase tracking-widest leading-relaxed">Missing Out</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
-          <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-          <div className="relative z-10">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-indigo-100/50 text-indigo-600 rounded-lg">
-                <Clock size={24} />
-              </div>
+        {/* Card 4: Avg Hours */}
+        <div className="bg-gradient-to-br from-violet-500 to-purple-600 relative overflow-hidden p-8 rounded-xl flex flex-col justify-between h-48 shadow-sm transition-all duration-300 hover:scale-[1.01] hover:shadow-md group">
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex justify-between items-start relative z-10">
+            <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center text-white border border-white/20 shadow-inner group-hover:scale-110 transition-transform duration-500">
+              <Clock size={26} />
             </div>
-            <div className="text-3xl font-black text-slate-800">{attendanceStats?.avgWorkingHours || 0}</div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mt-1">Avg Hours</div>
+            <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-[10px] font-bold text-white uppercase tracking-widest border border-white/10">
+              Avg
+            </span>
+          </div>
+          <div className="relative z-10 space-y-1">
+            <h3 className="text-5xl font-bold text-white tracking-tight drop-shadow-sm">{attendanceStats?.avgWorkingHours || 0}</h3>
+            <p className="text-sm font-semibold text-white/90 uppercase tracking-widest leading-relaxed">Work Hours</p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-8">
-        <Link to="/hr/org" className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 hover:border-blue-300 hover:bg-blue-50 transition cursor-pointer group">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-bold text-blue-400 uppercase tracking-widest">Total Employees</div>
-            <Users className="text-blue-500 group-hover:scale-110 transition-transform" size={20} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+        <Link to="/hr/org" className="bg-gradient-to-br from-indigo-500 to-blue-600 p-6 rounded-xl shadow-sm hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm text-white rounded-lg flex items-center justify-center shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
+              <Users size={24} />
+            </div>
+            <span className="text-[10px] font-black text-white uppercase tracking-widest bg-white/20 px-2 py-1 rounded-full border border-white/10">Total</span>
           </div>
-          <div className="text-4xl font-black text-blue-900">{counts.employees}</div>
+          <div className="relative z-10">
+            <div className="text-3xl font-black text-white">{counts.employees}</div>
+            <div className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest mt-1">Total Employees</div>
+          </div>
         </Link>
 
-        <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50 transition group">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Departments</div>
-            <Building2 className="text-emerald-500 group-hover:scale-110 transition-transform" size={20} />
+        <div className="bg-gradient-to-br from-pink-500 to-rose-500 p-6 rounded-xl shadow-sm hover:shadow-lg transition-all group relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm text-white rounded-lg flex items-center justify-center shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
+              <Building2 size={24} />
+            </div>
+            <span className="text-[10px] font-black text-white uppercase tracking-widest bg-white/20 px-2 py-1 rounded-full border border-white/10">Org</span>
           </div>
-          <div className="text-4xl font-black text-emerald-900">{counts.departments}</div>
+          <div className="relative z-10">
+            <div className="text-3xl font-black text-white">{counts.departments}</div>
+            <div className="text-[10px] font-bold text-pink-100 uppercase tracking-widest mt-1">Departments</div>
+          </div>
         </div>
 
-        <div className="bg-cyan-50/50 p-6 rounded-2xl border border-cyan-100 hover:border-cyan-300 hover:bg-cyan-50 transition group">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-bold text-cyan-400 uppercase tracking-widest">Managers</div>
-            <Briefcase className="text-cyan-500 group-hover:scale-110 transition-transform" size={20} />
+        <div className="bg-gradient-to-br from-cyan-500 to-sky-600 p-6 rounded-xl shadow-sm hover:shadow-lg transition-all group relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm text-white rounded-lg flex items-center justify-center shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
+              <Briefcase size={24} />
+            </div>
+            <span className="text-[10px] font-black text-white uppercase tracking-widest bg-white/20 px-2 py-1 rounded-full border border-white/10">Lead</span>
           </div>
-          <div className="text-4xl font-black text-cyan-900">{counts.managers}</div>
+          <div className="relative z-10">
+            <div className="text-3xl font-black text-white">{counts.managers}</div>
+            <div className="text-[10px] font-bold text-cyan-100 uppercase tracking-widest mt-1">Managers</div>
+          </div>
         </div>
 
-        <div className="bg-amber-50/50 p-6 rounded-2xl border border-amber-100 hover:border-amber-300 hover:bg-amber-50 transition group">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-bold text-amber-400 uppercase tracking-widest">Pending Leaves</div>
-            <FileClock className="text-amber-500 group-hover:scale-110 transition-transform" size={20} />
+        <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-6 rounded-xl shadow-sm hover:shadow-lg transition-all group relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm text-white rounded-lg flex items-center justify-center shadow-inner border border-white/20 group-hover:scale-110 transition-transform">
+              <FileClock size={24} />
+            </div>
+            <span className="text-[10px] font-black text-white uppercase tracking-widest bg-white/20 px-2 py-1 rounded-full border border-white/10">Action</span>
           </div>
-          <div className="text-4xl font-black text-amber-900">{counts.pendingLeaves}</div>
+          <div className="relative z-10">
+            <div className="text-3xl font-black text-white">{counts.pendingLeaves}</div>
+            <div className="text-[10px] font-bold text-amber-100 uppercase tracking-widest mt-1">Pending Leaves</div>
+          </div>
         </div>
       </div>
 
-      {/* Employees by Department */}
-      <div>
-        <h3 className="text-lg font-bold text-slate-800 mb-4 mt-6">Employees by Department</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {departments.map(dept => (
-            <div key={dept._id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-indigo-100 transition-all flex items-center justify-between group cursor-pointer relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-16 h-16 bg-gradient-to-br from-slate-50 to-indigo-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
-              <div className="relative z-10 w-full">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="p-2 bg-slate-50 text-slate-500 rounded-lg group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                    <Building2 size={16} />
-                  </div>
-                  <div className="text-2xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">{dept.employeeCount || 0}</div>
-                </div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate" title={dept.name}>{dept.name}</div>
-              </div>
-            </div>
-          ))}
-          {departments.length === 0 && <div className="text-slate-400 text-sm col-span-full">No departments found.</div>}
-        </div>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-10">
 
-      <div className="mt-10">
-        <div className="flex items-center justify-between mb-6 px-1">
-          <div>
-            <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
-              <Calendar className="text-indigo-500" size={24} />
-              Recent Leave Requests
-            </h3>
-            <p className="text-sm text-slate-500 font-medium mt-1">Manage pending approvals and employee time off.</p>
+        {/* Employees by Department */}
+        <div className="lg:col-span-3">
+          <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+            <Building2 className="text-emerald-500" size={18} />
+            Department Distribution
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {departments.map(dept => (
+              <div key={dept._id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer relative overflow-hidden text-center">
+                <div className="absolute top-0 right-0 w-12 h-12 bg-emerald-50 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:scale-150"></div>
+                <div className="p-3 bg-slate-50 text-slate-400 rounded-full group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors relative z-10">
+                  <Building2 size={20} />
+                </div>
+                <div className="relative z-10">
+                  <div className="text-2xl font-black text-slate-800 group-hover:text-emerald-600 transition-colors">{dept.employeeCount || 0}</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[120px]" title={dept.name}>{dept.name}</div>
+                </div>
+              </div>
+            ))}
+            {departments.length === 0 && <div className="text-slate-400 text-xs font-bold uppercase tracking-widest col-span-full py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">No departments found</div>}
           </div>
-          <Link to="/hr/leave-requests" className="group flex items-center gap-1 text-sm font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-4 py-2 rounded-full transition-all hover:pr-6">
-            View All
-            <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
-          </Link>
         </div>
 
-        <div className="space-y-4">
-          {(leaves.length === 0) ? (
-            <div className="py-16 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-              <div className="flex justify-center mb-4">
-                <div className="p-4 bg-white rounded-full shadow-sm">
-                  <FileClock size={32} className="text-slate-300" />
-                </div>
+        {/* Recent Leave Requests Wrapper */}
+        <div className="lg:col-span-3 bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-8 bg-indigo-600 rounded-full"></div>
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Recent Leave Requests</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Manage pending approvals and time off</p>
               </div>
-              <h4 className="text-slate-900 font-bold text-lg">All Caught Up!</h4>
-              <p className="text-slate-500 text-sm mt-1">No pending leave requests at the moment.</p>
             </div>
-          ) : leaves.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(l => {
-            const empName = l.employee
-              ? (typeof l.employee === 'object' && l.employee !== null
-                ? `${l.employee.firstName || ''} ${l.employee.lastName || ''}`.trim() || 'Unknown'
-                : String(l.employee))
-              : 'Unknown';
-            const empInitial = empName ? empName.charAt(0).toUpperCase() : '?';
-            const isPending = String(l.status || '').toLowerCase() === 'pending';
-            const statusStr = String(l.status || '');
-            const statusLower = statusStr.toLowerCase();
+            <Link to="/hr/leave-requests" className="text-indigo-600 hover:text-indigo-700 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 hover:translate-x-1 transition-all">
+              View All <ChevronRight size={14} />
+            </Link>
+          </div>
 
-            return (
-              <div key={l._id} className="group bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-indigo-100 transition-all duration-300 relative overflow-hidden">
-                {/* Status Color Bar */}
-                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${String(l.leaveType || '').toLowerCase().includes('sick') ? 'bg-rose-500' :
-                  String(l.leaveType || '').toLowerCase().includes('casual') ? 'bg-blue-500' : 'bg-indigo-500'
-                  }`}></div>
+          <div className="space-y-3">
+            {(leaves.length === 0) ? (
+              <div className="py-12 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                <FileClock size={24} className="mx-auto text-slate-300 mb-2" />
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No pending requests</p>
+              </div>
+            ) : leaves.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(l => {
+              const empName = l.employee
+                ? (typeof l.employee === 'object' && l.employee !== null
+                  ? `${l.employee.firstName || ''} ${l.employee.lastName || ''}`.trim() || 'Unknown'
+                  : String(l.employee))
+                : 'Unknown';
+              const isPending = String(l.status || '').toLowerCase() === 'pending';
+              const statusStr = String(l.status || '');
+              const statusLower = statusStr.toLowerCase();
 
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pl-4">
+              return (
+                <div key={l._id} className="group flex flex-col md:flex-row items-center justify-between p-4 bg-slate-50/50 rounded-lg hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-slate-100">
 
-                  {/* Employee Info */}
-                  <div className="flex items-center gap-4 min-w-[200px]">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-lg font-black text-slate-600 shadow-inner">
-                      {empInitial}
+                  <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-sm ${String(l.leaveType || '').toLowerCase().includes('sick') ? 'bg-rose-400' :
+                      String(l.leaveType || '').toLowerCase().includes('casual') ? 'bg-blue-400' : 'bg-indigo-400'
+                      }`}>
+                      {empName.charAt(0)}
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-900 text-base group-hover:text-indigo-700 transition-colors">{empName}</h4>
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-0.5">Development Team</p>
-                    </div>
-                  </div>
-
-                  {/* Leave Details */}
-                  <div className="flex flex-wrap items-center gap-6 flex-1">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Leave Type</span>
-                      <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${String(l.leaveType || '').toLowerCase().includes('sick') ? 'bg-rose-50 text-rose-700' :
-                        String(l.leaveType || '').toLowerCase().includes('casual') ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                        <div className={`w-2 h-2 rounded-full ${String(l.leaveType || '').toLowerCase().includes('sick') ? 'bg-rose-500' :
-                          String(l.leaveType || '').toLowerCase().includes('casual') ? 'bg-blue-500' : 'bg-slate-500'
-                          }`}></div>
-                        {l.leaveType}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Duration</span>
-                      <div className="flex items-center gap-2 font-bold text-slate-700 text-sm">
-                        <Calendar size={16} className="text-indigo-400" />
-                        {l.startDate && l.endDate ? (
-                          <span>
-                            {new Date(l.startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                            <span className="mx-2 text-slate-300">➜</span>
-                            {new Date(l.endDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                          </span>
-                        ) : l.startDate ? (
-                          <span>{new Date(l.startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                        ) : <span className="italic text-slate-400">Date info missing</span>}
+                      <h4 className="text-xs font-extraBold text-slate-800 uppercase tracking-tight mb-1">{empName}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${String(l.leaveType || '').toLowerCase().includes('sick') ? 'bg-rose-100 text-rose-600' :
+                          String(l.leaveType || '').toLowerCase().includes('casual') ? 'bg-blue-100 text-blue-600' : 'bg-indigo-100 text-indigo-600'
+                          }`}>
+                          {l.leaveType}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1">
+                          <Calendar size={10} />
+                          {l.startDate ? new Date(l.startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
+                          {l.endDate && ` - ${new Date(l.endDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 mt-3 md:mt-0 w-full md:w-auto justify-end">
                     {isPending ? (
-                      <>
-                        <button className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm border border-emerald-100 hover:border-emerald-500">
+                      <div className="flex gap-2">
+                        <button className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors" title="Approve">
                           <CheckCircle size={18} />
-                          <span className="text-xs">Approve</span>
                         </button>
-                        <button className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-700 font-bold rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-100 hover:border-rose-500">
+                        <button className="p-2 hover:bg-rose-50 text-rose-600 rounded-lg transition-colors" title="Reject">
                           <XCircle size={18} />
-                          <span className="text-xs">Reject</span>
                         </button>
-                      </>
-                    ) : (
-                      <div className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 ${statusLower === 'approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                        statusLower === 'rejected' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-slate-50 text-slate-500'
-                        }`}>
-                        {statusLower === 'approved' ? <CheckCircle size={16} /> : <XCircle size={16} />}
-                        {statusStr}
                       </div>
+                    ) : (
+                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${statusLower === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                        statusLower === 'rejected' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-50 text-slate-500 border-slate-200'
+                        }`}>
+                        {statusStr}
+                      </span>
                     )}
                   </div>
-
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
 
-          {leaves.length > pageSize && (
-            <div className="pt-6 flex justify-center">
-              <Pagination
-                current={currentPage}
-                pageSize={pageSize}
-                total={leaves.length}
-                onChange={(page) => setCurrentPage(page)}
-                showSizeChanger={false}
-              />
-            </div>
-          )}
+            {leaves.length > pageSize && (
+              <div className="pt-4 flex justify-center border-t border-slate-100 mt-4">
+                <Pagination
+                  current={currentPage}
+                  pageSize={pageSize}
+                  total={leaves.length}
+                  onChange={(page) => setCurrentPage(page)}
+                  showSizeChanger={false}
+                  size="small"
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

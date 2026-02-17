@@ -131,7 +131,14 @@ const PositionMaster = () => {
                 return <Tag color={color}>{status}</Tag>;
             }
         },
-
+        {
+            title: 'Hiring',
+            dataIndex: 'hiringStatus',
+            key: 'hiringStatus',
+            render: (hiring) => (
+                <Tag color={hiring === 'Open' ? 'processing' : 'default'}>{hiring}</Tag>
+            )
+        },
         {
             title: 'Salary Range',
             key: 'salary',
@@ -236,7 +243,7 @@ const PositionMaster = () => {
                     form={form}
                     layout="vertical"
                     onFinish={onFinish}
-                    initialValues={{ status: 'Vacant' }}
+                    initialValues={{ status: 'Vacant', hiringStatus: 'Closed' }}
                     className="mt-6"
                 >
                     <Row gutter={16}>
@@ -267,7 +274,15 @@ const PositionMaster = () => {
                                 </Select>
                             </Form.Item>
                         </Col>
-
+                        <Col span={8}>
+                            <Form.Item name="hiringStatus" label="Hiring Stage">
+                                <Select className="h-10 rounded-lg">
+                                    <Option value="Open">Hiring Open</Option>
+                                    <Option value="Closed">Hiring Closed</Option>
+                                    <Option value="Paused">Paused</Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
                         <Col span={8}>
                             <Form.Item name="isReplacement" label="Replacement?" valuePropName="checked">
                                 <Select className="h-10 rounded-lg">
@@ -282,47 +297,13 @@ const PositionMaster = () => {
                         <label className="block text-sm font-semibold text-slate-700 mb-3">Target Salary Range (CTC)</label>
                         <Row gutter={16}>
                             <Col span={12}>
-                                <Form.Item
-                                    name={['baseSalaryRange', 'min']}
-                                    label="Minimum"
-                                    rules={[
-                                        { required: true, message: 'Minimum salary is required' },
-                                        { type: 'number', min: 1, message: 'Salary must be greater than 0' }
-                                    ]}
-                                >
-                                    <InputNumber
-                                        className="w-full h-10 rounded-lg"
-                                        formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                                        parser={value => value.replace(/₹\s?|(,*)/g, '')}
-                                        placeholder="e.g. 224"
-                                    />
+                                <Form.Item name={['baseSalaryRange', 'min']} label="Minimum">
+                                    <InputNumber className="w-full h-10 rounded-lg" formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} />
                                 </Form.Item>
                             </Col>
                             <Col span={12}>
-                                <Form.Item
-                                    name={['baseSalaryRange', 'max']}
-                                    label="Maximum"
-                                    dependencies={[['baseSalaryRange', 'min']]}
-                                    rules={[
-                                        { required: true, message: 'Maximum salary is required' },
-                                        { type: 'number', min: 1, message: 'Salary must be greater than 0' },
-                                        ({ getFieldValue }) => ({
-                                            validator(_, value) {
-                                                const minSalary = getFieldValue(['baseSalaryRange', 'min']);
-                                                if (!value || !minSalary || value > minSalary) {
-                                                    return Promise.resolve();
-                                                }
-                                                return Promise.reject(new Error('Maximum must be greater than minimum'));
-                                            },
-                                        }),
-                                    ]}
-                                >
-                                    <InputNumber
-                                        className="w-full h-10 rounded-lg"
-                                        formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                                        parser={value => value.replace(/₹\s?|(,*)/g, '')}
-                                        placeholder="e.g. 232122123"
-                                    />
+                                <Form.Item name={['baseSalaryRange', 'max']} label="Maximum">
+                                    <InputNumber className="w-full h-10 rounded-lg" formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} />
                                 </Form.Item>
                             </Col>
                         </Row>

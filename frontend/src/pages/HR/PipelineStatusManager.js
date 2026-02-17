@@ -42,7 +42,7 @@ export const INTERVIEW_VARIANTS = ['Interview Scheduled', 'Interview Rescheduled
 
 export const normalizeStatus = (status) => {
     if (INTERVIEW_VARIANTS.includes(status)) return 'Interview';
-    if (['Offer Issued', 'Offer Expired', 'Offer Letter Issued', 'Offer Generated', 'Offer Letter Generated', 'Salary Assigned', 'Selected', 'Joining Letter Issued', 'Hired', 'Re-Offered', 'Sent', 'Draft'].includes(status)) return 'Finalized';
+    if (['Offer Issued', 'Offer Expired', 'Offer Letter Issued', 'Offer Generated', 'Salary Assigned', 'Selected', 'Joining Letter Issued'].includes(status)) return 'Finalized';
     return status;
 };
 

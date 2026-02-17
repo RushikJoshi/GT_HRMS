@@ -44,14 +44,6 @@ const CompanySettingsSchema = new Schema({
     },
     updatedBy: {
         type: String
-    },
-    requireDesktopTracker: {
-        type: Boolean,
-        default: false
-    },
-    idleTimeoutSeconds: {
-        type: Number,
-        default: 180
     }
 }, {
     timestamps: true

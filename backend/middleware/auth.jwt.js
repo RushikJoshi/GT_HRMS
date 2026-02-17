@@ -68,7 +68,7 @@ exports.requireHr = (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: 'no_user' });
   const userRole = (req.user.role || '').toLowerCase();
   const allowedRoles = [
-    'hr', 'admin', 'psa', 'employee', 'user', 'company_admin', 'candidate',
+    'hr', 'admin', 'psa', 'psa01', 'employee', 'user', 'company_admin', 'candidate',
     'company admin', 'company-admin', 'manager'
   ];
 
@@ -108,4 +108,3 @@ exports.authorize = (roles = []) => {
     next();
   };
 };
-// verifyAgent middleware removed for cleanup.

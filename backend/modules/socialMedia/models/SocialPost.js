@@ -25,7 +25,7 @@ const SocialPostSchema = new mongoose.Schema({
     }],
     status: {
         type: String,
-        enum: ['draft', 'scheduled', 'published', 'failed', 'partial_success', 'edited', 'deleted'],
+        enum: ['draft', 'scheduled', 'publishing', 'published', 'failed', 'partial_success', 'edited', 'deleted', 'partially_deleted'],
         default: 'published'
     },
     scheduledAt: {

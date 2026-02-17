@@ -23,11 +23,6 @@ const DocumentTypeSchema = new Schema({
         uppercase: true,
         default: ''
     },
-    separator: {
-        type: String,
-        default: '/',
-        trim: true
-    },
     formatTemplate: {
         type: String,
         default: '{{COMPANY}}/{{DEPT}}/{{PREFIX}}/{{YEAR}}/{{COUNTER}}'
@@ -50,16 +45,6 @@ const DocumentTypeSchema = new Schema({
     },
     updatedBy: {
         type: String
-    },
-    refNumber: {
-        type: String,
-        trim: true,
-        default: ''
-    },
-    customTokens: {
-        type: Map,
-        of: String,
-        default: {}
     }
 }, {
     timestamps: true

@@ -4,10 +4,10 @@ import { Pagination } from 'antd';
 import api from '../../utils/api';
 import {
     Search, Filter, Download,
-    Settings, ShieldAlert,
+    Settings, ShieldAlert, RefreshCw,
     User, Clock, MapPin,
     MoreVertical, Edit2, Lock, X, Eye, ChevronLeft, ChevronRight, Upload,
-    CheckCircle, XCircle, AlertTriangle, AlertCircle, LayoutDashboard, History, List, LogIn, LogOut
+    CheckCircle, XCircle, AlertTriangle, AlertCircle, LayoutDashboard, History, List, LogIn, LogOut, Package
 } from 'lucide-react';
 import { formatDateDDMMYYYY } from '../../utils/dateUtils';
 import AttendanceSettings from './AttendanceSettings';
@@ -16,6 +16,84 @@ import { DatePicker } from 'antd';
 import dayjs from 'dayjs';
 import AttendanceHistory from './AttendanceHistory';
 import AttendanceExcelUploadModal from '../../components/HR/AttendanceExcelUploadModal';
+
+// --- Sub-components (Defined here for hoisting safety) ---
+
+function StatItem({ label, value, icon, bgColor, tag }) {
+    return (
+        <div className={`relative overflow-hidden ${bgColor} p-7 rounded-[28px] shadow-lg group hover:scale-[1.02] hover:shadow-xl transition-all duration-300`}>
+            {/* Glossy Overlay */}
+            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col h-full">
+                {/* Top Row: Icon and Tag */}
+                <div className="flex justify-between items-start mb-8">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30 shadow-sm transition-transform group-hover:rotate-6">
+                        {icon && React.isValidElement(icon)
+                            ? React.cloneElement(icon, { size: 22, strokeWidth: 2.5, className: "text-white" })
+                            : null}
+                    </div>
+                    {tag && (
+                        <span className="text-[10px] font-black text-white/90 bg-black/10 px-3 py-1.5 rounded-full uppercase tracking-[0.15em] border border-white/10 backdrop-blur-sm">
+                            {tag}
+                        </span>
+                    )}
+                </div>
+
+                {/* Content Row: Value and Label */}
+                <div className="mt-auto">
+                    <h4 className="text-5xl font-black text-white tracking-tighter leading-none mb-2">
+                        {value}
+                    </h4>
+                    <p className="text-[11px] font-black text-white/70 uppercase tracking-[0.2em]">
+                        {label}
+                    </p>
+                </div>
+            </div>
+
+            {/* Background Shape */}
+            <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/5 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-500" />
+        </div>
+    );
+}
+
+function StatusChip({ status }) {
+    if (!status) return null;
+    const config = {
+        present: 'text-emerald-700 bg-emerald-50 border-emerald-100 ring-emerald-500/30',
+        absent: 'text-rose-700 bg-rose-50 border-rose-100 ring-rose-500/30',
+        leave: 'text-blue-700 bg-blue-50 border-blue-100 ring-blue-500/30',
+        half_day: 'text-amber-700 bg-amber-50 border-amber-100 ring-amber-500/30',
+        missed_punch: 'text-orange-700 bg-orange-50 border-orange-100 ring-orange-500/30',
+        holiday: 'text-purple-700 bg-purple-50 border-purple-100 ring-purple-500/30',
+        weekly_off: 'text-slate-600 bg-slate-100 border-slate-100 ring-slate-500/30',
+    };
+    const style = config[status.toLowerCase()] || 'bg-slate-50 text-slate-500 border-slate-100';
+
+    return (
+        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border ring-1 ring-inset ${style} shadow-sm transition-all duration-300 hover:scale-105`}>
+            {typeof status === 'string' ? status.replace('_', ' ') : status}
+        </span>
+    );
+}
+
+function TabButton({ active, label, onClick, icon }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-300
+                ${active
+                    ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}
+            `}
+        >
+            {icon && <span className={active ? 'text-indigo-500' : 'text-slate-400'}>{icon}</span>}
+            {label}
+        </button>
+    );
+}
+
+// --- Main Component ---
 
 export default function AttendanceAdmin() {
     const [view, setView] = useState('dashboard'); // dashboard, settings
@@ -122,16 +200,16 @@ export default function AttendanceAdmin() {
         <>
             <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 animate-in fade-in duration-500">
                 {/* Header / Tabs */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Attendance Dashboard</h1>
-                        <p className="text-slate-500 text-sm mt-1">Monitor daily attendance, check-ins, and irregularities.</p>
+                <div className="relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[24px] sm:rounded-[40px] border border-slate-100 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-2">
+                    <div className="relative z-10">
+                        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Attendance Dashboard</h1>
+                        <p className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px] sm:text-[11px] mt-1">Real-time organizational presence & logs</p>
                     </div>
-                    <div className="flex items-center gap-3 self-start md:self-auto">
+                    <div className="flex items-center gap-3 self-start md:self-auto relative z-10">
                         {view === 'dashboard' && (
                             <>
                                 <DatePicker
-                                    className="w-[160px] px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:border-blue-500 hover:border-blue-400 shadow-sm"
+                                    className="w-[160px] h-11 px-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-2xl text-sm font-black focus:border-blue-500 hover:border-blue-400 shadow-sm transition-all"
                                     format="DD-MM-YYYY"
                                     placeholder="Select Date"
                                     allowClear={false}
@@ -141,23 +219,26 @@ export default function AttendanceAdmin() {
                                 <button
                                     onClick={fetchStats}
                                     disabled={loading}
-                                    className="p-2.5 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 hover:text-blue-600 transition shadow-sm"
+                                    className="w-11 h-11 flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600 transition shadow-sm"
                                     title="Sync Logs"
                                 >
                                     <div className={`${loading ? 'animate-spin' : ''}`}>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 16h5v5" /></svg>
+                                        <RefreshCw size={18} strokeWidth={2.5} />
                                     </div>
                                 </button>
                                 <button
                                     onClick={() => setUploadingPopup(true)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition shadow-sm"
+                                    className="flex items-center gap-2 h-11 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:shadow-lg hover:shadow-emerald-500/20 transition-all"
                                 >
-                                    <Upload size={16} />
-                                    <span className="hidden sm:inline">Upload Excel</span>
+                                    <Upload size={16} strokeWidth={3} />
+                                    <span className="hidden sm:inline">Bulk Import</span>
                                 </button>
                             </>
                         )}
                     </div>
+
+                    {/* Background Soft Ornament */}
+                    <div className="absolute top-0 right-0 w-64 h-full bg-blue-50/50 dark:bg-blue-900/10 blur-3xl rounded-full pointer-events-none -mr-32 -mt-10"></div>
                 </div>
 
                 <div className="flex bg-slate-100/80 p-1.5 rounded-xl w-fit border border-slate-200/50 backdrop-blur-sm">
@@ -169,120 +250,121 @@ export default function AttendanceAdmin() {
                 {view === 'dashboard' ? (
                     <div className="space-y-6">
                         {/* Summary Cards */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                             <StatItem
                                 label="Active Count"
-                                value={attendance.length}
-                                icon={<User size={22} className="text-blue-600" />}
-                                gradient="from-blue-50 to-white"
-                                border="border-blue-100"
-                                textColor="text-blue-900"
+                                value={Array.isArray(attendance) ? attendance.length : 0}
+                                icon={<User />}
+                                bgColor="bg-[#4d69ff]"
+                                tag="TOTAL"
                             />
                             <StatItem
                                 label="Present"
-                                value={attendance.filter(a => a.status === 'present').length}
-                                icon={<CheckCircle size={22} className="text-emerald-600" />}
-                                gradient="from-emerald-50 to-white"
-                                border="border-emerald-100"
-                                textColor="text-emerald-900"
+                                value={Array.isArray(attendance) ? attendance.filter(a => a.status === 'present').length : 0}
+                                icon={<CheckCircle />}
+                                bgColor="bg-[#00c6a7]"
+                                tag="LIVE"
                             />
                             <StatItem
                                 label="Absent"
-                                value={attendance.filter(a => a.status === 'absent').length}
-                                icon={<XCircle size={22} className="text-rose-600" />}
-                                gradient="from-rose-50 to-white"
-                                border="border-rose-100"
-                                textColor="text-rose-900"
+                                value={Array.isArray(attendance) ? attendance.filter(a => a.status === 'absent').length : 0}
+                                icon={<XCircle />}
+                                bgColor="bg-[#f95d3a]"
+                                tag="ALERT"
                             />
                             <StatItem
                                 label="Late Comers"
-                                value={attendance.filter(a => a.isLate).length}
-                                icon={<Clock size={22} className="text-amber-600" />}
-                                gradient="from-amber-50 to-white"
-                                border="border-amber-100"
-                                textColor="text-amber-900"
+                                value={Array.isArray(attendance) ? attendance.filter(a => a.isLate).length : 0}
+                                icon={<Clock />}
+                                bgColor="bg-[#ff8f00]"
+                                tag="FLAGS"
                             />
                         </div>
 
-                        {/* Table */}
-                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full text-left text-sm divide-y divide-slate-100">
-                                    <thead className="bg-slate-50/50">
+                        {/* Table Container */}
+                        <div className="bg-white dark:bg-slate-900 rounded-[32px] border-2 border-slate-200/60 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+                            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
+                                <table className="min-w-[900px] w-full text-left text-sm border-separate border-spacing-0">
+                                    <thead className="bg-slate-50/50 dark:bg-slate-950/50">
                                         <tr>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Employee</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Check In / Out</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Hours</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Note</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Action</th>
+                                            <th className="px-10 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[25%] border-b border-slate-100 dark:border-slate-800 rounded-tl-[32px]">Employee Identity</th>
+                                            <th className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[15%] border-b border-slate-100 dark:border-slate-800">Presence Status</th>
+                                            <th className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[20%] border-b border-slate-100 dark:border-slate-800">Check-In Duration</th>
+                                            <th className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%] text-center border-b border-slate-100 dark:border-slate-800">Hours</th>
+                                            <th className="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[15%] border-b border-slate-100 dark:border-slate-800">Administrative Note</th>
+                                            <th className="px-10 py-5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[15%] text-right border-b border-slate-100 dark:border-slate-800 rounded-tr-[32px]">Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                    <tbody className="bg-white dark:bg-slate-900">
                                         {attendance.length === 0 ? (
                                             <tr>
-                                                <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
-                                                    No attendance records found for this date.
+                                                <td colSpan="6" className="px-6 py-12 text-center">
+                                                    <div className="flex flex-col items-center gap-3">
+                                                        <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-300">
+                                                            <Package size={32} />
+                                                        </div>
+                                                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No attendance records found</p>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ) : attendance.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((item) => (
-                                            <tr key={item._id} className="hover:bg-slate-50 transition-colors group">
-                                                <td className="px-6 py-4 whitespace-nowrap">
+                                            <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                                                <td className="px-10 py-5 whitespace-nowrap border-b border-slate-50 dark:border-slate-800 last:border-0">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold border border-slate-200">
+                                                        <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300 text-xs font-black border border-white dark:border-slate-600 shadow-sm transition-transform group-hover:scale-110">
                                                             {item.employee?.firstName?.[0]}
                                                         </div>
                                                         <div>
-                                                            <div className="font-semibold text-slate-900">{item.employee?.firstName} {item.employee?.lastName}</div>
-                                                            <div className="text-xs text-slate-500 font-mono">{item.employee?.employeeId}</div>
+                                                            <div className="font-black text-slate-900 dark:text-white tracking-tight">{item.employee?.firstName} {item.employee?.lastName}</div>
+                                                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{item.employee?.employeeId}</div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                <td className="px-6 py-5 whitespace-nowrap border-b border-slate-50 dark:border-slate-800 last:border-0">
                                                     <StatusChip status={item.status} />
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex flex-col gap-1 text-xs">
-                                                        <div className="flex items-center gap-2 text-emerald-700">
-                                                            <span className="font-medium w-8">IN</span>
-                                                            <span className="bg-emerald-50 px-1.5 py-0.5 rounded text-emerald-700 font-mono border border-emerald-100">
+                                                <td className="px-6 py-5 whitespace-nowrap border-b border-slate-50 dark:border-slate-800 last:border-0">
+                                                    <div className="flex flex-col gap-1.5 text-[10px] font-black uppercase tracking-wider">
+                                                        <div className="flex items-center gap-3 text-emerald-600">
+                                                            <span className="opacity-50 w-6">IN</span>
+                                                            <span className="bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-lg border border-emerald-100 dark:border-emerald-800 font-mono text-[11px]">
                                                                 {item.checkIn ? new Date(item.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                                                             </span>
                                                         </div>
-                                                        <div className="flex items-center gap-2 text-rose-700">
-                                                            <span className="font-medium w-8">OUT</span>
-                                                            <span className="bg-rose-50 px-1.5 py-0.5 rounded text-rose-700 font-mono border border-rose-100">
+                                                        <div className="flex items-center gap-3 text-rose-600">
+                                                            <span className="opacity-50 w-6">OUT</span>
+                                                            <span className="bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 rounded-lg border border-rose-100 dark:border-rose-800 font-mono text-[11px]">
                                                                 {item.checkOut ? new Date(item.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                                                             </span>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="font-mono text-slate-700 font-medium">{item.workingHours?.toFixed(1) || '0.0'}</span> <span className="text-xs text-slate-400">hrs</span>
+                                                <td className="px-6 py-5 whitespace-nowrap text-center border-b border-slate-50 dark:border-slate-800 last:border-0">
+                                                    <span className="font-mono text-slate-900 dark:text-white font-black text-sm">{item.workingHours?.toFixed(1) || '0.0'}</span> <span className="text-[10px] font-black text-slate-400 uppercase">hrs</span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                <td className="px-6 py-5 whitespace-nowrap border-b border-slate-50 dark:border-slate-800 last:border-0">
                                                     {item.isManualOverride ? (
-                                                        <div className="flex items-center gap-1.5 text-amber-600" title="Manually Modified">
-                                                            <ShieldAlert size={14} />
-                                                            <span className="text-xs font-medium">Modified</span>
+                                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-500 rounded-full border border-amber-100 dark:border-amber-800" title="Manually Modified">
+                                                            <ShieldAlert size={12} strokeWidth={3} />
+                                                            <span className="text-[9px] font-black uppercase tracking-widest">Modified</span>
                                                         </div>
-                                                    ) : <span className="text-slate-300">-</span>}
+                                                    ) : <span className="text-slate-300 dark:text-slate-600">-</span>}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <div className="flex justify-end gap-1">
+                                                <td className="px-10 py-5 whitespace-nowrap text-right border-b border-slate-50 dark:border-slate-800 last:border-0">
+                                                    <div className="flex justify-end gap-2">
                                                         <button
                                                             onClick={() => setViewingEmployee(item.employee)}
-                                                            className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition"
+                                                            className="h-10 w-10 flex items-center justify-center bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:scale-110 active:scale-95"
                                                             title="View Register"
                                                         >
-                                                            <Eye size={16} />
+                                                            <Eye size={16} strokeWidth={2.5} />
                                                         </button>
                                                         <button
                                                             onClick={() => setBreakModal({ logs: item.logs, employee: item.employee })}
-                                                            className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded transition"
+                                                            className="h-10 w-10 flex items-center justify-center bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:scale-110 active:scale-95"
                                                             title="View Activity Logs"
                                                         >
-                                                            <List size={16} />
+                                                            <List size={16} strokeWidth={2.5} />
                                                         </button>
                                                         <button
                                                             onClick={() => {
@@ -294,10 +376,10 @@ export default function AttendanceAdmin() {
                                                                     reason: item.overrideReason || ''
                                                                 });
                                                             }}
-                                                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded transition"
+                                                            className="h-10 w-10 flex items-center justify-center bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:scale-110 active:scale-95"
                                                             title="Edit Attendance"
                                                         >
-                                                            <Edit2 size={16} />
+                                                            <Edit2 size={16} strokeWidth={2.5} />
                                                         </button>
                                                     </div>
                                                 </td>
@@ -310,7 +392,7 @@ export default function AttendanceAdmin() {
                                 <Pagination
                                     current={currentPage}
                                     pageSize={pageSize}
-                                    total={attendance.length}
+                                    total={Array.isArray(attendance) ? attendance.length : 0}
                                     onChange={(page) => setCurrentPage(page)}
                                     showSizeChanger={false}
                                     size="small"
@@ -688,78 +770,6 @@ export default function AttendanceAdmin() {
     );
 }
 
-function StatItem({ label, value, icon, gradient, border, textColor = "text-slate-800" }) {
-    return (
-        <div className={`relative p-5 rounded-2xl border ${border} bg-gradient-to-br ${gradient} shadow-sm group hover:shadow-md transition-all duration-300 overflow-hidden`}>
-            {/* Background Decoration */}
-            <div className="absolute -right-6 -top-6 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
-                {React.cloneElement(icon, { size: 80 })}
-            </div>
 
-            <div className="relative flex justify-between items-start">
-                <div>
-                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{label}</div>
-                    <div className={`text-3xl font-bold ${textColor} tracking-tight`}>{value}</div>
-                </div>
-                <div className={`p-2.5 rounded-xl bg-white/80 backdrop-blur-sm border ${border} shadow-sm`}>
-                    {icon}
-                </div>
-            </div>
-        </div>
-    );
-}
 
-function StatusChip({ status }) {
-    const config = {
-        present: 'text-emerald-700 bg-emerald-50 border-emerald-200 ring-emerald-200/50',
-        absent: 'text-rose-700 bg-rose-50 border-rose-200 ring-rose-200/50',
-        leave: 'text-blue-700 bg-blue-50 border-blue-200 ring-blue-200/50',
-        half_day: 'text-amber-700 bg-amber-50 border-amber-200 ring-amber-200/50',
-        missed_punch: 'text-orange-700 bg-orange-50 border-orange-200 ring-orange-200/50',
-        holiday: 'text-purple-700 bg-purple-50 border-purple-200 ring-purple-200/50',
-        weekly_off: 'text-slate-600 bg-slate-100 border-slate-200 ring-slate-200/50',
-    };
-    const style = config[status.toLowerCase()] || 'bg-slate-50 text-slate-500 border-slate-200';
 
-    return (
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ring-1 ring-inset ${style} capitalize shadow-sm`}>
-            {status.replace('_', ' ')}
-        </span>
-    );
-}
-
-function TabButton({ active, label, onClick, icon }) {
-    return (
-        <button
-            onClick={onClick}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-300
-                ${active
-                    ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}
-            `}
-        >
-            {icon && <span className={active ? 'text-indigo-500' : 'text-slate-400'}>{icon}</span>}
-            {label}
-        </button>
-    );
-}
-
-// Add state for break modal
-// Note: This function component is re-rendered with new closure when props change.
-// However, useState is per-instance.
-// It seems the user wants the content inserted into AttendanceAdmin.
-// We need to inject the state and the button. Since `multi_replace_file_content` is better for multiple chunks, I will use single replace carefully to include the modal at end of main div and state at top.
-
-// WAIT, I must add state first.
-// The replace_file_content tool works on contiguous blocks.
-// I will use `replace_file_content` to replace the whole `AttendanceAdmin` function body or stick to `multi_replace_file_content` if possible?
-// The tool definition says "Do NOT use this tool if you are only editing a single contiguous block".
-// Here I need to:
-// 1. Add state `breakModal` at the top.
-// 2. Add button in the table.
-// 3. Add Modal JSX at the end.
-// These are non-contiguous. I should use `multi_replace_file_content`.
-
-// But I will check if I can do it in one go if I replace the whole return block + state?
-// No, the table logic is in the middle.
-// I'll use `multi_replace_file_content`.

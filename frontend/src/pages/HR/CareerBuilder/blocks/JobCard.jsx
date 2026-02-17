@@ -1,7 +1,6 @@
 import React from 'react';
 import { Briefcase, MapPin, Calendar, ArrowRight } from 'lucide-react';
 import { formatDateDDMMYYYY } from '../../../../utils/dateUtils';
-import { API_ROOT } from '../../../../utils/api';
 
 export default function JobCard({ job, config = {}, onApply, onViewDetails, isApplied, previewMode = 'desktop' }) {
     const isMobile = previewMode === 'mobile';
@@ -42,10 +41,6 @@ export default function JobCard({ job, config = {}, onApply, onViewDetails, isAp
         borderColor: applyButtonStyle === 'outline' ? applyButtonColor : 'transparent',
         color: applyButtonStyle === 'filled' ? '#ffffff' : applyButtonColor,
     };
-
-    const bannerUrl = job.bannerImage
-        ? (job.bannerImage.startsWith('http') ? job.bannerImage : `${API_ROOT}${job.bannerImage}`)
-        : null;
 
     return (
         <div style={{ backgroundColor: cardBackground }} className={containerClasses}>

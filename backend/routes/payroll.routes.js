@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const payrollController = require('../controllers/payroll.controller');
-const templateController = require('../controllers/salaryTemplate.controller');
+
 const benefitController = require('../controllers/benefit.controller');
 const payrollRunController = require('../controllers/payrollRun.controller');
 const payslipController = require('../controllers/payslip.controller');
 const auth = require('../middleware/auth.jwt');
 const tenantMiddleware = require('../middleware/tenant.middleware');
-const salaryAssignmentController = require('../controllers/salaryAssignment.controller');
+
 const payrollProcessController = require('../controllers/payrollProcess.controller');
 const payrollDashboardController = require('../controllers/payrollDashboard.controller');
 
@@ -38,23 +38,13 @@ router.put('/benefits/:id', benefitController.updateBenefit);
 router.delete('/benefits/:id', benefitController.deleteBenefit);
 router.patch('/benefits/:id/status', benefitController.toggleStatus);
 
-// Salary Assignment Routes
-router.post('/assign-template', auth.requireHr, salaryAssignmentController.assignTemplate);
-router.get('/history/:employeeId', auth.requireHr, salaryAssignmentController.getAssignmentHistory);
 
-// Salary Template Routes (HR Only)
-router.use('/salary-templates', auth.requireHr);
-router.post('/salary-templates', templateController.createTemplate);
-router.get('/salary-templates', templateController.getTemplates);
-router.get('/salary-templates/:id', templateController.getTemplateById);
-router.get('/salary-templates/:id/preview', templateController.previewTemplate); // Preview calculation
-router.put('/salary-templates/:id', templateController.updateTemplate);
 
-// Excel CTC Upload (HR Only)
-router.post('/ctc/upload-excel', auth.requireHr, templateController.uploadCtcExcel);
 
-// Unified Salary Breakup Calculator (HR Only)
-router.post('/calculate-breakup', auth.requireHr, templateController.calculateBreakup);
+
+
+
+
 // Payroll Run Routes (HR Only)
 router.use('/runs', auth.requireHr);
 router.get('/filteredEmployees', auth.requireHr, payrollRunController.getFilteredEmployees);

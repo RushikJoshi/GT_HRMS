@@ -420,53 +420,6 @@ function ViewRequirementModal({ req, onClose }) {
                         </div>
                     </div>
 
-                    {/* Responsibilities */}
-                    {req.responsibilities && (
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
-                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Key Responsibilities</h3>
-                            </div>
-                            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm leading-relaxed text-slate-600 font-medium whitespace-pre-wrap">
-                                {req.responsibilities}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Skills */}
-                    {(req.requiredSkills?.length > 0 || req.optionalSkills?.length > 0) && (
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
-                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Technical Competencies</h3>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {req.requiredSkills?.map((skill, i) => (
-                                    <span key={`req-${i}`} className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-100 shadow-sm">
-                                        {skill}
-                                    </span>
-                                ))}
-                                {req.optionalSkills?.map((skill, i) => (
-                                    <span key={`opt-${i}`} className="px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold border border-slate-100 border-dashed">
-                                        {skill} (Optional)
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Custom Fields */}
-                    {req.customFields?.length > 0 && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {req.customFields.map((field, i) => (
-                                <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">{field.label}</span>
-                                    <span className="text-sm font-bold text-slate-800">{String(field.value)}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
                     {/* Workflow Visualization */}
                     {req.workflow && (
                         <div className="space-y-6">
