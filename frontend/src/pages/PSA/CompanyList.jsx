@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Pagination } from 'antd';
+import { Pagination, Modal, Input, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import api from "../../utils/api";
 import CompanyForm from "./CompanyForm";
@@ -19,9 +19,122 @@ import {
     LayoutGrid,
     Users,
     Activity,
-    Lock
+    Lock,
+    Key,
+    ShieldCheck,
+    AlertCircle
 } from 'lucide-react';
 import companiesService from '../../services/companiesService';
+
+// --- Sub-component: Password Prompt Modal ---
+const PasswordPromptModal = ({ open, onClose, onSuccess }) => {
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleVerify = async () => {
+        if (!password) return message.warning('Please enter your Super Admin password');
+        setLoading(true);
+        try {
+            await companiesService.verifyPsaPassword(password);
+            message.success('Identity verified');
+            setPassword('');
+            onSuccess();
+        } catch (err) {
+            message.error(err.response?.data?.message || 'Verification failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Modal
+            title={<div className="flex items-center gap-2"><ShieldCheck className="text-blue-600" size={20} /> Identity Verification Required</div>}
+            open={open}
+            onCancel={() => { setPassword(''); onClose(); }}
+            onOk={handleVerify}
+            confirmLoading={loading}
+            okText="Verify & Proceed"
+            cancelText="Cancel"
+            okButtonProps={{ className: 'bg-blue-600' }}
+        >
+            <div className="py-4 space-y-3">
+                <p className="text-sm text-slate-500">For security reasons, please enter your **Super Admin** password to reveal company credentials.</p>
+                <Input.Password
+                    placeholder="Enter Super Admin Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onPressEnter={handleVerify}
+                    autoFocus
+                />
+            </div>
+        </Modal>
+    );
+};
+
+// --- Sub-component: Change Password Modal ---
+const ChangePasswordModal = ({ open, company, onClose }) => {
+    const [password, setPassword] = useState('');
+    const [confirm, setConfirm] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleUpdate = async () => {
+        if (!password) return message.warning('Enter new password');
+        if (password !== confirm) return message.error('Passwords do not match');
+        if (password.length < 6) return message.warning('Password should be at least 6 characters');
+
+        setLoading(true);
+        try {
+            await companiesService.updateCompanyPassword(company._id, password);
+            message.success(`Password for ${company.name} updated successfully`);
+            setPassword('');
+            setConfirm('');
+            onClose(true);
+        } catch (err) {
+            message.error(err.response?.data?.message || 'Update failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Modal
+            title={<div className="flex items-center gap-2"><Key className="text-emerald-600" size={20} /> Reset Company Password</div>}
+            open={open}
+            onCancel={() => { setPassword(''); setConfirm(''); onClose(); }}
+            onOk={handleUpdate}
+            confirmLoading={loading}
+            okText="Update Password"
+            okButtonProps={{ className: 'bg-emerald-600' }}
+        >
+            <div className="py-4 space-y-4">
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 flex gap-3">
+                    <AlertCircle className="text-amber-600 shrink-0" size={18} />
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                        Setting a new password will immediately override the current one for <strong>{company?.name}</strong>.
+                        Inform the client after the change.
+                    </p>
+                </div>
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">New Password</label>
+                    <Input.Password
+                        placeholder="Min. 6 characters"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
+                </div>
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Confirm Password</label>
+                    <Input.Password
+                        placeholder="Re-type new password"
+                        value={confirm}
+                        onChange={(e) => setConfirm(e.target.value)}
+                        onPressEnter={handleUpdate}
+                    />
+                </div>
+            </div>
+        </Modal>
+    );
+};
 
 export default function CompanyList() {
     const [companies, setCompanies] = useState([]);
@@ -32,6 +145,13 @@ export default function CompanyList() {
     const [openModules, setOpenModules] = useState(false);
     const [openView, setOpenView] = useState(false);
     const [revealMap, setRevealMap] = useState({});
+
+    // Security states
+    const [showVerifyModal, setShowVerifyModal] = useState(false);
+    const [pendingRevealId, setPendingRevealId] = useState(null);
+    const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+    const [targetCompany, setTargetCompany] = useState(null);
+
     const navigate = useNavigate();
     const API_BASE = import.meta.env.VITE_API_BASE || 'https://hrms.gitakshmi.com/api';
     const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
@@ -67,8 +187,24 @@ export default function CompanyList() {
         }
     }
 
-    function toggleReveal(id) {
-        setRevealMap(prev => ({ ...prev, [id]: !prev[id] }));
+    function handleToggleReveal(id) {
+        // If already revealed, we can hide without verification
+        if (revealMap[id]) {
+            setRevealMap(prev => ({ ...prev, [id]: false }));
+            return;
+        }
+
+        // To reveal, we need verification
+        setPendingRevealId(id);
+        setShowVerifyModal(true);
+    }
+
+    function onVerifySuccess() {
+        if (pendingRevealId) {
+            setRevealMap(prev => ({ ...prev, [pendingRevealId]: true }));
+        }
+        setShowVerifyModal(false);
+        setPendingRevealId(null);
     }
 
     // Calculate stats for local summary cards
@@ -212,7 +348,7 @@ export default function CompanyList() {
                                                         </span>
                                                     </div>
                                                     {c.meta?.adminPassword && (
-                                                        <button onClick={() => toggleReveal(c._id)} className="text-slate-300 hover:text-blue-500 p-1 transition-colors">
+                                                        <button onClick={() => handleToggleReveal(c._id)} className="text-slate-300 hover:text-blue-500 p-1 transition-colors">
                                                             {revealMap[c._id] ? <EyeOff size={14} /> : <Eye size={14} />}
                                                         </button>
                                                     )}
@@ -234,6 +370,9 @@ export default function CompanyList() {
                                                 </button>
                                                 <button onClick={() => navigate(`/super-admin/companies/edit/${c._id}`)} className="p-2 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all" title="Edit">
                                                     <Edit2 size={16} />
+                                                </button>
+                                                <button onClick={() => { setTargetCompany(c); setShowChangePasswordModal(true); }} className="p-2 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-all" title="Change Admin Password">
+                                                    <Key size={16} />
                                                 </button>
                                                 <button onClick={() => { setSelected(c); setOpenModules(true); }} className="p-2 text-slate-300 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all" title="Modules">
                                                     <Settings size={16} />
@@ -316,6 +455,22 @@ export default function CompanyList() {
                     }}
                 />
             )}
+
+            <PasswordPromptModal
+                open={showVerifyModal}
+                onClose={() => setShowVerifyModal(false)}
+                onSuccess={onVerifySuccess}
+            />
+
+            <ChangePasswordModal
+                open={showChangePasswordModal}
+                company={targetCompany}
+                onClose={(didUpdate) => {
+                    setShowChangePasswordModal(false);
+                    setTargetCompany(null);
+                    if (didUpdate) load();
+                }}
+            />
         </div>
     );
 }

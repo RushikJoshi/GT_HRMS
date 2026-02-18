@@ -51,6 +51,12 @@ const checkModuleAccess = (moduleName) => {
             const isEnabled = tenant.enabledModules && tenant.enabledModules[moduleName] === true;
 
             if (!isEnabled) {
+                const fs = require('fs');
+                const path = require('path');
+                const failLog = `[${new Date().toISOString()}] 403 FORBIDDEN | Module: ${moduleName} | TenantId: ${tenantId} | EnabledModules: ${JSON.stringify(tenant.enabledModules)}\n`;
+                fs.appendFileSync(path.join(process.cwd(), 'debug.log'), failLog);
+
+                console.warn(`[checkModuleAccess] 403 FORBIDDEN | Module: ${moduleName} | TenantId: ${tenantId}`);
                 return res.status(403).json({
                     success: false,
                     module: moduleName,
