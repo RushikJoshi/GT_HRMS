@@ -2,11 +2,16 @@ const mongoose = require('mongoose');
 
 // Helper to get models from tenant DB
 const getModels = (req) => {
+    if (!req.tenantDB) {
+        throw new Error('Tenant database connection not available');
+    }
+
+    // Models are already registered by dbManager, just retrieve them
     return {
         Employee: req.tenantDB.model('Employee'),
-        EmployeeCtcVersion: req.tenantDB.model('EmployeeCtcVersion', require('../models/EmployeeCtcVersion')),
-        EmployeeSalarySnapshot: req.tenantDB.model('EmployeeSalarySnapshot', require('../models/EmployeeSalarySnapshot')),
-        SalaryAssignment: req.tenantDB.model('SalaryAssignment', require('../models/SalaryAssignment'))
+        EmployeeCtcVersion: req.tenantDB.model('EmployeeCtcVersion'),
+        EmployeeSalarySnapshot: req.tenantDB.model('EmployeeSalarySnapshot'),
+        SalaryAssignment: req.tenantDB.model('SalaryAssignment')
     };
 };
 

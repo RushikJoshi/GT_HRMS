@@ -184,11 +184,6 @@ const SalaryController = {
                 return res.status(400).json({ success: false, message: "Tenant database not resolved" });
             }
 
-            // Ensure schema is registered (Defensive)
-            if (!req.tenantDB.models.EmployeeSalarySnapshot) {
-                req.tenantDB.model('EmployeeSalarySnapshot', require('../models/EmployeeSalarySnapshot'));
-            }
-
             const Snapshot = req.tenantDB.model('EmployeeSalarySnapshot');
             let query = {};
 

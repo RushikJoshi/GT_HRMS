@@ -457,51 +457,96 @@ exports.applyJob = [
         console.log(`ℹ️ [APPLY_JOB] Fresher application - no references required`);
       }
 
-      // --- LOG FOR DEBUGGING ---
-      try {
-        const fs = require('fs');
-        const logMsg = `[${new Date().toISOString()}] APPLY_JOB: name=${name}, email=${email}, tenantId=${tenantId}, requirementId=${requirementId}, dob=${dob}\n`;
-        fs.appendFileSync(path.join(__dirname, '../apply_debug.log'), logMsg);
-      } catch (e) { /* ignore log errors */ }
+
+      // ═══════════════════════════════════════════════════════════════════
+      // MATCHING ENGINE (RE-CALCULATE SCORE IF NOT ALREADY DONE)
+      // ═══════════════════════════════════════════════════════════════════
+      let matchResult = { totalScore: 0, breakdown: {}, matchedSkills: [], missingSkills: [] };
+      if (req.file && structuredData) {
+        try {
+          const MatchingEngine = require('../services/MatchingEngine.service');
+          matchResult = await MatchingEngine.calculateMatchScore(requirement, structuredData);
+          console.log(`✅ [APPLY_JOB] Match Score Calculated: ${matchResult.totalScore}%`);
+        } catch (matchErr) {
+          console.error("❌ [APPLY_JOB] Matching calculation failed:", matchErr.message);
+        }
+      }
 
       // Create new applicant
+      // Default to 'Applied' if no pipeline is defined, else use first stage from requirement
+      const defaultStatus = (requirement.pipelineStages && requirement.pipelineStages.length > 0)
+        ? requirement.pipelineStages[0].stageName
+        : 'Applied';
+
       const applicant = new Applicant({
         tenant: tenantDB.tenantId,
-        candidateId: candidateId, // Link to candidate account
+        candidateId: candidateId,
         requirementId,
-        name: name.trim(),
+        name: name?.trim() || structuredData.fullName || "Unknown",
         fatherName: fatherName?.trim(),
-        email: email.toLowerCase().trim(),
-        mobile: mobile?.trim() || 'N/A', // Provide default if not provided
-        experience: experience?.trim(),
+        email: email?.toLowerCase().trim() || structuredData.email || "unknown@email.com",
+        mobile: mobile?.trim() || structuredData.phone || "N/A",
+        experience: experience?.trim() || structuredData.totalExperience || "",
         address: address?.trim(),
         location: location?.trim(),
         currentCompany: currentCompany?.trim(),
         currentDesignation: currentDesignation?.trim(),
         expectedCTC: expectedCTC?.trim(),
         linkedin: linkedin?.trim(),
-        dob: parsedDob || null, // Allow DOB to be saved
-        resume: resumeFilename,
-        customData: customData, // Save dynamic fields
-        status: 'Applied',
+        dob: parsedDob || null,
+        resume: req.file?.filename,
+        customData: customData,
+        status: defaultStatus,
         timeline: [{
-          status: 'Applied',
-          message: 'Your application has been received and is under review.',
-          updatedBy: 'Candidate',
+          status: defaultStatus,
+          message: `Application received for "${requirement.jobTitle}". Initial stage: ${defaultStatus}`,
+          updatedBy: 'Candidate (Portal)',
           timestamp: new Date()
         }],
 
-        // AI Fields
+        // PIPELINE STAGE INITIALIZATION
+        currentStage: (requirement.pipelineStages && requirement.pipelineStages.length > 0) ? {
+          stageId: '0',
+          stageName: requirement.pipelineStages[0].stageName,
+          stageType: requirement.pipelineStages[0].stageType,
+          enteredAt: new Date(),
+          assignedInterviewer: requirement.pipelineStages[0].assignedInterviewer || null
+        } : {
+          stageId: '0',
+          stageName: 'Applied',
+          stageType: 'Screening',
+          enteredAt: new Date()
+        },
+
+        pipelineProgress: (requirement.pipelineStages && requirement.pipelineStages.length > 0)
+          ? requirement.pipelineStages.map((stage, index) => ({
+            stageId: String(index),
+            stageName: stage.stageName,
+            stageType: stage.stageType,
+            status: index === 0 ? 'In Progress' : 'Pending',
+            assignedInterviewer: stage.assignedInterviewer || null,
+            enteredAt: index === 0 ? new Date() : null
+          }))
+          : [{
+            stageId: '0',
+            stageName: 'Applied',
+            stageType: 'Screening',
+            status: 'In Progress',
+            enteredAt: new Date()
+          }],
+
+        // AI & MATCHING FIELDS
         rawOCRText: rawText,
         aiParsedData: structuredData,
-        parsedSkills: structuredData.skills || [],
-        matchPercentage: structuredData.matchPercentage || 0,
+        matchScore: matchResult.totalScore,
+        matchBreakdown: matchResult.breakdown,
+        matchedSkills: matchResult.matchedSkills,
+        missingSkills: matchResult.missingSkills,
         parsingStatus: rawText ? 'Completed' : 'Pending',
 
-        // Reference Fields
         references: validatedReferences,
         isFresher: isFresherBool,
-        noReferenceReason: isFresherBool ? (noReferenceReason || 'Fresher - No Work Experience') : null
+        noReferenceReason: noReferenceReason || (isFresherBool ? 'Fresher - No Work Experience' : null)
       });
 
       await applicant.save();

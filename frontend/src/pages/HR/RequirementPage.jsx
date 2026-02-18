@@ -421,31 +421,35 @@ function ViewRequirementModal({ req, onClose }) {
                     </div>
 
                     {/* Workflow Visualization */}
-                    {req.workflow && (
+                    {(req.pipelineStages || req.workflow) && (
                         <div className="space-y-6">
                             <div className="flex items-center gap-3">
                                 <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
                                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Acquisition Pipeline</h3>
                             </div>
                             <div className="flex flex-wrap gap-4">
-                                {req.workflow.map((stage, i) => (
-                                    <div key={i} className="flex items-center gap-4">
-                                        <div className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${stage === 'Applied' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                            stage === 'Finalized' ? 'bg-slate-900 text-white border-slate-900 shadow-lg' :
-                                                'bg-white text-indigo-600 border-indigo-100 shadow-sm'
-                                            }`}>
-                                            {stage}
-                                        </div>
-                                        {i < req.workflow.length - 1 && (
-                                            <div className="text-slate-200">
-                                                <ChevronRight size={20} />
+                                {(req.pipelineStages && req.pipelineStages.length > 0
+                                    ? ['Applied', ...req.pipelineStages.map(s => s.stageName), 'Finalized', 'Rejected']
+                                    : req.workflow || ['Applied', 'Shortlisted', 'Interview', 'Finalized']).map((stage, i) => (
+                                        <div key={i} className="flex items-center gap-4">
+                                            <div className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${stage === 'Applied' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                stage === 'Finalized' ? 'bg-slate-900 text-white border-slate-900 shadow-lg' :
+                                                    stage === 'Rejected' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                                        'bg-white text-indigo-600 border-indigo-100 shadow-sm'
+                                                }`}>
+                                                {stage}
                                             </div>
-                                        )}
-                                    </div>
-                                ))}
+                                            {i < ((req.pipelineStages?.length || 0) + 2) && (
+                                                <div className="text-slate-200">
+                                                    <ChevronRight size={20} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                             </div>
                         </div>
                     )}
+
 
                     {/* Salary & More */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 border-t border-slate-100">
