@@ -90,5 +90,5 @@ const SalaryStructureSchema = new mongoose.Schema({
 // Compound index for efficient queries
 SalaryStructureSchema.index({ tenantId: 1, candidateId: 1 }, { unique: true });
 
-// Export as GLOBAL model (not tenant-specific)
-module.exports = mongoose.model('SalaryStructure', SalaryStructureSchema);
+// Export as GLOBAL Schema (not Model constructor, as app.js registers it)
+module.exports = SalaryStructureSchema;

@@ -81,9 +81,6 @@ module.exports = async function tenantResolver(req, res, next) {
             console.log(`[TENANT_MIDDLEWARE] Failed to verify token: ${e.message}`);
             // ignore invalid token here; auth middleware will handle auth failures
           }
-          console.log(`[TENANT_MIDDLEWARE] Authenticated via ${queryToken ? 'query' : 'header'} token. Tenant: ${tenantId}`);
-        } catch (e) {
-          console.log(`[TENANT_MIDDLEWARE] Token verification failed: ${e.message}`);
         }
       }
     }
