@@ -76,7 +76,7 @@ function normalizeEnabledModulesObject(input, base = defaultEnabledModules()) {
     const normalizedKey = normalizeModuleKey(key);
     if (normalizedKey) out[normalizedKey] = value === true;
   });
-  return applyModuleDependencies(out);
+  return out;
 }
 
 function enabledModulesFromArray(modules = []) {
@@ -568,5 +568,35 @@ exports.psaStats = async (req, res, next) => {
       active: safeActive,
       inactive: safeInactive
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    console.error("PSA Stats error:", err);
+    next(err);
+  }
+};
+
+exports.updateTenantPassword = async (req, res, next) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ success: false, message: "Password is required" });
+    }
+
+    const t = await Tenant.findById(req.params.id);
+    if (!t) return res.status(404).json({ error: 'not_found' });
+
+    const meta = { ...(t.meta || {}), adminPassword: password };
+
+    const updated = await Tenant.findByIdAndUpdate(
+      req.params.id,
+      { $set: { meta: meta } },
+      { new: true }
+    );
+
+    if (!updated) return res.status(404).json({ error: 'not_found' });
+
+    res.json({ success: true, message: "Tenant password updated successfully" });
+  } catch (err) {
+    console.error("Update tenant password error:", err);
+    next(err);
+  }
 };

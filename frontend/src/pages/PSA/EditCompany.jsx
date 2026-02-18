@@ -42,11 +42,14 @@ export default function EditCompany() {
     // Available Modules List
     const availableModules = [
         { id: 'hr', name: 'HR Management', icon: Users },
-        { id: 'payroll', name: 'Payroll', icon: BarChart3 },
-        { id: 'attendance', name: 'Attendance', icon: Clock },
+        { id: 'payroll', name: 'Payroll System', icon: BarChart3 },
+        { id: 'attendance', name: 'Attendance & Time', icon: Clock },
+        { id: 'leave', name: 'Leave Management', icon: Clock },
+        { id: 'employeePortal', name: 'Employee Portal', icon: UserCircle2 },
         { id: 'recruitment', name: 'Recruitment', icon: Briefcase },
-        { id: 'performance', name: 'Performance', icon: Activity },
-        { id: 'ess', name: 'Leave Mgmt', icon: UserCircle2 },
+        { id: 'backgroundVerification', name: 'BGV', icon: Briefcase },
+        { id: 'documentManagement', name: 'Document Management', icon: CheckCircle2 },
+        { id: 'socialMediaIntegration', name: 'Social Media Integration', icon: CheckCircle2 },
     ];
 
     const getLogoUrl = (url) => {
@@ -95,15 +98,13 @@ export default function EditCompany() {
     };
 
     const handleModuleToggle = (modId) => {
-        setFormData(prev => {
-            return {
-                ...prev,
-                enabledModules: {
-                    ...(prev.enabledModules || {}),
-                    [modId]: !(prev.enabledModules || {})[modId]
-                }
-            };
-        });
+        setFormData(prev => ({
+            ...prev,
+            enabledModules: {
+                ...prev.enabledModules,
+                [modId]: !prev.enabledModules[modId]
+            }
+        }));
     };
 
     const validate = () => {
@@ -276,18 +277,18 @@ export default function EditCompany() {
                                     <div
                                         key={mod.id}
                                         onClick={() => handleModuleToggle(mod.id)}
-                                        className={`group flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.modules.includes(mod.id)
+                                        className={`group flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.enabledModules?.[mod.id]
                                             ? 'bg-white border-blue-500 text-blue-600 shadow-sm'
                                             : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
                                             }`}
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${formData.modules.includes(mod.id) ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-300'}`}>
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${formData.enabledModules?.[mod.id] ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-300'}`}>
                                                 <mod.icon size={16} />
                                             </div>
-                                            <span className={`text-[12px] font-bold tracking-tight ${formData.modules.includes(mod.id) ? 'text-slate-900' : ''}`}>{mod.name}</span>
+                                            <span className={`text-[12px] font-bold tracking-tight ${formData.enabledModules?.[mod.id] ? 'text-slate-900' : ''}`}>{mod.name}</span>
                                         </div>
-                                        {formData.modules.includes(mod.id) && (
+                                        {formData.enabledModules?.[mod.id] && (
                                             <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center">
                                                 <CheckCircle2 size={12} className="text-white" />
                                             </div>

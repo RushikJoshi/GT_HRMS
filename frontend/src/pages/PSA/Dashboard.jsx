@@ -165,7 +165,7 @@ export default function Dashboard() {
               <MoreHorizontal className="text-slate-300" />
             </div>
 
-            <div className="h-48 sm:h-64 w-full relative z-10">
+            <div className="h-48 sm:h-64 w-full relative z-10" style={{ minHeight: '192px' }}>
               {moduleDistribution.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>

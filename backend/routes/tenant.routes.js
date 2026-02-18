@@ -34,4 +34,8 @@ router.delete('/:id', ctrl.deleteTenant);
 router.put('/company/:id/modules', auth.authenticate, auth.requirePsa, ctrl.updateModules);
 router.put('/:id/modules', auth.authenticate, auth.requirePsa, ctrl.updateModules); // Keep legacy for compatibility
 
+// NEW: Password security routes
+router.post('/verify-password', auth.authenticate, auth.requirePsa, require('../controllers/auth.controller').verifyPsaPassword);
+router.put('/:id/password', auth.authenticate, auth.requirePsa, ctrl.updateTenantPassword);
+
 module.exports = router;

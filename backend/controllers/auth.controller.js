@@ -50,6 +50,24 @@ exports.loginController = async (req, res) => {
   }
 };
 
+exports.verifyPsaPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ success: false, message: "Password is required" });
+    }
+
+    if (password === SUPER_ADMIN.password) {
+      return res.json({ success: true, message: "Password verified" });
+    }
+
+    return res.status(401).json({ success: false, message: "Invalid password" });
+  } catch (err) {
+    console.error("Verify PSA password error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 /* ---------------------------------------------------
    HR LOGIN (PER TENANT)
 --------------------------------------------------- */
