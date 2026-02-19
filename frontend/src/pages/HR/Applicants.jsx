@@ -4,7 +4,8 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api'; // Centralized axios instance with auth & tenant headers
 import { getNextStage, normalizeStatus } from './PipelineStatusManager';
 import { useAuth } from '../../context/AuthContext';
-import OfferLetterPreview from '../../components/OfferLetterPreview';
+import MatchBreakdown from '../../components/MatchBreakdown';
+
 import AssignSalaryModal from '../../components/AssignSalaryModal';
 import { DatePicker, Pagination, Select, Modal, TimePicker, notification, Dropdown, Menu } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications'; // Imports fixed
@@ -2179,6 +2180,27 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                             {(jobSpecific && selectedRequirement) && (
                                 <div className="flex items-center gap-2 ml-4 pl-4 border-l-2 border-slate-100 flex-shrink-0 sticky right-0 bg-gradient-to-l from-white via-white to-transparent pr-2">
 
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                showToast('info', 'Re-scoring...', 'Recalculating AI match scores for all applicants...');
+                                                const res = await api.post(`/requirements/${selectedRequirement._id}/rescore-all`);
+                                                const { updated, total, results } = res.data;
+                                                const summary = results?.slice(0, 3).map(r => `${r.name}: ${r.oldScore ?? '?'}% → ${r.newScore}%`).join(', ');
+                                                showToast('success', `Rescored ${updated}/${total} applicants`, summary || 'Scores updated!');
+                                                loadApplicants(); // Refresh the list
+                                            } catch (err) {
+                                                console.error('[RESCORE-ALL] Error:', err);
+                                                showToast('error', 'Rescore Failed', err.response?.data?.error || err.response?.data?.message || err.message);
+                                            }
+
+                                        }}
+                                        className="h-10 px-4 flex items-center gap-2 bg-white text-emerald-600 border border-emerald-200 rounded-xl shadow-sm hover:bg-emerald-50 hover:border-emerald-300 transition font-bold text-xs uppercase tracking-wider whitespace-nowrap group"
+                                        title="Re-calculate AI match scores for all applicants in this job"
+                                    >
+                                        <RefreshCw size={14} />
+                                        <span>Rescore All</span>
+                                    </button>
 
                                     <button
                                         onClick={() => setShowPipelineManager(true)}
@@ -2189,6 +2211,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     </button>
                                 </div>
                             )}
+
                         </div>
                     </div>
 
@@ -2221,10 +2244,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     .map((app, index) => (
                                         <div
                                             key={app._id || index}
-                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 overflow-hidden group hover:-translate-y-1 block relative"
+                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 overflow-visible group hover:-translate-y-1 block relative"
                                         >
                                             {/* Status Header Line */}
-                                            <div className={`h-1.5 w-full ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
+                                            <div className={`h-1.5 w-full rounded-t-[24px] ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
                                                 app.status === 'Rejected' ? 'bg-gradient-to-r from-rose-400 to-rose-600' :
                                                     'bg-gradient-to-r from-blue-400 to-indigo-600'
                                                 }`}></div>
@@ -2275,11 +2298,121 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             <span className="font-medium">{app.source}</span>
                                                         </div>
                                                     )}
-                                                    {/* AI Match Score */}
-                                                    {app.matchPercentage !== undefined && (
-                                                        <div className="flex items-center gap-3 text-xs text-slate-500 bg-purple-50/50 p-2 rounded-lg border border-purple-50">
-                                                            <span className="w-5 flex justify-center text-purple-500">✨</span>
-                                                            <span className="font-bold text-purple-700">{app.matchPercentage}% Match</span>
+                                                    {/* AI Match Score — hover for full breakdown */}
+                                                    {app.matchScore > 0 && (
+                                                        <div className="relative group/match">
+                                                            <div className={`flex items-center gap-3 text-xs p-2 rounded-lg border cursor-pointer select-none ${app.matchScore >= 70 ? 'bg-emerald-50/50 border-emerald-100 text-emerald-700' :
+                                                                app.matchScore >= 40 ? 'bg-amber-50/50 border-amber-100 text-amber-700' :
+                                                                    'bg-rose-50/50 border-rose-100 text-rose-700'
+                                                                }`}>
+                                                                <span className="w-5 flex justify-center">✨</span>
+                                                                <div className="flex-1">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="font-black">{app.matchScore}% AI Match</span>
+                                                                        <span className="text-[9px] font-bold opacity-50">hover for details</span>
+                                                                    </div>
+                                                                    <div className="mt-1 h-1.5 w-full bg-white/60 rounded-full overflow-hidden">
+                                                                        <div className={`h-full rounded-full ${app.matchScore >= 70 ? 'bg-emerald-500' :
+                                                                            app.matchScore >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                            }`} style={{ width: `${app.matchScore}%` }} />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* HOVER TOOLTIP */}
+                                                            <div className="absolute bottom-full left-0 mb-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[200] opacity-0 invisible group-hover/match:opacity-100 group-hover/match:visible transition-all duration-200 translate-y-1 group-hover/match:translate-y-0">
+                                                                {/* Gradient Header */}
+                                                                <div className={`p-4 rounded-t-2xl ${app.matchScore >= 70 ? 'bg-gradient-to-br from-emerald-500 to-emerald-600' :
+                                                                    app.matchScore >= 40 ? 'bg-gradient-to-br from-amber-500 to-amber-600' :
+                                                                        'bg-gradient-to-br from-rose-500 to-rose-600'
+                                                                    }`}>
+                                                                    <div className="flex items-end justify-between">
+                                                                        <div>
+                                                                            <p className="text-white/70 text-[9px] font-black uppercase tracking-widest">AI Match Score</p>
+                                                                            <p className="text-white text-3xl font-black leading-none">{app.matchScore}<span className="text-lg">%</span></p>
+                                                                        </div>
+                                                                        <span className="text-white/90 text-[10px] font-black px-3 py-1 bg-white/20 rounded-full">
+                                                                            {app.matchScore >= 70 ? '🟢 Strong' : app.matchScore >= 40 ? '🟡 Moderate' : '🔴 Weak'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="mt-3 h-2 bg-white/30 rounded-full overflow-hidden">
+                                                                        <div className="h-full bg-white rounded-full" style={{ width: `${app.matchScore}%` }} />
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="p-4 space-y-3">
+                                                                    {/* Score Breakdown */}
+                                                                    {app.matchBreakdown && Object.keys(app.matchBreakdown).some(k => app.matchBreakdown[k] > 0) && (
+                                                                        <div>
+                                                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Score Breakdown</p>
+                                                                            <div className="space-y-1.5">
+                                                                                {[
+                                                                                    { label: '🎯 Skills', key: 'skills', max: 40 },
+                                                                                    { label: '💼 Experience', key: 'experience', max: 20 },
+                                                                                    { label: '🧠 Semantic', key: 'similarity', max: 20 },
+                                                                                    { label: '🎓 Education', key: 'education', max: 10 },
+                                                                                    { label: '⭐ Bonus', key: 'preferred', max: 10 },
+                                                                                ].map(({ label, key, max }) => {
+                                                                                    const val = app.matchBreakdown[key] || 0;
+                                                                                    const pct = Math.round((val / max) * 100);
+                                                                                    return (
+                                                                                        <div key={key} className="flex items-center gap-2">
+                                                                                            <span className="text-[10px] text-slate-500 w-28 shrink-0">{label}</span>
+                                                                                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                                                <div className={`h-full rounded-full ${pct >= 70 ? 'bg-emerald-400' : pct >= 40 ? 'bg-amber-400' : 'bg-rose-400'
+                                                                                                    }`} style={{ width: `${pct}%` }} />
+                                                                                            </div>
+                                                                                            <span className="text-[10px] font-black text-slate-600 w-10 text-right shrink-0">{val}/{max}</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Matched Skills */}
+                                                                    {app.matchedSkills?.length > 0 && (
+                                                                        <div>
+                                                                            <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-1.5">✅ Matched ({app.matchedSkills.length})</p>
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {app.matchedSkills.map((skill, i) => (
+                                                                                    <span key={i} className="text-[10px] px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded-md border border-emerald-100">{skill}</span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Missing Skills */}
+                                                                    {app.missingSkills?.length > 0 && (
+                                                                        <div>
+                                                                            <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-1.5">❌ Missing ({app.missingSkills.length})</p>
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {app.missingSkills.map((skill, i) => (
+                                                                                    <span key={i} className="text-[10px] px-2 py-0.5 bg-rose-50 text-rose-600 font-bold rounded-md border border-rose-100">{skill}</span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* AI Summary */}
+                                                                    {app.aiParsedData?.summary && (
+                                                                        <div className="pt-2 border-t border-slate-50">
+                                                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">🤖 AI Summary</p>
+                                                                            <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-3">{app.aiParsedData.summary}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Tooltip arrow */}
+                                                                <div className="absolute -bottom-2 left-6 w-4 h-4 bg-white border-r border-b border-slate-100 rotate-45" />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {/* Experience from AI */}
+                                                    {(app.experience || app.aiParsedData?.totalExperience) && (
+                                                        <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50">
+                                                            <span className="w-5 flex justify-center">💼</span>
+                                                            <span className="font-medium">{app.experience || app.aiParsedData?.totalExperience} exp</span>
                                                         </div>
                                                     )}
                                                     {/* Feedback Badge */}
@@ -2291,17 +2424,18 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     )}
                                                 </div>
 
-                                                {/* AI Skills Preview */}
-                                                {app.parsedSkills && app.parsedSkills.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1 mt-3 mb-1">
-                                                        {app.parsedSkills.slice(0, 4).map((skill, i) => (
-                                                            <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-500 font-medium rounded border border-slate-100">
-                                                                {skill}
-                                                            </span>
-                                                        ))}
-                                                        {app.parsedSkills.length > 4 && (
-                                                            <span className="text-[10px] px-1.5 py-0.5 text-slate-400">+{app.parsedSkills.length - 4}</span>
-                                                        )}
+                                                {/* Skills compact preview (full list in hover tooltip above) */}
+                                                {!app.matchedSkills?.length && app.parsedSkills?.length > 0 && (
+                                                    <div className="mb-4">
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">🔧 Skills</p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {app.parsedSkills.slice(0, 5).map((skill, i) => (
+                                                                <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-500 font-medium rounded border border-slate-100">{skill}</span>
+                                                            ))}
+                                                            {app.parsedSkills.length > 5 && (
+                                                                <span className="text-[10px] px-1.5 py-0.5 text-slate-400">+{app.parsedSkills.length - 5}</span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 )}
 
@@ -3296,34 +3430,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     )}
 
                                     {/* AI Insights Section */}
-                                    {selectedApplicant.aiParsedData && (
+                                    {(selectedApplicant.matchScore > 0 || selectedApplicant.aiParsedData) && (
                                         <>
-                                            <div className="border-t border-slate-100 my-2"></div>
-                                            <section>
-                                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                                    <span className="text-purple-600">✨</span> AI Insights
-                                                </h3>
-                                                <div className="bg-purple-50 p-3 rounded-xl border border-purple-100">
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <span className="text-xs font-bold text-purple-700">Match Score</span>
-                                                        <span className="text-sm font-black text-purple-600">{selectedApplicant.matchPercentage}%</span>
-                                                    </div>
-                                                    {/* Skills */}
-                                                    <div className="flex flex-wrap gap-1 mb-2">
-                                                        {selectedApplicant.parsedSkills?.map((skill, i) => (
-                                                            <span key={i} className="px-2 py-0.5 bg-white text-purple-600 text-[10px] font-bold rounded border border-purple-100">
-                                                                {skill}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                    {/* Summary */}
-                                                    {selectedApplicant.aiParsedData.experienceSummary && (
-                                                        <p className="text-xs text-purple-800 leading-relaxed">
-                                                            {selectedApplicant.aiParsedData.experienceSummary}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </section>
+                                            <div className="border-t border-slate-100 my-4"></div>
+                                            <MatchBreakdown applicant={selectedApplicant} requirement={selectedRequirement} />
                                         </>
                                     )}
 

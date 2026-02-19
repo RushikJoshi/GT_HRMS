@@ -116,32 +116,37 @@ export default function JobApplication() {
     const file = e.target.files[0];
     if (file && (file.type === 'application/pdf' || file.type.includes('word')) && file.size < 5 * 1024 * 1024) {
       setFormData(prev => ({ ...prev, resume: file }));
-      setError('');
+      setError(''); // Clear any previous errors
 
-      // Auto-Parse Logic
+      // Auto-Parse Logic — non-blocking, never shows error to user
       setParsing(true);
       try {
         const parseData = new FormData();
         parseData.append('resume', file);
         if (requirementId) parseData.append('requirementId', requirementId);
+        if (tenantId) parseData.append('tenantId', tenantId);
 
         const res = await api.post('/public/resume/parse', parseData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+          headers: { 'Content-Type': 'multipart/form-data', 'X-Tenant-ID': tenantId || '' }
         });
 
         if (res.data.success && res.data.data) {
           const ai = res.data.data;
+          // Auto-fill fields only if they are currently empty
           setFormData(prev => ({
             ...prev,
             name: prev.name || ai.fullName || '',
             email: prev.email || ai.email || '',
             mobile: prev.mobile || ai.phone || '',
-            // Auto-fill experience if field existed or add to notes?
-            // Providing what we have
           }));
+          // If there was a warning (e.g. scanned PDF), show soft info — not an error
+          if (res.data.warning) {
+            console.info('[Resume Parse] Warning:', res.data.warning);
+          }
         }
       } catch (err) {
-        console.error("Parse failed", err);
+        // Silently fail — user can still fill the form manually
+        console.warn("Resume auto-parse failed (non-blocking):", err.response?.data?.error || err.message);
       } finally {
         setParsing(false);
       }
