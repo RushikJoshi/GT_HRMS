@@ -85,6 +85,7 @@ module.exports = async function tenantResolver(req, res, next) {
       }
     }
 
+
     // If it's a 25-char ID but looks like it should be 24 (ObjectId), sanitize it
     // This handles a known issue where some IDs were generated with an extra character
     if (tenantId && tenantId.length === 25) {

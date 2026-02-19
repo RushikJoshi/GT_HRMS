@@ -53,6 +53,18 @@ const companiesService = {
         // Assuming this route is global or adapted
         const response = await api.post('/uploads/logo', formData);
         return response.data;
+    },
+
+    // 8. Verify PSA Password
+    verifyPsaPassword: async (password) => {
+        const response = await api.post('/tenants/verify-password', { password });
+        return response.data;
+    },
+
+    // 9. Update Company Password
+    updateCompanyPassword: async (id, password) => {
+        const response = await api.put(`/tenants/${id}/password`, { password });
+        return response.data;
     }
 };
 
