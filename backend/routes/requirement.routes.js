@@ -56,8 +56,12 @@ router.post('/applicants/:id/confirm-salary', salaryCtrl.confirm);
 
 router.patch('/applicants/:id/status', applicantCtrl.updateApplicantStatus);
 router.put('/applicants/:id/status', applicantCtrl.updateApplicantStatus);
-router.get('/applicants/:id', applicantCtrl.getApplicantById);
 router.get('/applicants/:id/salary', applicantCtrl.getSalary);
+
+// APPLICANTS - RE-SCORING
+router.post('/applicants/:id/rescore', auth.authenticate, auth.requireHr, applicantCtrl.rescoreApplicant);
+router.post('/:requirementId/rescore-all', auth.authenticate, auth.requireHr, applicantCtrl.rescoreAllApplicants);
+
 
 // Joining Letter Routes
 const letterCtrl = require('../controllers/letter.controller');
