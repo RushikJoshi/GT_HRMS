@@ -1,0 +1,7 @@
+﻿153:        if (!db.models.SignedLetter) {
+154:            try { db.model('SignedLetter', require('../models/SignedLetter')); } catch (e) { }
+171:            SignedLetter: db.model("SignedLetter"),
+3890:        const SignedLetter = models.SignedLetter;
+3891:        const signedLetter = await SignedLetter.findOne({ letterId: id }).lean();
+4247:                    const SignedLetter = tenantDB.model('SignedLetter');
+4254:                    const signedLetter = await SignedLetter.findOne({ letterId: id }).lean();

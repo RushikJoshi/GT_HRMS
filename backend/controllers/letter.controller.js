@@ -150,6 +150,15 @@ function getModels(req) {
         if (!db.models.LetterApproval) {
             try { db.model('LetterApproval', require('../models/LetterApproval')); } catch (e) { }
         }
+        if (!db.models.SignedLetter) {
+            try { db.model('SignedLetter', require('../models/SignedLetter')); } catch (e) { }
+        }
+        if (!db.models.BGVCase) {
+            try { db.model('BGVCase', require('../models/BGVCase')); } catch (e) { }
+        }
+        if (!db.models.Notification) {
+            try { db.model('Notification', require('../models/Notification')); } catch (e) { }
+        }
 
         return {
             GeneratedLetter: db.model("GeneratedLetter"),
@@ -158,7 +167,10 @@ function getModels(req) {
             Candidate: db.model("Candidate"),
             Employee: db.model("Employee"),
             CompanyProfile: db.model("CompanyProfile"),
-            LetterApproval: db.model("LetterApproval")
+            LetterApproval: db.model("LetterApproval"),
+            SignedLetter: db.model("SignedLetter"),
+            BGVCase: db.model("BGVCase"),
+            Notification: db.model("Notification")
         };
     } catch (err) {
         console.error("[letter.controller] Error retrieving models:", err);
@@ -1236,11 +1248,11 @@ exports.generateJoiningLetter = async (req, res) => {
             tenantId: req.user?.tenantId
         });
 
-        const { applicantId, employeeId, templateId, refNo, issueDate } = req.body;
+        const { applicantId, employeeId, templateId, refNo, issueDate, signaturePosition } = req.body;
         const Applicant = getApplicantModel(req);
         const { Employee, LetterTemplate, GeneratedLetter } = getModels(req);
 
-        console.log('🔥 [JOINING LETTER] Request received:', { applicantId, employeeId, templateId, refNo, issueDate });
+        console.log('🔥 [JOINING LETTER] Request received:', { applicantId, employeeId, templateId, refNo, issueDate, signaturePosition });
 
         // Validate input
         if (!templateId || (!applicantId && !employeeId)) {
@@ -1707,7 +1719,17 @@ exports.generateJoiningLetter = async (req, res) => {
             pdfPath: finalRelativePath,
             pdfUrl: finalPdfUrl,
             status: 'generated',
-            generatedBy: req.user?.id
+            generatedBy: req.user?.id,
+            signaturePosition: signaturePosition || { alignment: 'right' },
+            generationMode: 'static', // Since it's currently WORD based
+            pdfVersion: 1,
+            templateSnapshot: {
+                name: template.templateName || template.name,
+                bodyContent: '', // Word templates don't have HTML body yet
+                headerContent: template.headerContent || '',
+                footerContent: template.footerContent || '',
+                version: template.version || 1
+            }
         });
 
         await generated.save();
@@ -1826,10 +1848,19 @@ exports.generateJoiningLetter = async (req, res) => {
  * - Uses Puppeteer/Images
  */
 exports.generateOfferLetter = async (req, res) => {
+    const logFile = path.join(process.cwd(), 'generation_debug.log');
     try {
         // Accept params from the Generate Modal
-        const { applicantId, templateId, imageData, refNo, joiningDate, address, department, location, fatherName, salutation, issueDate, preview, name, dearName, dateFormat } = req.body;
-        console.log('🐞 [DEBUG INPUTS] Salutation:', salutation, '| IssueDate:', issueDate, '| preview:', preview, '| Name:', name, '| DearName:', dearName, '| DateFormat:', dateFormat);
+        const { applicantId, templateId, imageData, refNo, joiningDate, address, department, location, fatherName, salutation, issueDate, preview, name, dearName, dateFormat, signaturePosition } = req.body;
+
+        fs.appendFileSync(logFile, `\n[${new Date().toISOString()}] 🚀 GENERATE OFFER | Applicant: ${applicantId} | Preview: ${preview} | RefNo: ${refNo}\n`);
+
+        // 🔎 STEP 1 & 5: ROOT CAUSE & VALIDATION
+        if (!applicantId || !templateId) {
+            fs.appendFileSync(logFile, `❌ Error: Missing applicantId/templateId\n`);
+            return res.status(400).json({ success: false, message: "Missing required data: applicantId or templateId" });
+        }
+
         const Applicant = getApplicantModel(req);
 
         // Get tenant-specific models
@@ -1894,6 +1925,7 @@ exports.generateOfferLetter = async (req, res) => {
         let downloadUrl;
         let templateType = template.templateType;
         let pdfFileName; // Store filename for database
+        let htmlContent = ''; // Initialize for dynamic snapshotting
 
         if (template.templateType === 'WORD') {
             // Handle Word template processing
@@ -1954,9 +1986,9 @@ exports.generateOfferLetter = async (req, res) => {
             const issuedDate = formatCustomDate(validIssueDate, dateFormat);
             console.log('📅 [OFFER LETTER] Issued Date set to:', issuedDate, 'Format:', dateFormat);
 
-            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)} `;
+            const fullName = `${salutation ? salutation + ' ' : ''}${safeString(name || applicant.name)}`.trim();
             // Construct Dear Name: "Ms. Rima" if user entered "Rima"
-            const finalDearName = `${salutation ? salutation + ' ' : ''}${safeString(dearName || name || applicant.name)} `;
+            const finalDearName = `${salutation ? salutation + ' ' : ''}${safeString(dearName || name || applicant.name)}`.trim();
 
             console.log('👤 [OFFER LETTER] Full Name constructed:', fullName);
             console.log('👤 [OFFER LETTER] Dear Name constructed:', finalDearName);
@@ -2010,7 +2042,12 @@ exports.generateOfferLetter = async (req, res) => {
                 // Specific "Dear X" placeholder
                 dear_name: finalDearName,
                 DearName: finalDearName,
-                dear_name_only: safeString(dearName || name || applicant.name) // Without Ms./Mr.
+                dear_name_only: safeString(dearName || name || applicant.name), // Without Ms./Mr.
+
+                // Preserve Signature Placeholder for Dynamic Injection later
+                SIGNATURE: '{{SIGNATURE}}',
+                signature: '{{SIGNATURE}}',
+                candidate_signature: '{{SIGNATURE}}'
             };
 
             const issuedDateStr = issuedDate;
@@ -2051,6 +2088,25 @@ exports.generateOfferLetter = async (req, res) => {
                 downloadUrl = `/uploads/${relativePath}`;
 
                 console.log('✅ [OFFER LETTER] PDF Conversion Successful:', downloadUrl);
+
+                // --- DYNAMIC SNAPSHOT UPGRADE (Phase 2 Requirement) ---
+                // For Word templates, we also convert to HTML and store it in bodyContent
+                // This allows future dynamic regeneration (e.g. for signatures)
+                try {
+                    console.log('🔄 [OFFER LETTER] Creating HTML snapshot for dynamic regeneration...');
+                    const htmlAbsolutePath = libreOfficeService.convertToHtmlSync(docxPath, outputDir);
+                    const htmlRawContent = await fsPromises.readFile(htmlAbsolutePath, 'utf-8');
+
+                    // Extract only the <body> content if possible to avoid style conflicts
+                    const bodyMatch = htmlRawContent.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+                    htmlContent = bodyMatch ? bodyMatch[1] : htmlRawContent;
+
+                    // Clean up temp HTML file
+                    try { await fsPromises.unlink(htmlAbsolutePath); } catch (e) { }
+                    console.log('✅ [OFFER LETTER] HTML snapshot created successfully');
+                } catch (htmlErr) {
+                    console.warn('⚠️ [OFFER LETTER] HTML snapshot failed (non-critical):', htmlErr.message);
+                }
 
             } catch (pdfError) {
                 console.error('⚠️ [OFFER LETTER] PDF Conversion Failed:', pdfError.message);
@@ -2095,7 +2151,7 @@ exports.generateOfferLetter = async (req, res) => {
                 '{{DATE_ODT}}': issuedDateStr
             };
 
-            let htmlContent = template.bodyContent || '';
+            htmlContent = template.bodyContent || '';
             Object.keys(replacements).forEach(key => {
                 const regex = new RegExp(key, 'g');
                 htmlContent = htmlContent.replace(regex, replacements[key]);
@@ -2140,9 +2196,14 @@ exports.generateOfferLetter = async (req, res) => {
         }
 
         if (!preview) {
+            // Determine Generation Mode
+            // WORD templates now use 'dynamic' if HTML snapshot was successful
+            // This enables dynamic signature injection for ALL letter types
+            const generationMode = htmlContent ? 'dynamic' : (template.templateType === 'WORD' ? 'static' : 'dynamic');
+
             // Save generated letter record
             const generated = new GeneratedLetter({
-                tenantId: req.user?.tenantId || req.tenantId,
+                tenant: req.tenantId || req.user?.tenantId || req.user?.companyId,
                 applicantId: applicantId,
                 templateId,
                 templateType, // 'WORD' or 'BLANK'/'LETTER_PAD'
@@ -2150,8 +2211,19 @@ exports.generateOfferLetter = async (req, res) => {
                 pdfPath: relativePath,
                 pdfUrl: downloadUrl,
                 status: 'generated',
-                generatedBy: req.user?.id || req.user?.userId
+                generatedBy: req.user?.id || req.user?.userId,
+                signaturePosition: signaturePosition || { alignment: 'right' },
+                generationMode,
+                pdfVersion: 1,
+                templateSnapshot: {
+                    name: template.templateName || template.name,
+                    bodyContent: htmlContent || '', // Store final rendered HTML (populated even for WORD now)
+                    headerContent: template.headerContent || '',
+                    footerContent: template.footerContent || '',
+                    version: typeof template.version === 'number' ? template.version : (parseFloat(template.version) || 1)
+                }
             });
+            fs.appendFileSync(logFile, `💾 Saving GeneratedLetter for tenant: ${generated.tenant}\n`);
             await generated.save();
 
             // Prepare update data for applicant (Save the inputs)
@@ -2171,11 +2243,14 @@ exports.generateOfferLetter = async (req, res) => {
             if (salutation) updateData.salutation = salutation; // Persist Salutation
 
             const { Applicant: ApplicantModel } = getModels(req);
-            const updatedApplicant = await ApplicantModel.findById(applicantId);
+            const updatedApplicant = await ApplicantModel.findById(applicantId).populate('requirementId');
+            if (!updatedApplicant) throw new Error("Applicant record lost during generation");
 
             // Apply updates
             Object.keys(updateData).forEach(key => {
-                updatedApplicant[key] = updateData[key];
+                if (updateData[key] !== undefined) {
+                    updatedApplicant[key] = updateData[key];
+                }
             });
 
             if (!updatedApplicant.timeline) updatedApplicant.timeline = [];
@@ -2267,11 +2342,23 @@ exports.generateOfferLetter = async (req, res) => {
         });
 
     } catch (error) {
+        const logFile = path.join(process.cwd(), 'generation_debug.log');
         console.error("🔥 [OFFER LETTER] FATAL ERROR:", error);
-        if (error.stack) console.error(error.stack);
+        fs.appendFileSync(logFile, `❌ FATAL ERROR: ${error.message}\nStack: ${error.stack}\n`);
+
+        // 🔎 STEP 1: Structured Error Response with diagnostic info
+        const errorDiagnostic = {
+            applicantId: req.body.applicantId,
+            templateId: req.body.templateId,
+            refNo: req.body.refNo,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        };
+        console.error("📋 [DIAGNOSTIC DATA]:", JSON.stringify(errorDiagnostic, null, 2));
+
         res.status(500).json({
             success: false,
-            message: "Internal Server Error during offer letter generation",
+            message: "Offer letter generation failed",
             error: error.message
         });
     }
@@ -2292,7 +2379,7 @@ exports.getHistory = async (req, res) => {
         // Get tenant-specific model
         const { GeneratedLetter } = getModels(req);
 
-        const history = await GeneratedLetter.find({ tenantId: req.user.tenantId })
+        const history = await GeneratedLetter.find({ tenant: req.user.tenantId })
             .sort('-createdAt')
             .populate('applicantId', 'name');
         res.json(history);
@@ -3271,8 +3358,9 @@ exports.getGeneratedLetters = async (req, res) => {
         const tenantId = req.tenantId;
         const { GeneratedLetter } = getModels(req);
 
-        const filter = { tenantId };
+        const filter = { tenant: tenantId };
         if (req.query.employeeId) filter.employeeId = req.query.employeeId;
+        if (req.query.applicantId) filter.applicantId = req.query.applicantId;
         if (req.query.status) filter.status = req.query.status;
 
         const letters = await GeneratedLetter.find(filter)
@@ -3280,6 +3368,9 @@ exports.getGeneratedLetters = async (req, res) => {
             .populate('applicantId', 'name')
             .populate('templateId', 'name type')
             .sort('-createdAt');
+
+        const logFile = path.join(process.cwd(), 'letter_query_debug.log');
+        fs.appendFileSync(logFile, `🔍 [GET_LETTERS] Filter: ${JSON.stringify(filter)} | Found: ${letters.length}\n`);
 
         res.json({ success: true, data: letters });
     } catch (error) {
@@ -3293,7 +3384,7 @@ exports.getGeneratedLetters = async (req, res) => {
 exports.getLetterById = async (req, res) => {
     try {
         const { GeneratedLetter, LetterApproval } = getModels(req);
-        const letter = await GeneratedLetter.findOne({ _id: req.params.id, tenantId: req.tenantId })
+        const letter = await GeneratedLetter.findOne({ _id: req.params.id, tenant: req.tenantId })
             .populate('employeeId', 'firstName lastName employeeId')
             .populate('templateId', 'name type');
 
@@ -3318,7 +3409,7 @@ exports.updateGeneratedLetterStatus = async (req, res) => {
         const { GeneratedLetter } = getModels(req);
 
         const letter = await GeneratedLetter.findOneAndUpdate(
-            { _id: req.params.id, tenantId: req.tenantId },
+            { _id: req.params.id, tenant: req.tenantId },
             { $set: { status } },
             { new: true }
         );
@@ -3339,7 +3430,7 @@ exports.actionLetterApproval = async (req, res) => {
         const { status, comments } = req.body;
         const { GeneratedLetter, LetterApproval } = getModels(req);
 
-        const letter = await GeneratedLetter.findOne({ _id: req.params.id, tenantId: req.tenantId });
+        const letter = await GeneratedLetter.findOne({ _id: req.params.id, tenant: req.tenantId });
         if (!letter) return res.status(404).json({ success: false, message: 'Letter not found' });
 
         const approval = new LetterApproval({
@@ -3719,12 +3810,24 @@ exports.generateDynamicPDF = async (req, res) => {
     const path = require('path');
     const logFile = path.join(process.cwd(), 'debug.log');
     fs.appendFileSync(logFile, `🚀 [DYNAMIC_PDF] Controller Start for ID: ${req.params.id}\n`);
+    fs.appendFileSync(logFile, `📋 [DYNAMIC_PDF] TenantID: ${req.tenantId}, Query: ${JSON.stringify(req.query)}\n`);
+
     try {
         const { id } = req.params;
-        const models = getModels(req);
+
+        // Try to get models
+        let models;
+        try {
+            models = getModels(req);
+            fs.appendFileSync(logFile, `✅ [DYNAMIC_PDF] Models retrieved successfully\n`);
+        } catch (modelError) {
+            fs.appendFileSync(logFile, `❌ [DYNAMIC_PDF] Model retrieval failed: ${modelError.message}\n`);
+            return res.status(500).json({ success: false, message: "Database connection error", error: modelError.message });
+        }
+
         const { GeneratedLetter, Candidate, Applicant } = models;
 
-        fs.appendFileSync(logFile, `📄 [DYNAMIC_PDF] Models retrieved. Fetching letter...\n`);
+        fs.appendFileSync(logFile, `📄 [DYNAMIC_PDF] Fetching letter with ID: ${id}\n`);
         // 1. Fetch Letter
         const letter = await GeneratedLetter.findById(id).lean();
         if (!letter) {
@@ -3734,76 +3837,137 @@ exports.generateDynamicPDF = async (req, res) => {
 
         fs.appendFileSync(logFile, `📄 [DYNAMIC_PDF] Letter found. Snapshots: ${!!letter.templateSnapshot}, Path: ${letter.pdfPath}\n`);
 
-        // 2. Content Priority: HTML Snapshot > Static File Fallback
-        let rawHtml = letter.templateSnapshot?.bodyContent || "";
+        // 2. Backward Compatibility & Routing (Phase 4)
+        if (letter.generationMode === 'static' || (!letter.templateSnapshot?.bodyContent && letter.pdfPath)) {
+            fs.appendFileSync(logFile, `📂 [DYNAMIC_PDF] Mode: STATIC. Serving stored file: ${letter.pdfPath}\n`);
 
-        // If it's a legacy static PDF and no HTML exists, we serve it directly
-        if (!rawHtml && letter.pdfPath) {
-            fs.appendFileSync(logFile, `📂 [DYNAMIC_PDF] Serving static fallback: ${letter.pdfPath}\n`);
-
-            // Clean up path for Windows/Unix compatibility
             let cleanPath = letter.pdfPath;
             if (cleanPath.startsWith('/') || cleanPath.startsWith('\\')) {
                 cleanPath = cleanPath.substring(1);
             }
 
-            // MERN Architecture: Relative paths are relative to the 'uploads' directory
-            let absolutePath;
-            if (path.isAbsolute(cleanPath)) {
-                absolutePath = cleanPath;
-            } else {
-                // Try with 'uploads' prefix first (standard)
-                absolutePath = path.join(process.cwd(), 'uploads', cleanPath);
+            let absolutePath = path.isAbsolute(cleanPath) ? cleanPath : path.join(process.cwd(), 'uploads', cleanPath);
 
-                // Fallback: Try without 'uploads' prefix (deprecated)
-                if (!fs.existsSync(absolutePath)) {
-                    const fallbackPath = path.join(process.cwd(), cleanPath);
-                    if (fs.existsSync(fallbackPath)) {
-                        absolutePath = fallbackPath;
-                    }
-                }
+            // Fallback for non-standard paths
+            if (!fs.existsSync(absolutePath)) {
+                const fallbackPath = path.join(process.cwd(), cleanPath);
+                if (fs.existsSync(fallbackPath)) absolutePath = fallbackPath;
             }
 
             if (fs.existsSync(absolutePath)) {
-                fs.appendFileSync(logFile, `✅ [DYNAMIC_PDF] File exists at ${absolutePath}. Sending...\n`);
                 res.setHeader("Content-Type", "application/pdf");
+                res.setHeader("Content-Disposition", "inline; filename=offer-letter.pdf");
                 res.setHeader("Access-Control-Allow-Origin", "*");
+                res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID");
                 res.setHeader("X-Frame-Options", "ALLOWALL");
                 res.setHeader("Content-Security-Policy", "frame-ancestors *;");
+                res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
                 return res.sendFile(absolutePath);
             } else {
-                fs.appendFileSync(logFile, `❌ [DYNAMIC_PDF] File MISSING at ${absolutePath}\n`);
+                fs.appendFileSync(logFile, `❌ [DYNAMIC_PDF] Static file MISSING: ${absolutePath}\n`);
+                // Fallback to dynamic if content exists despite mode
+                if (!letter.templateSnapshot?.bodyContent) {
+                    return res.status(404).send("Document not found and cannot be regenerated.");
+                }
             }
         }
 
-        // 3. Data Population
+        // 3. Dynamic Regeneration Engine (Phase 2)
+        fs.appendFileSync(logFile, `🔄 [DYNAMIC_PDF] Mode: DYNAMIC. Regenerating from HTML Snapshot...\n`);
+
+        let rawHtml = letter.templateSnapshot?.bodyContent || "";
         const applicant = letter.applicantId ? await Applicant.findById(letter.applicantId).lean() : null;
         const candidate = (applicant && applicant.candidateId) ? await Candidate.findById(applicant.candidateId).lean() : null;
         const data = letter.snapshotData ? (letter.snapshotData instanceof Map ? Object.fromEntries(letter.snapshotData) : letter.snapshotData) : {};
 
-        let finalHtml = rawHtml || "<p style='text-align:center; padding: 100px; font-family: sans-serif;'>Document content is missing or being processed. Please contact support.</p>";
+        let finalHtml = rawHtml;
 
-        // Resolve Placeholders
+        // Resolve Placeholders from snapshot
         Object.entries(data).forEach(([key, val]) => {
             const regex = new RegExp(`{{${key}}}`, 'g');
             finalHtml = finalHtml.replace(regex, val || "");
         });
 
-        // 4. Signature Injection (Architecture Standard) - DISABLED as per request
-        const signatureHtml = `<div style="position: relative; height: 80px; margin-top: 20px;">
-                 <div style="border-bottom:1.5px solid #1a1a1a; width:180px; position:absolute; bottom:10px;"></div>
-                 <p style="position:absolute; bottom:-10px; left:0; font-size: 11px; color: #64748b; font-weight: 600;">(Candidate Acceptance Space)</p>
-               </div>`;
+        // 4. Signature Safe Injection Layer (Phase 3)
+        const SignedLetterModel = models.SignedLetter;
+        const signedLetter = await SignedLetterModel.findOne({ letterId: id }).lean();
 
-        if (finalHtml.includes('{{SIGNATURE}}')) {
-            finalHtml = finalHtml.replace('{{SIGNATURE}}', signatureHtml);
-        } else if (finalHtml.includes('{{SIGNATURE_CANDIDATE_ACCEPTANCE}}')) {
-            finalHtml = finalHtml.replace('{{SIGNATURE_CANDIDATE_ACCEPTANCE}}', signatureHtml);
+        let signatureHtml = "";
+        const alignment = signedLetter?.signaturePosition?.alignment || letter.signaturePosition?.alignment || 'right';
+        const textAlign = alignment === 'center' ? 'center' : (alignment === 'right' ? 'right' : 'left');
+
+        if (signedLetter) {
+            signatureHtml = `
+                <div style="text-align: ${textAlign}; margin-top: 40px; page-break-inside: avoid;">
+                    <div style="display: inline-block; text-align: left;">
+                        <img src="${signedLetter.signatureImage}" style="height: 80px; width: auto; max-width: 250px; object-fit: contain; display: block; margin-bottom: 5px;" alt="Signature" />
+                        <div style="border-top: 1.5px solid #1e293b; width: 220px; margin-top: 5px;"></div>
+                        <p style="font-size: 11px; color: #475569; font-weight: 700; margin: 5px 0 2px 0; text-transform: uppercase;">Digitally Signed By</p>
+                        <p style="font-size: 13px; color: #1e293b; font-weight: 600; margin: 0;">${candidate?.name || applicant?.firstName || 'Candidate'}</p>
+                        <p style="font-size: 10px; color: #94a3b8; margin: 2px 0 0 0;">Date: ${new Date(signedLetter.signedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    </div>
+                </div>`;
         } else {
-            finalHtml += `<div style="margin-top: 60px; page-break-inside: avoid;">${signatureHtml}</div>`;
+            signatureHtml = `
+                <div style="text-align: ${textAlign}; margin-top: 40px; page-break-inside: avoid;">
+                    <div style="display: inline-block; text-align: left;">
+                        <div style="border-bottom: 1.5px solid #1a1a1a; width: 200px; margin-bottom: 5px; height: 50px;"></div>
+                        <p style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase;">(Candidate Acceptance Signature)</p>
+                    </div>
+                </div>`;
         }
 
-        // 5. Wrap in Professional A4 Wrapper
+        // 4.5 Company Signature Injection (Phase 2 & 3 Integration)
+        if (letter.companyApproval && letter.companyApproval.isApproved) {
+            const companySig = letter.companyApproval.signatureImage;
+            const companyStamp = letter.companyApproval.stampImage;
+            const approvedAt = letter.companyApproval.approvedAt;
+
+            const dualSignatureHtml = `
+                <div style="display: flex; justify-content: space-between; margin-top: 60px; page-break-inside: avoid; align-items: flex-end;">
+                    <!-- Candidate (Left) -->
+                    <div style="flex: 1; text-align: left;">
+                        <div style="display: inline-block;">
+                            ${signedLetter ? `
+                                <img src="${signedLetter.signatureImage}" style="height: 70px; width: auto; max-width: 200px; object-fit: contain; display: block; margin-bottom: 5px;" alt="Candidate Signature" />
+                            ` : `
+                                <div style="border-bottom: 1.5px solid #1e293b; width: 200px; margin-bottom: 5px; height: 40px;"></div>
+                            `}
+                            <div style="border-top: 1.5px solid #1e293b; width: 200px; margin-top: 5px;"></div>
+                            <p style="font-size: 10px; color: #475569; font-weight: 700; margin: 5px 0 2px 0; text-transform: uppercase;">Candidate Signature</p>
+                            <p style="font-size: 11px; color: #1e293b; font-weight: 600; margin: 0;">${candidate?.name || applicant?.firstName || 'Candidate'}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Company (Right) -->
+                    <div style="flex: 1; text-align: right; position: relative;">
+                        ${companyStamp ? `<img src="${companyStamp}" style="position: absolute; right: 10px; bottom: 10px; height: 130px; width: auto; opacity: 0.85; z-index: 1; pointer-events: none;" alt="Company Stamp" />` : ''}
+                        <div style="display: inline-block; text-align: left; position: relative; z-index: 2;">
+                            <img src="${companySig}" style="height: 70px; width: auto; max-width: 200px; object-fit: contain; display: block; margin-bottom: 5px;" alt="Company Signature" />
+                            <div style="border-top: 1.5px solid #1e293b; width: 200px; margin-top: 5px;"></div>
+                            <p style="font-size: 10px; color: #475569; font-weight: 700; margin: 5px 0 2px 0; text-transform: uppercase;">For Gitakshmi Technologies</p>
+                            <p style="font-size: 11px; color: #1e293b; font-weight: 600; margin: 0;">Authorized Signatory</p>
+                            <p style="font-size: 9px; color: #94a3b8; margin: 2px 0 0 0;">Date: ${new Date(approvedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            signatureHtml = dualSignatureHtml;
+        }
+
+        // Standardized Injection Placeholders
+        if (finalHtml.includes('id="candidate-signature-container"')) {
+            finalHtml = finalHtml.replace(/id="candidate-signature-container"[^>]*>.*?<\/div>/s, `id="candidate-signature-container">${signatureHtml}</div>`);
+        } else if (finalHtml.includes('{{SIGNATURE}}')) {
+            finalHtml = finalHtml.replace('{{SIGNATURE}}', signatureHtml);
+        } else if (finalHtml.includes('id="candidate-signature-placeholder"')) {
+            finalHtml = finalHtml.replace(/id="candidate-signature-placeholder"[^>]*>.*?<\/div>/s, `id="candidate-signature-placeholder">${signatureHtml}</div>`);
+        } else {
+            finalHtml += signatureHtml;
+        }
+
+        // 5. Wrap in Professional A4 Wrapper with Stored CSS (Phase 2)
         const wrappedHtml = `
             <!DOCTYPE html>
             <html>
@@ -3811,15 +3975,19 @@ exports.generateDynamicPDF = async (req, res) => {
                 <meta charset="UTF-8">
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-                    body { font-family: 'Inter', sans-serif; line-height: 1.5; color: #1e293b; padding: 0; margin: 0; background: #f1f5f9; }
+                    body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #1e293b; padding: 0; margin: 0; background: #f1f5f9; -webkit-print-color-adjust: exact; }
                     .document-wrapper { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 25mm; box-sizing: border-box; background: white; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
-                    .content-section { font-size: 13px; text-align: justify; }
+                    .content-section { font-size: 14px; text-align: justify; word-wrap: break-word; }
                     p { margin-bottom: 12px; }
                     @page { size: A4; margin: 0; }
-                    table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px; }
+                    @media print {
+                        body { background: none; }
+                        .document-wrapper { box-shadow: none; margin: 0; width: 100%; border: none; }
+                    }
+                    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
                     th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
                     th { background: #f8fafc; font-weight: 700; color: #475569; }
-                    .header-logo { max-height: 60px; margin-bottom: 30px; }
+                    .logo-img { max-height: 70px; margin-bottom: 30px; object-fit: contain; }
                 </style>
             </head>
             <body>
@@ -3839,25 +4007,33 @@ exports.generateDynamicPDF = async (req, res) => {
             return res.status(500).send("Failed to generate PDF content.");
         }
 
-        // Security & Compatibility Headers for Iframe Rendering
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Length", pdfBuffer.length);
-        res.setHeader("Content-Disposition", `inline; filename="Letter_${id}.pdf"`);
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.setHeader("Access-Control-Allow-Methods", "GET");
-        res.setHeader("X-Frame-Options", "ALLOWALL");
-        res.setHeader("Content-Security-Policy", "frame-ancestors *;");
-        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        // 7. Send Response (🔎 STEP 7: DO NOT BREAK STRUCTURE)
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': 'inline; filename=offer-letter.pdf',
+            'Content-Length': pdfBuffer.length,
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Tenant-ID',
+            'X-Frame-Options': 'ALLOWALL',
+            'Content-Security-Policy': 'frame-ancestors *;',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        });
 
         fs.appendFileSync(logFile, `✅ [DYNAMIC_PDF] Sending BINARY PDF Buffer (${pdfBuffer.length} bytes)\n`);
 
-        // Use .end() with a Buffer to ensure binary transmission instead of JSON stringification
-        res.status(200).end(Buffer.from(pdfBuffer), 'binary');
+        return res.send(pdfBuffer);
 
     } catch (error) {
         fs.appendFileSync(logFile, `❌ [DYNAMIC_PDF] Critical Failure: ${error.message}\n`);
         console.error('❌ [DYNAMIC PDF] Critical Failure:', error);
-        res.status(500).setHeader("Content-Type", "text/plain").send(`Failed to generate PDF: ${error.message}`);
+
+        // 🔎 STEP 6: Fail-safe fallback logic
+        res.status(500).json({
+            success: false,
+            message: "Offer letter generation failed",
+            error: error.message
+        });
     }
 };
 
@@ -3887,6 +4063,12 @@ exports.signLetter = async (req, res) => {
         // Save Signature & Update Status
         await Candidate.findByIdAndUpdate(candidateId, { digitalSignature: signatureImage });
         letter.status = "Signed";
+
+        // FIX: Ensure tenant field is present to satisfy validation
+        if (!letter.tenant) {
+            letter.tenant = req.tenantId || req.candidate?.tenantId || applicant?.tenantId;
+        }
+
         await letter.save();
 
         res.json({ success: true, message: "Digital signature applied successfully." });
@@ -3917,15 +4099,504 @@ exports.acceptLetter = async (req, res) => {
 
         letter.status = "Accepted";
         letter.acceptedAt = new Date();
+
+        // FIX: Ensure tenant field is present to satisfy validation
+        if (!letter.tenant) {
+            letter.tenant = req.tenantId || req.candidate?.tenantId || applicant?.tenantId;
+        }
+
         await letter.save();
 
-        res.json({ success: true, message: "Document finalized and accepted successfully." });
+        // Update Applicant Status to New Workflow Stage
+        applicant.status = 'Offer Accepted – Awaiting Company Approval';
+        if (!applicant.timeline) applicant.timeline = [];
+        applicant.timeline.push({
+            status: 'Offer Accepted – Awaiting Company Approval',
+            message: 'Candidate has accepted the offer conditions. Awaiting final company approval and signature.',
+            updatedBy: 'Candidate (Letter)',
+            timestamp: new Date()
+        });
+        await applicant.save();
+
+        res.json({ success: true, message: "Offer conditions accepted. Awaiting company final signing." });
 
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
+/**
+ * APPROVE COMPANY SIGNATURE (HR ACTION)
+ * - HR approves the offer
+ * - Adds company signature and stamp
+ * - Finalizes the document
+ */
+exports.approveCompanySignature = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { signatureImage, stampImage, stampSettings } = req.body;
+        const { GeneratedLetter, Applicant } = getModels(req);
+
+        const letter = await GeneratedLetter.findById(id);
+        if (!letter) return res.status(404).json({ success: false, message: "Letter not found" });
+
+        const applicant = await Applicant.findById(letter.applicantId);
+        if (!applicant) return res.status(404).json({ success: false, message: "Applicant not found" });
+
+        const Candidate = getModels(req).Candidate; // Ensure we get Candidate model
+        const candidateDate = await Candidate.findById(applicant.candidateId);
+
+        // Check for Candidate Signature (either from letter.signatureImage or Candidate profile)
+        // If signLetter was called, it saved to Candidate.digitalSignature
+        const candidateSignatureIndex = candidateDate?.digitalSignature;
+
+        // --- PDF Overlay Logic ---
+        let finalPdfPath = null;
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const { PDFDocument, rgb } = require('pdf-lib');
+            const uploadsDir = path.join(process.cwd(), 'uploads');
+
+            // 1. Find source PDF (Preferably the one signed by candidate)
+            let relativeSourcePath = (letter.signedPdfPath || letter.pdfPath || '').replace(/^[\\/]+/, '');
+            // fix double uploads/ issue
+            if (relativeSourcePath.startsWith('uploads/') || relativeSourcePath.startsWith('uploads\\')) {
+                relativeSourcePath = relativeSourcePath.replace(/^uploads[\\/]/, '');
+            }
+
+            let sourcePdfPath = path.join(uploadsDir, relativeSourcePath);
+
+            // Fallback: If "Signed_" doesn't exist, try original
+            if (!fs.existsSync(sourcePdfPath) && letter.pdfPath) {
+                const originalRel = letter.pdfPath.replace(/^[\\/]+/, '').replace(/^uploads[\\/]/, '');
+                sourcePdfPath = path.join(uploadsDir, originalRel);
+            }
+
+            if (fs.existsSync(sourcePdfPath)) {
+                console.log(`[APPROVE_COMPANY] Overlaying company sig on: ${sourcePdfPath}`);
+                const existingPdfBytes = fs.readFileSync(sourcePdfPath);
+                const pdfDoc = await PDFDocument.load(existingPdfBytes);
+                const pages = pdfDoc.getPages();
+                const lastPage = pages[pages.length - 1];
+                const { width, height } = lastPage.getSize();
+                console.log(`[APPROVE_COMPANY] Page Size: ${width}x${height}`);
+
+                // --- 1. Overlay Candidate Signature (Force Apply if exists) ---
+                if (candidateSignatureIndex) {
+                    try {
+                        console.log(`[APPROVE_COMPANY] Found Candidate Signature for ${applicant.name}. Applying...`);
+                        const candSigBase64 = candidateSignatureIndex.split(',')[1] || candidateSignatureIndex;
+                        const candSigBuffer = Buffer.from(candSigBase64, 'base64');
+                        let embeddedCandSig;
+                        try { embeddedCandSig = await pdfDoc.embedPng(candSigBuffer); } catch (e) { embeddedCandSig = await pdfDoc.embedJpg(candSigBuffer); }
+
+                        const candSigDims = embeddedCandSig.scale(0.35); // Standard scale
+
+                        // NEW COORDINATES: Higher up (~160 for sig, ~130 for date)
+                        const cX = 380;
+                        const cY = 160;
+
+                        lastPage.drawImage(embeddedCandSig, {
+                            x: cX,
+                            y: cY,
+                            width: candSigDims.width,
+                            height: candSigDims.height,
+                        });
+                        console.log(`[APPROVE_COMPANY] Applied Candidate Signature at (${cX}, ${cY})`);
+                    } catch (err) {
+                        console.warn(`[APPROVE_COMPANY] Failed to apply candidate signature: ${err.message}`);
+                    }
+                } else {
+                    console.warn(`[APPROVE_COMPANY] No Candidate Signature found in DB for Candidate ID: ${applicant.candidateId}`);
+                }
+
+                // --- 2. Overlay Company Stamp ---
+                if (stampImage) {
+                    const stampBase64 = stampImage.split(',')[1] || stampImage;
+                    const stampBuffer = Buffer.from(stampBase64, 'base64');
+                    let embeddedStamp;
+                    try { embeddedStamp = await pdfDoc.embedPng(stampBuffer); } catch (e) { embeddedStamp = await pdfDoc.embedJpg(stampBuffer); }
+
+                    // Stamp usually larger and centered on signature
+                    const scaleFactor = stampSettings?.scale || 0.30;
+                    const stampDims = embeddedStamp.scale(scaleFactor);
+
+                    let xPos, yPos;
+                    if (stampSettings) {
+                        const xPercent = stampSettings.x;
+                        const yPercent = stampSettings.y;
+
+                        const centerX = (xPercent / 100) * width;
+                        const centerYFromTop = (yPercent / 100) * height;
+                        const centerYFromBottom = height - centerYFromTop;
+
+                        xPos = centerX - (stampDims.width / 2);
+                        yPos = centerYFromBottom - (stampDims.height / 2);
+                    } else {
+                        xPos = 40;
+                        yPos = 180;
+                    }
+
+                    lastPage.drawImage(embeddedStamp, {
+                        x: xPos,
+                        y: yPos,
+                        width: stampDims.width,
+                        height: stampDims.height,
+                        opacity: 0.9,
+                    });
+                }
+
+                // --- 3. Overlay Date (Always) ---
+                try {
+                    const dateStr = new Date().toLocaleDateString('en-GB'); // DD/MM/YYYY
+                    // Position aligned with "Date: _______" text
+                    // Moved from 55 to 130
+                    lastPage.drawText(dateStr, {
+                        x: 85,
+                        y: 130,
+                        size: 10,
+                        color: rgb(0, 0, 0),
+                    });
+                    console.log(`[APPROVE_COMPANY] Applied Date: ${dateStr} at (85, 130)`);
+                } catch (e) {
+                    console.warn("Failed to add date", e);
+                }
+
+                // --- Save Fully Signed PDF ---
+                const pdfBytes = await pdfDoc.save();
+
+                // Naming: FullySigned_OriginalName.pdf
+                const originalDir = path.dirname(sourcePdfPath);
+                const originalName = path.basename(sourcePdfPath).replace(/^Signed_/, ''); // Remove Signed_ prefix if present
+                const finalName = `FullySigned_${originalName}`;
+                const absoluteFinalPath = path.join(originalDir, finalName);
+
+                fs.writeFileSync(absoluteFinalPath, Buffer.from(pdfBytes));
+                console.log(`[APPROVE_COMPANY] Saved fully signed PDF: ${absoluteFinalPath}`);
+
+                // Set relative path for DB (Ensure consistently forward slashes)
+                const normalizedRelPath = path.relative(uploadsDir, absoluteFinalPath).replace(/\\/g, '/');
+                finalPdfPath = `uploads/${normalizedRelPath}`; // Ensure it starts with uploads/ if that's the convention
+            } else {
+                console.error(`[APPROVE_COMPANY] Source PDF not found at ${sourcePdfPath}`);
+                return res.status(404).json({ success: false, message: "Source PDF file not found on server." });
+            }
+
+        } catch (pdfErr) {
+            console.error('[APPROVE_COMPANY] PDF Overlay failed:', pdfErr);
+            return res.status(500).json({ success: false, message: "Failed to apply stamp to PDF: " + pdfErr.message });
+        }
+
+        // Update Company Approval Details
+        letter.companyApproval = {
+            approvedBy: req.user.id,
+            approvedAt: new Date(),
+            signatureImage: signatureImage, // Base64
+            stampImage: stampImage, // Base64
+            isApproved: true
+        };
+
+        // Update Letter Status & Path
+        letter.status = 'approved';
+        if (finalPdfPath) {
+            letter.signedPdfPath = finalPdfPath; // Point to the Fully Signed version now
+        }
+        await letter.save();
+
+        // Update Applicant Status to 'Fully Signed' & Path
+        applicant.status = 'Fully Signed';
+        // IMPORTANT: Update signedOfferPath so user downloads the fully signed version
+        if (finalPdfPath) {
+            applicant.signedOfferPath = finalPdfPath;
+        }
+
+        if (!applicant.timeline) applicant.timeline = [];
+        applicant.timeline.push({
+            status: 'Fully Signed',
+            message: 'Offer letter has been fully signed by both parties. Background Verification (BGV) can now be initiated.',
+            updatedBy: req.user.name || 'HR',
+            timestamp: new Date()
+        });
+        await applicant.save();
+
+        // Send Notification Email to Candidate
+        try {
+            const companyName = req.tenantId || 'Our Company'; // Ideally fetch from company profile
+            await emailService.sendOfferFullySignedEmail(
+                applicant.email,
+                applicant.name,
+                applicant.requirementId?.jobTitle || 'the position',
+                companyName
+            );
+        } catch (emailErr) {
+            console.error('⚠️ [APPROVE_COMPANY] Email notification failed:', emailErr.message);
+        }
+
+        res.json({
+            success: true,
+            message: "Offer letter approved and fully signed.",
+            status: 'Fully Signed'
+        });
+
+    } catch (error) {
+        console.error('❌ [APPROVE_COMPANY] Error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Secure Candidate PDF Viewer
+ * Simplified PDF serving for candidate portal that doesn't require complex tenant resolution
+ * Works with iframes and object tags
+ */
+exports.viewCandidatePDF = async (req, res) => {
+    const fs = require('fs');
+    const path = require('path');
+    const logFile = path.join(process.cwd(), 'candidate_pdf_debug.log');
+
+    try {
+        const { id } = req.params;
+        const { tenantId } = req.query;
+
+        fs.appendFileSync(logFile, `\n[${new Date().toISOString()}] 📄 Candidate PDF Request | ID: ${id} | TenantID: ${tenantId}\n`);
+
+        if (!tenantId) {
+            fs.appendFileSync(logFile, `❌ Missing tenantId in query\n`);
+            return res.status(400).json({ success: false, message: "Tenant ID required" });
+        }
+
+        // Get tenant-specific database connection
+        const getTenantDB = require('../utils/tenantDB');
+        const tenantDB = await getTenantDB(tenantId);
+
+        if (!tenantDB) {
+            fs.appendFileSync(logFile, `❌ Failed to get tenant DB for: ${tenantId}\n`);
+            return res.status(500).json({ success: false, message: "Database connection failed" });
+        }
+
+        // Get GeneratedLetter model from tenant DB
+        const GeneratedLetter = tenantDB.model('GeneratedLetter');
+
+        // Fetch the letter
+        const letter = await GeneratedLetter.findById(id).lean();
+
+        // Support for download mode
+        const isDownload = req.query.download === 'true';
+        const disposition = isDownload ? 'attachment' : 'inline';
+
+        if (!letter) {
+            fs.appendFileSync(logFile, `❌ Letter not found: ${id}\n`);
+            return res.status(404).send("Document not found");
+        }
+
+        fs.appendFileSync(logFile, `✅ [V7-FINAL-FIDELITY] Letter found | Status: ${letter.status} | Mode: ${letter.generationMode} | Path: ${letter.pdfPath}\n`);
+
+        // PRIORITY 1: USE THE ACTUAL STATIC PDF FILE (This is the ONLY way to keep exact HR format)
+        if (letter.pdfPath) {
+            let cleanPath = letter.pdfPath;
+            if (cleanPath.startsWith('/') || cleanPath.startsWith('\\')) {
+                cleanPath = cleanPath.substring(1);
+            }
+
+            let absolutePath = path.isAbsolute(cleanPath)
+                ? cleanPath
+                : path.join(process.cwd(), 'uploads', cleanPath);
+
+            // Fallback path resolution
+            if (!fs.existsSync(absolutePath)) {
+                const fallbackPath = path.join(process.cwd(), cleanPath);
+                if (fs.existsSync(fallbackPath)) {
+                    absolutePath = fallbackPath;
+                }
+            }
+
+            if (fs.existsSync(absolutePath)) {
+                fs.appendFileSync(logFile, `✅ Found base PDF: ${absolutePath}\n`);
+
+                const Letter = tenantDB.model('GeneratedLetter');
+                const Applicant = tenantDB.model('Applicant');
+                const Candidate = tenantDB.model('Candidate');
+                const SignedLetterModel = tenantDB.model('SignedLetter');
+
+                // 1. Determine the REAL base filename (remove any "Signed_" recursion)
+                let baseName = path.basename(absolutePath);
+                while (baseName.startsWith('Signed_')) {
+                    baseName = baseName.replace('Signed_', '');
+                }
+                const baseDir = path.dirname(absolutePath);
+                const originalAbsolutePath = path.join(baseDir, baseName);
+                const signedAbsolutePath = path.join(baseDir, `Signed_${baseName}`);
+
+                // Case A: Serve signed version if it exists on disk OR in DB
+                // Aggressively check both DB path and calculated path
+                let finalSignedPath = null;
+
+                if (letter.signedPdfPath) {
+                    const dbPath = path.join(process.cwd(), 'uploads', letter.signedPdfPath.replace(/^\/+/, ''));
+                    // Handle potential double uploads/ prefix
+                    const correctedDbPath = dbPath.replace(/uploads[\\/]uploads/, 'uploads');
+
+                    if (fs.existsSync(dbPath)) finalSignedPath = dbPath;
+                    else if (fs.existsSync(correctedDbPath)) finalSignedPath = correctedDbPath;
+                }
+
+                if (!finalSignedPath && fs.existsSync(signedAbsolutePath)) {
+                    finalSignedPath = signedAbsolutePath;
+                }
+
+                if (finalSignedPath && fs.existsSync(finalSignedPath)) {
+                    fs.appendFileSync(logFile, `✅ Serving signed file: ${finalSignedPath}\n`);
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.setHeader('Content-Disposition', `${disposition}; filename="Offer_Letter_Signed.pdf"`);
+                    res.setHeader('X-Frame-Options', 'ALLOW-FROM *');
+                    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' *");
+                    return res.sendFile(finalSignedPath);
+                }
+
+                // Case B: Not signed or missing signed file -> Check if we SHOULD sign it
+                const signedLetter = await SignedLetterModel.findOne({ letterId: id }).lean();
+                const normalizedStatus = String(letter.status || '').toLowerCase();
+                const isSignedStatus = ["signed", "accepted", "approved", "fully signed"].includes(normalizedStatus) || normalizedStatus.includes("accepted") || normalizedStatus.includes("signed");
+
+                if (!signedLetter && !isSignedStatus) {
+                    fs.appendFileSync(logFile, `📄 Serving original. Status: ${letter.status}\n`);
+                    res.setHeader('Content-Type', 'application/pdf');
+                    return res.sendFile(originalAbsolutePath);
+                }
+
+                // Case C: SIGNED but need overlay
+                try {
+                    const applicant = letter.applicantId ? await Applicant.findById(letter.applicantId).lean() : null;
+                    const candidate = (applicant && applicant.candidateId) ? await Candidate.findById(applicant.candidateId).lean() : null;
+                    const signatureImage = signedLetter?.signatureImage || candidate?.digitalSignature;
+
+                    if (!signatureImage) {
+                        fs.appendFileSync(logFile, `⚠️ Signed but no signature found. Serving original.\n`);
+                        return res.sendFile(originalAbsolutePath);
+                    }
+
+                    fs.appendFileSync(logFile, `✍️ Overlaying signature on: ${baseName}\n`);
+
+                    // Process PDF with pdf-lib
+                    const { PDFDocument, rgb } = require('pdf-lib');
+                    const existingPdfBytes = fs.readFileSync(absolutePath); // Use absolutePath (original) as base
+                    const pdfDoc = await PDFDocument.load(existingPdfBytes);
+                    const pages = pdfDoc.getPages();
+                    const lastPage = pages[pages.length - 1];
+                    const { width, height } = lastPage.getSize();
+
+                    // Process signature image
+                    const base64Data = signatureImage.split(',')[1] || signatureImage;
+                    const signatureBuffer = Buffer.from(base64Data, 'base64');
+
+                    let embeddedImage;
+                    try {
+                        embeddedImage = await pdfDoc.embedPng(signatureBuffer);
+                    } catch (e) {
+                        embeddedImage = await pdfDoc.embedJpg(signatureBuffer);
+                    }
+
+                    const imgDims = embeddedImage.scale(0.35);
+                    const xPos = width - imgDims.width - 70;
+                    const yPos = 95;
+
+                    lastPage.drawImage(embeddedImage, {
+                        x: xPos,
+                        y: yPos,
+                        width: imgDims.width,
+                        height: imgDims.height,
+                    });
+
+                    const signedDate = signedLetter?.signedAt || letter.updatedAt || new Date();
+                    const dateStr = `Digitally Signed by ${candidate?.name || 'Candidate'} on ${new Date(signedDate).toLocaleDateString('en-GB')}`;
+
+                    lastPage.drawText(dateStr, {
+                        x: xPos,
+                        y: yPos - 12,
+                        size: 7,
+                        color: rgb(0.4, 0.4, 0.4)
+                    });
+
+                    const pdfBytes = await pdfDoc.save();
+
+                    // Define output paths for saving
+                    // signedAbsolutePath was defined earlier (line ~4264), use it
+                    const signedFilePath = signedAbsolutePath;
+
+                    // Determine relative path for DB
+                    let relativeSignedPath = letter.pdfPath || '';
+                    if (relativeSignedPath) {
+                        const dirName = path.dirname(relativeSignedPath);
+                        // We used `Signed_${baseName}` pattern
+                        relativeSignedPath = path.join(dirName, `Signed_${baseName}`).replace(/\\/g, '/');
+                    }
+
+                    // SAVE THE FILE TO DISK
+                    fs.writeFileSync(signedFilePath, Buffer.from(pdfBytes));
+                    fs.appendFileSync(logFile, `💾 Saved signed PDF to: ${signedFilePath}\n`);
+
+                    // UPDATE DATABASE so direct downloads work
+                    const urlPath = `/uploads/${relativeSignedPath}`;
+                    await Letter.findByIdAndUpdate(id, {
+                        signedPdfPath: relativeSignedPath,
+                        offerLetterUrl: urlPath // Keep this for UI components that rely on it
+                    });
+
+                    if (applicant) {
+                        await Applicant.findByIdAndUpdate(applicant._id, {
+                            signedOfferPath: relativeSignedPath,
+                            offerStatus: 'SIGNED',
+                            isSigned: true,
+                            // We keep offerLetterPath pointing to original
+                        });
+                    }
+                    fs.appendFileSync(logFile, `🗄️ Database updated with signed fields. Status: SIGNED\n`);
+
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.setHeader('Content-Disposition', `${disposition}; filename="Offer_Letter_Signed.pdf"`);
+                    res.setHeader('X-Frame-Options', 'ALLOW-FROM *');
+                    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' *");
+                    return res.status(200).end(Buffer.from(pdfBytes));
+
+                } catch (err) {
+                    fs.appendFileSync(logFile, `❌ Persistent Overlay failed: ${err.message}. Serving original as fallback.\n`);
+                    return res.sendFile(absolutePath);
+                }
+            }
+        }
+
+        // PRIORITY 2: DYNAMIC FALLBACK (ONLY if static file is missing)
+        if (letter.templateSnapshot?.bodyContent) {
+            fs.appendFileSync(logFile, `🔄 Using dynamic generation as fallback ONLY\n`);
+
+            const PuppeteerPDFService = require('../services/PuppeteerPDFService');
+            let rawHtml = letter.templateSnapshot.bodyContent || "";
+            const data = letter.snapshotData ? (letter.snapshotData instanceof Map ? Object.fromEntries(letter.snapshotData) : letter.snapshotData) : {};
+
+            let outputHtml = rawHtml;
+            Object.entries(data).forEach(([key, val]) => {
+                const regex = new RegExp(`{{${key}}}`, 'g');
+                outputHtml = outputHtml.replace(regex, val || "");
+            });
+
+            if (!outputHtml.includes('<html')) {
+                outputHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body { font-family: 'Inter', sans-serif; margin: 0; padding: 20mm; } @page { size: A4; margin: 0; }</style></head><body>${outputHtml}</body></html>`;
+            }
+
+            const pdfBuffer = await PuppeteerPDFService.generatePDFBuffer(outputHtml);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('X-Frame-Options', 'ALLOW-FROM *');
+            return res.status(200).end(pdfBuffer);
+        }
+
+        fs.appendFileSync(logFile, `❌ No PDF source found\n`);
+        return res.status(404).send("PDF not available");
+
+    } catch (error) {
+        fs.appendFileSync(logFile, `❌ FATAL: ${error.message}\n`);
+        return res.status(500).json({ success: false, message: "Failed to load PDF", error: error.message });
+    }
+};
+
 module.exports = exports;
-
-

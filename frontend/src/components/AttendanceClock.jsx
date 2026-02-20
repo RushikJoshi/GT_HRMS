@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogIn, LogOut, Clock, CheckCircle, AlertOctagon, Timer } from 'lucide-react';
+import { LogIn, LogOut, Clock, CheckCircle, AlertOctagon, Timer, MapPin } from 'lucide-react';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 // Helper to format seconds into HH:mm:ss
@@ -24,7 +24,6 @@ export default function AttendanceClock({
     isFinalCheckOut = false
 }) {
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [radius, setRadius] = useState(typeof window !== 'undefined' && window.innerWidth < 768 ? 100 : 120);
 
     // Timer State
     const [workedSeconds, setWorkedSeconds] = useState(0);
@@ -32,7 +31,6 @@ export default function AttendanceClock({
 
     // Constants
     const SHIFT_DURATION = 8 * 60 * 60; // 8 Hours in seconds
-    const circumference = 2 * Math.PI * radius;
 
     // Live Clock Update
     useEffect(() => {
@@ -68,267 +66,127 @@ export default function AttendanceClock({
         return () => clearInterval(interval);
     }, [isCheckedIn, isCheckedOut, lastPunchIn, baseWorkedSeconds]);
 
-    // Responsive Radius
-    useEffect(() => {
-        const onResize = () => setRadius(window.innerWidth < 768 ? 90 : 120);
-        window.addEventListener('resize', onResize);
-        return () => window.removeEventListener('resize', onResize);
-    }, []);
-
-    // Visual Calculations
-    // If NOT overtime: Scale based on 8h (0 to 100% of 8h)
-    // If OVERTIME: Scale based on Total Worked Time (Blue portion shrinks, Green portion grows)
-
-    const totalScaleSeconds = isOvertime ? workedSeconds : SHIFT_DURATION;
-
-    // Avoid division by zero
-    const safeTotalScale = totalScaleSeconds > 0 ? totalScaleSeconds : 1;
-
-    const shiftSeconds = Math.min(workedSeconds, SHIFT_DURATION);
-    const overtimeSeconds = Math.max(0, workedSeconds - SHIFT_DURATION);
-
-    const blueRatio = shiftSeconds / safeTotalScale;
-    const greenRatio = overtimeSeconds / safeTotalScale;
-
-    // Stroke Dash Logic
-    // blueDashArray: Fill blue part. Gap is the rest.
-    const blueDashArray = `${blueRatio * circumference} ${circumference}`;
-
-    // greenDashArray: Fill green part. Gap is the rest.
-    // Offset: Must start AFTER the blue part. 
-    // SVG stroke starts at 3 o'clock. We rotated -90deg so it starts at 12 o'clock.
-    // The "Start" of green should be at blueLength.
-    // stroke-dashoffset pushes the pattern back. 
-    // If we want it to start at `len`, offset should be `-len`.
-
-    const greenDashArray = `${greenRatio * circumference} ${circumference}`;
-    const greenDashOffset = -(blueRatio * circumference);
 
     // UI Configuration
     const isMultipleMode = settings?.punchMode === 'multiple';
     const showShiftCompleted = isFinalCheckOut || (!isMultipleMode && isCheckedOut);
 
-    let statusBadgeText = isCheckedIn && !isCheckedOut ? (isOvertime ? "Overtime Running" : "Active Shift") : "Idle";
-    let statusBadgeStyle = isCheckedIn && !isCheckedOut
-        ? (isOvertime
-            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
-            : 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800')
-        : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
-
     return (
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-slate-700 shadow-md flex flex-col items-center justify-center min-h-[500px] transition-all relative overflow-hidden group">
+        <div className="w-full flex flex-col items-center justify-center min-h-[420px] relative font-sans">
 
-            {/* Background Gradient - Shifts slightly based on state */}
-            <div className={`absolute inset-0 bg-gradient-to-br transition-colors duration-1000 ${isOvertime
-                ? 'from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20'
-                : 'from-indigo-50/50 to-violet-50/50 dark:from-indigo-950/20 dark:to-violet-950/20'
-                }`}></div>
+            {/* Main Clock Container */}
+            <div className="relative z-10 flex flex-col items-center">
 
-            <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-8 flex items-center gap-2 uppercase tracking-wide relative z-10">
-                {isOvertime ? (
-                    <span className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 animate-pulse">
-                        <Timer size={14} /> Overtime Monitoring
-                    </span>
-                ) : (
-                    <span className="flex items-center gap-2">
-                        <Clock size={14} className="text-indigo-600 dark:text-indigo-400" /> Live Attendance
-                    </span>
-                )}
-            </h3>
+                {/* Hexagon/Unique Shape Wrapper */}
+                <div className="relative w-72 h-72 flex items-center justify-center group cursor-default">
 
-            {/* Circular Progress Clock UI */}
-            <div className="relative mb-8 w-64 h-64 flex items-center justify-center group/clock transition-transform duration-300">
+                    {/* 1. Outer Glow/Pulse Rings - Behind everything */}
+                    <div className={`absolute inset-0 rounded-full opacity-20 blur-xl transition-all duration-1000 ${isCheckedIn && !isCheckedOut
+                        ? 'bg-teal-400 animate-pulse scale-110'
+                        : 'bg-slate-300 scale-90'
+                        }`}></div>
 
-                {/* SVG Progress Ring */}
-                <div className="absolute inset-0 transform -rotate-90 scale-x-[-1]">
-                    <svg className="w-full h-full" viewBox="0 0 256 256" style={{ transform: 'rotate(-180deg)' }}>
+                    {/* 2. Rotating Border Ring (SVG) */}
+                    <svg className="absolute inset-0 w-full h-full animate-[spin_10s_linear_infinite] opacity-80" viewBox="0 0 100 100">
                         <defs>
-                            <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stopColor="#6366f1" />
-                                <stop offset="100%" stopColor="#8b5cf6" />
+                            <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor="#14B8A6" stopOpacity="0" />
+                                <stop offset="50%" stopColor="#2DD4BF" stopOpacity="0.5" />
+                                <stop offset="100%" stopColor="#0D9488" stopOpacity="1" />
                             </linearGradient>
-                            <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stopColor="#22c55e" />
-                                <stop offset="100%" stopColor="#10b981" />
-                            </linearGradient>
-                            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                                <feGaussianBlur stdDeviation="3" result="blur" />
-                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                            </filter>
                         </defs>
-
-                        {/* Track */}
-                        <circle
-                            cx="128"
-                            cy="128"
-                            r={radius}
-                            fill="none"
-                            className="stroke-slate-100 dark:stroke-slate-800/40"
-                            strokeWidth="8"
-                        />
-
-                        {/* Shift Progress (Blue) */}
-                        <circle
-                            cx="128"
-                            cy="128"
-                            r={radius}
-                            fill="none"
-                            stroke="url(#blueGradient)"
-                            className="transition-all duration-1000 ease-in-out"
-                            strokeWidth="8"
-                            strokeDasharray={blueDashArray}
-                            strokeLinecap={isOvertime ? "butt" : "round"}
-                            style={{ filter: isCheckedIn && !isCheckedOut ? 'url(#glow)' : 'none' }}
-                        />
-
-                        {/* Overtime Progress (Green) */}
-                        {isOvertime && (
-                            <circle
-                                cx="128"
-                                cy="128"
-                                r={radius}
-                                fill="none"
-                                stroke="url(#greenGradient)"
-                                className="transition-all duration-1000 ease-in-out"
-                                strokeWidth="8"
-                                strokeDasharray={greenDashArray}
-                                strokeDashoffset={greenDashOffset}
-                                strokeLinecap="round"
-                                style={{ filter: 'url(#glow)' }}
-                            />
-                        )}
+                        <circle cx="50" cy="50" r="48" fill="none" stroke="url(#ringGradient)" strokeWidth="0.5" strokeDasharray="10 10" />
                     </svg>
-                </div>
 
-                {/* Inner Content */}
-                <div className="relative z-10 text-center flex flex-col items-center justify-center w-44 h-44 bg-white dark:bg-slate-900 rounded-full shadow-lg border border-slate-200 dark:border-slate-700 transition-all duration-300">
-                    {isOvertime ? (
-                        <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Shift Time</div>
-                            <div className="text-xl font-mono font-bold text-indigo-500 mb-2">08:00:00</div>
-                            <div className="w-12 h-px bg-slate-200 dark:bg-slate-700 mb-2"></div>
-                            <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1">Overtime</div>
-                            <div className="text-xl font-mono font-bold text-emerald-500">
-                                +{formatDuration(overtimeSeconds)}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center">
-                            <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Worked Time</div>
-                            <div className="text-4xl font-mono font-bold text-slate-900 dark:text-white tracking-tight tabular-nums mb-3">
+                    <svg className="absolute inset-0 w-full h-full animate-[spin_15s_linear_infinite_reverse] opacity-50" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="#CCFBF1" strokeWidth="0.5" strokeDasharray="4 6" />
+                    </svg>
+
+                    {/* 3. Main Glass Disc */}
+                    <div className="absolute inset-4 rounded-full bg-gradient-to-br from-white/90 to-white/40 backdrop-blur-xl shadow-2xl border border-white/60 flex flex-col items-center justify-center z-20 overflow-hidden">
+
+                        {/* Shimmer Effect */}
+                        <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-tr from-transparent via-white/30 to-transparent rotate-45 animate-[shimmer_3s_infinite]" />
+
+                        {/* Content Inside Clock */}
+                        <div className="relative z-30 flex flex-col items-center">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-2">
+                                {isOvertime ? 'Overtime' : 'Duration'}
+                            </h3>
+
+                            {/* Digital Timer */}
+                            <div className={`text-5xl font-medium tabular-nums tracking-tight mb-2 transition-all duration-500 ${isOvertime ? 'text-amber-500' : 'text-slate-700'
+                                }`}>
                                 {formatDuration(workedSeconds)}
                             </div>
-                        </div>
-                    )}
 
-                    {!isOvertime && (
-                        <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 mt-2 ${statusBadgeStyle}`}>
-                            {statusBadgeText}
-                        </div>
-                    )}
-                </div>
-
-                {/* Overtime Badge Floating */}
-                {isOvertime && (
-                    <div className="absolute -bottom-4 bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg animate-bounce">
-                        Overtime Started
-                    </div>
-                )}
-            </div>
-
-            {/* Current Time Display */}
-            <div className="mb-8 text-center bg-slate-50 dark:bg-slate-900/50 px-6 py-4 rounded-lg border border-slate-200 dark:border-slate-700 w-full max-w-[280px]">
-                <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
-                    {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
-                </div>
-                <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-2 flex items-center justify-center gap-2">
-                    <span>{currentTime.toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
-                    <span>{formatDateDDMMYYYY(currentTime)}</span>
-                </div>
-            </div>
-
-            {/* Action Button */}
-            <div className="w-full max-w-[280px] z-20 relative">
-                {showShiftCompleted ? (
-                    <div className="w-full py-5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-2xl font-bold text-sm text-center border border-emerald-200 dark:border-emerald-800 shadow-sm flex flex-col items-center gap-1 animate-in fade-in zoom-in duration-500">
-                        <div className="bg-emerald-500 text-white p-2 rounded-full mb-2 shadow-lg shadow-emerald-500/20">
-                            <CheckCircle size={20} />
-                        </div>
-                        <span className="uppercase tracking-[0.2em] text-[9px] font-black opacity-60">Operations Finished</span>
-                        <span className="text-xl font-black tracking-tight">Shift Ended</span>
-                    </div>
-                ) : (
-                    <>
-                        {isMultipleMode && isCheckedIn && !isCheckedOut ? (
-                            <div className="grid grid-cols-2 gap-3 w-full">
-                                <button
-                                    onClick={onAction} // Same action, just different intent in UI
-                                    disabled={isLoading}
-                                    className="py-3 rounded-lg font-semibold text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-all flex flex-col items-center justify-center gap-1 shadow-sm active:scale-95"
-                                >
-                                    <Clock size={16} className="mb-0.5" />
-                                    <span>Take Break</span>
-                                </button>
-
-                                <button
-                                    onClick={onAction}
-                                    disabled={isLoading}
-                                    className="py-3 rounded-lg font-semibold text-xs bg-rose-600 hover:bg-rose-700 text-white transition-all flex flex-col items-center justify-center gap-1 shadow-md active:scale-95"
-                                >
-                                    <LogOut size={16} className="mb-0.5" />
-                                    <span>End Shift</span>
-                                </button>
+                            {/* Status Pill */}
+                            <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-inner transition-all duration-300 flex items-center gap-2 ${isCheckedIn && !isCheckedOut
+                                ? 'bg-teal-50 text-teal-600 border border-teal-100'
+                                : 'bg-slate-50 text-slate-400 border border-slate-100'
+                                }`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${isCheckedIn && !isCheckedOut ? 'bg-teal-500 animate-ping' : 'bg-slate-300'}`}></div>
+                                {isCheckedIn && !isCheckedOut ? 'Active' : 'Idle'}
                             </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* Real-time Display Below Clock */}
+                <div className="mt-8 mb-8 text-center">
+                    <div className="text-3xl font-light text-slate-400 tracking-wide font-mono">
+                        {currentTime.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}
+                        <span className="text-sm font-bold ml-1 align-top opacity-60">
+                            {currentTime.toLocaleTimeString('en-US', { hour12: false, second: '2-digit' })}
+                        </span>
+                    </div>
+                    <div className="text-xs font-bold text-teal-600/80 uppercase tracking-[0.2em] mt-1">
+                        {formatDateDDMMYYYY(currentTime)}
+                    </div>
+                </div>
+
+                {/* Unique Action Button */}
+                <div className="w-full max-w-[260px] relative group button-wrapper">
+                    <div className={`absolute -inset-1 rounded-2xl blur opacity-10 group-hover:opacity-40 transition duration-500 ${isCheckedIn && !isCheckedOut ? 'bg-rose-500' : 'bg-teal-500'
+                        }`}></div>
+
+                    <button
+                        onClick={onAction}
+                        disabled={isLoading}
+                        className={`relative w-full py-4 rounded-xl font-bold text-sm uppercase tracking-[0.15em] transition-all transform active:scale-[0.98] flex items-center justify-center gap-3 shadow-md overflow-hidden ${isCheckedIn && !isCheckedOut
+                            ? 'bg-white text-rose-500 border-2 border-rose-50 hover:border-rose-100'
+                            : 'bg-gradient-to-r from-teal-500 to-teal-600 text-white border-none hover:shadow-teal-500/40'
+                            }`}
+                    >
+                        {/* Button Icon */}
+                        {isLoading ? (
+                            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                        ) : isCheckedIn && !isCheckedOut ? (
+                            <>
+                                <LogOut size={18} className="text-rose-500" />
+                                <span>Check Out</span>
+                            </>
                         ) : (
-                            <button
-                                onClick={onAction}
-                                disabled={isLoading}
-                                className={`w-full py-3 rounded-lg font-semibold text-sm transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg ${isCheckedIn && !isCheckedOut
-                                    ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                                    }`}
-                            >
-                                {isLoading ? (
-                                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                ) : (isCheckedIn && !isCheckedOut) ? (
-                                    <>
-                                        <LogOut size={18} />
-                                        <span>Check Out</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <LogIn size={18} />
-                                        <span>{isMultipleMode && isCheckedIn ? 'Resume Shift' : 'Check In'}</span>
-                                    </>
-                                )}
-                            </button>
+                            <>
+                                <LogIn size={18} className="text-teal-100" />
+                                <span>Check In</span>
+                            </>
                         )}
-                    </>
-                )}
 
-                {/* Status indicator for break */}
-                {isCheckedIn && isCheckedOut && !isFinalCheckOut && (
-                    <div className="mt-4 flex items-center justify-center gap-2 text-amber-500 bg-amber-50 dark:bg-amber-900/20 py-2 rounded-lg border border-amber-100 dark:border-amber-800 animate-in fade-in duration-500">
-                        <Clock size={14} className="animate-pulse" />
-                        <span className="text-[10px] font-black uppercase tracking-widest italic">Break In Progress</span>
-                    </div>
-                )}
+                        {/* Shine Effect on Hover (Only for Check In) */}
+                        {(!isCheckedIn || isCheckedOut) && (
+                            <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
+                        )}
+                    </button>
+                </div>
 
-                {/* Error Message Display */}
-                {error && (
-                    <div className="mt-4 p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg flex items-start gap-2">
-                        <AlertOctagon size={16} className="text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
-                        <p className="text-xs font-medium text-rose-700 dark:text-rose-300 leading-relaxed text-left">
-                            {error}
-                        </p>
-                    </div>
-                )}
-            </div>
+                {/* Location Tag */}
+                <div className="mt-6 flex items-center gap-1.5 text-[10px] font-bold text-slate-300 uppercase tracking-widest hover:text-teal-400 transition-colors cursor-default">
+                    <MapPin size={12} />
+                    {location}
+                </div>
 
-            <div className="mt-6 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <div className={`w-1.5 h-1.5 rounded-full ${isCheckedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></div>
-                <span>Location: <span className="font-medium capitalize">{location}</span></span>
             </div>
         </div>
     );

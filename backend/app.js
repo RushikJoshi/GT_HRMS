@@ -93,8 +93,13 @@ app.options('*', cors({
 /* ===============================
    BODY PARSERS
 ================================ */
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+/* ===============================
+   STATIC FILE SERVING
+================================ */
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 /* ===============================
    REGISTER MODELS (Global)
@@ -170,6 +175,11 @@ const careerOptimizedRoutes = require('./routes/career-optimized.routes');
 /* ===============================
    ROUTES (NO TENANT)
 ================================ */
+app.get('/api/health', (_req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.json({ status: 'ok', timestamp: new Date().toISOString(), message: "HRMS Backend Healthy" });
+});
+
 app.use('/api/public', publicRoutes);
 app.use('/api/candidate', require('./routes/candidate.routes'));
 app.use('/api/auth', authRoutes);
@@ -177,6 +187,9 @@ app.use('/api/tenants', tenantRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/company-id-config', companyIdConfigRoutes);
+
+// Mounting Activities early so PSA can access global logs without module checks
+app.use('/api/activities', activityRoutes);
 
 /* ===============================
    TENANT MIDDLEWARE
@@ -216,10 +229,8 @@ const leaveCheck = checkModuleAccess('leave');
 const bgvCheck = checkModuleAccess('backgroundVerification');
 const documentMgmtCheck = checkModuleAccess('documentManagement');
 app.use('/api/letters', hrCheck, documentMgmtCheck, letterRoutes);
-// Primary mount keeps hrRoutes paths like /hr/employees accessible at /api/hr/employees
+// Primary mount for HR routes. We use /api prefix to match hrRoutes internal paths like /hr/employees
 app.use('/api', hrCheck, hrRoutes);
-// Backward-compat alias for older frontend calls that used /api/hr/hr/*
-app.use('/api/hr', hrCheck, hrRoutes);
 app.use('/api/psa', hrCheck, psaHrRoutes);
 app.use('/api/employee', hrCheck, employeeRoutes);
 app.use('/api/bgv', hrCheck, bgvCheck, require('./routes/bgv.routes'));
@@ -238,7 +249,6 @@ app.use('/api/tracker', recruitmentCheck, require('./routes/tracker.routes'));
 // --- OTHER ---
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/comments', commentRoutes);
-app.use('/api/activities', activityRoutes);
 app.use('/api/social-media', require('./routes/socialMedia.routes'));
 app.use('/api/deductions', deductionRoutes);
 app.use('/api/tracker', recruitmentCheck, require('./routes/tracker.routes'));
@@ -312,11 +322,6 @@ app.use('/uploads', express.static(uploadsDir));
 ================================ */
 app.get('/', (_req, res) => {
     res.send('HRMS Backend Running (Refactored)');
-});
-
-app.get('/api/health', (_req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 /* ===============================

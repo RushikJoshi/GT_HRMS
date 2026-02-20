@@ -131,43 +131,27 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
     };
 
     const handleTabClick = (id) => {
-
-
-        // 1. Navigation Logic
         navigate(`/employee/${id}`);
-
-        // 2. State & UI Logic
-        // Always call setActiveTab to ensure highlighting and tab selection are in sync
         setActiveTab(id);
-
         if (onClose) onClose();
     };
 
     return (
-        <aside className="w-full h-full bg-gradient-to-b from-[#0F172A] via-[#1E1B4B] to-[#0F172A] border-r border-indigo-900/30 text-slate-300 flex flex-col shadow-2xl overflow-hidden relative">
-            <div className="absolute inset-0 bg-indigo-500/5 pointer-events-none opacity-30"></div>
+        <aside className="w-full h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 flex flex-col shadow-sm overflow-hidden relative">
 
             {/* Header / Brand */}
-            <div className="px-4 py-6 flex-shrink-0 border-b border-slate-800">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-semibold shadow-sm">
-                        G
-                    </div>
-                    <div>
-                        <div className="text-sm font-semibold text-white leading-none">
-                            Gitakshmi
-                        </div>
-                        <div className="text-[10px] font-medium text-slate-400 mt-0.5">
-                            {isManager ? 'Manager' : 'Employee'}
-                        </div>
-                    </div>
+            <div className="px-4 py-8 flex-shrink-0 flex items-center justify-start gap-3 h-20">
+                <div className="w-10 h-10 min-w-[2.5rem] rounded-xl bg-gradient-to-br from-[#14B8A6] to-[#0D9488] flex items-center justify-center text-white font-bold shadow-lg shadow-teal-500/20">
+                    G
+                </div>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden flex flex-col">
+                    <div className="text-sm font-bold text-slate-800 dark:text-white leading-none">Global Tech</div>
                 </div>
             </div>
 
             {/* Navigation Scroll Area */}
-            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-2 group-hover:space-y-6 transition-all duration-300 custom-scrollbar">
                 {filteredGroups.map((group) => {
-                    const groupTitle = group.title;
                     const groupKey = group.id || group.title;
                     const isExpanded = expandedGroups[groupKey];
 
@@ -176,34 +160,47 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
                             {/* Group Header */}
                             <button
                                 onClick={() => toggleGroup(groupKey)}
-                                className="w-full flex items-center justify-between text-xs font-medium text-slate-400 mb-2 px-2 hover:text-slate-300 transition-colors"
+                                className="w-full flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 transition-all duration-300 h-0 mb-0 opacity-0 overflow-hidden group-hover:h-6 group-hover:mb-2 group-hover:opacity-100"
                             >
-                                <span>{groupTitle}</span>
-                                <span className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
+                                <span className="whitespace-nowrap">{group.title}</span>
+                                <span className={`transform transition-all duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
                                     <ChevronDown size={12} />
                                 </span>
                             </button>
 
                             {/* Group Items */}
-                            <div className={`space-y-1 transition-all duration-200 overflow-hidden ${isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className={`space-y-1 transition-all duration-300 overflow-hidden ${isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
                                 {group.items.map((item) => {
                                     const isActive = activeTab === item.id;
                                     return (
                                         <button
                                             key={item.id}
                                             onClick={() => handleTabClick(item.id)}
-                                            aria-label={item.label}
                                             title={item.label}
-                                            className={`relative w-full flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition-all duration-200 group
+                                            className={`relative w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm font-medium transition-all duration-300 group/item overflow-hidden
                                                 ${isActive
-                                                    ? 'bg-indigo-600/20 text-white border-l-2 border-indigo-500'
-                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                                                    /* Active State: 
+                                                       Collapsed -> Solid Teal (#14B8A6), White Text
+                                                       Expanded (Hover) -> Gradient Teal-to-White, Dark Teal Text
+                                                    */
+                                                    ? 'bg-[#14B8A6] text-white shadow-md shadow-teal-500/20 group-hover:bg-gradient-to-r group-hover:from-[#14B8A6] group-hover:via-[#5EEAD4] group-hover:to-[#CCFBF1] group-hover:text-[#0F766E]'
+                                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200'
                                                 }`}
                                         >
-                                            <div className={`flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                                            <div className={`flex-shrink-0 transition-colors duration-200 
+                                                ${isActive
+                                                    ? 'text-white' // Icon always white on active
+                                                    : 'text-slate-400 group-hover/item:text-slate-600'}`}>
                                                 {item.icon}
                                             </div>
-                                            <span className="font-medium flex-1 text-left">{item.label}</span>
+                                            <span className={`whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100 ${isActive ? 'font-bold' : ''}`}>
+                                                {item.label}
+                                            </span>
+
+                                            {/* Active Indicator Glow */}
+                                            {isActive && (
+                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-full w-1 bg-[#ccfbf1] opacity-50 blur-[2px]"></div>
+                                            )}
                                         </button>
                                     );
                                 })}
@@ -214,17 +211,15 @@ export default function EmployeeSidebar({ activeTab, setActiveTab, onClose }) {
             </div>
 
             {/* Footer System Info */}
-            <div className="p-4 mt-auto border-t border-slate-800">
-                <div className="flex items-center gap-2 mb-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                    <span className="text-xs font-medium text-slate-400">System Active</span>
+            <div className="p-4 mt-auto border-t border-slate-100 dark:border-slate-800 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden bg-white/50 backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-[#14B8A6] animate-pulse"></div>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">System Active</span>
                 </div>
-                <div className="text-xs text-slate-500">
-                    Logged in as <span className="text-slate-300 font-medium">{user?.role}</span>
+                <div className="text-[10px] text-slate-400 truncate">
+                    v2.5.0 Stable Release
                 </div>
             </div>
         </aside>
     );
 }
-
-

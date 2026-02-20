@@ -25,16 +25,16 @@ export default function ApplicationTrack() {
     const [uploadingDoc, setUploadingDoc] = useState(null);
     const [bgvInitiated, setBgvInitiated] = useState(false);
     const [requiredDocs, setRequiredDocs] = useState([]);
+    const [signedStatus, setSignedStatus] = useState({ isSigned: false });
+    const [showSignModal, setShowSignModal] = useState(false);
 
     const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
-    // Dynamic PDF URL helper (Updated to include auth context for iframes)
-    const getLetterPdfUrl = (letterId) => {
+    // Dynamic PDF URL helper (Updated to use candidate-specific endpoint)
+    const getLetterPdfUrl = (letterId, download = false) => {
         if (!letterId) return null;
         const authId = getTenantId() || jobDetails?.tenantId;
-        const token = localStorage.getItem('token');
-        // Add timestamp to prevent caching issues after signature
-        return `${API_BASE}/letters/${letterId}/pdf?tenantId=${authId}&token=${token}&_t=${Date.now()}`;
+        return `${API_BASE}/public/letters/${letterId}/view-pdf?tenantId=${authId}&download=${download}&_t=${Date.now()}`;
     };
 
     // 2. Stages Configuration
@@ -88,6 +88,15 @@ export default function ApplicationTrack() {
             fetchDocs();
         }
     }, [jobDetails?.status, applicationId]);
+
+    // Fetch Signing Status
+    useEffect(() => {
+        if (jobDetails?.letterId) {
+            api.get(`/candidate/letter/status/${jobDetails.letterId}`)
+                .then(res => setSignedStatus(res.data))
+                .catch(err => console.error("Status fetch failed", err));
+        }
+    }, [jobDetails?.letterId]);
 
     useEffect(() => {
         const handlePopState = (event) => {
@@ -151,6 +160,14 @@ export default function ApplicationTrack() {
 
     const handleFinalAccept = async () => {
         try {
+            if (!signedStatus.isSigned && jobDetails?.letterId) {
+                if (!window.confirm("You haven't signed the letter yet. Would you like to sign it now?")) {
+                    return;
+                }
+                setShowSignModal(true);
+                return;
+            }
+
             setLoading(true);
             const res = await api.post(`/letters/${jobDetails.letterId}/accept`);
             if (res.data.success) {
@@ -161,6 +178,27 @@ export default function ApplicationTrack() {
         } catch (err) {
             console.error("Final accept error:", err);
             alert(err.response?.data?.message || "Failed to accept letter");
+            setLoading(false);
+        }
+    };
+
+    const handleSignLetter = async (base64) => {
+        try {
+            setLoading(true);
+            const res = await api.post(`/candidate/letter/sign/${jobDetails.letterId}`, {
+                signatureImage: base64,
+                signaturePosition: signedStatus.signaturePosition
+            });
+            if (res.data.success) {
+                // Important: Trigger reload or update state to refresh PDF iframe
+                setSignedStatus({ isSigned: true, signedAt: res.data.signedAt });
+                setShowSignModal(false);
+                alert("Letter signed successfully!");
+            }
+        } catch (err) {
+            console.error("Signing failed", err);
+            alert("Failed to save signature. Please try again.");
+        } finally {
             setLoading(false);
         }
     };
@@ -307,11 +345,27 @@ export default function ApplicationTrack() {
                                 </p>
 
                                 <div className="flex flex-col gap-4">
+                                    {jobDetails?.letterId && !signedStatus.isSigned && (
+                                        <button
+                                            onClick={() => setShowSignModal(true)}
+                                            className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-[10px] uppercase tracking-[0.1em] hover:bg-indigo-700 transition shadow-xl flex items-center justify-center gap-3"
+                                        >
+                                            <Check size={16} /> Sign Letter
+                                        </button>
+                                    )}
+
+                                    {signedStatus.isSigned && (
+                                        <div className="flex items-center justify-center gap-2 py-4 text-emerald-600 bg-emerald-50 rounded-2xl border border-emerald-100 mb-2">
+                                            <CheckCircle2 size={16} />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Letter Signed</span>
+                                        </div>
+                                    )}
+
                                     <button
                                         onClick={() => setShowOfferModal(true)}
                                         className="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold text-[10px] uppercase tracking-[0.1em] hover:bg-slate-800 transition shadow-xl flex items-center justify-center gap-3"
                                     >
-                                        <ExternalLink size={16} /> Open Document Review
+                                        <ExternalLink size={16} /> {signedStatus.isSigned ? 'View Signed Document' : 'Open Document Review'}
                                     </button>
 
                                     {!jobDetails?.letterId ? (
@@ -494,7 +548,7 @@ export default function ApplicationTrack() {
                             <div className="flex items-center gap-4">
 
                                 <button
-                                    onClick={() => handleDownload(jobDetails?.offerLetterUrl || getLetterPdfUrl(jobDetails?.letterId), 'Offer Letter')}
+                                    onClick={() => handleDownload(jobDetails?.letterId ? getLetterPdfUrl(jobDetails.letterId, true) : jobDetails?.offerLetterUrl, 'Offer Letter')}
                                     className="flex items-center gap-2 px-6 py-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all"
                                 >
                                     <Download size={16} /> Download PDF
@@ -514,11 +568,21 @@ export default function ApplicationTrack() {
                             {/* PDF Preview */}
                             <div className={`flex-1 p-6 lg:p-10 w-full flex flex-col`}>
                                 <div className="flex-1 bg-white rounded-3xl shadow-inner border border-slate-200 overflow-hidden relative">
-                                    <iframe
-                                        src={jobDetails?.letterId ? getLetterPdfUrl(jobDetails.letterId) : (jobDetails?.offerLetterUrl?.startsWith('http') ? jobDetails?.offerLetterUrl : `${API_BASE.replace(/\/api$/, '')}${jobDetails?.offerLetterUrl}`)}
+                                    <object
+                                        data={jobDetails?.letterId ? getLetterPdfUrl(jobDetails.letterId) : (jobDetails?.offerLetterUrl?.startsWith('http') ? jobDetails?.offerLetterUrl : `${API_BASE.replace(/\/api$/, '')}${jobDetails?.offerLetterUrl}`)}
+                                        type="application/pdf"
                                         className="w-full h-full"
                                         title="Offer Letter"
-                                    />
+                                    >
+                                        <embed
+                                            src={jobDetails?.letterId ? getLetterPdfUrl(jobDetails.letterId) : (jobDetails?.offerLetterUrl?.startsWith('http') ? jobDetails?.offerLetterUrl : `${API_BASE.replace(/\/api$/, '')}${jobDetails?.offerLetterUrl}`)}
+                                            type="application/pdf"
+                                            className="w-full h-full"
+                                        />
+                                        <p className="p-8 text-center text-slate-500">
+                                            Unable to display PDF. Please <a href={jobDetails?.letterId ? getLetterPdfUrl(jobDetails.letterId) : jobDetails?.offerLetterUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">download the PDF</a> to view it.
+                                        </p>
+                                    </object>
                                 </div>
                                 <div className="mt-4 flex items-center justify-between px-2">
                                     <p className="text-[10px] text-slate-400 font-medium">
@@ -539,6 +603,137 @@ export default function ApplicationTrack() {
                     </div>
                 </div>
             )}
+            {/* Signature Modal */}
+            {showSignModal && (
+                <SignatureModal
+                    onSave={handleSignLetter}
+                    onClose={() => setShowSignModal(false)}
+                />
+            )}
+        </div>
+    );
+}
+
+// --------------------------------------------------------------------------------
+// SIGNATURE MODAL COMPONENT (Production Ready Canvas Implementation)
+// --------------------------------------------------------------------------------
+function SignatureModal({ onSave, onClose }) {
+    const canvasRef = React.useRef(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [hasDrawn, setHasDrawn] = useState(false);
+
+    const startDrawing = (e) => {
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        const ctx = canvas.getContext('2d');
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#1e293b';
+        setIsDrawing(true);
+    };
+
+    const draw = (e) => {
+        if (!isDrawing) return;
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        const ctx = canvas.getContext('2d');
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        setHasDrawn(true);
+    };
+
+    const stopDrawing = () => setIsDrawing(false);
+
+    const handleClear = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setHasDrawn(false);
+    };
+
+    const handleSave = () => {
+        if (!hasDrawn) {
+            alert("Please provide your signature before saving.");
+            return;
+        }
+        const canvas = canvasRef.current;
+        // Trim whitespace from canvas (advanced optimization could be added here)
+        onSave(canvas.toDataURL('image/png'));
+    };
+
+    return (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/95 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl border border-white/10 overflow-hidden">
+                <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800">Digital Signature</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Acceptance of Letter Terms</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                <div className="p-8 bg-slate-50">
+                    <div className="relative bg-white rounded-2xl border-2 border-dashed border-slate-200 p-2 overflow-hidden shadow-inner">
+                        <canvas
+                            ref={canvasRef}
+                            width={500}
+                            height={250}
+                            className="w-full h-auto cursor-crosshair touch-none"
+                            onMouseDown={startDrawing}
+                            onMouseMove={draw}
+                            onMouseUp={stopDrawing}
+                            onMouseOut={stopDrawing}
+                            onTouchStart={startDrawing}
+                            onTouchMove={draw}
+                            onTouchEnd={stopDrawing}
+                        />
+                        {!hasDrawn && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                                <p className="text-slate-400 font-bold text-sm uppercase tracking-[0.3em]">Sign Here</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="mt-6 flex items-center gap-4">
+                        <button
+                            onClick={handleClear}
+                            className="flex-1 py-4 rounded-xl border border-slate-200 text-slate-400 font-bold text-xs uppercase tracking-widest hover:bg-white hover:text-slate-600 transition-all"
+                        >
+                            Reset Canvas
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={!hasDrawn}
+                            className={`flex-[2] py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg
+                                ${hasDrawn ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100' : 'bg-slate-100 text-slate-300 pointer-events-none shadow-none'}`}
+                        >
+                            Submit Signature
+                        </button>
+                    </div>
+                </div>
+
+                <div className="px-8 py-6 bg-slate-900 border-t border-white/5">
+                    <p className="text-[9px] text-slate-500 leading-relaxed text-center font-medium">
+                        By signing, you acknowledge and accept the terms outlined in the document. This digital signature is legally binding and will be permanently embedded into your record.
+                    </p>
+                </div>
+            </div>
         </div>
     );
 }

@@ -37,7 +37,7 @@ const PositionMaster = () => {
     const fetchPositions = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/hrms/positions');
+            const res = await api.get('/positions');
             if (res.data.success) {
                 setPositions(res.data.data);
                 calculateSummary(res.data.data);
@@ -72,7 +72,7 @@ const PositionMaster = () => {
 
     const handleDelete = async (id) => {
         try {
-            const res = await api.delete(`/hrms/positions/${id}`);
+            const res = await api.delete(`/positions/${id}`);
             if (res.data.success) {
                 message.success('Position deleted');
                 fetchPositions();
@@ -86,10 +86,10 @@ const PositionMaster = () => {
         try {
             setSubmitting(true);
             if (editingId) {
-                await api.put(`/hrms/positions/${editingId}`, values);
+                await api.put(`/positions/${editingId}`, values);
                 message.success('Position updated');
             } else {
-                await api.post('/hrms/positions', values);
+                await api.post('/positions', values);
                 message.success('New position created with automated ID');
             }
             setIsModalOpen(false);

@@ -85,30 +85,35 @@ export default function AttendanceCalendar({
     }, [holidays]);
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-visible">
-            <div className="flex flex-wrap gap-x-4 gap-y-2 p-3 bg-slate-50 border-b border-slate-200">
+        <div className="bg-white rounded-[20px] border border-[#E5E7EB] shadow-sm overflow-visible">
+            {/* Legend Header */}
+            <div className="flex flex-wrap gap-x-3 gap-y-2 p-3 bg-[#F9FAFB] border-b border-[#E5E7EB] rounded-t-[20px]">
                 {Object.keys(LEGEND_LABELS).map(key => {
                     if (key === 'DEFAULT') return null;
                     const styles = getStatusStyles(key);
                     return (
                         <div key={key} className="flex items-center gap-1.5">
                             <div className={`h-1.5 w-1.5 rounded-full ${styles.dot}`}></div>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{LEGEND_LABELS[key]}</span>
+                            <span className="text-[9px] font-bold text-[#6B7280] uppercase tracking-widest leading-none">{LEGEND_LABELS[key]}</span>
                         </div>
                     );
                 })}
             </div>
 
-            <div className="p-4 bg-white">
-                <div className="grid grid-cols-7 gap-1 md:gap-2">
+            <div className="p-3 bg-white rounded-b-[20px]">
+                {/* Day Headers */}
+                <div className="grid grid-cols-7 gap-1 md:gap-1.5 mb-2">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                        <div key={day} className={`text-center py-1 text-[10px] font-black uppercase tracking-widest ${day === 'Sun' ? 'text-rose-500' : 'text-slate-400'}`}>
+                        <div key={day} className={`text-center py-1 text-[9px] font-bold uppercase tracking-widest ${day === 'Sun' ? 'text-rose-500' : 'text-[#9CA3AF]'}`}>
                             {day}
                         </div>
                     ))}
+                </div>
 
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1 md:gap-1.5">
                     {calendarArray.map((cell, i) => {
-                        if (cell.type === 'empty') return <div key={`empty-${i}`} className="h-[100px] invisible"></div>;
+                        if (cell.type === 'empty') return <div key={`empty-${i}`} className="h-[80px] invisible"></div>;
 
                         const { dateStr, dayNum, isWeeklyOff, isSunday, isToday, isFuture } = cell;
                         const attendance = attendanceMap[dateStr];
@@ -159,10 +164,10 @@ export default function AttendanceCalendar({
                                     const mergedDayObj = Object.assign({}, attendance || {}, { isHoliday: !!holiday, isWeeklyOff, finalStatus });
                                     if (!disabledReason) onDateClick?.(dateStr, mergedDayObj);
                                 }}
-                                className={`group relative h-[100px] p-2 rounded-xl border transition-all duration-200 flex flex-col justify-between
-                                    ${disabledReason && selectionMode ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer hover:shadow-md hover:border-blue-200 hover:-translate-y-0.5'}
-                                    ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1 z-10 shadow-md scale-[1.02] bg-blue-50/10' : ''}
-                                    ${isToday && !isSelected ? 'ring-1 ring-blue-500 ring-offset-1' : ''}
+                                className={`group relative h-[80px] p-1.5 rounded-lg border transition-all duration-200 flex flex-col justify-between
+                                    ${disabledReason && selectionMode ? 'opacity-50 cursor-not-allowed bg-[#F9FAFB]' : 'cursor-pointer hover:shadow-md hover:border-[#14B8A6]/30 hover:-translate-y-0.5'}
+                                    ${isSelected ? 'ring-1 ring-[#14B8A6] ring-offset-0 z-10 shadow-sm bg-white' : ''}
+                                    ${isToday && !isSelected ? 'ring-1 ring-[#14B8A6] ring-offset-0' : ''}
                                     ${styles.container} ${styles.border}
                                 `}
                                 style={finalStatus === STATUS.LEAVE && attendance?.leaveColor ? {
@@ -171,23 +176,23 @@ export default function AttendanceCalendar({
                                 } : {}}>
 
                                 <div className="flex justify-between items-start">
-                                    <span className={`text-[11px] font-black h-5 w-5 rounded-lg flex items-center justify-center 
-                                        ${isSunday ? 'text-rose-600' : 'text-slate-700'}
-                                        ${isSelected ? 'bg-blue-600 text-white shadow-sm' : ''}
-                                        ${isToday && !isSelected ? 'bg-blue-100 text-blue-700' : ''}
+                                    <span className={`text-[10px] font-bold h-5 w-5 rounded-md flex items-center justify-center 
+                                        ${isSunday ? 'text-rose-600' : 'text-[#374151]'}
+                                        ${isSelected ? 'bg-[#F0FDFA] text-[#14B8A6] border border-[#14B8A6] shadow-sm' : ''}
+                                        ${isToday && !isSelected ? 'bg-[#CCFBF1] text-[#14B8A6]' : ''}
                                     `}>
                                         {dayNum}
                                     </span>
-                                    {holiday ? <Coffee size={12} className={styles.text} /> : Icon && <Icon size={12} className={styles.text} style={finalStatus === STATUS.LEAVE && attendance?.leaveColor ? { color: attendance.leaveColor } : {}} />}
+                                    {holiday ? <Coffee size={10} className={styles.text} /> : Icon && <Icon size={10} className={styles.text} style={finalStatus === STATUS.LEAVE && attendance?.leaveColor ? { color: attendance.leaveColor } : {}} />}
                                 </div>
 
                                 <div className="space-y-0.5">
-                                    <div className={`text-[9px] leading-tight font-black truncate uppercase tracking-tighter ${styles.text}`}>
+                                    <div className={`text-[8px] leading-tight font-bold truncate uppercase tracking-tighter ${styles.text}`}>
                                         {holiday ? holiday.name : ''}
                                     </div>
 
                                     {attendance?.checkIn && (
-                                        <div className="flex items-center gap-1 text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
+                                        <div className="flex items-center gap-0.5 text-[8px] font-bold text-[#9CA3AF] uppercase tracking-tighter">
                                             <Clock size={8} />
                                             <span>{new Date(attendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
                                         </div>
@@ -195,7 +200,7 @@ export default function AttendanceCalendar({
 
                                     {/* Compact Status Indicator */}
                                     {badgeLabel ? (
-                                        <div className={`mt-auto text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest border inline-block ${styles.container} ${styles.border} ${styles.text}`}>
+                                        <div className={`mt-auto text-[7px] font-bold px-1 py-0.5 rounded-md uppercase tracking-widest border inline-block ${styles.container} ${styles.border} ${styles.text}`}>
                                             {badgeLabel}
                                         </div>
                                     ) : (

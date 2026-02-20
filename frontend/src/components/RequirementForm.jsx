@@ -59,7 +59,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
     const [positions, setPositions] = useState([]);
 
     useEffect(() => {
-        api.get('/hrms/positions').then(res => {
+        api.get('/positions').then(res => {
             if (res.data.success) setPositions(res.data.data);
         }).catch(err => console.error("Error fetching positions", err));
     }, []);

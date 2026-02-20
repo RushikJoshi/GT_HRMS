@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../utils/api';
 import { formatDateDDMMYYYY } from '../../utils/dateUtils';
-import { FileText, Clock, CheckCircle2, XCircle, Search, Filter, ArrowRight, Briefcase } from 'lucide-react';
+import { Briefcase, ArrowRight, Calendar, Layers, Building2, Hash } from 'lucide-react';
 
 export default function MyApplications() {
     const [apps, setApps] = useState([]);
@@ -29,107 +29,132 @@ export default function MyApplications() {
     const getStatusStyle = (status) => {
         switch (status) {
             case 'Selected':
-                return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+                return 'text-emerald-600 border-emerald-200 bg-emerald-50';
             case 'Rejected':
-                return 'bg-rose-500/10 text-rose-600 border-rose-500/20';
+                return 'text-rose-600 border-rose-200 bg-rose-50';
             case 'Interview':
-                return 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20';
+                return 'text-blue-600 border-blue-200 bg-blue-50';
+            case 'Offer Issued':
+                return 'text-teal-600 border-teal-200 bg-teal-50';
             default:
-                return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+                return 'text-amber-600 border-amber-200 bg-amber-50';
         }
     };
 
     if (loading) return (
-        <div className="flex flex-col items-center justify-center p-20 animate-pulse">
-            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Retrieving Pipeline...</p>
+        <div className="h-[calc(100vh-7rem)] flex flex-col items-center justify-center">
+            <div className="w-12 h-12 border-4 border-[#14B8A6] border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Loading Applications...</p>
         </div>
     );
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
-            {/* Header section with glassmorphism */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800/60 shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] rounded-full -mr-20 -mt-20"></div>
-                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
-                                <Search size={20} />
+        <div className="h-[calc(100vh-7rem)] w-full bg-white overflow-hidden flex flex-col animate-in fade-in duration-500">
+            {/* Header Section */}
+            {/* Header Removed - Managed by Layout */}
+
+            {/* Content Container with Blurry Border Effect */}
+            <div className="flex-1 px-4 sm:px-8 pb-8 overflow-hidden">
+                <div className="w-full h-full bg-white/40 backdrop-blur-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[32px] overflow-hidden flex flex-col relative">
+
+                    {/* Inner Scrollable Area */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+
+                        {/* List Header - Adjusted for new layout */}
+                        <div className="grid grid-cols-12 px-8 py-4 mb-4 rounded-2xl bg-white/50 border border-white/60 sticky top-0 z-10 backdrop-blur-md shadow-sm">
+                            <div className="col-span-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <Briefcase size={12} /> Opportunity
                             </div>
-                            <h2 className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter uppercase italic">Application Pulse</h2>
+                            <div className="col-span-3 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <Building2 size={12} /> Sector
+                            </div>
+                            <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <Calendar size={12} /> Date
+                            </div>
+                            <div className="col-span-2 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</div>
+                            <div className="col-span-1 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Action</div>
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] ml-11">Monitor your career progression in real-time</p>
-                    </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="px-5 py-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{apps.length} Active Streams</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800/60 shadow-2xl overflow-hidden relative">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-                        <thead className="bg-slate-50/50 dark:bg-slate-950/50">
-                            <tr className="text-slate-400 uppercase text-[10px] font-black tracking-[0.2em]">
-                                <th className="px-8 py-6 text-left">Opportunity</th>
-                                <th className="px-8 py-6 text-left">Sector</th>
-                                <th className="px-8 py-6 text-left">Submission Date</th>
-                                <th className="px-8 py-6 text-center">Protocol Status</th>
-                                <th className="px-8 py-6 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                        <div className="space-y-4">
                             {apps.length === 0 ? (
-                                <tr>
-                                    <td colSpan="5" className="px-8 py-32 text-center">
-                                        <div className="flex flex-col items-center gap-6 opacity-30">
-                                            <div className="w-20 h-20 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                                <FileText size={32} className="text-slate-400" />
-                                            </div>
-                                            <p className="font-black uppercase tracking-[0.3em] text-[10px] text-slate-400">Application stream currently offline</p>
-                                        </div>
-                                    </td>
-                                </tr>
+                                <div className="py-32 flex flex-col items-center justify-center opacity-40">
+                                    <Layers size={48} className="text-slate-300 mb-4" />
+                                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">No active applications</p>
+                                </div>
                             ) : (
                                 apps.map(app => (
-                                    <tr key={app._id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all duration-300">
-                                        <td className="px-8 py-6">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500">
-                                                    <Briefcase size={18} />
+                                    <div
+                                        key={app._id}
+                                        className="group grid grid-cols-12 items-center px-8 py-6 rounded-[24px] bg-white border border-slate-100 hover:border-teal-100 hover:shadow-[0_20px_40px_rgb(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer relative overflow-hidden"
+                                    >
+                                        {/* Decorative Gradient on Hover */}
+                                        <div className="absolute inset-0 bg-gradient-to-r from-teal-50/0 via-teal-50/0 to-teal-50/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+                                        {/* Opportunity */}
+                                        <div className="col-span-4 flex items-center gap-5 relative z-10">
+                                            <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-[#14B8A6] group-hover:text-white group-hover:shadow-lg group-hover:shadow-teal-500/20 transition-all duration-300 border border-slate-100 group-hover:border-teal-400">
+                                                <Briefcase size={22} strokeWidth={1.5} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-base font-bold text-[#111827] group-hover:text-teal-700 transition-colors mb-1">
+                                                    {app.requirementId?.jobTitle || 'Job Title Unavailable'}
+                                                </h3>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                                        <Hash size={10} /> {app.requirementId?.jobId || 'N/A'}
+                                                    </span>
                                                 </div>
-                                                <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-tighter italic">{app.requirementId?.jobTitle || 'Unknown Stream'}</span>
                                             </div>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{app.requirementId?.department}</span>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                                <Clock size={12} className="text-indigo-500" />
-                                                <span className="text-[10px] font-black uppercase tracking-tight">{formatDateDDMMYYYY(app.createdAt)}</span>
+                                        </div>
+
+                                        {/* Sector */}
+                                        <div className="col-span-3 relative z-10">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-500">
+                                                    <Layers size={16} />
+                                                </div>
+                                                <span className="text-sm font-bold text-slate-600">
+                                                    {app.requirementId?.department || 'General'}
+                                                </span>
                                             </div>
-                                        </td>
-                                        <td className="px-8 py-6 text-center">
-                                            <span className={`px-4 py-1.5 rounded-full text-[9px] uppercase font-black tracking-widest border transition-all duration-500 ${getStatusStyle(app.status)}`}>
+                                        </div>
+
+                                        {/* Date */}
+                                        <div className="col-span-2 relative z-10">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 rounded-lg bg-slate-50 text-slate-400">
+                                                    <Calendar size={16} />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold text-slate-700">{formatDateDDMMYYYY(app.createdAt)}</span>
+                                                    <span className="text-[10px] font-medium text-slate-400">Applied on</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Status */}
+                                        <div className="col-span-2 flex justify-center relative z-10">
+                                            <div className={`w-full max-w-[140px] px-2 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm ${getStatusStyle(app.status)}`}>
+                                                <div className={`w-2 h-2 rounded-full animate-pulse ${app.status === 'Selected' ? 'bg-emerald-500' :
+                                                    app.status === 'Rejected' ? 'bg-rose-500' :
+                                                        app.status === 'Interview' ? 'bg-blue-500' :
+                                                            'bg-amber-500'
+                                                    }`}></div>
                                                 {app.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <button className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-indigo-500 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm">
-                                                <ArrowRight size={16} />
+                                            </div>
+                                        </div>
+
+                                        {/* Action */}
+                                        <div className="col-span-1 text-right relative z-10 flex justify-end">
+                                            <button className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-50 text-slate-400 border border-slate-200 group-hover:bg-teal-500 group-hover:text-white group-hover:border-teal-500 transition-all duration-300 shadow-sm hover:shadow-md">
+                                                <ArrowRight size={18} />
                                             </button>
-                                        </td>
-                                    </tr>
+                                        </div>
+                                    </div>
                                 ))
                             )}
-                        </tbody>
-                    </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

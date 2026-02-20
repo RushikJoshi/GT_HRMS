@@ -26,4 +26,8 @@ router.get('/career-customization/:tenantId', publicController.getCareerCustomiz
 
 router.post('/resume/parse', publicController.parseResumePublic);
 
+// PDF Viewer for Candidate Portal
+const letterCtrl = require('../controllers/letter.controller');
+router.get('/letters/:id/view-pdf', letterCtrl.viewCandidatePDF);
+
 module.exports = router;
