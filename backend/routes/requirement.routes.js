@@ -28,8 +28,13 @@ router.put('/template', reqTmplCtrl.updateTemplate);
 // router.post('/template/reset', reqTmplCtrl.resetTemplate);
 
 // Routes
+router.post('/draft', reqCtrl.saveDraft);
+router.get('/draft/:id', reqCtrl.getDraft);
+router.post('/publish', reqCtrl.publishJob);
+
 router.post('/create', reqCtrl.createRequirement);
 router.patch('/:id/status', reqCtrl.updateStatus);
+
 router.put('/:id', reqCtrl.updateRequirement);
 router.delete('/:id', reqCtrl.deleteRequirement);
 router.get('/internal-jobs', reqCtrl.getInternalJobs);
@@ -51,8 +56,12 @@ router.post('/applicants/:id/confirm-salary', salaryCtrl.confirm);
 
 router.patch('/applicants/:id/status', applicantCtrl.updateApplicantStatus);
 router.put('/applicants/:id/status', applicantCtrl.updateApplicantStatus);
-router.get('/applicants/:id', applicantCtrl.getApplicantById);
 router.get('/applicants/:id/salary', applicantCtrl.getSalary);
+
+// APPLICANTS - RE-SCORING
+router.post('/applicants/:id/rescore', auth.authenticate, auth.requireHr, applicantCtrl.rescoreApplicant);
+router.post('/:requirementId/rescore-all', auth.authenticate, auth.requireHr, applicantCtrl.rescoreAllApplicants);
+
 
 // Joining Letter Routes
 const letterCtrl = require('../controllers/letter.controller');

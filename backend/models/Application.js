@@ -102,6 +102,30 @@ const ApplicationSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════════
+    // DYNAMIC PIPELINE TRACKING
+    // ═══════════════════════════════════════════════════════════════════
+
+    currentStageId: {
+        type: String, // Matches stageId in Requirement.pipelineStages
+        required: true,
+        default: 'applied_stage', // Default entry stage
+        index: true
+    },
+
+    stageHistory: [{
+        stageId: { type: String, required: true },
+        stageName: { type: String }, // Snapshot for display
+        movedAt: { type: Date, default: Date.now },
+        movedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+        // Feedback summary for this stage transition
+        isCompleted: { type: Boolean, default: false },
+        decision: { type: String, enum: ['Advance', 'Reject', 'Hold', 'Offer'], default: 'Advance' },
+        comments: { type: String },
+        rating: { type: Number }
+    }],
+
+    // ═══════════════════════════════════════════════════════════════════
     // CANDIDATE INFORMATION (Snapshot from Application Form)
     // ═══════════════════════════════════════════════════════════════════
 

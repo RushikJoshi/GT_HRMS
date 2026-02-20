@@ -2,7 +2,11 @@ import React, { useEffect, useState, useMemo } from "react";
 import PropTypes from "prop-types";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../utils/api";
-import { applyModuleDependencies, createDefaultEnabledModules, normalizeEnabledModules } from "../../utils/moduleConfig";
+import {
+  applyModuleDependencies,
+  createDefaultEnabledModules,
+  normalizeEnabledModules
+} from "../../utils/moduleConfig";
 import {
   Save,
   Settings,
@@ -49,7 +53,7 @@ export default function ModuleConfig({ company, onClose }) {
   const isStandalonePage = !company && id; // Determine if we're in standalone page mode
 
   const [enabledModules, setEnabledModules] = useState(
-    createDefaultEnabledModules(false, AVAILABLE_MODULES.map((m) => m.code))
+    createDefaultEnabledModules(false, AVAILABLE_MODULES.map(m => m.code))
   );
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -71,9 +75,10 @@ export default function ModuleConfig({ company, onClose }) {
   }, []);
 
   const activeCount = useMemo(() => {
-    return AVAILABLE_MODULES.reduce((count, mod) => {
-      return count + (enabledModules?.[mod.code] === true ? 1 : 0);
-    }, 0);
+    return AVAILABLE_MODULES.reduce(
+      (count, mod) => count + (enabledModules?.[mod.code] ? 1 : 0),
+      0
+    );
   }, [enabledModules]);
 
   const allSelected = activeCount === AVAILABLE_MODULES.length;
@@ -95,6 +100,17 @@ export default function ModuleConfig({ company, onClose }) {
 
   // Sync state if 'company' prop changes
   useEffect(() => {
+    const normalized = normalizeEnabledModules(
+      company?.enabledModules,
+      company?.modules
+    );
+
+    const filtered = Object.fromEntries(
+      AVAILABLE_MODULES.map(m => [m.code, normalized?.[m.code] === true])
+    );
+
+    setEnabledModules(filtered);
+
     if (company) {
       setSelectedCompany(company);
       const normalized = normalizeEnabledModules(company.enabledModules, company.modules);
@@ -118,11 +134,13 @@ export default function ModuleConfig({ company, onClose }) {
   async function loadCompanies() {
     try {
       setLoading(true);
-      const res = await api.get('/tenants');
-      const list = Array.isArray(res.data) ? res.data : (res.data?.tenants || res.data?.data || []);
+      const res = await api.get("/tenants");
+      const list = Array.isArray(res.data)
+        ? res.data
+        : res.data?.tenants || res.data?.data || [];
       setCompanies(list || []);
     } catch (err) {
-      console.error('Failed to load companies', err);
+      console.error("Failed to load companies", err);
     } finally {
       setLoading(false);
     }
@@ -148,12 +166,18 @@ export default function ModuleConfig({ company, onClose }) {
   async function handleSave() {
     const target = selectedCompany || company;
     if (!target?._id) return;
+
     setSaving(true);
     try {
       const payloadModules = applyModuleDependencies({ ...enabledModules });
-      await api.put(`/tenants/company/${target._id}/modules`, { enabledModules: payloadModules });
+
+      await api.put(
+        `/tenants/company/${target._id}/modules`,
+        { enabledModules: payloadModules }
+      );
+
       alert("Configuration updated successfully!");
-      if (typeof onClose === 'function') onClose();
+      if (typeof onClose === "function") onClose();
     } catch (err) {
       console.error(err);
       alert("Failed to save. Please try again.");
@@ -405,7 +429,7 @@ ModuleConfig.propTypes = {
     _id: PropTypes.string,
     name: PropTypes.string,
     modules: PropTypes.arrayOf(PropTypes.string),
-    enabledModules: PropTypes.object,
+    enabledModules: PropTypes.object
   }),
-  onClose: PropTypes.func,
+  onClose: PropTypes.func
 };

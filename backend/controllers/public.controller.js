@@ -241,8 +241,27 @@ exports.applyJob = [
         tenantId, requirementId, name, fatherName, email, mobile, experience,
         address, location, currentCompany, currentDesignation, expectedCTC, linkedin, dob,
         // Reference fields
-        references, isFresher, noReferenceReason
+        references, isFresher, noReferenceReason, customData,
+        // Candidate ID (if logged-in candidate is applying)
+        candidateId
       } = req.body;
+
+      const parsedDob = dob ? new Date(dob) : null;
+
+      // Parse isFresher boolean
+      const isFresherBool = isFresher === true || isFresher === 'true';
+
+      // Validate references
+      let validatedReferences = [];
+      if (references) {
+        try {
+          const parsedRefs = typeof references === 'string' ? JSON.parse(references) : references;
+          validatedReferences = Array.isArray(parsedRefs) ? parsedRefs : [];
+        } catch (e) { validatedReferences = []; }
+      }
+
+      // Store resume filename before any cleanup
+      const resumeFilename = req.file?.filename || null;
 
       // Robustly resolve tenantId
       if (!tenantId || tenantId === 'null' || tenantId === 'undefined') {
@@ -260,248 +279,169 @@ exports.applyJob = [
 
       if (!requirement) return res.status(404).json({ error: "Job Requirement not found" });
 
-      // 3. Parse Resume with AI (Pass Job Context)
-      let parseResult = { rawText: "", structuredData: {} };
+      // 3. Parse Resume & AI Extraction
+      const ResumeParserService = require('../services/ResumeParser.service');
+      const AIExtractionService = require('../services/AIExtraction.service');
+      const MatchingEngine = require('../services/MatchingEngine.service');
+
+      let rawText = "";
+      let structuredData = {};
+      let matchResult = { totalScore: 0, breakdown: { skills: 0, experience: 0, education: 0, similarity: 0, preferred: 0 }, matchedSkills: [], missingSkills: [] };
+
+      // Correct job description field from Requirement model
+      const jobDescriptionText = requirement.jobDescription?.roleOverview
+        || requirement.description
+        || requirement.jobTitle
+        || '';
+
       if (req.file) {
         try {
-          console.log(`🤖 [APPLY_JOB] Parsing Resume for Match Analysis (Job: ${requirement.jobTitle})...`);
-          parseResult = await ResumeParserService.parseResume(
-            req.file.path,
-            req.file.mimetype,
-            requirement.description || "",
-            requirement.jobTitle || ""
-          );
+          console.log(`🤖 [APPLY_JOB] Parsing Resume for Job: ${requirement.jobTitle}...`);
+
+          // A. Text Extraction
+          rawText = await ResumeParserService.parseResume(req.file.path, req.file.mimetype);
+          console.log(`✅ [APPLY_JOB] Resume Text Extracted (${rawText.length} chars)`);
+
+          // B. AI Extraction — pass correct job description
+          structuredData = await AIExtractionService.extractData(rawText, requirement.jobTitle, jobDescriptionText);
+          console.log(`✅ [APPLY_JOB] AI Extraction Complete:`, structuredData ? "Success" : "Failed");
+
+          // C. Matching
+          try {
+            matchResult = await MatchingEngine.calculateMatchScore(requirement, structuredData);
+            console.log(`✅ [APPLY_JOB] Match Score (with resume): ${matchResult.totalScore}%`);
+          } catch (matchErr) {
+            console.error("⚠️ [APPLY_JOB] Matching Engine Error:", matchErr);
+            matchResult = { totalScore: 0, breakdown: { skills: 0, experience: 0, education: 0, similarity: 0, preferred: 0 }, matchedSkills: [], missingSkills: [] };
+          }
+
         } catch (parseErr) {
-          console.error("⚠️ [APPLY_JOB] Parsing Failed:", parseErr.message);
+          console.error("⚠️ [APPLY_JOB] Parsing/AI Error (non-blocking):", parseErr.message);
+          // Even if resume parse fails, try matching with form data below
         }
       }
-      const { rawText, structuredData } = parseResult;
 
-      // 4. Merge Data
-      if (!name && structuredData.fullName) name = structuredData.fullName;
-      if (!email && structuredData.email) email = structuredData.email;
-      if (!mobile && structuredData.phone) mobile = structuredData.phone;
-      if (!experience && structuredData.totalExperience) experience = structuredData.totalExperience;
-      if (!currentCompany && structuredData.currentCompany) currentCompany = structuredData.currentCompany;
-
-      // 5. Identify Candidate (Auth)
-      let candidateId = req.user?.id || null;
-      const authHeader = req.headers.authorization || req.headers.Authorization;
-      if (!candidateId && authHeader) {
+      // If no resume OR AI extraction returned empty skills, try matching with form-entered data
+      if (!structuredData?.skills?.length && (experience || name)) {
         try {
-          const jwt = require('jsonwebtoken');
-          const token = authHeader.split(' ')[1];
-          const decoded = jwt.verify(token, process.env.JWT_SECRET || "hrms_secret_key_123");
-          candidateId = decoded.id;
-        } catch (e) {
-          console.warn("[APPLY_JOB] Token verification failed:", e.message);
+          // Build candidate data from manually entered form fields
+          const formCandidateData = {
+            fullName: name,
+            skills: [], // No skills from form — honest
+            totalExperience: experience || "0",
+            education: [],
+            summary: `Candidate applied manually. Experience: ${experience || 'Not specified'}.`
+          };
+
+          // Only run matching if we have some data to work with
+          if (Object.keys(formCandidateData).length > 0) {
+            const formMatchResult = await MatchingEngine.calculateMatchScore(requirement, formCandidateData);
+            console.log(`✅ [APPLY_JOB] Match Score (form data): ${formMatchResult.totalScore}%`);
+
+            // Use form match only if better than current (or current is 0)
+            if (formMatchResult.totalScore > matchResult.totalScore) {
+              matchResult = formMatchResult;
+              if (!structuredData || Object.keys(structuredData).length === 0) {
+                structuredData = formCandidateData;
+              }
+            }
+          }
+        } catch (formMatchErr) {
+          console.warn("⚠️ [APPLY_JOB] Form-based matching failed:", formMatchErr.message);
         }
       }
 
+
+      // 3.5 Check for duplicate application
       const Applicant = tenantDB.models.Applicant || tenantDB.model("Applicant", ApplicantSchema);
 
-      const exists = await Applicant.findOne({
-        requirementId,
-        email: email.toLowerCase()
-      });
-
-      if (exists)
-        return res.status(409).json({
-          error: "You have already applied for this job"
+      if (email) {
+        const exists = await Applicant.findOne({
+          requirementId,
+          email: email.toLowerCase()
         });
-
-      const resumeFilename = req.file?.filename || null;
-
-      // --- COLLECT DYNAMIC FIELDS ---
-      const standardFields = ['tenantId', 'requirementId', 'name', 'fatherName', 'email', 'mobile', 'experience', 'address', 'location', 'currentCompany', 'currentDesignation', 'expectedCTC', 'linkedin', 'dob', 'resume', 'consent'];
-      const customData = {};
-
-      Object.keys(req.body).forEach(key => {
-        if (!standardFields.includes(key)) {
-          customData[key] = req.body[key];
-        }
-      });
-
-      // --- DOB FORMATTING (BACKEND ROBUSTNESS) ---
-      let parsedDob = dob;
-      if (dob && typeof dob === 'string' && dob.includes('/')) {
-        try {
-          const [d, m, y] = dob.split('/');
-          if (d && m && y && y.length === 4) {
-            parsedDob = new Date(`${y}-${m}-${d}`);
-          }
-        } catch (e) {
-          console.warn("⚠️ [APPLY_JOB] Date parsing failed:", dob);
-        }
+        if (exists) return res.status(409).json({ error: "You have already applied for this job" });
       }
-
-      // ═══════════════════════════════════════════════════════════════════
-      // REFERENCE VALIDATION
-      // ═══════════════════════════════════════════════════════════════════
-      let validatedReferences = [];
-      const familyRelationships = ['father', 'mother', 'brother', 'sister', 'spouse', 'wife', 'husband', 'son', 'daughter', 'uncle', 'aunt', 'cousin', 'relative'];
-
-      // Parse references if sent as string (Multipart FormData often sends JSON as string)
-      if (references && typeof references === 'string') {
-        try {
-          references = JSON.parse(references);
-        } catch (e) {
-          console.warn("⚠️ [APPLY_JOB] Failed to parse references JSON:", e.message);
-        }
-      }
-
-      // Ensure references is an array
-      if (!Array.isArray(references)) {
-        references = references ? [references] : [];
-      }
-
-      // Convert isFresher to boolean
-      const isFresherBool = isFresher === true || isFresher === 'true';
-
-      // Validate references (required unless fresher)
-      if (!isFresherBool) {
-        if (!references || references.length === 0) {
-          return res.status(400).json({
-            error: 'Professional reference required',
-            details: 'Please provide at least 1 professional reference or check the fresher option'
-          });
-        }
-
-        if (references.length > 2) {
-          return res.status(400).json({
-            error: 'Too many references',
-            details: 'Maximum 2 references allowed'
-          });
-        }
-
-        // Validate each reference
-        const seenEmails = new Set();
-        const seenPhones = new Set();
-
-        for (let i = 0; i < references.length; i++) {
-          const ref = references[i];
-
-          // Required fields check
-          if (!ref.name || !ref.designation || !ref.company || !ref.relationship || !ref.email || !ref.phone) {
-            return res.status(400).json({
-              error: `Reference ${i + 1}: All fields are required`,
-              details: 'Name, Designation, Company, Relationship, Email, and Phone are mandatory'
-            });
-          }
-
-          // Block family relationships
-          const relationshipLower = ref.relationship.toLowerCase();
-          const nameAndRelationship = `${ref.name.toLowerCase()} ${relationshipLower}`;
-
-          if (familyRelationships.some(family => relationshipLower.includes(family) || nameAndRelationship.includes(family))) {
-            return res.status(400).json({
-              error: `Reference ${i + 1}: Family references not allowed`,
-              details: 'Please provide professional references only. Family members cannot be used as references.'
-            });
-          }
-
-          // Email validation
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(ref.email)) {
-            return res.status(400).json({
-              error: `Reference ${i + 1}: Invalid email format`,
-              details: `Email "${ref.email}" is not valid`
-            });
-          }
-
-          // Phone validation
-          const phoneRegex = /^[0-9+\-\s()]{10,15}$/;
-          if (!phoneRegex.test(ref.phone)) {
-            return res.status(400).json({
-              error: `Reference ${i + 1}: Invalid phone format`,
-              details: 'Phone number must be 10-15 digits'
-            });
-          }
-
-          // Check for duplicate email/phone in same application
-          const emailLower = ref.email.toLowerCase();
-          const phoneTrimmed = ref.phone.trim();
-
-          if (seenEmails.has(emailLower)) {
-            return res.status(400).json({
-              error: `Reference ${i + 1}: Duplicate email`,
-              details: 'Each reference must have a unique email address'
-            });
-          }
-          if (seenPhones.has(phoneTrimmed)) {
-            return res.status(400).json({
-              error: `Reference ${i + 1}: Duplicate phone`,
-              details: 'Each reference must have a unique phone number'
-            });
-          }
-
-          seenEmails.add(emailLower);
-          seenPhones.add(phoneTrimmed);
-
-          // Build validated reference object
-          validatedReferences.push({
-            name: ref.name.trim(),
-            designation: ref.designation.trim(),
-            company: ref.company.trim(),
-            relationship: ref.relationship,
-            email: emailLower,
-            phone: phoneTrimmed,
-            yearsKnown: ref.yearsKnown || null,
-            consentToContact: ref.consentToContact !== false,
-            verificationStatus: 'Pending'
-          });
-        }
-
-        console.log(`✅ [APPLY_JOB] ${validatedReferences.length} reference(s) validated successfully`);
-      } else {
-        console.log(`ℹ️ [APPLY_JOB] Fresher application - no references required`);
-      }
-
-      // --- LOG FOR DEBUGGING ---
-      try {
-        const fs = require('fs');
-        const logMsg = `[${new Date().toISOString()}] APPLY_JOB: name=${name}, email=${email}, tenantId=${tenantId}, requirementId=${requirementId}, dob=${dob}\n`;
-        fs.appendFileSync(path.join(__dirname, '../apply_debug.log'), logMsg);
-      } catch (e) { /* ignore log errors */ }
 
       // Create new applicant
+      // Default to 'Applied' if no pipeline is defined, else use first stage from requirement
+      const defaultStatus = (requirement.pipelineStages && requirement.pipelineStages.length > 0)
+        ? requirement.pipelineStages[0].stageName
+        : 'Applied';
+
       const applicant = new Applicant({
         tenant: tenantDB.tenantId,
-        candidateId: candidateId, // Link to candidate account
+        candidateId: candidateId,
         requirementId,
-        name: name.trim(),
+        name: name?.trim() || structuredData.fullName || "Unknown",
         fatherName: fatherName?.trim(),
-        email: email.toLowerCase().trim(),
-        mobile: mobile?.trim() || 'N/A', // Provide default if not provided
-        experience: experience?.trim(),
+        email: email?.toLowerCase().trim() || structuredData.email || "unknown@email.com",
+        mobile: mobile?.trim() || structuredData.phone || "N/A",
+        experience: experience?.trim() || structuredData.totalExperience || "",
         address: address?.trim(),
         location: location?.trim(),
         currentCompany: currentCompany?.trim(),
         currentDesignation: currentDesignation?.trim(),
         expectedCTC: expectedCTC?.trim(),
         linkedin: linkedin?.trim(),
-        dob: parsedDob || null, // Allow DOB to be saved
-        resume: resumeFilename,
-        customData: customData, // Save dynamic fields
-        status: 'Applied',
+        dob: parsedDob || null,
+        resume: req.file?.filename,
+        customData: customData,
+        status: defaultStatus,
         timeline: [{
-          status: 'Applied',
-          message: 'Your application has been received and is under review.',
-          updatedBy: 'Candidate',
+          status: defaultStatus,
+          message: `Application received for "${requirement.jobTitle}". Initial stage: ${defaultStatus}`,
+          updatedBy: 'Candidate (Portal)',
           timestamp: new Date()
         }],
 
-        // AI Fields
+        // PIPELINE STAGE INITIALIZATION
+        currentStage: (requirement.pipelineStages && requirement.pipelineStages.length > 0) ? {
+          stageId: '0',
+          stageName: requirement.pipelineStages[0].stageName,
+          stageType: requirement.pipelineStages[0].stageType,
+          enteredAt: new Date(),
+          assignedInterviewer: requirement.pipelineStages[0].assignedInterviewer || null
+        } : {
+          stageId: '0',
+          stageName: 'Applied',
+          stageType: 'Screening',
+          enteredAt: new Date()
+        },
+
+        pipelineProgress: (requirement.pipelineStages && requirement.pipelineStages.length > 0)
+          ? requirement.pipelineStages.map((stage, index) => ({
+            stageId: String(index),
+            stageName: stage.stageName,
+            stageType: stage.stageType,
+            status: index === 0 ? 'In Progress' : 'Pending',
+            assignedInterviewer: stage.assignedInterviewer || null,
+            enteredAt: index === 0 ? new Date() : null
+          }))
+          : [{
+            stageId: '0',
+            stageName: 'Applied',
+            stageType: 'Screening',
+            status: 'In Progress',
+            enteredAt: new Date()
+          }],
+
+        // AI & MATCHING FIELDS
         rawOCRText: rawText,
-        aiParsedData: structuredData,
-        parsedSkills: structuredData.skills || [],
-        matchPercentage: structuredData.matchPercentage || 0,
+        aiParsedData: structuredData ? {
+          ...structuredData,
+          summary: structuredData.summary || structuredData.experienceSummary || null
+        } : null,
+        parsedSkills: Array.isArray(structuredData?.skills) ? structuredData.skills : [],
+        matchScore: matchResult.totalScore,
+        matchBreakdown: matchResult.breakdown,
+        matchedSkills: matchResult.matchedSkills,
+        missingSkills: matchResult.missingSkills,
         parsingStatus: rawText ? 'Completed' : 'Pending',
 
-        // Reference Fields
         references: validatedReferences,
         isFresher: isFresherBool,
-        noReferenceReason: isFresherBool ? (noReferenceReason || 'Fresher - No Work Experience') : null
+        noReferenceReason: noReferenceReason || (isFresherBool ? 'Fresher - No Work Experience' : null)
       });
 
       await applicant.save();
@@ -663,9 +603,22 @@ exports.getCareerCustomization = async (req, res) => {
 exports.parseResumePublic = [
   upload.single('resume'),
   async (req, res) => {
+    const fs = require('fs');
+
+    // Helper to cleanup temp file safely
+    const cleanup = () => {
+      if (req.file) {
+        try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) { }
+      }
+    };
+
     try {
       const { requirementId } = req.body;
-      console.log(`🤖 [PARSE_RESUME_PUBLIC] Parsing...`);
+      console.log(`🤖 [PARSE_RESUME_PUBLIC] File: ${req.file?.originalname}, MIME: ${req.file?.mimetype}`);
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No resume file uploaded" });
+      }
 
       let jobDescription = "";
       let jobTitle = "";
@@ -681,27 +634,50 @@ exports.parseResumePublic = [
               jobTitle = reqDoc.jobTitle;
               jobDescription = reqDoc.description;
             }
-          } catch (e) { }
+          } catch (e) { console.warn('[PARSE_RESUME_PUBLIC] Could not fetch requirement:', e.message); }
         }
       }
 
-      if (!req.file) return res.status(400).json({ error: "No resume file uploaded" });
+      // A. Text Extraction — non-blocking: if it fails, return empty success
+      let rawText = "";
+      let structuredData = {};
+      let parseWarning = null;
 
-      const result = await ResumeParserService.parseResume(req.file.path, req.file.mimetype, jobDescription, jobTitle);
+      try {
+        const ResumeParserService = require('../services/ResumeParser.service');
+        rawText = await ResumeParserService.parseResume(req.file.path, req.file.mimetype);
+        console.log(`✅ [PARSE_RESUME_PUBLIC] Extracted ${rawText.length} chars`);
+      } catch (parseErr) {
+        console.warn(`⚠️ [PARSE_RESUME_PUBLIC] Text extraction failed: ${parseErr.message}`);
+        parseWarning = parseErr.message;
+        // Don't throw — return empty data so user can fill form manually
+      }
 
-      // Cleanup temp file
-      const fs = require('fs');
-      try { fs.unlinkSync(req.file.path); } catch (e) { }
+      // B. AI Extraction — only if we have text
+      if (rawText && rawText.length > 10) {
+        try {
+          const AIExtractionService = require('../services/AIExtraction.service');
+          structuredData = await AIExtractionService.extractData(rawText, jobTitle, jobDescription);
+          console.log(`✅ [PARSE_RESUME_PUBLIC] AI extraction complete`);
+        } catch (aiErr) {
+          console.warn(`⚠️ [PARSE_RESUME_PUBLIC] AI extraction failed: ${aiErr.message}`);
+        }
+      }
 
+      cleanup();
+
+      // Always return success — even if parsing failed, user can fill form manually
       res.json({
         success: true,
-        data: result.structuredData,
-        rawText: result.rawText
+        data: structuredData,
+        rawText: rawText,
+        warning: parseWarning  // Frontend can optionally show this as a soft warning
       });
 
     } catch (err) {
-      console.error("❌ [PARSE_RESUME_PUBLIC] Error:", err.message);
-      res.status(500).json({ error: "Failed to parse resume" });
+      console.error("❌ [PARSE_RESUME_PUBLIC] Unexpected Error:", err.message);
+      cleanup();
+      res.status(500).json({ error: "Failed to process resume. Please fill the form manually." });
     }
   }
 ];

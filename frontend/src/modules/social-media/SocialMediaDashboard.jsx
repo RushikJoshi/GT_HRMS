@@ -530,58 +530,71 @@ const SocialMediaDashboard = () => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <FaSpinner className="animate-spin text-4xl text-blue-600 mx-auto mb-4" />
-                    <p className="text-gray-600">Loading social media data...</p>
+            <div className="min-h-[60vh] flex items-center justify-center overflow-x-hidden">
+                <div className="text-center px-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-50 mb-6">
+                        <FaSpinner className="animate-spin text-3xl text-indigo-600" aria-hidden />
+                    </div>
+                    <p className="text-slate-600 font-medium">Loading social media data...</p>
+                    <p className="text-slate-400 text-sm mt-1">Connecting to your accounts</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
-            <div className="max-w-7xl mx-auto">
+        /* UI MODERNIZATION - NO LOGIC CHANGES | Component-scoped styles only */
+        <div className="min-h-screen bg-[#f8fafc] overflow-x-hidden">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 lg:py-10">
                 {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Social Media Management</h1>
-                    <p className="text-gray-600">Connect your social accounts and manage posts from one place</p>
+                <div className="mb-6 sm:mb-8 md:mb-10">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Social Media Management</h1>
+                            <p className="text-slate-500 text-sm sm:text-base mt-1">Connect your social accounts and manage posts from one place</p>
+                        </div>
+                    </div>
                 </div>
 
-                {/* View Tabs */}
-                <div className="flex gap-4 mb-8 border-b border-gray-200">
-                    <button
-                        onClick={() => setActiveView('accounts')}
-                        className={`px-6 py-3 font-medium transition-all ${activeView === 'accounts'
-                            ? 'text-blue-600 border-b-2 border-blue-600'
-                            : 'text-gray-600 hover:text-gray-900'
-                            }`}
+                {/* Tabs - pill style, fully responsive */}
+                <div className="mb-6 sm:mb-8">
+                    <nav
+                        className="inline-flex p-1 bg-slate-100 rounded-xl gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide w-full sm:w-auto"
+                        aria-label="Social media views"
                     >
-                        Connected Accounts
-                    </button>
-                    <button
-                        onClick={() => setActiveView('create')}
-                        className={`px-6 py-3 font-medium transition-all ${activeView === 'create'
-                            ? 'text-blue-600 border-b-2 border-blue-600'
-                            : 'text-gray-600 hover:text-gray-900'
-                            }`}
-                    >
-                        Create Post
-                    </button>
-                    <button
-                        onClick={() => setActiveView('posts')}
-                        className={`px-6 py-3 font-medium transition-all ${activeView === 'posts'
-                            ? 'text-blue-600 border-b-2 border-blue-600'
-                            : 'text-gray-600 hover:text-gray-900'
-                            }`}
-                    >
-                        Post History
-                    </button>
+                        <button
+                            onClick={() => setActiveView('accounts')}
+                            className={`px-4 sm:px-5 py-2.5 sm:py-3 text-sm font-medium whitespace-nowrap rounded-lg transition-all duration-200 ${activeView === 'accounts'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50/80'
+                                }`}
+                        >
+                            Connected Accounts
+                        </button>
+                        <button
+                            onClick={() => setActiveView('create')}
+                            className={`px-4 sm:px-5 py-2.5 sm:py-3 text-sm font-medium whitespace-nowrap rounded-lg transition-all duration-200 ${activeView === 'create'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50/80'
+                                }`}
+                        >
+                            Create Post
+                        </button>
+                        <button
+                            onClick={() => setActiveView('posts')}
+                            className={`px-4 sm:px-5 py-2.5 sm:py-3 text-sm font-medium whitespace-nowrap rounded-lg transition-all duration-200 ${activeView === 'posts'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50/80'
+                                }`}
+                        >
+                            Post History
+                        </button>
+                    </nav>
                 </div>
 
-                {/* Connected Accounts View */}
+                {/* Connected Accounts - cards grid */}
                 {activeView === 'accounts' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 w-full min-w-0">
                         {Object.entries(platformConfig).map(([platform, config]) => {
                             const account = getAccountForPlatform(platform);
                             const connected = isConnected(platform);
@@ -590,41 +603,42 @@ const SocialMediaDashboard = () => {
                             return (
                                 <div
                                     key={platform}
-                                    className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden group hover:-translate-y-1 h-full flex flex-col"
+                                    className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-lg hover:border-slate-200 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden group min-h-[220px] flex flex-col min-w-0"
                                 >
-                                    <div className="p-6 flex flex-col flex-grow justify-between">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-3 rounded-lg ${config.lightBg} transition-transform group-hover:scale-110 duration-300`}>
-                                                    <Icon className={`text-3xl ${config.textColor}`} />
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-xl font-semibold text-gray-900">{config.name}</h3>
-                                                    {connected && account && (
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <FaCheckCircle className="text-green-500 text-sm" />
-                                                            <span className="text-sm text-gray-600">{account.platformUserName || 'Connected'}</span>
-                                                        </div>
-                                                    )}
-                                                    {!connected && (
-                                                        <span className="text-sm text-gray-500">Not connected</span>
-                                                    )}
-                                                </div>
+                                    <div className="p-5 sm:p-6 flex flex-col flex-grow">
+                                        <div className="flex items-start gap-4 mb-4">
+                                            <div className={`flex-shrink-0 p-3.5 rounded-2xl ${config.lightBg} transition-all duration-300 group-hover:scale-105 group-hover:shadow-inner`}>
+                                                <Icon className={`text-2xl sm:text-3xl ${config.textColor}`} aria-hidden />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <h3 className="text-lg font-semibold text-slate-900">{config.name}</h3>
+                                                {connected && account && (
+                                                    <div className="flex items-center gap-2 mt-2">
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                            {account.platformUserName || 'Connected'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {!connected && (
+                                                    <span className="inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-medium">
+                                                        Not connected
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 
-                                        {/* Connection Status & Actions */}
-                                        <div className="mt-4">
+                                        <div className="mt-auto pt-4">
                                             {connected ? (
                                                 <div className="space-y-2">
                                                     {account?.expiresAt && (
-                                                        <p className="text-xs text-gray-500">
+                                                        <p className="text-xs text-slate-500">
                                                             Token expires: {new Date(account.expiresAt).toLocaleDateString()}
                                                         </p>
                                                     )}
                                                     <button
                                                         onClick={() => handleDisconnect(platform)}
-                                                        className="w-full px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium"
+                                                        className="w-full px-4 py-3 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 active:scale-[0.98] transition-all font-medium text-sm"
                                                     >
                                                         Disconnect
                                                     </button>
@@ -633,11 +647,11 @@ const SocialMediaDashboard = () => {
                                                 <button
                                                     onClick={() => handleConnect(platform)}
                                                     disabled={connectingPlatform === platform}
-                                                    className={`w-full px-4 py-3 ${config.color} ${config.hoverColor} text-white rounded-lg transition-all font-medium flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed`}
+                                                    className={`w-full px-4 py-3 ${config.color} ${config.hoverColor} text-white rounded-xl transition-all font-medium flex items-center justify-center gap-2 shadow-sm hover:shadow active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed disabled:active:scale-100 text-sm min-h-[44px]`}
                                                 >
                                                     {connectingPlatform === platform ? (
                                                         <>
-                                                            <FaSpinner className="animate-spin" />
+                                                            <FaSpinner className="animate-spin" aria-hidden />
                                                             Connecting...
                                                         </>
                                                     ) : (
@@ -655,16 +669,16 @@ const SocialMediaDashboard = () => {
 
                 {/* Create Post View */}
                 {activeView === 'create' && (
-                    <div className="bg-white rounded-xl shadow-md p-8 max-w-2xl mx-auto">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-bold text-gray-900">
-                                {editingPost ? '✏️ Edit Post' : 'Create New Post'}
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 sm:p-8 max-w-2xl mx-auto w-full min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                            <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                                {editingPost ? 'Edit Post' : 'Create New Post'}
                             </h2>
                             {editingPost && (
                                 <button
                                     type="button"
                                     onClick={handleCancelEdit}
-                                    className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                                    className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg font-medium transition-colors w-fit"
                                 >
                                     Cancel Edit
                                 </button>
@@ -672,31 +686,29 @@ const SocialMediaDashboard = () => {
                         </div>
                         <form onSubmit={handleCreatePost} className="space-y-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Content</label>
                                 <textarea
                                     value={newPost.content}
                                     onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all resize-none"
                                     rows="6"
                                     placeholder="What's on your mind?"
                                 />
-                                {/* Image Upload Section */}
-                                <div className="space-y-3">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Images {newPost.platforms.includes('instagram') && '(Required for Instagram)'}
+                                <div className="space-y-3 mt-4">
+                                    <label className="block text-sm font-medium text-slate-700">
+                                        Images {newPost.platforms.includes('instagram') && <span className="text-amber-600">(Required for Instagram)</span>}
                                     </label>
 
-                                    {/* Instagram Warning */}
                                     {newPost.platforms.includes('instagram') && (
-                                        <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
-                                            <div className="flex items-start gap-2">
-                                                <span className="text-lg">📸</span>
-                                                <div className="text-sm text-purple-900">
-                                                    <p className="font-semibold mb-1">Instagram Requirements:</p>
-                                                    <ul className="list-disc list-inside space-y-1 text-xs">
+                                        <div className="p-4 bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-200/60 rounded-xl">
+                                            <div className="flex items-start gap-3">
+                                                <span className="text-xl">📸</span>
+                                                <div className="text-sm text-violet-900">
+                                                    <p className="font-semibold mb-2">Instagram Requirements</p>
+                                                    <ul className="list-disc list-inside space-y-1 text-xs text-violet-800">
                                                         <li>Images must be publicly accessible via HTTPS</li>
                                                         <li>Localhost URLs will not work</li>
-                                                        <li>Supports 1-10 images (carousel)</li>
+                                                        <li>Supports 1–10 images (carousel)</li>
                                                         <li>For local dev, use ngrok or deploy to public server</li>
                                                     </ul>
                                                 </div>
@@ -704,56 +716,52 @@ const SocialMediaDashboard = () => {
                                         </div>
                                     )}
 
-                                    {/* Upload Button */}
-                                    <div className="flex gap-3">
-                                        <label className="flex-1 cursor-pointer">
-                                            <div className="px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 transition-colors text-center">
-                                                <input
-                                                    type="file"
-                                                    multiple
-                                                    accept="image/jpeg,image/jpg,image/png,image/webp"
-                                                    onChange={handleMultipleImagesSelect}
-                                                    className="hidden"
-                                                    disabled={uploadingImages}
-                                                />
-                                                {uploadingImages ? (
-                                                    <div className="flex items-center justify-center gap-2 text-blue-600">
-                                                        <FaSpinner className="animate-spin" />
-                                                        <span>Uploading...</span>
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-gray-600">
-                                                        <span className="font-medium">📁 Upload Images</span>
-                                                        <p className="text-xs mt-1">
-                                                            JPG, PNG, WEBP (Max 5MB each)
-                                                            {imagePreviews.length > 0 && ` • ${imagePreviews.length} selected`}
-                                                            {newPost.platforms.includes('instagram') && imagePreviews.length > 10 && ' • Max 10 for Instagram'}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </label>
-                                    </div>
+                                    <label className="block cursor-pointer">
+                                        <div className="px-6 py-6 sm:py-8 border-2 border-dashed border-slate-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all text-center">
+                                            <input
+                                                type="file"
+                                                multiple
+                                                accept="image/jpeg,image/jpg,image/png,image/webp"
+                                                onChange={handleMultipleImagesSelect}
+                                                className="hidden"
+                                                disabled={uploadingImages}
+                                            />
+                                            {uploadingImages ? (
+                                                <div className="flex items-center justify-center gap-2 text-indigo-600 font-medium">
+                                                    <FaSpinner className="animate-spin text-lg" />
+                                                    <span>Uploading...</span>
+                                                </div>
+                                            ) : (
+                                                <div className="text-slate-600">
+                                                    <span className="font-medium text-slate-700">Upload Images</span>
+                                                    <p className="text-xs mt-2 text-slate-500">
+                                                        JPG, PNG, WEBP (Max 5MB each)
+                                                        {imagePreviews.length > 0 && <span className="text-indigo-600 font-medium"> • {imagePreviews.length} selected</span>}
+                                                        {newPost.platforms.includes('instagram') && imagePreviews.length > 10 && <span className="text-amber-600"> • Max 10 for Instagram</span>}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </label>
 
-                                    {/* Multiple Image Previews Gallery */}
                                     {imagePreviews.length > 0 && (
-                                        <div className="grid grid-cols-3 gap-3 mt-3">
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                             {imagePreviews.map((preview, index) => (
-                                                <div key={index} className="relative group">
+                                                <div key={index} className="relative group aspect-square">
                                                     <img
                                                         src={preview}
                                                         alt={`Preview ${index + 1}`}
-                                                        className="w-full h-32 object-cover rounded-lg border-2 border-gray-200"
+                                                        className="w-full h-full object-cover rounded-xl border border-slate-200"
                                                     />
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveImage(index)}
-                                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 font-bold"
+                                                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 font-bold text-sm shadow-lg"
                                                     >
                                                         ×
                                                     </button>
                                                     {index >= 10 && newPost.platforms.includes('instagram') && (
-                                                        <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
+                                                        <div className="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center">
                                                             <span className="text-white text-xs font-semibold">Exceeds IG limit</span>
                                                         </div>
                                                     )}
@@ -762,9 +770,8 @@ const SocialMediaDashboard = () => {
                                         </div>
                                     )}
 
-                                    {/* Error Message */}
                                     {imageError && (
-                                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mt-3">
+                                        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mt-3">
                                             {imageError}
                                         </div>
                                     )}
@@ -772,33 +779,34 @@ const SocialMediaDashboard = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Link (optional)</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Link (optional)</label>
                                 <input
                                     type="url"
                                     value={newPost.link}
                                     onChange={(e) => setNewPost({ ...newPost, link: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all"
                                     placeholder="https://example.com"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Select Platforms</label>
-                                <div className="flex gap-4 items-center flex-nowrap overflow-x-auto max-[480px]:flex-wrap">
+                                <label className="block text-sm font-medium text-slate-700 mb-3">Select Platforms</label>
+                                <div className="flex flex-wrap gap-3">
                                     {Object.entries(platformConfig).map(([platform, config]) => {
                                         const connected = isConnected(platform);
                                         const Icon = config.icon;
+                                        const isSelected = newPost.platforms.includes(platform);
                                         return (
                                             <label
                                                 key={platform}
-                                                className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-all whitespace-nowrap min-w-fit ${newPost.platforms.includes(platform)
-                                                    ? `${config.borderColor} bg-opacity-5 bg-blue-50`
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                                className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected
+                                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                                                     } ${!connected ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 <input
                                                     type="checkbox"
-                                                    checked={newPost.platforms.includes(platform)}
+                                                    checked={isSelected}
                                                     onChange={(e) => {
                                                         if (e.target.checked) {
                                                             setNewPost({ ...newPost, platforms: [...newPost.platforms, platform] });
@@ -807,10 +815,10 @@ const SocialMediaDashboard = () => {
                                                         }
                                                     }}
                                                     disabled={!connected}
-                                                    className="w-4 h-4"
+                                                    className="sr-only"
                                                 />
-                                                <Icon className={`text-lg ${config.textColor}`} />
-                                                <span className="font-medium text-gray-700">{config.name}</span>
+                                                <Icon className={`text-xl ${config.textColor}`} />
+                                                <span className="font-medium">{config.name}</span>
                                             </label>
                                         );
                                     })}
@@ -818,28 +826,28 @@ const SocialMediaDashboard = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Schedule (optional)
                                     {newPost.platforms.includes('instagram') && (
-                                        <span className="ml-2 text-xs text-purple-600">✓ Supported for Instagram</span>
+                                        <span className="ml-2 text-xs text-violet-600 font-medium">✓ Supported for Instagram</span>
                                     )}
                                 </label>
                                 <input
                                     type="datetime-local"
                                     value={newPost.scheduledAt}
                                     onChange={(e) => setNewPost({ ...newPost, scheduledAt: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all"
                                 />
                             </div>
 
                             <button
                                 type="submit"
                                 disabled={isPublishing}
-                                className={`w-full px-6 py-3 text-white rounded-lg font-medium transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-2 
-                                    ${isPublishing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                className={`w-full px-6 py-3.5 text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-sm
+                                    ${isPublishing ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-md active:scale-[0.99]'}`}
                             >
                                 {isPublishing && <FaSpinner className="animate-spin" />}
-                                {editingPost ? '💾 Update Post' : (newPost.scheduledAt ? 'Schedule Post' : 'Publish Now')}
+                                {editingPost ? 'Update Post' : (newPost.scheduledAt ? 'Schedule Post' : 'Publish Now')}
                             </button>
                         </form>
                     </div>
@@ -847,116 +855,124 @@ const SocialMediaDashboard = () => {
 
                 {/* Post History View */}
                 {activeView === 'posts' && (
-                    <div className="space-y-4">
+                    <div className="space-y-4 sm:space-y-6 w-full min-w-0">
                         {posts.length === 0 ? (
-                            <div className="bg-white rounded-xl shadow-md p-12 text-center">
-                                <p className="text-gray-500 text-lg">No posts yet. Create your first post!</p>
+                            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-12 sm:p-16 text-center">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-100 mb-4">
+                                    <span className="text-3xl">📝</span>
+                                </div>
+                                <p className="text-slate-600 font-medium text-lg">No posts yet</p>
+                                <p className="text-slate-500 text-sm mt-1">Create your first post to get started</p>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveView('create')}
+                                    className="mt-6 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors"
+                                >
+                                    Create Post
+                                </button>
                             </div>
                         ) : (
                             posts.map((post) => (
-                                <div key={post._id} className="bg-white rounded-xl shadow-md p-6">
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className="flex gap-2">
+                                <div key={post._id} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-6">
+                                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                                        <div className="flex flex-wrap items-center gap-2">
                                             {post.platforms.map(platform => {
                                                 const Icon = platformConfig[platform]?.icon;
-                                                return Icon ? <Icon key={platform} className={`text-xl ${platformConfig[platform].textColor}`} /> : null;
+                                                return Icon ? (
+                                                    <span key={platform} className={`inline-flex p-2 rounded-lg ${platformConfig[platform]?.lightBg || 'bg-slate-100'}`}>
+                                                        <Icon className={`text-lg ${platformConfig[platform].textColor}`} />
+                                                    </span>
+                                                ) : null;
                                             })}
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${post.status === 'published' ? 'bg-green-100 text-green-700' :
-                                                post.status === 'partial_success' ? 'bg-yellow-100 text-yellow-700' :
-                                                    post.status === 'partially_deleted' ? 'bg-orange-100 text-orange-700' :
-                                                        post.status === 'publishing' ? 'bg-blue-100 text-blue-700' :
-                                                            post.status === 'edited' ? 'bg-orange-100 text-orange-700' :
-                                                                post.status === 'deleted' ? 'bg-gray-100 text-gray-700' :
-                                                                    post.status === 'scheduled' ? 'bg-purple-100 text-purple-700' :
-                                                                        post.status === 'failed' ? 'bg-red-100 text-red-700' :
-                                                                            'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                {post.status === 'published' && '✅'}
-                                                {post.status === 'partial_success' && '⚠️'}
-                                                {post.status === 'partially_deleted' && '⏳'}
-                                                {post.status === 'publishing' && <FaSpinner className="animate-spin" />}
-                                                {post.status === 'edited' && '✏️'}
-                                                {post.status === 'deleted' && '🗑️'}
-                                                {post.status === 'scheduled' && '📅'}
-                                                {post.status === 'failed' && '❌'}
-                                                {post.status ? (post.status.replace('_', ' ').charAt(0).toUpperCase() + post.status.replace('_', ' ').slice(1)) : 'Unknown'}
-                                            </span>
-                                        </div>
+                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium w-fit ${post.status === 'published' ? 'bg-emerald-50 text-emerald-700' :
+                                            post.status === 'partial_success' ? 'bg-amber-50 text-amber-700' :
+                                                post.status === 'partially_deleted' ? 'bg-orange-50 text-orange-700' :
+                                                    post.status === 'publishing' ? 'bg-indigo-50 text-indigo-700' :
+                                                        post.status === 'edited' ? 'bg-orange-50 text-orange-700' :
+                                                            post.status === 'deleted' ? 'bg-slate-100 text-slate-600' :
+                                                                post.status === 'scheduled' ? 'bg-violet-50 text-violet-700' :
+                                                                    post.status === 'failed' ? 'bg-red-50 text-red-700' :
+                                                                        'bg-slate-100 text-slate-600'
+                                            }`}>
+                                            {post.status === 'published' && '✓'}
+                                            {post.status === 'partial_success' && '⚠'}
+                                            {post.status === 'partially_deleted' && '⏳'}
+                                            {post.status === 'publishing' && <FaSpinner className="animate-spin" />}
+                                            {post.status === 'edited' && '✎'}
+                                            {post.status === 'deleted' && '—'}
+                                            {post.status === 'scheduled' && '📅'}
+                                            {post.status === 'failed' && '✕'}
+                                            {post.status ? (post.status.replace('_', ' ').charAt(0).toUpperCase() + post.status.replace('_', ' ').slice(1)) : 'Unknown'}
+                                        </span>
                                     </div>
-                                    <p className="text-gray-800 mb-4">{post.content}</p>
+                                    <p className="text-slate-800 text-[15px] leading-relaxed mb-4">{post.content}</p>
 
-                                    {/* Display Images (Carousel or Single) */}
                                     {(post.imageUrls && post.imageUrls.length > 0) ? (
                                         <div className="mb-4">
                                             {post.imageUrls.length > 1 ? (
                                                 <div>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-1 rounded">
-                                                            📸 Carousel ({post.imageUrls.length} images)
-                                                        </span>
-                                                    </div>
-                                                    <div className="grid grid-cols-3 gap-2">
+                                                    <span className="inline-block text-xs font-semibold text-violet-600 bg-violet-100 px-2.5 py-1 rounded-lg mb-3">
+                                                        Carousel ({post.imageUrls.length} images)
+                                                    </span>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                                         {post.imageUrls.slice(0, 6).map((imgUrl, idx) => (
-                                                            <img key={idx} src={imgUrl} alt={`Image ${idx + 1}`} className="rounded-lg h-24 w-full object-cover" />
+                                                            <img key={idx} src={imgUrl} alt={`Image ${idx + 1}`} className="rounded-xl h-24 w-full object-cover" />
                                                         ))}
                                                         {post.imageUrls.length > 6 && (
-                                                            <div className="rounded-lg h-24 w-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold">
+                                                            <div className="rounded-xl h-24 w-full bg-slate-100 flex items-center justify-center text-slate-600 font-semibold text-sm">
                                                                 +{post.imageUrls.length - 6} more
                                                             </div>
                                                         )}
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <img src={post.imageUrls[0]} alt="Post" className="rounded-lg max-h-64 object-cover" />
+                                                <img src={post.imageUrls[0]} alt="Post" className="rounded-xl max-h-64 w-full object-cover" />
                                             )}
                                         </div>
                                     ) : post.imageUrl ? (
-                                        <img src={post.imageUrl} alt="Post" className="rounded-lg mb-4 max-h-64 object-cover" />
+                                        <img src={post.imageUrl} alt="Post" className="rounded-xl mb-4 max-h-64 w-full object-cover" />
                                     ) : null}
 
-                                    <div className="flex items-center justify-between">
-                                        <div className="text-sm text-gray-500">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 border-t border-slate-100">
+                                        <div className="text-sm text-slate-500">
                                             {post.status === 'edited' && post.editedAt ? (
                                                 <>
                                                     <span>Edited: {new Date(post.editedAt).toLocaleString()}</span>
-                                                    <span className="text-xs text-gray-400 ml-2">(Originally posted: {new Date(post.createdAt).toLocaleString()})</span>
+                                                    <span className="text-xs text-slate-400 ml-2">(Originally: {new Date(post.createdAt).toLocaleString()})</span>
                                                 </>
                                             ) : post.scheduledAt ? (
-                                                `Scheduled for: ${new Date(post.scheduledAt).toLocaleString()}`
+                                                `Scheduled: ${new Date(post.scheduledAt).toLocaleString()}`
                                             ) : (
                                                 `Posted: ${new Date(post.createdAt).toLocaleString()}`
                                             )}
                                         </div>
-                                        <div className="flex gap-2">
-                                            {/* Platform-specific Edit Button Logic */}
+                                        <div className="flex gap-2 flex-wrap">
                                             {post.platforms.includes('instagram') && post.status === 'published' ? (
                                                 <div className="relative group">
                                                     <button
                                                         disabled
-                                                        className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm font-medium"
+                                                        className="px-4 py-2 bg-slate-200 text-slate-500 rounded-xl cursor-not-allowed text-sm font-medium"
                                                     >
-                                                        ✏️ Edit
+                                                        Edit
                                                     </button>
-                                                    <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap">
-                                                        Instagram posts cannot be edited (API limitation)
-                                                        <br />Use Delete + Repost instead
+                                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-slate-900 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap z-10 shadow-lg">
+                                                        Instagram posts cannot be edited (API limitation). Use Delete + Repost instead.
                                                     </div>
                                                 </div>
                                             ) : (
                                                 <button
                                                     onClick={() => handleEditPost(post)}
-                                                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium active:scale-[0.98]"
                                                 >
-                                                    ✏️ Edit
+                                                    Edit
                                                 </button>
                                             )}
                                             <button
                                                 onClick={() => handleDeletePost(post._id)}
-                                                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
+                                                className="px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors text-sm font-medium active:scale-[0.98]"
                                             >
-                                                🗑️ Delete
+                                                Delete
                                             </button>
                                         </div>
                                     </div>

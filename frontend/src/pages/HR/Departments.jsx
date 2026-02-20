@@ -139,7 +139,7 @@ export default function Departments() {
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-xl font-black text-slate-900 tracking-tight">{d.name}</h3>
-                    {d.status === 'Inactive' && (
+                    {d.status === 'inactive' && (
                       <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">Inactive</span>
                     )}
                   </div>
@@ -189,7 +189,7 @@ export default function Departments() {
 function DeptForm({ dept, depts = [], onClose }) {
   const [name, setName] = useState(dept?.name || '');
   const [code, setCode] = useState(dept?.code || '');
-  const [status, setStatus] = useState(dept?.status || 'Active');
+  const [status, setStatus] = useState(dept?.status || 'active');
   const [description, setDescription] = useState(dept?.description || '');
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -292,8 +292,8 @@ function DeptForm({ dept, depts = [], onClose }) {
             <div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Status</label>
               <select value={status} onChange={e => setStatus(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all">
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
               </select>
             </div>
 
@@ -358,8 +358,8 @@ function DeptView({ dept, onClose }) {
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Operation Status</label>
               <div>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${dept.status === 'Inactive' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                  {dept.status || 'Active'}
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${dept.status === 'inactive' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                  {dept.status === 'inactive' ? 'Inactive' : 'Active'}
                 </span>
               </div>
             </div>

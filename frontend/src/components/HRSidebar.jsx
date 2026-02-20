@@ -156,7 +156,7 @@ const NAV_GROUPS = [
     title: 'Document Management',
     module: 'documentManagement',
     items: [
-      { to: '/hr/letters', label: 'Dashboard', icon: ICONS.dashboard },
+      { to: '/hr/letters', label: 'Document Dashboard', icon: ICONS.dashboard },
       { to: '/hr/letters/issue', label: 'Issue New Letter', icon: ICONS.applicants },
     ]
   },
@@ -167,20 +167,14 @@ const NAV_GROUPS = [
         label: 'Templates',
         icon: ICONS.templates,
         children: [
-          { to: '/hr/letter-templates', label: 'Template Builder' },
-          { to: '/hr/letter-settings', label: 'System Settings' },
-          { to: '/hr/payslip-templates', label: 'Payslip Templates' }
+          { to: '/hr/letter-templates', label: 'Template Builder', module: 'documentManagement' },
+          { to: '/hr/letter-settings', label: 'System Settings', module: 'documentManagement' },
+          { to: '/hr/payslip-templates', label: 'Payslip Templates', module: 'payroll' }
         ]
       },
       { to: '/hr/access', label: 'Access Control', icon: ICONS.access },
       { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings, end: true },
-    ]
-  },
-  {
-    title: 'Social Media',
-    module: 'socialMediaIntegration',
-    items: [
-      { to: '/hr/settings/social-media', label: 'Social Media', icon: ICONS.social }
+      { to: '/hr/settings/social-media', label: 'Social Media', icon: ICONS.social, module: 'socialMediaIntegration' }
     ]
   },
   {
@@ -190,15 +184,16 @@ const NAV_GROUPS = [
         label: 'Customization',
         icon: ICONS.customization,
         children: [
-          { to: '/hr/career-builder', label: 'Edit Career Page' },
-          { to: '/hr/apply-builder', label: 'Edit Apply Page' },
+          { to: '/hr/career-builder', label: 'Edit Career Page', module: 'recruitment' },
+          { to: '/hr/apply-builder', label: 'Edit Apply Page', module: 'recruitment' },
           // { to: '/tenant/customization/vendor', label: 'Edit Vendor Forms' }
         ]
       },
       {
         label: 'View Careers Page',
         icon: ICONS.viewCareers,
-        isExternal: true
+        isExternal: true,
+        module: 'recruitment'
       }
     ]
   }
@@ -211,18 +206,34 @@ export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigat
   const [expanded, setExpanded] = useState({});
   const [tenant, setTenant] = useState(null);
 
-  const filteredGroups = NAV_GROUPS.filter(group => {
+  const filteredGroups = NAV_GROUPS.reduce((acc, group) => {
+    // 1. Check if the GROUP itself is allowed
     // Super Admin sees everything
-    if (user?.role === 'psa') return true;
-
-    // If group has a module requirement, check it
-    if (group.module) {
-      return enabledModules && enabledModules[group.module] === true;
+    if (user?.role !== 'psa') {
+      // If group has a module requirement, check it
+      if (group.module && (!enabledModules || enabledModules[group.module] !== true)) {
+        return acc; // Skip this group entirely
+      }
     }
 
-    // Default: allow (Dashboard, Configuration etc which might be shared)
-    return true;
-  });
+    // 2. Filter ITEMS within the group
+    const filteredItems = group.items.filter(item => {
+      // If item has specific module requirement (e.g. Social Media inside Configuration)
+      if (item.module && user?.role !== 'psa') {
+        if (!enabledModules || enabledModules[item.module] !== true) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    // 3. Only add group if it has items left
+    if (filteredItems.length > 0) {
+      acc.push({ ...group, items: filteredItems });
+    }
+
+    return acc;
+  }, []);
 
 
   useEffect(() => {

@@ -91,14 +91,28 @@ router.post('/jobs/apply/:requirementId', authenticateCandidate, async (req, res
       return res.status(400).json({ error: 'Already applied to this position' });
     }
 
+    const Requirement = tenantDB.model("Requirement");
+    const job = await Requirement.findById(requirementId).select('pipelineStages jobTitle');
+
+    // Default to 'Applied' if no pipeline is defined, else use first stage from job
+    const defaultStatus = (job && job.pipelineStages && job.pipelineStages.length > 0)
+      ? job.pipelineStages[0].stageName
+      : 'Applied';
+
     const application = new Applicant({
       requirementId,
       candidateId,
       coverLetter,
-      status: 'applied'
+      status: defaultStatus,
+      timeline: [{
+        status: defaultStatus,
+        message: `Application submitted for position: ${job?.jobTitle || 'N/A'}. Initial status: ${defaultStatus}`,
+        timestamp: new Date()
+      }]
     });
 
     await application.save();
+
     res.status(201).json({
       message: 'Application submitted successfully',
       applicationId: application._id
