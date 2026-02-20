@@ -170,7 +170,7 @@ export default function TeamAttendanceView() {
             {/* Team List Table */}
             <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl overflow-hidden">
                 <table className="w-full text-left">
-                    <thead className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800">
+                    <thead className="bg-white dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800">
                         <tr>
                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee</th>
                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">In/Out Time</th>
@@ -257,7 +257,7 @@ export default function TeamAttendanceView() {
             {viewingEmployee && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setViewingEmployee(null)}></div>
-                    <div className="relative w-full max-w-6xl max-h-[90vh] overflow-y-auto bg-slate-50 dark:bg-slate-950 rounded-[40px] shadow-2xl border border-white/20 p-8">
+                    <div className="relative w-full max-w-6xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-950 rounded-[40px] shadow-2xl border border-white/20 p-8">
                         <div className="flex justify-between items-center mb-8">
                             <div className="flex items-center gap-4">
                                 <div className="h-14 w-14 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-300 font-black text-xl shadow-lg">

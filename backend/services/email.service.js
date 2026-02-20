@@ -473,6 +473,37 @@ class EmailService {
         }
         return Promise.resolve();
     }
+
+    /**
+     * Send Offer Fully Signed Email
+     */
+    async sendOfferFullySignedEmail(to, candidateName, jobTitle, companyName) {
+        const subject = `Offer Fully Signed – ${companyName}`;
+        const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 5px;">
+                <div style="background-color: #27ae60; color: white; padding: 20px; text-align: center;">
+                    <h2 style="margin: 0;">Offer Fully Signed!</h2>
+                </div>
+                <div style="padding: 25px; background-color: #ffffff;">
+                    <p style="font-size: 16px; color: #333;">Dear <strong>${candidateName}</strong>,</p>
+                    <p style="color: #555; line-height: 1.6;">
+                        We are happy to inform you that your offer letter for the position of <strong>${jobTitle}</strong> has been fully signed and approved by <strong>${companyName}</strong>.
+                    </p>
+                    <p style="color: #555; line-height: 1.6;">
+                        You can now log in to the candidate portal to download your final copy of the signed offer letter.
+                    </p>
+                    <div style="background-color: #f8f9fa; border-left: 5px solid #27ae60; padding: 15px; margin: 20px 0;">
+                        <p style="margin: 0; color: #555;">Next Steps:</p>
+                        <p style="margin: 5px 0 0; color: #333;">Our team will initiate the Background Verification (BGV) process shortly. Please keep your documents ready.</p>
+                    </div>
+                </div>
+                <div style="background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 12px; color: #888;">
+                    <p style="margin: 0;">This is an automated email. Please do not reply.</p>
+                </div>
+            </div>
+        `;
+        return this.sendEmail(to, subject, html);
+    }
 }
 
 module.exports = new EmailService();

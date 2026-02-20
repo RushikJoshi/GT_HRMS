@@ -307,7 +307,7 @@ export default function CompanyForm({ company, onClose }) {
             {saving ? 'Processing...' : <><Save size={16} /> Save Information</>}
           </button>
         </div>
-      </form>
-    </div>
+      </form >
+    </div >
   );
 }

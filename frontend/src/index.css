@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 
 /** @format */
 
@@ -10,7 +10,7 @@
   body {
     @apply text-slate-800 antialiased;
     background-color: #f8fafc;
-    font-family: 'Open Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
 }
 
@@ -188,4 +188,31 @@ input[type="number"] {
 
 .ant-notification-notice {
   margin-bottom: 16px;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1E293B;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #334155;
 }

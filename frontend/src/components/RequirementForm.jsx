@@ -137,29 +137,10 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
 
     // Load data
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [posRes, empRes] = await Promise.all([
-                    api.get('/positions'),
-                    api.get('/hr/employees?limit=500')
-                ]);
-                const allPositions = Array.isArray(posRes.data) ? posRes.data : posRes.data.data || [];
-                // Only show positions that:
-                // 1. Don't have an active opening (hiringStatus !== 'Open')
-                // 2. Have vacant positions available (vacantCount > 0 OR filledCount < headCount)
-                const availablePositions = allPositions.filter(pos => {
-                    const hasVacancy = (pos.vacantCount && pos.vacantCount > 0) ||
-                        (pos.headCount && pos.filledCount < pos.headCount);
-                    const noActiveHiring = pos.hiringStatus !== 'Open';
-                    return hasVacancy && noActiveHiring;
-                });
-                setPositions(availablePositions);
-                setEmployees(Array.isArray(empRes.data) ? empRes.data : empRes.data.data || empRes.data.employees || []);
-            } catch (err) {
-                console.error("Initialization Error:", err);
-            }
-        };
-        fetchData();
+        api.get('/positions').then(res => {
+            if (res.data.success) setPositions(res.data.data);
+        }).catch(err => console.error("Error fetching positions", err));
+    }, []);
 
         if (initialData) {
             setFormData(prev => ({ ...prev, ...initialData }));

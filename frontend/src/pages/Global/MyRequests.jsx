@@ -51,7 +51,7 @@ export default function MyRequests() {
     );
 
     return (
-        <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+        <div className="w-full h-full animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8 p-6">
             <header className="p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 dark:text-white">My Requests</h1>

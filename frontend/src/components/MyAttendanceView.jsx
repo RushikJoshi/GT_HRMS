@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import AttendanceCalendar from './AttendanceCalendar';
-import { ChevronLeft, ChevronRight, Download, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Filter, Calendar as CalendarIcon, Clock, CheckCircle, AlertCircle, Briefcase } from 'lucide-react';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 
@@ -29,7 +29,7 @@ export default function MyAttendanceView() {
                 api.get(`/employee/leaves/history?t=${t}`),
                 api.get(`/holidays?t=${t}`),
                 api.get(`/attendance/settings?t=${t}`)
-            ]); 
+            ]);
 
             const rawAttendance = attRes.data || [];
             const leaves = leaveRes.data || [];
@@ -129,14 +129,9 @@ export default function MyAttendanceView() {
         const tenant = localStorage.getItem("tenantId");
         console.log(tenant);
 
-        // const attandanceData = await attendance.find({}).lean();
-        // console.log(attandanceData);
-        // const employee = employee.find({tenant: tenant });
-        // console.log(attendance);
-
         const rows = attendance.map(item => [
-            item.employee.employeeId,
-            (item.employee.firstName + " " +item.employee.lastName),
+            item.employee?.employeeId || '-',
+            (item.employee?.firstName + " " + (item.employee?.lastName || '')).trim(),
             formatDateDDMMYYYY(item.date),
             (item.leaveType ? `${item.status} (${item.leaveType})` : item.status).toUpperCase(),
             item.checkIn ? new Date(item.checkIn).toLocaleTimeString() : '-',
@@ -162,83 +157,86 @@ export default function MyAttendanceView() {
     });
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header */}
+        <div className="space-y-4 animate-in fade-in duration-500">
+            {/* Header & Controls */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h2 className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter uppercase">My Attendance</h2>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Track your presence and working hours</p>
-                </div>
 
-                <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                    <button onClick={prevMonth} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition"><ChevronLeft size={20} /></button>
-                    <div className="px-4 text-sm font-black text-slate-700 dark:text-slate-300 min-w-[140px] text-center uppercase tracking-tighter">
-                        {new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center bg-white p-1 rounded-xl border border-[#E5E7EB] shadow-sm">
+                        <button onClick={prevMonth} className="p-1.5 hover:bg-slate-50 rounded-lg text-[#6B7280] transition-colors"><ChevronLeft size={16} /></button>
+                        <div className="px-3 text-xs font-bold text-[#111827] min-w-[120px] text-center uppercase tracking-widest">
+                            {new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                        </div>
+                        <button onClick={nextMonth} className="p-1.5 hover:bg-slate-50 rounded-lg text-[#6B7280] transition-colors"><ChevronRight size={16} /></button>
                     </div>
-                    <button onClick={nextMonth} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition"><ChevronRight size={20} /></button>
+
+                    <button
+                        onClick={handleExport}
+                        className="flex items-center gap-2 px-4 py-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white text-[10px] font-bold uppercase tracking-widest rounded-xl shadow-md transition-colors"
+                    >
+                        <Download size={14} /> Export CSV
+                    </button>
+
+                    <div className="relative">
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="appearance-none pl-3 pr-8 py-2 text-[10px] font-bold uppercase tracking-widest bg-white text-[#111827] rounded-xl border border-[#E5E7EB] hover:border-[#D1D5DB] focus:outline-none focus:ring-1 focus:ring-[#14B8A6] transition-colors cursor-pointer shadow-sm"
+                        >
+                            <option value="all">All Records</option>
+                            <option value="present">Present Only</option>
+                            <option value="absent">Absent Only</option>
+                            <option value="leave">On Leave</option>
+                            <option value="half_day">Half Day</option>
+                        </select>
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
+                            <Filter size={10} />
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Summary Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-                <SummaryCard label="Present" value={summary.present} color="text-emerald-500" bg="bg-emerald-500" />
-                <SummaryCard label="Absent" value={summary.absent} color="text-rose-500" bg="bg-rose-500" />
-                <SummaryCard label="On Leave" value={summary.leave} color="text-blue-500" bg="bg-blue-500" />
-                <SummaryCard label="Late Marks" value={summary.late} color="text-amber-500" bg="bg-amber-500" />
-                <SummaryCard label="Total Hours" value={summary.hours.toFixed(1)} color="text-indigo-500" bg="bg-indigo-500" unit="HRS" />
+            {/* Compact Summary Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <SummaryCard label="Present" value={summary.present} color="text-[#14B8A6]" iconBg="bg-[#CCFBF1]" iconColor="text-[#14B8A6]" icon={CheckCircle} />
+                <SummaryCard label="Absent" value={summary.absent} color="text-[#EF4444]" iconBg="bg-[#FEE2E2]" iconColor="text-[#EF4444]" icon={AlertCircle} />
+                <SummaryCard label="On Leave" value={summary.leave} color="text-[#F59E0B]" iconBg="bg-[#FEF3C7]" iconColor="text-[#D97706]" icon={CalendarIcon} />
+                <SummaryCard label="Late Marks" value={summary.late} color="text-[#A855F7]" iconBg="bg-[#F3E8FF]" iconColor="text-[#9333EA]" icon={Clock} />
+                <SummaryCard label="Total Hours" value={summary.hours.toFixed(1)} color="text-[#6366F1]" iconBg="bg-[#E0E7FF]" iconColor="text-[#4F46E5]" unit="Hrs" icon={Briefcase} />
             </div>
 
             {/* Calendar Section */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between px-2">
-                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Attendance Register</h3>
-                    <div className="flex gap-2">
-                        <div className="relative">
-                            <select
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                                className="appearance-none flex items-center gap-2 pl-4 pr-10 py-2 text-[10px] font-black uppercase tracking-widest bg-white dark:bg-slate-900 text-slate-500 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 transition shadow-sm outline-none"
-                            >
-                                <option value="all">All Records</option>
-                                <option value="present">Present Only</option>
-                                <option value="absent">Absent Only</option>
-                                <option value="leave">On Leave</option>
-                                <option value="half_day">Half Day</option>
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                <Filter size={12} />
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleExport}
-                            className="flex items-center gap-2 px-6 py-2 text-[10px] font-black uppercase tracking-widest bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition"
-                        >
-                            <Download size={14} /> Export CSV
-                        </button>
-                    </div>
+            <div className="bg-white rounded-[20px] shadow-md border border-[#E5E7EB] p-4">
+                <div className="overflow-hidden">
+                    <AttendanceCalendar
+                        data={filteredAttendance}
+                        holidays={holidays}
+                        settings={settings}
+                        currentMonth={currentMonth}
+                        currentYear={currentYear}
+                    />
                 </div>
-
-                <AttendanceCalendar
-                    data={filteredAttendance}
-                    holidays={holidays}
-                    settings={settings}
-                    currentMonth={currentMonth}
-                    currentYear={currentYear}
-                />
             </div>
         </div>
     );
 }
 
-function SummaryCard({ label, value, color, bg, unit }) {
+function SummaryCard({ label, value, color, iconBg, iconColor, unit, icon: Icon }) {
     return (
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/40 dark:shadow-none">
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{label}</div>
-            <div className={`text-4xl font-black ${color} tracking-tighter flex items-baseline gap-1`}>
-                {value}
-                {unit && <span className="text-[10px] opacity-50">{unit}</span>}
+        <div className="bg-white p-3 rounded-[20px] shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all duration-300 flex flex-col justify-between h-24 group">
+            <div className="flex justify-between items-start">
+                <span className="text-[9px] text-[#6B7280] uppercase tracking-widest font-bold">{label}</span>
+                <div className={`p-1.5 rounded-lg ${iconBg} ${iconColor} group-hover:scale-110 transition-transform`}>
+                    {Icon ? <Icon size={12} /> : <div className="h-2 w-2 rounded-full bg-current opacity-50"></div>}
+                </div>
             </div>
-            <div className={`h-1 w-8 rounded-full mt-4 ${bg} opacity-20`}></div>
+            <div className="mt-2 text-right">
+                <div className="flex flex-col items-end">
+                    <span className={`text-3xl font-bold ${color || 'text-[#111827]'} tracking-tighter leading-none`}>{value}</span>
+                    {unit && <span className="text-[9px] font-bold text-[#9CA3AF] uppercase">{unit}</span>}
+                </div>
+            </div>
         </div>
     );
 }

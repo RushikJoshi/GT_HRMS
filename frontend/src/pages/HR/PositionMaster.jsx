@@ -38,7 +38,6 @@ const PositionMaster = () => {
         try {
             setLoading(true);
             const res = await api.get('/positions');
-
             if (res.data.success) {
                 const data = Array.isArray(res.data.data) ? res.data.data : [];
                 setPositions(data);

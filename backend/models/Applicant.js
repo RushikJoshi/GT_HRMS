@@ -69,6 +69,9 @@ const ApplicantSchema = new mongoose.Schema({
   ],
 
   offerLetterPath: { type: String },
+  signedOfferPath: { type: String },
+  offerStatus: { type: String },
+  isSigned: { type: Boolean, default: false },
   offerRefCode: { type: String },
   joiningLetterPath: { type: String },
   joiningDate: { type: Date },

@@ -779,43 +779,32 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Loading...</p>
-        </div>
+      <div className="h-full flex flex-col items-center justify-center p-12 min-h-[400px]">
+        <Loader2 className="w-10 h-10 text-teal-500 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium animate-pulse">Initializing Security Protocols...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl mb-4 shadow-2xl">
-            <Camera className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-bold text-white mb-2 tracking-tight">
-            Face Recognition Attendance
-          </h1>
-          <p className="text-blue-200 text-lg">
-            Secure {attendanceActionLabel.toLowerCase()} with face and location verification
-          </p>
-        </div>
+    <div className="relative w-full h-full">
+      {/* Blurry Border Container */}
+      <div className="relative bg-white border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[32px] overflow-hidden p-6 sm:p-8">
+
+
 
         {/* Mode Toggle */}
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex bg-slate-800/50 backdrop-blur-sm rounded-2xl p-1.5 shadow-xl border border-slate-700/50">
+        <div className="flex justify-center mb-10">
+          <div className="inline-flex bg-white p-1.5 rounded-2xl border border-slate-200/60 shadow-inner">
             {faceRegistered && (
               <button
                 onClick={() => { setMode('attendance'); setStatus(null); setMessage(''); }}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${mode === 'attendance'
-                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg scale-105'
-                  : 'text-slate-300 hover:text-white'
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wide transition-all duration-300 ${mode === 'attendance'
+                  ? 'bg-white text-teal-600 shadow-md transform scale-105'
+                  : 'text-slate-400 hover:text-slate-600'
                   }`}
               >
-                <CheckCircle className="w-5 h-5" />
+                <CheckCircle className="w-4 h-4" />
                 Mark Attendance
               </button>
             )}
@@ -829,41 +818,42 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
                   setMessage('');
                 }
               }}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${mode === 'register'
-                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg scale-105'
-                : 'text-slate-300 hover:text-white'
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wide transition-all duration-300 ${mode === 'register'
+                ? 'bg-white text-teal-600 shadow-md transform scale-105'
+                : 'text-slate-400 hover:text-slate-600'
                 }`}
             >
-              <UserPlus className="w-5 h-5" />
-              {faceRegistered ? (canUpdate ? 'Update Face' : 'Request Face Update') : 'Register Face'}
+              <UserPlus className="w-4 h-4" />
+              {faceRegistered ? (canUpdate ? 'Update Face' : 'Request Update') : 'Register Face'}
             </button>
           </div>
         </div>
 
         {/* Pending Request Alert */}
         {pendingRequest && (
-          <div className="max-w-2xl mx-auto mb-8 bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 flex items-center gap-4">
-            <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center shrink-0">
-              <Clock className="w-5 h-5 text-blue-400" />
+          <div className="max-w-2xl mx-auto mb-8 bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-center gap-4">
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-blue-100 font-semibold">Face Update Request Pending</p>
-              <p className="text-blue-200/70 text-sm">Your request to update face data is currently under review by HR.</p>
+              <p className="text-blue-800 font-bold text-sm uppercase tracking-wide">Update Pending</p>
+              <p className="text-blue-600/80 text-xs font-medium mt-0.5">Your face update request is under review.</p>
             </div>
           </div>
         )}
 
-        {/* Main Content */}
+        {/* Main Grid */}
         <div className="grid lg:grid-cols-2 gap-8">
-          {/* Camera Section */}
-          <div className="bg-slate-800/40 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-slate-700/50">
-            <div className="aspect-video bg-slate-900/50 rounded-2xl overflow-hidden relative mb-6 border-2 border-slate-700/50">
+
+          {/* Left Column: Camera */}
+          <div className="rounded-[24px] bg-white border border-slate-100 p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="relative aspect-video bg-white rounded-2xl overflow-hidden border border-slate-200 mb-6 group">
               {!cameraActive ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-                  <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mb-4 border-4 border-slate-700">
-                    <Camera className="w-12 h-12 text-slate-500" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-10 transition-opacity">
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100">
+                    <Camera className="w-8 h-8 text-slate-300" />
                   </div>
-                  <p className="text-slate-400 text-lg font-medium">Camera is off</p>
+                  <p className="text-slate-400 text-sm font-semibold uppercase tracking-wider">Camera Inactive</p>
                 </div>
               ) : (
                 <>
@@ -878,12 +868,14 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
                   />
                   <canvas
                     ref={overlayCanvasRef}
-                    className="absolute inset-0 w-full h-full"
+                    className="absolute inset-0 w-full h-full pointer-events-none"
                     style={{ transform: 'scaleX(-1)', WebkitTransform: 'scaleX(-1)' }}
                   />
                   {capturing && (
-                    <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center z-20">
-                      <Loader2 className="w-16 h-16 text-white animate-spin" />
+                    <div className="absolute inset-0 bg-white/10 backdrop-blur-[2px] flex items-center justify-center z-20">
+                      <div className="bg-white/90 p-4 rounded-2xl shadow-xl">
+                        <Loader2 className="w-8 h-8 text-teal-500 animate-spin" />
+                      </div>
                     </div>
                   )}
                 </>
@@ -891,21 +883,21 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
               <canvas ref={canvasRef} className="hidden" />
             </div>
 
-            <div className="space-y-3">
+            <div className="flex flex-col gap-3">
               {!cameraActive ? (
                 <button
                   onClick={startCamera}
-                  className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105"
+                  className="w-full bg-[#14B8A6] hover:bg-[#0F766E] text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-teal-500/20 active:scale-[0.98] flex items-center justify-center gap-2 uppercase tracking-wide text-sm"
                 >
                   <Camera className="w-5 h-5" />
-                  Start Camera
+                  Activate Camera
                 </button>
               ) : (
                 <>
                   <button
                     onClick={mode === 'attendance' ? handleAttendance : handleRegistration}
                     disabled={capturing}
-                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-semibold py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+                    className="w-full bg-[#14B8A6] hover:bg-[#0F766E] disabled:bg-slate-300 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-teal-500/20 active:scale-[0.98] disabled:shadow-none disabled:active:scale-100 flex items-center justify-center gap-2 uppercase tracking-wide text-sm"
                   >
                     {capturing ? (
                       <>
@@ -931,7 +923,7 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
                   <button
                     onClick={stopCamera}
                     disabled={capturing}
-                    className="w-full bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 text-white font-semibold py-3 rounded-xl transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full bg-white hover:bg-slate-50 text-slate-600 font-bold py-3 rounded-xl transition-all border border-slate-200/60 flex items-center justify-center gap-2 uppercase tracking-wide text-xs"
                   >
                     <LogOut className="w-4 h-4" />
                     Stop Camera
@@ -941,226 +933,206 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
             </div>
           </div>
 
-          {/* Info Section */}
+          {/* Right Column: Status & Forms */}
           <div className="space-y-6">
-            {/* Registration Status */}
-            <div className="bg-slate-800/40 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-slate-700/50">
-              <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                <Shield className="w-6 h-6 text-blue-400" />
-                Registration Status
+
+            {/* 1. Registration Status Card */}
+            <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-teal-500" />
+                Status check
               </h3>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 {faceRegistered ? (
                   <>
-                    <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center">
-                      <CheckCircle className="w-6 h-6 text-emerald-400" />
+                    <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100 hidden sm:flex">
+                      <CheckCircle className="w-6 h-6 text-emerald-500" />
                     </div>
                     <div>
-                      <p className="text-emerald-400 font-semibold">Face Registered</p>
-                      <p className="text-slate-400 text-sm">You can mark attendance</p>
+                      <p className="text-emerald-600 font-bold text-base">Face Registered</p>
+                      <p className="text-slate-400 text-xs font-medium mt-0.5">System is ready for attendance</p>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center">
-                      <AlertCircle className="w-6 h-6 text-orange-400" />
+                    <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center border border-amber-100 hidden sm:flex">
+                      <AlertCircle className="w-6 h-6 text-amber-500" />
                     </div>
                     <div>
-                      <p className="text-orange-400 font-semibold">Not Registered</p>
-                      <p className="text-slate-400 text-sm">Please register your face first</p>
+                      <p className="text-amber-500 font-bold text-base">Not Registered</p>
+                      <p className="text-slate-400 text-xs font-medium mt-0.5">Face data is required</p>
                     </div>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Registration Form (only in register mode) */}
+            {/* 2. Registration Form (Register Mode) */}
             {mode === 'register' && (
-              <div className="bg-slate-800/40 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-slate-700/50">
-                <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                  <User className="w-6 h-6 text-blue-400" />
+              <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm animate-in fade-in slide-in-from-right-4 duration-300">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <User className="w-4 h-4 text-teal-500" />
                   Your Details
                 </h3>
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Full Name *
-                    </label>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Full Name</label>
                     <input
                       type="text"
                       value={registrationName}
                       onChange={(e) => setRegistrationName(e.target.value)}
-                      placeholder="Enter your full name"
-                      className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="Enter Full Name"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium placeholder-slate-400 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 transition-all text-sm"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Employee ID *
-                    </label>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Employee ID</label>
                     <input
                       type="text"
                       value={registrationId}
                       onChange={(e) => setRegistrationId(e.target.value)}
-                      placeholder="Enter your employee ID"
-                      className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="Enter ID"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium placeholder-slate-400 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 transition-all text-sm"
                     />
                   </div>
-                  <div className="flex items-start gap-3 p-4 bg-slate-900/50 rounded-xl border border-slate-700">
-                    <input
-                      type="checkbox"
-                      id="consent"
-                      checked={consentGiven}
-                      onChange={(e) => setConsentGiven(e.target.checked)}
-                      className="w-5 h-5 mt-0.5 rounded border-slate-600 text-blue-500 focus:ring-blue-500 cursor-pointer"
-                    />
-                    <label htmlFor="consent" className="text-sm text-slate-300 cursor-pointer flex-1">
-                      I consent to my face data being captured, stored, and processed for attendance verification. My data will be encrypted and securely stored.
+                  <div className="pt-2">
+                    <label className="flex items-start gap-3 p-3 bg-white rounded-xl border border-slate-100 hover:border-teal-200 cursor-pointer transition-colors group">
+                      <input
+                        type="checkbox"
+                        checked={consentGiven}
+                        onChange={(e) => setConsentGiven(e.target.checked)}
+                        className="mt-1 w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500 cursor-pointer"
+                      />
+                      <span className="text-xs text-slate-500 group-hover:text-slate-600 font-medium leading-relaxed">
+                        I consent to capturing my face data for automated attendance verification securely.
+                      </span>
                     </label>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Status Messages */}
+            {/* 3. Feedback / Status Messages */}
             {status && (
-              <div className={`bg-slate-800/40 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border-2 ${status === 'success' ? 'border-emerald-500/50' : 'border-red-500/50'
+              <div className={`rounded-[24px] p-6 shadow-sm border animate-in zoom-in-95 duration-200 ${status === 'success' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'
                 }`}>
                 <div className="flex items-start gap-4">
-                  {status === 'success' ? (
-                    <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                      <CheckCircle className="w-7 h-7 text-emerald-400" />
-                    </div>
-                  ) : (
-                    <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                      <XCircle className="w-7 h-7 text-red-400" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <h3 className={`text-xl font-bold mb-1 ${status === 'success' ? 'text-emerald-400' : 'text-red-400'
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${status === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500'
+                    }`}>
+                    {status === 'success' ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h3 className={`font-bold text-sm uppercase tracking-wide mb-1 ${status === 'success' ? 'text-emerald-700' : 'text-rose-700'
                       }`}>
-                      {status === 'success' ? 'Success!' : 'Error'}
+                      {status === 'success' ? 'Success' : 'Action Failed'}
                     </h3>
-                    <p className="text-slate-300 text-sm">{message}</p>
+                    <p className={`text-sm font-medium leading-relaxed ${status === 'success' ? 'text-emerald-600/80' : 'text-rose-600/80'
+                      }`}>{message}</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Location Info */}
-            <div className="bg-slate-800/40 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-slate-700/50">
-              <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                <Navigation className="w-6 h-6 text-blue-400" />
-                Location
+            {/* 4. Location Details */}
+            <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Navigation className="w-4 h-4 text-teal-500" />
+                Location Data
               </h3>
               {location ? (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-emerald-400">
-                    <MapPin className="w-5 h-5" />
-                    <span className="font-semibold">Location Acquired</span>
+                  <div className="flex items-center gap-2 text-emerald-500 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <span className="text-xs font-bold uppercase tracking-wide">Signal Acquired</span>
                   </div>
-                  <div className="bg-slate-900/50 rounded-xl p-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Latitude:</span>
-                      <span className="text-white font-mono">{location.lat.toFixed(6)}</span>
+                  <div className="bg-white rounded-xl p-4 space-y-2 border border-slate-100">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-semibold uppercase tracking-wider">Coords</span>
+                      <span className="text-slate-600 font-mono font-medium">{location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Longitude:</span>
-                      <span className="text-white font-mono">{location.lng.toFixed(6)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Accuracy:</span>
-                      <span className={`font-mono ${location.accuracy < 20 ? 'text-emerald-400' : 'text-orange-400'}`}>
-                        {Math.round(location.accuracy)}m
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-semibold uppercase tracking-wider">Precision</span>
+                      <span className={`font-mono font-bold ${location.accuracy < 20 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                        ~{Math.round(location.accuracy)}m
                       </span>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <span className="text-slate-400 whitespace-nowrap">
-                        Place:
-                      </span>
-                      <span className="ml-auto max-w-[70%] text-right font-mono text-slate-200 break-words">
-                        {location.place}
-                      </span>
+                    <div className="pt-2 mt-2 border-t border-dashed border-slate-200">
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-3 h-3 text-slate-400 mt-0.5 shrink-0" />
+                        <span className="text-xs text-slate-500 font-medium leading-relaxed break-words">
+                          {location.place}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start gap-3 text-slate-400">
-                  <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm">
-                    Location will be captured when you mark attendance
-                  </p>
+                <div className="flex flex-col items-center justify-center py-6 text-center bg-white rounded-xl border border-dashed border-slate-200">
+                  <Navigation className="w-8 h-8 text-slate-200 mb-2" />
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Waiting for GPS</p>
                 </div>
               )}
             </div>
 
-            {/* Instructions */}
-            <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-blue-500/20">
-              <h3 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-                <Smartphone className="w-5 h-5" />
-                Instructions
+            {/* 5. Instructions */}
+            <div className="bg-[#F0FDFA] rounded-[24px] border border-[#CCFBF1] p-6">
+              <h3 className="text-sm font-bold text-[#14B8A6] uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Smartphone className="w-4 h-4" />
+                Guidelines
               </h3>
-              <ul className="space-y-2 text-slate-300 text-sm">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span>Position your face clearly in the camera frame</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span>Ensure good lighting and face visibility</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span>Allow location access for GPS verification</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span>Remain within office geofence (20m accuracy)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span>Register once, then mark attendance daily</span>
-                </li>
+              <ul className="space-y-2.5">
+                {[
+                  'Ensure your face is clearly visible',
+                  'Verify you are within office premises',
+                  'Clean camera lens for best results',
+                  'Grant browser location permissions'
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-xs text-[#0F766E] font-medium">
+                    <span className="w-1 h-1 rounded-full bg-[#14B8A6] mt-1.5 shrink-0"></span>
+                    {item}
+                  </li>
+                ))}
               </ul>
             </div>
+
           </div>
         </div>
       </div>
 
       {/* Face Update Request Modal */}
       {showRequestModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setShowRequestModal(false)}></div>
-          <div className="relative bg-slate-800 border border-slate-700 w-full max-w-md rounded-3xl p-6 shadow-2xl">
-            <h2 className="text-2xl font-bold text-white mb-4">Request Face Update</h2>
-            <p className="text-slate-400 text-sm mb-6">
-              To update your registered face, please provide a reason. HR will review your request and grant permission if approved.
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setShowRequestModal(false)}></div>
+          <div className="relative bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl scale-100 opacity-100 transition-all border border-white/40">
+            <h2 className="text-xl font-black text-slate-800 mb-3">Update Request</h2>
+            <p className="text-slate-500 text-sm mb-6 font-medium leading-relaxed">
+              Please explain why you need to re-register your face data. Admin approval required.
             </p>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="block text-slate-300 text-sm font-medium mb-1.5 ml-1">Reason for update</label>
+                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2 ml-1">Reason</label>
                 <textarea
                   value={requestReason}
                   onChange={(e) => setRequestReason(e.target.value)}
-                  placeholder="e.g., Change in appearance, initial photo was unclear..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white placeholder-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition h-32 resize-none"
+                  placeholder="e.g. Changed appearance, new glasses..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-700 placeholder-slate-400 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition h-32 resize-none text-sm font-medium"
                 ></textarea>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setShowRequestModal(false)}
-                  className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition"
+                  className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-sm uppercase tracking-wide transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmitRequest}
                   disabled={submittingRequest}
-                  className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl font-bold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 py-3.5 bg-[#14B8A6] hover:bg-[#0F766E] text-white rounded-2xl font-bold text-sm uppercase tracking-wide transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
                 >
-                  {submittingRequest ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Submit'}
+                  {submittingRequest ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Submit Request'}
                 </button>
               </div>
             </div>
@@ -1170,30 +1142,31 @@ const FaceAttendance = ({ onSuccess, onClose, actionType }) => {
 
       {/* Policy Violation Modal */}
       {violationModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"></div>
-          <div className="relative bg-slate-800 border border-orange-500/50 w-full max-w-md rounded-3xl p-6 shadow-2xl transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
-            <div className="flex flex-col items-center mb-6">
-              <div className="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mb-4">
-                <AlertCircle className="w-8 h-8 text-orange-400" />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"></div>
+          <div className="relative bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl border-2 border-rose-100 animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center mb-6 text-center">
+              <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mb-4 border border-rose-100 shadow-sm">
+                <AlertCircle className="w-8 h-8 text-rose-500" />
               </div>
-              <h2 className="text-2xl font-bold text-white text-center">Attendance Notice</h2>
+              <h2 className="text-xl font-black text-slate-800">Policy Alert</h2>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Attendance Verification</p>
             </div>
 
             <div className="space-y-3 mb-8">
               {violationModal.violations.map((violation, idx) => (
-                <div key={idx} className="bg-slate-900/50 border border-slate-700 p-4 rounded-xl flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-2 shrink-0"></div>
-                  <p className="text-slate-200 text-sm leading-relaxed">{violation}</p>
+                <div key={idx} className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-2 shrink-0"></div>
+                  <p className="text-rose-700 text-sm font-medium leading-relaxed">{violation}</p>
                 </div>
               ))}
             </div>
 
             <button
               onClick={() => setViolationModal({ show: false, violations: [] })}
-              className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all transform hover:scale-[1.02]"
+              className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-2xl shadow-lg shadow-rose-200 transition-all active:scale-[0.98] uppercase tracking-wide text-sm"
             >
-              Acknowledge & Close
+              Acknowledge
             </button>
           </div>
         </div>
