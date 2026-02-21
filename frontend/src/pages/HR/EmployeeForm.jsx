@@ -1,7 +1,37 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../../utils/api';
-import { notification, DatePicker } from 'antd';
-import { IndianRupee } from 'lucide-react';
+import { DatePicker } from 'antd';
+import { showToast } from '../../utils/uiNotifications';
+import {
+  IndianRupee,
+  GraduationCap,
+  FileCheck,
+  ShieldCheck,
+  Fingerprint,
+  Lock,
+  CreditCard,
+  Landmark,
+  Briefcase,
+  Calendar,
+  MapPin,
+  Phone,
+  Mail,
+  User,
+  Search,
+  Trash2,
+  Edit2,
+  Plus,
+  ArrowRight,
+  ArrowLeft,
+  Camera,
+  Upload,
+  Check,
+  X,
+  AlertCircle,
+  Workflow,
+  Heart,
+  CheckCircle
+} from 'lucide-react';
 import dayjs from 'dayjs';
 import { formatDateDDMMYYYY } from '../../utils/dateUtils';
 
@@ -92,8 +122,8 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
   };
 
   const saveSalaryAssignment = async () => {
-    if (!salaryTemplateId) { notification.error({ message: 'Validation Error', description: "Please select a Salary Template", placement: 'topRight' }); return; }
-    if (!employee?._id) { notification.error({ message: 'Validation Error', description: "Please save employee draft first", placement: 'topRight' }); return; }
+    if (!salaryTemplateId) { showToast('error', 'Validation Error', "Please select a Salary Template"); return; }
+    if (!employee?._id) { showToast('error', 'Validation Error', "Please save employee draft first"); return; }
 
     setSaving(true);
     try {
@@ -102,10 +132,10 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
         effectiveFrom: salaryEffectiveDate,
         status: salaryStatus
       });
-      notification.success({ message: 'Success', description: "Salary assigned successfully!", placement: 'topRight' });
+      showToast('success', 'Success', "Salary assigned successfully!");
     } catch (err) {
       console.error(err);
-      notification.error({ message: 'Error', description: err.response?.data?.message || "Failed to assign salary", placement: 'topRight' });
+      showToast('error', 'Error', err.response?.data?.message || "Failed to assign salary");
     } finally {
       setSaving(false);
     }
@@ -181,7 +211,7 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
         (maybeModuleBlocked ? 'HR module is disabled or access is denied for this company.' : backendMsg) ||
         err?.message ||
         'Failed to load departments';
-      notification.error({ message: 'Departments', description: errorMsg, placement: 'topRight' });
+      showToast('error', 'Departments', errorMsg);
     }
     finally {
       setDepartmentsLoading(false);
@@ -777,7 +807,7 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
     } catch (err) {
       console.error('Employee save error:', err);
       const errorMsg = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Failed to save employee';
-      notification.error({ message: 'Error', description: errorMsg, placement: 'topRight' });
+      showToast('error', 'Error', errorMsg);
     } finally {
       setSaving(false);
     }
@@ -900,11 +930,11 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
         // If new employee created, we might want to set it so future saves are updates?
         // But for now just alert.
       }
-      notification.success({ message: 'Success', description: 'Draft saved successfully!', placement: 'topRight' });
+      showToast('success', 'Success', 'Draft saved successfully!');
       // onClose(); // Removed as requested: User wants to stay on form
     } catch (err) {
       console.error("Failed to save draft", err);
-      notification.error({ message: 'Error', description: "Failed to save draft: " + (err.response?.data?.message || err.message), placement: 'topRight' });
+      showToast('error', 'Error', "Failed to save draft: " + (err.response?.data?.message || err.message));
     } finally { setSaving(false); }
   }
 
@@ -928,108 +958,112 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
         {/* Step 1: General Details */}
         {step === 1 && (
-          <div className="space-y-6">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
             {/* Profile Picture Upload */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col md:flex-row items-center gap-6">
-              <div className="relative group">
-                <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-md bg-slate-200 flex items-center justify-center">
+            <div className="bg-white dark:bg-slate-900/40 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm flex flex-col md:flex-row items-center gap-8 group">
+              <div className="relative">
+                <div className="w-32 h-32 rounded-[2.5rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center transition-transform duration-500 group-hover:scale-105">
                   {profilePreview ? (
                     <img src={profilePreview instanceof File ? URL.createObjectURL(profilePreview) : `${BACKEND_URL}${profilePreview}`} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <svg className="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    <div className="flex flex-col items-center gap-1 text-slate-300">
+                      <User size={40} strokeWidth={1.5} />
+                    </div>
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={() => profilePicRef.current?.click()}
-                  className="absolute bottom-0 right-0 bg-blue-600 text-white p-1.5 rounded-full shadow hover:bg-blue-700 transition"
+                  className="absolute -bottom-2 -right-2 bg-[#14B8A6] text-white p-3 rounded-2xl shadow-xl hover:bg-[#0D9488] hover:scale-110 transition-all border-4 border-white dark:border-slate-900"
                   title="Upload Photo"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  <Camera size={18} />
                 </button>
-                <input
-                  ref={profilePicRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                      setProfilePic(file);
-                      setProfilePreview(file);
-                    }
-                  }}
-                />
+                <input ref={profilePicRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files[0]; if (file) { setProfilePic(file); setProfilePreview(file); } }} />
               </div>
               <div className="flex-1 text-center md:text-left">
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-1">Profile Photo</h4>
-                <p className="text-xs text-slate-500 mb-2">Upload a professional photo. Max 2MB. (Optional)</p>
+                <p className="text-[10px] font-black text-[#14B8A6] uppercase tracking-[0.2em] mb-1">Visual Identity</p>
+                <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Profile Photo</h4>
+                <p className="text-[11px] font-medium text-slate-400 mt-1 max-w-xs">Upload a clear professional photo for the company directory. Supporting JPG, PNG up to 2MB.</p>
                 {profilePic && (
                   <button
                     type="button"
                     onClick={() => { setProfilePic(null); setProfilePreview(null); if (profilePicRef.current) profilePicRef.current.value = ''; }}
-                    className="text-xs text-red-500 hover:text-red-700 border border-red-200 bg-red-50 px-3 py-1 rounded-full transition"
+                    className="mt-4 flex items-center gap-2 group/btn px-4 py-2 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all border border-rose-100 dark:border-rose-900/30"
                   >
-                    Remove Photo
+                    <Trash2 size={14} />
+                    Remove Image
                   </button>
                 )}
               </div>
             </div>
 
             {/* Section: Identity Details */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Identity Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">First Name <span className="text-red-500">*</span></label>
-                  <input required value={firstName} onChange={e => { const v = e.target.value; setFirstName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.firstName ? 'border-red-500' : 'border-slate-300'}`} placeholder="John" />
-                  {errors.firstName && <div className="text-xs text-red-600 mt-1">{errors.firstName}</div>}
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-4 mb-8 border-l-[4px] border-[#14B8A6] pl-5">
+                <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center text-[#14B8A6]">
+                  <User size={24} />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">Middle Name</label>
-                  <input value={middleName} onChange={e => { const v = e.target.value; setMiddleName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.middleName ? 'border-red-500' : 'border-slate-300'}`} placeholder="D." />
-                  {errors.middleName && <div className="text-xs text-red-600 mt-1">{errors.middleName}</div>}
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Identity Details</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Core personnel information</p>
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Last Name <span className="text-red-500">*</span></label>
-                  <input required value={lastName} onChange={e => { const v = e.target.value; setLastName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.lastName ? 'border-red-500' : 'border-slate-300'}`} placeholder="Doe" />
-                  {errors.lastName && <div className="text-xs text-red-600 mt-1">{errors.lastName}</div>}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">First Name <span className="text-rose-500">*</span></label>
+                  <input required value={firstName} onChange={e => { const v = e.target.value; setFirstName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all duration-300 text-sm font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-700 ${errors.firstName ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6] focus:bg-white dark:focus:bg-slate-900'}`} placeholder="John" />
+                  {errors.firstName && <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 px-2 mt-1 uppercase tracking-widest animate-shake"><AlertCircle size={12} /> {errors.firstName}</div>}
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Gender</label>
-                  <select
-                    value={gender}
-                    onChange={e => setGender(e.target.value)}
-                    className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.gender ? 'border-red-500' : 'border-slate-300'}`}
-                  >
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Middle Name</label>
+                  <input value={middleName} onChange={e => { const v = e.target.value; setMiddleName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" placeholder="Ex: D." />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Last Name <span className="text-rose-500">*</span></label>
+                  <input required value={lastName} onChange={e => { const v = e.target.value; setLastName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all duration-300 text-sm font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-700 ${errors.lastName ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6] focus:bg-white dark:focus:bg-slate-900'}`} placeholder="Doe" />
+                  {errors.lastName && <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 px-2 mt-1 uppercase tracking-widest animate-shake"><AlertCircle size={12} /> {errors.lastName}</div>}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Gender</label>
+                  <select value={gender} onChange={e => setGender(e.target.value)} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none appearance-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.gender ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`}>
                     <option value="">Select Gender</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
                   </select>
-                  {errors.gender && <div className="text-xs text-red-600 mt-1">{errors.gender}</div>}
                 </div>
-                <div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Date of Birth</label>
                   <DatePicker
-                    className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none h-[40px] ${errors.dob ? 'border-red-500' : 'border-slate-300'}`}
+                    className={`w-full h-auto px-5 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all ${errors.dob ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`}
                     format="DD-MM-YYYY"
                     placeholder="DD-MM-YYYY"
                     allowClear={false}
                     value={dob ? dayjs(dob) : null}
                     onChange={(date) => setDob(date ? date.format('YYYY-MM-DD') : '')}
                   />
-                  {errors.dob && <div className="text-xs text-red-600 mt-1">{errors.dob}</div>}
                 </div>
               </div>
             </div>
 
             {/* Section: Official Information */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Official Information</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-4 mb-8 border-l-[4px] border-[#14B8A6] pl-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#14B8A6]/10 flex items-center justify-center text-[#14B8A6]">
+                  <Briefcase size={24} />
+                </div>
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">Department <span className="text-red-500">*</span></label>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Official Records</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Employment & Role placement</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Department <span className="text-rose-500">*</span></label>
                   <select
                     value={departmentId}
                     onChange={e => {
@@ -1037,25 +1071,25 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                       setDepartmentId(e.target.value);
                       setDepartment(selectedDept?.name || '');
                     }}
-                    className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.department ? 'border-red-500' : 'border-slate-300'}`}
+                    className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none appearance-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.department ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`}
                     required
                     disabled={departmentsLoading}
                   >
-                    <option value="">{departmentsLoading ? 'Loading departments...' : '-- Select Department --'}</option>
+                    <option value="">{departmentsLoading ? 'Loading...' : 'Select Department'}</option>
                     {departments.map((d) => (
                       <option key={d._id || d} value={d._id || d}>{typeof d === 'string' ? d : d.name}</option>
                     ))}
                   </select>
-                  {errors.department && <div className="text-xs text-red-600 mt-1">{errors.department}</div>}
+                  {errors.department && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest">{errors.department}</div>}
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Manager (Optional)</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Manager</label>
                   <select
                     value={manager}
                     onChange={e => setManager(e.target.value)}
-                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
+                    className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200"
                   >
-                    <option value="">-- No Manager (Top Level) --</option>
+                    <option value="">No Manager (Top Level)</option>
                     {managers
                       .filter(m => {
                         if (!departmentId && !department) return true;
@@ -1066,27 +1100,28 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                       })
                       .map((m) => (
                         <option key={m._id} value={m._id}>
-                          {[m.firstName, m.lastName].filter(Boolean).join(' ')} ({m.employeeId}) - {m.role || 'Employee'}
+                          {[m.firstName, m.lastName].filter(Boolean).join(' ')} ({m.employeeId})
                         </option>
                       ))}
                   </select>
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Leave Policy</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Leave Policy</label>
                   <select
                     value={leavePolicy}
                     onChange={e => setLeavePolicy(e.target.value)}
-                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
+                    className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200"
                   >
-                    <option value="">-- Select Leave Policy --</option>
+                    <option value="">Select Policy</option>
                     {policies.map(p => (
                       <option key={p._id} value={p._id}>{p.name}</option>
                     ))}
                   </select>
                 </div>
-                <div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Joining Date <span className="text-rose-500">*</span></label>
                   <DatePicker
-                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300 h-[40px]"
+                    className="w-full h-auto px-5 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all"
                     format="DD-MM-YYYY"
                     placeholder="DD-MM-YYYY"
                     allowClear={false}
@@ -1094,12 +1129,12 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                     onChange={(date) => setJoiningDate(date ? date.format('YYYY-MM-DD') : '')}
                   />
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Designation / Role</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Designation / Role</label>
                   <select
                     value={role}
                     onChange={e => setRole(e.target.value)}
-                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
+                    className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200"
                   >
                     <option>Employee</option>
                     <option>Manager</option>
@@ -1108,12 +1143,12 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                     <option>Admin</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Job Type</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Job Type</label>
                   <select
                     value={jobType}
                     onChange={e => setJobType(e.target.value)}
-                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
+                    className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200"
                   >
                     <option>Full-Time</option>
                     <option>Part-Time</option>
@@ -1124,13 +1159,21 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
               </div>
             </div>
 
-            {/* Section: Personal & Family */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Personal & Family</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Section: Personal Profiles */}
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-4 mb-8 border-l-[4px] border-[#14B8A6] pl-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#14B8A6]/10 flex items-center justify-center text-[#14B8A6]">
+                  <Heart size={24} />
+                </div>
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">Marital Status</label>
-                  <select value={maritalStatus} onChange={e => setMaritalStatus(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300">
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Personal Profile</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Personal & Family metadata</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Marital Status</label>
+                  <select value={maritalStatus} onChange={e => setMaritalStatus(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200">
                     <option value="">Select</option>
                     <option>Single</option>
                     <option>Married</option>
@@ -1138,12 +1181,12 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                     <option>Widowed</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Blood Group</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Blood Group</label>
                   <select
                     value={bloodGroup}
                     onChange={e => setBloodGroup(e.target.value)}
-                    className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.bloodGroup ? 'border-red-500' : 'border-slate-300'}`}
+                    className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none appearance-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.bloodGroup ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`}
                   >
                     <option value="">Select</option>
                     <option value="A+">A+</option>
@@ -1155,14 +1198,14 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                     <option value="AB+">AB+</option>
                     <option value="AB-">AB-</option>
                   </select>
-                  {errors.bloodGroup && <div className="text-xs text-red-600 mt-1">{errors.bloodGroup}</div>}
+                  {errors.bloodGroup && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest">{errors.bloodGroup}</div>}
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Nationality</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Nationality</label>
                   <select
                     value={nationality}
                     onChange={e => setNationality(e.target.value)}
-                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
+                    className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200"
                   >
                     <option value="">Select Country</option>
                     {NATIONALITIES.map((nat) => (
@@ -1170,52 +1213,66 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Father's Name</label>
-                  <input value={fatherName} onChange={e => { const v = e.target.value; setFatherName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.fatherName ? 'border-red-500' : 'border-slate-300'}`} />
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Father's Name</label>
+                  <input value={fatherName} onChange={e => { const v = e.target.value; setFatherName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" placeholder="Ex: Robert Smith" />
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Mother's Name</label>
-                  <input value={motherName} onChange={e => { const v = e.target.value; setMotherName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.motherName ? 'border-red-500' : 'border-slate-300'}`} />
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Mother's Name</label>
+                  <input value={motherName} onChange={e => { const v = e.target.value; setMotherName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" placeholder="Ex: Mary Smith" />
                 </div>
               </div>
             </div>
 
-            {/* Section: Contact */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Contact Information</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Phone Number</label>
-                  <input
-                    type="tel"
-                    maxLength="10"
-                    onInput={e => e.target.value = e.target.value.replace(/\D/g, '')}
-                    value={contactNo}
-                    onChange={e => setContactNo(e.target.value)}
-                    className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.contactNo ? 'border-red-500' : 'border-slate-300'}`}
-                    placeholder="10-digit mobile number"
-                  />
-                  {errors.contactNo && <div className="text-xs text-red-600 mt-1">{errors.contactNo}</div>}
+            {/* Section: Contact Information */}
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-4 mb-8 border-l-[4px] border-[#14B8A6] pl-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#14B8A6]/10 flex items-center justify-center text-[#14B8A6]">
+                  <Phone size={24} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-semibold text-slate-700">Emergency Contact Name</label>
-                    <input value={emergencyContactName} onChange={e => { const v = e.target.value; setEmergencyContactName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactName ? 'border-red-500' : 'border-slate-300'}`} />
-                    {errors.emergencyContactName && <div className="text-xs text-red-600 mt-1">{errors.emergencyContactName}</div>}
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Communication</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Verified connection methods</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Primary Phone <span className="text-rose-500">*</span></label>
+                  <div className="relative group/input">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within/input:text-[#14B8A6] transition-colors">
+                      <Phone size={16} />
+                    </div>
+                    <input
+                      type="tel"
+                      maxLength="10"
+                      onInput={e => e.target.value = e.target.value.replace(/\D/g, '')}
+                      value={contactNo}
+                      onChange={e => setContactNo(e.target.value)}
+                      className={`w-full pl-12 pr-4 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.contactNo ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`}
+                      placeholder="10-digit mobile"
+                    />
                   </div>
-                  <div>
-                    <label className="text-sm font-semibold text-slate-700">Emergency Contact #</label>
+                  {errors.contactNo && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest mt-1">{errors.contactNo}</div>}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Emergency Name <span className="text-rose-500">*</span></label>
+                  <input value={emergencyContactName} onChange={e => { const v = e.target.value; setEmergencyContactName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.emergencyContactName ? 'border-rose-100' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`} placeholder="Contact name" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Emergency Ph. <span className="text-rose-500">*</span></label>
+                  <div className="relative group/input">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within/input:text-[#14B8A6] transition-colors">
+                      <Phone size={16} />
+                    </div>
                     <input
                       type="tel"
                       maxLength="10"
                       onInput={e => e.target.value = e.target.value.replace(/\D/g, '')}
                       value={emergencyContactNumber}
                       onChange={e => setEmergencyContactNumber(e.target.value)}
-                      className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.emergencyContactNumber ? 'border-red-500' : 'border-slate-300'}`}
-                      placeholder="10-digit mobile number"
+                      className={`w-full pl-12 pr-4 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.emergencyContactNumber ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`}
+                      placeholder="10-digit mobile"
                     />
-                    {errors.emergencyContactNumber && <div className="text-xs text-red-600 mt-1">{errors.emergencyContactNumber}</div>}
                   </div>
                 </div>
               </div>
@@ -1225,59 +1282,63 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
         {/* Step 2: Address */}
         {step === 2 && (
-          <div className="space-y-6">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Temporary Address Section */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <div className="flex items-center justify-between mb-4 border-b border-slate-200 pb-2">
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Temporary Address</h4>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="text-sm font-semibold text-slate-700">Address Line 1 <span className="text-red-500">*</span></label>
-                  <input value={tempAddress.line1} onChange={e => setTempAddress(p => ({ ...p, line1: e.target.value }))} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.tempLine1 ? 'border-red-500' : 'border-slate-300'}`} placeholder="Street, Sector, Area" />
-                  {errors.tempLine1 && <div className="text-xs text-red-600 mt-1">{errors.tempLine1}</div>}
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-sm font-semibold text-slate-700">Address Line 2 (Optional)</label>
-                  <input value={tempAddress.line2} onChange={e => setTempAddress(p => ({ ...p, line2: e.target.value }))} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300" placeholder="Landmark, Building Name" />
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-4 mb-8 border-l-[4px] border-[#14B8A6] pl-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#14B8A6]/10 flex items-center justify-center text-[#14B8A6]">
+                  <Home size={24} />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">City <span className="text-red-500">*</span></label>
-                  <div className="relative">
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Temporary Residence</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Current living location</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2 flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Address Line 1 <span className="text-rose-500">*</span></label>
+                  <input value={tempAddress.line1} onChange={e => setTempAddress(p => ({ ...p, line1: e.target.value }))} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.tempLine1 ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`} placeholder="Street, Sector, Area" />
+                  {errors.tempLine1 && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest mt-1">{errors.tempLine1}</div>}
+                </div>
+                <div className="md:col-span-2 flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Address Line 2 (Optional)</label>
+                  <input value={tempAddress.line2} onChange={e => setTempAddress(p => ({ ...p, line2: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" placeholder="Landmark, Building Name" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">City <span className="text-rose-500">*</span></label>
+                  <div className="relative group/city">
                     <input
                       value={tempAddress.city}
                       onChange={e => {
                         setTempAddress(p => ({ ...p, city: e.target.value }));
                         setPincodeLoading(true);
                       }}
-                      className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.tempCity ? 'border-red-500' : 'border-slate-300'}`}
+                      className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.tempCity ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`}
                       placeholder="Start typing..."
                     />
-                    {pincodeLoading && tempAddress.city.length > 2 && <div className="absolute right-2 top-2 text-xs text-blue-500 animate-pulse">Searching...</div>}
+                    {pincodeLoading && tempAddress.city.length > 2 && <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[#14B8A6] animate-pulse font-bold uppercase tracking-tighter">Searching</div>}
                   </div>
-                  {errors.tempCity && <div className="text-xs text-red-600 mt-1">{errors.tempCity}</div>}
+                  {errors.tempCity && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest mt-1">{errors.tempCity}</div>}
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">State</label>
-                  <input value={tempAddress.state} onChange={e => setTempAddress(p => ({ ...p, state: e.target.value }))} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.tempState ? 'border-red-500' : 'border-slate-300'}`} disabled />
-                  {errors.tempState && <div className="text-xs text-red-600 mt-1">{errors.tempState}</div>}
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">State</label>
+                  <input value={tempAddress.state} onChange={e => setTempAddress(p => ({ ...p, state: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900/30 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-500 dark:text-slate-500 cursor-not-allowed" disabled />
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Pin/Zip Code <span className="text-red-500">*</span></label>
-                  <input value={tempAddress.pinCode} onChange={e => setTempAddress(p => ({ ...p, pinCode: e.target.value }))} onBlur={() => handlePincodeLookup(tempAddress.pinCode, 'temp')} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.tempPin ? 'border-red-500' : 'border-slate-300'}`} />
-                  {errors.tempPin && <div className="text-xs text-red-600 mt-1">{errors.tempPin}</div>}
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Pin / Zip Code <span className="text-rose-500">*</span></label>
+                  <input value={tempAddress.pinCode} onChange={e => setTempAddress(p => ({ ...p, pinCode: e.target.value }))} onBlur={() => handlePincodeLookup(tempAddress.pinCode, 'temp')} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.tempPin ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`} placeholder="6-digit code" />
+                  {errors.tempPin && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest mt-1">{errors.tempPin}</div>}
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Country</label>
-                  <input value={tempAddress.country} onChange={e => setTempAddress(p => ({ ...p, country: e.target.value }))} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.tempCountry ? 'border-red-500' : 'border-slate-300'}`} disabled />
-                  {errors.tempCountry && <div className="text-xs text-red-600 mt-1">{errors.tempCountry}</div>}
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Country</label>
+                  <input value={tempAddress.country} onChange={e => setTempAddress(p => ({ ...p, country: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900/30 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-500 dark:text-slate-500 cursor-not-allowed" disabled />
                 </div>
               </div>
             </div>
 
             {/* Same As Temp Checkbox */}
-            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <label className="flex items-center gap-4 p-6 bg-slate-50 dark:bg-slate-900/30 rounded-3xl border border-slate-100 dark:border-slate-800 group cursor-pointer transition-all hover:bg-white dark:hover:bg-slate-900">
               <input
                 type="checkbox"
                 checked={sameAsTemp}
@@ -1288,46 +1349,48 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                     setPermAddress({ line1: '', line2: '', city: '', state: '', pinCode: '', country: '' });
                   }
                 }}
-                id="sameTemp"
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                className="w-6 h-6 rounded-lg text-[#14B8A6] focus:ring-[#14B8A6] border-2 border-slate-300 dark:border-slate-700 transition-all cursor-pointer"
               />
-              <label htmlFor="sameTemp" className="text-sm font-medium text-blue-800 cursor-pointer">Permanent Address is same as Temporary Address</label>
-            </div>
+              <span className="text-sm font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Permanent Address is same as Temporary Address</span>
+            </label>
 
             {/* Permanent Address Section */}
-            <div className={`bg-slate-50 p-4 rounded-lg border border-slate-200 transition-opacity ${sameAsTemp ? 'opacity-50 pointer-events-none' : ''}`}>
-              <div className="flex items-center justify-between mb-4 border-b border-slate-200 pb-2">
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Permanent Address</h4>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="text-sm font-semibold text-slate-700">Address Line 1 <span className="text-red-500">*</span></label>
-                  <input value={permAddress.line1} onChange={e => setPermAddress(p => ({ ...p, line1: e.target.value }))} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.permLine1 ? 'border-red-500' : 'border-slate-300'}`} disabled={sameAsTemp} />
-                  {errors.permLine1 && <div className="text-xs text-red-600 mt-1">{errors.permLine1}</div>}
+            <div className={`transition-all duration-500 ${sameAsTemp ? 'opacity-40 grayscale pointer-events-none scale-95 blur-[1px]' : 'opacity-100 grayscale-0 scale-100 blur-0'}`}>
+              <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+                <div className="flex items-center gap-4 mb-8 border-l-[4px] border-[#14B8A6] pl-5">
+                  <div className="w-12 h-12 rounded-2xl bg-[#14B8A6]/10 flex items-center justify-center text-[#14B8A6]">
+                    <MapPin size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Permanent Address</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Legal birthplace/home</p>
+                  </div>
                 </div>
-                <div className="md:col-span-2">
-                  <label className="text-sm font-semibold text-slate-700">Address Line 2 (Optional)</label>
-                  <input value={permAddress.line2} onChange={e => setPermAddress(p => ({ ...p, line2: e.target.value }))} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300" disabled={sameAsTemp} />
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">City <span className="text-red-500">*</span></label>
-                  <input value={permAddress.city} onChange={e => setPermAddress(p => ({ ...p, city: e.target.value }))} onBlur={() => handleCityLookup(permAddress.city, 'perm')} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.permCity ? 'border-red-500' : 'border-slate-300'}`} disabled={sameAsTemp} />
-                  {errors.permCity && <div className="text-xs text-red-600 mt-1">{errors.permCity}</div>}
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">State</label>
-                  <input value={permAddress.state} onChange={e => setPermAddress(p => ({ ...p, state: e.target.value }))} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.permState ? 'border-red-500' : 'border-slate-300'}`} disabled={sameAsTemp} />
-                  {errors.permState && <div className="text-xs text-red-600 mt-1">{errors.permState}</div>}
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Pin/Zip Code <span className="text-red-500">*</span></label>
-                  <input value={permAddress.pinCode} onChange={e => setPermAddress(p => ({ ...p, pinCode: e.target.value }))} onBlur={() => handlePincodeLookup(permAddress.pinCode, 'perm')} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.permPin ? 'border-red-500' : 'border-slate-300'}`} disabled={sameAsTemp} />
-                  {errors.permPin && <div className="text-xs text-red-600 mt-1">{errors.permPin}</div>}
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Country</label>
-                  <input value={permAddress.country} onChange={e => setPermAddress(p => ({ ...p, country: e.target.value }))} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.permCountry ? 'border-red-500' : 'border-slate-300'}`} disabled={sameAsTemp} />
-                  {errors.permCountry && <div className="text-xs text-red-600 mt-1">{errors.permCountry}</div>}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2 flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Address Line 1 <span className="text-rose-500">*</span></label>
+                    <input value={permAddress.line1} onChange={e => setPermAddress(p => ({ ...p, line1: e.target.value }))} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.permLine1 ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`} disabled={sameAsTemp} />
+                  </div>
+                  <div className="md:col-span-2 flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Address Line 2</label>
+                    <input value={permAddress.line2} onChange={e => setPermAddress(p => ({ ...p, line2: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" disabled={sameAsTemp} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">City <span className="text-rose-500">*</span></label>
+                    <input value={permAddress.city} onChange={e => setPermAddress(p => ({ ...p, city: e.target.value }))} onBlur={() => handleCityLookup(permAddress.city, 'perm')} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.permCity ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`} disabled={sameAsTemp} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">State</label>
+                    <input value={permAddress.state} onChange={e => setPermAddress(p => ({ ...p, state: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900/30 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-500 dark:text-slate-500 cursor-not-allowed" disabled={sameAsTemp} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Pin / Zip Code <span className="text-rose-500">*</span></label>
+                    <input value={permAddress.pinCode} onChange={e => setPermAddress(p => ({ ...p, pinCode: e.target.value }))} onBlur={() => handlePincodeLookup(permAddress.pinCode, 'perm')} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.permPin ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6]'}`} disabled={sameAsTemp} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Country</label>
+                    <input value={permAddress.country} onChange={e => setPermAddress(p => ({ ...p, country: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900/30 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-500 dark:text-slate-500 cursor-not-allowed" disabled={sameAsTemp} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1336,13 +1399,28 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
         {/* Step 3: Experience */}
         {step === 3 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-bold text-slate-800">Work Experience</h4>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex items-center justify-between gap-4 p-8 bg-white dark:bg-slate-900/40 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-4 border-l-[4px] border-[#14B8A6] pl-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#14B8A6]/10 flex items-center justify-center text-[#14B8A6]">
+                  <Briefcase size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Professional History</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Previous work experience & proofs</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExperience([...experience, { companyName: '', from: '', to: '', lastDrawnSalary: '', reportingPersonName: '', reportingPersonEmail: '', reportingPersonContact: '', payslips: [] }])}
+                className="flex items-center gap-2 px-6 py-3 bg-[#14B8A6] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#0D9488] shadow-lg shadow-teal-500/20 active:scale-95 transition-all"
+              >
+                <Plus size={16} />
+                Add Entry
+              </button>
             </div>
             {experience.map((exp, idx) => (
-              <div key={idx} className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm relative group hover:shadow-md transition">
-                {/* Remove Button */}
+              <div key={idx} className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm relative group animate-in zoom-in-95 duration-300">
                 {experience.length > 1 && (
                   <button
                     type="button"
@@ -1351,126 +1429,125 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
                       copy.splice(idx, 1);
                       setExperience(copy);
                     }}
-                    className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition"
+                    className="absolute top-8 right-8 text-slate-300 hover:text-rose-500 transition-all p-2 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl"
                     title="Remove Entry"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
+                    <Trash2 size={20} />
                   </button>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  {/* Left Col: Company Info */}
-                  <div>
-                    <h5 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 border-b border-slate-100 pb-1 text-blue-600">Company Details</h5>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-sm font-semibold text-slate-700">Company Name <span className="text-red-500">*</span></label>
-                        <input placeholder="Ex. Tech Solutions Inc." value={exp.companyName} onChange={e => { const v = e.target.value; const copy = [...experience]; copy[idx].companyName = v ? v.charAt(0).toUpperCase() + v.slice(1) : v; setExperience(copy); }} className="w-full border px-3 py-2 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-1.5 h-6 bg-teal-500 rounded-full"></div>
+                      <h5 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Company Details</h5>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Organization <span className="text-rose-500">*</span></label>
+                      <input placeholder="Ex. Tech Solutions Inc." value={exp.companyName} onChange={e => { const v = e.target.value; const copy = [...experience]; copy[idx].companyName = v ? v.charAt(0).toUpperCase() + v.slice(1) : v; setExperience(copy); }} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">From Date</label>
+                        <DatePicker
+                          className="w-full h-auto px-5 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all"
+                          format="DD-MM-YYYY"
+                          placeholder="DD-MM-YYYY"
+                          value={exp.from ? dayjs(exp.from) : null}
+                          onChange={(date) => { const copy = [...experience]; copy[idx].from = date ? date.format('YYYY-MM-DD') : ''; setExperience(copy); }}
+                        />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-sm font-semibold text-slate-700">From Date</label>
-                          <DatePicker
-                            className="w-full border px-3 py-2 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300 h-[40px]"
-                            format="DD-MM-YYYY"
-                            placeholder="DD-MM-YYYY"
-                            value={exp.from ? dayjs(exp.from) : null}
-                            onChange={(date) => { const copy = [...experience]; copy[idx].from = date ? date.format('YYYY-MM-DD') : ''; setExperience(copy); }}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-semibold text-slate-700">To Date</label>
-                          <DatePicker
-                            className="w-full border px-3 py-2 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300 h-[40px]"
-                            format="DD-MM-YYYY"
-                            placeholder="DD-MM-YYYY"
-                            value={exp.to ? dayjs(exp.to) : null}
-                            onChange={(date) => { const copy = [...experience]; copy[idx].to = date ? date.format('YYYY-MM-DD') : ''; setExperience(copy); }}
-                          />
-                        </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">To Date</label>
+                        <DatePicker
+                          className="w-full h-auto px-5 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all"
+                          format="DD-MM-YYYY"
+                          placeholder="DD-MM-YYYY"
+                          value={exp.to ? dayjs(exp.to) : null}
+                          onChange={(date) => { const copy = [...experience]; copy[idx].to = date ? date.format('YYYY-MM-DD') : ''; setExperience(copy); }}
+                        />
                       </div>
-                      <div>
-                        <label className="text-sm font-semibold text-slate-700">Last Salary</label>
-                        <input placeholder="Ex. 50000" type="number" value={exp.lastDrawnSalary} onChange={e => { const copy = [...experience]; copy[idx].lastDrawnSalary = e.target.value; setExperience(copy); }} className="w-full border px-3 py-2 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300" />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Last Drawn Salary</label>
+                      <div className="relative group/input">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within/input:text-[#14B8A6] transition-colors">
+                          <IndianRupee size={16} />
+                        </div>
+                        <input type="number" placeholder="0.00" value={exp.lastDrawnSalary} onChange={e => { const copy = [...experience]; copy[idx].lastDrawnSalary = e.target.value; setExperience(copy); }} className="w-full pl-12 pr-4 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" />
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Col: Manager Info */}
-                  <div>
-                    <h5 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 border-b border-slate-100 pb-1 text-green-600">Reporting Manager</h5>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-sm font-semibold text-slate-700">Manager Name <span className="text-red-500">*</span></label>
-                        <input placeholder="Full Name" value={exp.reportingPersonName || ''} onChange={e => { const v = e.target.value; const copy = [...experience]; copy[idx].reportingPersonName = v ? v.charAt(0).toUpperCase() + v.slice(1) : v; setExperience(copy); }} className="w-full border px-3 py-2 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300" />
-                      </div>
-                      <div>
-                        <label className="text-sm font-semibold text-slate-700">Manager Email <span className="text-red-500">*</span></label>
-                        <input placeholder="email@company.com" value={exp.reportingPersonEmail || ''} onChange={e => { const copy = [...experience]; copy[idx].reportingPersonEmail = e.target.value; setExperience(copy); }} className="w-full border px-3 py-2 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300" />
-                      </div>
-                      <div>
-                        <label className="text-sm font-semibold text-slate-700">Manager Phone</label>
-                        <input placeholder="Optional" value={exp.reportingPersonPhone || ''} onChange={e => { const copy = [...experience]; copy[idx].reportingPersonPhone = e.target.value; setExperience(copy); }} className="w-full border px-3 py-2 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300" />
-                      </div>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-1.5 h-6 bg-teal-500 rounded-full"></div>
+                      <h5 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Reporting Authority</h5>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Manager Name <span className="text-rose-500">*</span></label>
+                      <input placeholder="Ex. Robert Smith" value={exp.reportingPersonName || ''} onChange={e => { const v = e.target.value; const copy = [...experience]; copy[idx].reportingPersonName = v ? v.charAt(0).toUpperCase() + v.slice(1) : v; setExperience(copy); }} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Manager Email <span className="text-rose-500">*</span></label>
+                      <input placeholder="robert@company.com" value={exp.reportingPersonEmail || ''} onChange={e => { const copy = [...experience]; copy[idx].reportingPersonEmail = e.target.value; setExperience(copy); }} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Manager Phone</label>
+                      <input placeholder="Optional contact number" value={exp.reportingPersonPhone || ''} onChange={e => { const copy = [...experience]; copy[idx].reportingPersonPhone = e.target.value; setExperience(copy); }} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all text-sm font-bold text-slate-700 dark:text-slate-200" />
                     </div>
                   </div>
-                </div>
 
-                {/* Verification Documents */}
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <h5 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 border-b border-slate-200 pb-1 text-indigo-600">Verification Documents</h5>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Payslips */}
-                    <div>
-                      <label className="text-sm font-semibold text-slate-700 block mb-2">Payslips (Last 3 Months) <span className="text-red-500">*</span></label>
-                      <div className="flex gap-2">
-                        {[0, 1, 2].map((i) => (
-                          <div key={i} className="flex-1">
-                            <label className="block bg-white border border-dashed border-slate-300 rounded p-2 text-center cursor-pointer hover:border-blue-400 transition" title={`Upload Month ${i + 1}`}>
-                              <div className="text-xs font-semibold text-slate-500 mb-1">Mo. {i + 1}</div>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                            </label>
-                            <input
-                              type="file"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files[0];
-                                const copy = [...experience];
-                                if (!copy[idx].payslips) copy[idx].payslips = [];
-                                copy[idx].payslips[i] = file;
-                                setExperience(copy);
-                              }}
-                            />
-                            {exp.payslips && exp.payslips[i] && <div className="text-[10px] text-green-600 text-center mt-1 truncate">{exp.payslips[i].name}</div>}
+                  <div className="md:col-span-2">
+                    <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
+                      <h5 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                        <FileText size={16} /> Verification Documents
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Recent Payslips (Last 3 Months) <span className="text-rose-500">*</span></label>
+                          <div className="flex gap-4">
+                            {[0, 1, 2].map((i) => (
+                              <div key={i} className="flex-1 group/upload">
+                                <label className="flex flex-col items-center justify-center bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center cursor-pointer hover:border-[#14B8A6] hover:bg-teal-50 dark:hover:bg-teal-900/10 transition-all aspect-square min-h-[90px]">
+                                  <div className="text-[9px] font-black text-slate-400 group-hover/upload:text-[#14B8A6] mb-1">MO-{i + 1}</div>
+                                  <Upload size={18} className="text-slate-300 group-hover/upload:text-[#14B8A6] transition-colors" />
+                                </label>
+                                <input type="file" className="hidden" onChange={(e) => { const file = e.target.files[0]; const copy = [...experience]; if (!copy[idx].payslips) copy[idx].payslips = []; copy[idx].payslips[i] = file; setExperience(copy); }} />
+                                {exp.payslips && exp.payslips[i] && (
+                                  <div className="mt-2 flex items-center gap-1.5 text-[9px] font-bold text-[#14B8A6] px-2 animate-in fade-in duration-300">
+                                    <CheckCircle size={10} />
+                                    <span className="truncate max-w-[50px]">{exp.payslips[i].name}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                        </div>
 
-                    {/* Chequebook */}
-                    <div>
-                      <label className="text-sm font-semibold text-slate-700 block mb-2">Bank Proof (Cheque/Passbook) <span className="text-red-500">*</span></label>
-                      <label className="block bg-white border border-dashed border-slate-300 rounded p-2 text-center cursor-pointer hover:border-blue-400 transition h-[74px] flex flex-col justify-center items-center">
-                        <div className="text-xs font-semibold text-slate-500 mb-1">{exp.chequebook ? 'File Selected' : 'Upload File'}</div>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                      </label>
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files[0];
-                          const copy = [...experience];
-                          copy[idx].chequebook = file;
-                          setExperience(copy);
-                        }}
-                      />
-                      {exp.chequebook && <div className="text-[10px] text-green-600 text-center mt-1 truncate">{exp.chequebook.name}</div>}
+                        <div>
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Bank Proof (Cheque/Passbook) <span className="text-rose-500">*</span></label>
+                          <label className="flex flex-col items-center justify-center bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center cursor-pointer hover:border-[#14B8A6] hover:bg-teal-50 dark:hover:bg-teal-900/10 transition-all min-h-[90px] group/bank">
+                            <Upload size={24} className="text-slate-300 group-hover/bank:text-[#14B8A6] transition-colors mb-1" />
+                            <div className="text-[10px] font-black text-slate-400 group-hover/bank:text-[#14B8A6]">Upload proof</div>
+                          </label>
+                          <input type="file" className="hidden" onChange={(e) => { const file = e.target.files[0]; const copy = [...experience]; copy[idx].chequebook = file; setExperience(copy); }} />
+                          {exp.chequebook && (
+                            <div className="mt-2 flex items-center gap-1.5 text-[9px] font-bold text-[#14B8A6] px-2 animate-in fade-in duration-300 uppercase tracking-widest">
+                              <CheckCircle size={12} /> {exp.chequebook.name}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-
               </div>
             ))}
 
@@ -1490,133 +1567,186 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
         {/* Step 4: Bank & Job */}
         {/* Step 4: Bank & Job */}
         {step === 4 && (
-          <div className="space-y-6">
-            {/* Bank Details */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Bank Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Bank Name</label>
-                  <input value={bankName} onChange={e => setBankName(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.bankName ? 'border-red-500' : 'border-slate-300'}`} placeholder="HDFC, SBI, etc." />
-                  {errors.bankName && <div className="text-xs text-red-600 mt-1">{errors.bankName}</div>}
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Bank Details Section */}
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-emerald-500/10 transition-colors duration-500"></div>
+
+              <div className="flex items-center gap-4 mb-8 border-l-[4px] border-emerald-500 pl-5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                  <CreditCard size={24} />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">Account Number</label>
-                  <input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.accountNumber ? 'border-red-500' : 'border-slate-300'}`} placeholder="Account No" />
-                  {errors.accountNumber && <div className="text-xs text-red-600 mt-1">{errors.accountNumber}</div>}
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">IFSC Code</label>
-                  <div className="relative">
-                    <input value={ifsc} onChange={e => setIfsc(e.target.value.toUpperCase())} onBlur={() => handleIfscLookup(ifsc)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.ifsc ? 'border-red-500' : 'border-slate-300'}`} placeholder="SBIN000...." />
-                    {ifscLoading && <div className="absolute right-3 top-2.5 text-xs text-blue-500 animate-pulse">Checking...</div>}
-                  </div>
-                  {errors.ifsc && <div className="text-xs text-red-600 mt-1">{errors.ifsc}</div>}
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Branch Name</label>
-                  <input value={branchName} onChange={e => setBranchName(e.target.value)} className={`w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none ${errors.branchName ? 'border-red-500' : 'border-slate-300'}`} />
-                  {errors.branchName && <div className="text-xs text-red-600 mt-1">{errors.branchName}</div>}
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Bank Location</label>
-                  <input value={bankLocation} onChange={e => setBankLocation(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300" placeholder="City/District" />
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Bank Repository</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Salary disbursement details</p>
                 </div>
               </div>
 
-              {/* Bank Proof Upload */}
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                <label className="text-sm font-semibold text-slate-700 block mb-2">Upload Cheque / Passbook <span className="text-red-500">*</span></label>
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-white hover:bg-slate-50 transition border-slate-400">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg className="w-8 h-8 mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    <p className="mb-2 text-sm text-slate-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                    <p className="text-xs text-slate-500">SVG, PNG, JPG or PDF (MAX. 2MB)</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Financial Institution</label>
+                  <input value={bankName} onChange={e => setBankName(e.target.value)} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.bankName ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-emerald-500'}`} placeholder="Ex. HDFC Bank, SBI" />
+                  {errors.bankName && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest mt-1">{errors.bankName}</div>}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Account Identifier</label>
+                  <input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.accountNumber ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-emerald-500'}`} placeholder="Standard account number" />
+                  {errors.accountNumber && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest mt-1">{errors.accountNumber}</div>}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">IFSC Signature</label>
+                  <div className="relative group/ifsc">
+                    <input value={ifsc} onChange={e => setIfsc(e.target.value.toUpperCase())} onBlur={() => handleIfscLookup(ifsc)} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.ifsc ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-emerald-500'}`} placeholder="Ex. HDFC0001234" />
+                    {ifscLoading && <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-500 animate-pulse uppercase tracking-widest">Validating</div>}
                   </div>
-                  <input ref={bankProofRef} type="file" className="hidden" accept="image/*,application/pdf" onChange={e => setCurrentBankProof(e.target.files[0])} />
-                </label>
-                {currentBankProof && (
-                  <div className="mt-2 flex items-center justify-between bg-blue-50 px-3 py-2 rounded border border-blue-100">
-                    <div className="flex items-center space-x-2 overflow-hidden">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>
-                      {currentBankProof instanceof File ? <span className="text-sm text-blue-700 truncate">{currentBankProof.name}</span> : <a href={`${BACKEND_URL}${currentBankProof}`} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline truncate">View Uploaded File</a>}
+                  {errors.ifsc && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest mt-1">{errors.ifsc}</div>}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Branch Identity</label>
+                  <input value={branchName} onChange={e => setBranchName(e.target.value)} className={`w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 ${errors.branchName ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-emerald-500'}`} placeholder="Branch specific name" />
+                  {errors.branchName && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest mt-1">{errors.branchName}</div>}
+                </div>
+
+                <div className="md:col-span-2 flex flex-col gap-2 mt-4">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-2 flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-emerald-500" /> Verification Document <span className="text-rose-500">*</span>
+                  </label>
+                  <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-slate-200 dark:border-slate-800 border-dashed rounded-[2rem] cursor-pointer bg-slate-50/50 dark:bg-slate-900/30 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/10 hover:border-emerald-500 transition-all group/upload">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <div className="w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-400 group-hover/upload:text-emerald-500 group-hover/upload:scale-110 group-hover/upload:rotate-3 transition-all duration-300 mb-4">
+                        <Upload size={28} />
+                      </div>
+                      <p className="mb-2 text-sm font-black text-slate-600 dark:text-slate-400 uppercase tracking-tight">Drop Cheque or Passbook</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">SVG, PNG, JPG or PDF up to 2MB</p>
                     </div>
-                    <button type="button" onClick={() => { setCurrentBankProof(null); if (bankProofRef.current) bankProofRef.current.value = ''; }} className="text-red-500 hover:text-red-700 p-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
-                    </button>
-                  </div>
-                )}
-                {errors.bankProof && <div className="text-xs text-red-600 mt-1">{errors.bankProof}</div>}
+                    <input ref={bankProofRef} type="file" className="hidden" accept="image/*,application/pdf" onChange={e => setCurrentBankProof(e.target.files[0])} />
+                  </label>
+
+                  {currentBankProof && (
+                    <div className="mt-4 flex items-center justify-between bg-emerald-500/5 dark:bg-emerald-500/10 px-6 py-4 rounded-2xl border border-emerald-500/20 animate-in zoom-in-95 duration-300">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-500">
+                          <FileCheck size={20} />
+                        </div>
+                        <div className="flex flex-col">
+                          {currentBankProof instanceof File ? (
+                            <>
+                              <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate max-w-[200px] uppercase tracking-tighter">{currentBankProof.name}</span>
+                              <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Ready to vault</span>
+                            </>
+                          ) : (
+                            <a href={`${BACKEND_URL}${currentBankProof}`} target="_blank" rel="noreferrer" className="text-xs font-black text-emerald-600 dark:text-emerald-400 underline uppercase tracking-tight">View Stored Asset</a>
+                          )}
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => { setCurrentBankProof(null); if (bankProofRef.current) bankProofRef.current.value = ''; }} className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  )}
+                  {errors.bankProof && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest mt-1">{errors.bankProof}</div>}
+                </div>
               </div>
             </div>
 
-            {/* Job Details */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Employment Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Job Type</label>
-                  <select value={jobType} onChange={e => setJobType(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300">
-                    <option>Full-Time</option>
-                    <option>Part-Time</option>
-                    <option>Internship</option>
-                    <option>Contract</option>
-                  </select>
+            {/* Employment Details Section */}
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-[#14B8A6]/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-[#14B8A6]/10 transition-colors duration-500"></div>
+
+              <div className="flex items-center gap-4 mb-8 border-l-[4px] border-[#14B8A6] pl-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#14B8A6]/10 flex items-center justify-center text-[#14B8A6]">
+                  <Workflow size={24} />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">Role / Access Level</label>
-                  <select value={role} onChange={e => setRole(e.target.value)} className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300">
-                    <option value="Employee">Employee</option>
-                    <option value="Dep Head">Dep Head</option>
-                    <option value="Manager">Manager</option>
-                    <option value="HR">HR</option>
-                    <option value="Admin">Admin</option>
-                  </select>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Employment Matrix</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Role & structural assignment</p>
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Department</label>
-                  <select
-                    value={departmentId}
-                    onChange={e => {
-                      const selectedDept = departments.find(d => d._id === e.target.value);
-                      setDepartmentId(e.target.value);
-                      setDepartment(selectedDept?.name || '');
-                    }}
-                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
-                    disabled={departmentsLoading}
-                  >
-                    <option value="">{departmentsLoading ? 'Loading departments...' : '-- Select Department --'}</option>
-                    {departments.map(dept => (
-                      <option key={dept._id} value={dept._id}>{dept.name}</option>
-                    ))}
-                  </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 relative z-10">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Contract Nature</label>
+                  <div className="relative group/select">
+                    <select value={jobType} onChange={e => setJobType(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] appearance-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                      <option>Full-Time</option>
+                      <option>Part-Time</option>
+                      <option>Internship</option>
+                      <option>Contract</option>
+                    </select>
+                    <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within/select:rotate-180 transition-transform duration-300" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">Reporting Manager</label>
-                  <select
-                    value={manager}
-                    onChange={e => setManager(e.target.value)}
-                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300"
-                  >
-                    <option value="">-- No Manager (Top Level) --</option>
-                    {managers
-                      .filter(m => {
-                        if (!departmentId && !department) return true;
-                        const mgrDeptId = m?.departmentId?._id || m?.departmentId;
-                        if (departmentId && mgrDeptId && String(mgrDeptId) === String(departmentId)) return true;
-                        if (department && m?.department && String(m.department) === String(department)) return true;
-                        return false;
-                      })
-                      .map((m) => (
-                        <option key={m._id} value={m._id}>
-                          {[m.firstName, m.lastName].filter(Boolean).join(' ')} ({m.employeeId})
-                        </option>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">System Privilege</label>
+                  <div className="relative group/select">
+                    <select value={role} onChange={e => setRole(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] appearance-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                      <option value="Employee">Standard (Employee)</option>
+                      <option value="Dep Head">Dept. Head</option>
+                      <option value="Manager">Line Manager</option>
+                      <option value="HR">HR Partner</option>
+                      <option value="Admin">System Admin</option>
+                    </select>
+                    <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within/select:rotate-180 transition-transform duration-300" />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Organizational Unit</label>
+                  <div className="relative group/select">
+                    <select
+                      value={departmentId}
+                      onChange={e => {
+                        const selectedDept = departments.find(d => d._id === e.target.value);
+                        setDepartmentId(e.target.value);
+                        setDepartment(selectedDept?.name || '');
+                      }}
+                      className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] appearance-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-50"
+                      disabled={departmentsLoading}
+                    >
+                      <option value="">{departmentsLoading ? 'Scanning...' : 'Select Department'}</option>
+                      {departments.map(dept => (
+                        <option key={dept._id} value={dept._id}>{dept.name}</option>
                       ))}
-                  </select>
+                    </select>
+                    <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-transform duration-300" />
+                  </div>
                 </div>
-                <div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Direct Reporting</label>
+                  <div className="relative group/select">
+                    <select
+                      value={manager}
+                      onChange={e => setManager(e.target.value)}
+                      className="w-full px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] appearance-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
+                    >
+                      <option value="">Top Level (C-Suite)</option>
+                      {managers
+                        .filter(m => {
+                          if (!departmentId && !department) return true;
+                          const mgrDeptId = m?.departmentId?._id || m?.departmentId;
+                          if (departmentId && mgrDeptId && String(mgrDeptId) === String(departmentId)) return true;
+                          if (department && m?.department && String(m.department) === String(department)) return true;
+                          return false;
+                        })
+                        .map((m) => (
+                          <option key={m._id} value={m._id}>
+                            {[m.firstName, m.lastName].filter(Boolean).join(' ')}
+                          </option>
+                        ))}
+                    </select>
+                    <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-transform duration-300" />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Joining Onboard Date</label>
                   <DatePicker
-                    className="w-full border px-3 py-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none border-slate-300 h-[40px]"
+                    className="w-full h-auto px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:border-[#14B8A6] transition-all"
                     format="DD-MM-YYYY"
                     placeholder="DD-MM-YYYY"
                     allowClear={false}
@@ -1631,126 +1761,286 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
         {/* Step 5: Education Details */}
         {step === 5 && (
-          <div className="space-y-6">
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Academic Information</h4>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-3 mb-8 border-l-[3px] border-[#14B8A6] pl-4">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight leading-none">Academic Details</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-2">Educational background & qualification</p>
+                </div>
+              </div>
 
-              <div className="mb-6">
-                <label className="text-sm font-semibold text-slate-700 block mb-2">Education Track <span className="text-red-500">*</span></label>
-                <div className="flex space-x-4">
+              {/* Track Selection */}
+              <div className="mb-10">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4 ml-1">Education Track <span className="text-rose-500">*</span></label>
+                <div className="flex gap-4">
                   {['Diploma', 'Bachelor'].map((type) => (
-                    <label key={type} className={`cursor-pointer px-4 py-2 rounded-lg border flex items-center space-x-2 transition ${eduType === type ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'}`}>
-                      <input type="radio" name="eduType" value={type} checked={eduType === type} onChange={e => setEduType(e.target.value)} className="w-4 h-4 text-blue-600 focus:ring-blue-500" />
-                      <span className="font-medium">{type}</span>
+                    <label
+                      key={type}
+                      className={`relative flex-1 cursor-pointer group transition-all duration-300`}
+                    >
+                      <input
+                        type="radio"
+                        name="eduType"
+                        value={type}
+                        checked={eduType === type}
+                        onChange={e => setEduType(e.target.value)}
+                        className="peer hidden"
+                      />
+                      <div className={`flex items-center gap-3 p-5 rounded-2xl border-2 transition-all duration-300 peer-checked:border-[#14B8A6] peer-checked:bg-teal-50/30 dark:peer-checked:bg-teal-950/20 border-slate-100 dark:border-slate-800 group-hover:border-slate-200 dark:group-hover:border-slate-700`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${eduType === type ? 'bg-[#14B8A6] text-white' : 'bg-slate-50 dark:bg-slate-900 text-slate-400'}`}>
+                          <GraduationCap size={20} />
+                        </div>
+                        <div>
+                          <p className={`text-sm font-black uppercase tracking-tight ${eduType === type ? 'text-slate-800 dark:text-white' : 'text-slate-500'}`}>{type} Track</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Primary Pathway</p>
+                        </div>
+                        {eduType === type && (
+                          <div className="ml-auto w-5 h-5 rounded-full bg-[#14B8A6] flex items-center justify-center">
+                            <Check size={12} className="text-white" />
+                          </div>
+                        )}
+                      </div>
                     </label>
                   ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Main Uploads Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* 10th Standard (Always Required) */}
-                <div className="bg-white p-3 rounded border border-slate-200">
-                  <label className="text-sm font-semibold text-slate-700 block mb-2">10th Standard Marksheet <span className="text-red-500">*</span></label>
-                  <input ref={c10Ref} type="file" accept="image/*,application/pdf" onChange={e => setClass10Marksheet(e.target.files[0])} className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                  {class10Marksheet && (
-                    <div className="mt-2 flex items-center justify-between bg-slate-50 px-2 py-1 rounded">
-                      {class10Marksheet instanceof File ? <span className="text-xs text-slate-700 truncate">{class10Marksheet.name}</span> : <a href={`${BACKEND_URL}${class10Marksheet}`} target="_blank" className="text-xs text-blue-600 underline">View File</a>}
-                      <button type="button" onClick={() => { setClass10Marksheet(null); if (c10Ref.current) c10Ref.current.value = ''; }} className="text-red-500 font-bold ml-2">×</button>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">10th Marksheet <span className="text-rose-500">*</span></label>
+                  <div className={`relative group border-2 border-dashed rounded-[1.5rem] p-4 transition-all duration-300 ${class10Marksheet ? 'border-teal-500/30 bg-teal-50/20 dark:bg-teal-950/10' : 'border-slate-200 dark:border-slate-800 hover:border-[#14B8A6]/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/50'}`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${class10Marksheet ? 'bg-[#14B8A6] text-white shadow-lg shadow-teal-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                        {class10Marksheet ? <FileCheck size={24} /> : <Upload size={24} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {class10Marksheet ? (
+                          <>
+                            <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate pr-8">
+                              {class10Marksheet instanceof File ? class10Marksheet.name : 'View Uploaded File'}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {!(class10Marksheet instanceof File) && (
+                                <a href={`${BACKEND_URL}${class10Marksheet}`} target="_blank" className="text-[9px] font-black text-[#14B8A6] uppercase tracking-widest hover:underline">View Document</a>
+                              )}
+                              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Saved Successfully</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Click to upload 10th marksheet</p>
+                            <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest mt-1">PDF, JPG or PNG (MAX. 5MB)</p>
+                          </>
+                        )}
+                      </div>
+                      {class10Marksheet && (
+                        <button type="button" onClick={() => { setClass10Marksheet(null); if (c10Ref.current) c10Ref.current.value = ''; }} className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-950/20 text-rose-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-rose-100 dark:border-rose-900/30">
+                          <X size={14} />
+                        </button>
+                      )}
                     </div>
-                  )}
-                  {errors.class10 && <div className="text-xs text-red-600 mt-1">{errors.class10}</div>}
+                    <input ref={c10Ref} type="file" accept="image/*,application/pdf" onChange={e => setClass10Marksheet(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  </div>
+                  {errors.class10 && <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 px-2 mt-1 uppercase tracking-widest"><AlertCircle size={12} /> {errors.class10}</div>}
                 </div>
 
-                {/* Conditional Fields */}
+                {/* Conditional Fields Based on Track */}
                 {eduType === 'Diploma' ? (
                   <>
-                    <div className="bg-white p-3 rounded border border-slate-200">
-                      <label className="text-sm font-semibold text-slate-700 block mb-2">Diploma Certificate <span className="text-red-500">*</span></label>
-                      <input ref={diplomaRef} type="file" accept="image/*,application/pdf" onChange={e => setDiplomaCertificate(e.target.files[0])} className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                      {diplomaCertificate && (
-                        <div className="mt-2 flex items-center justify-between bg-slate-50 px-2 py-1 rounded">
-                          {diplomaCertificate instanceof File ? <span className="text-xs text-slate-700 truncate">{diplomaCertificate.name}</span> : <a href={`${BACKEND_URL}${diplomaCertificate}`} target="_blank" className="text-xs text-blue-600 underline">View File</a>}
-                          <button type="button" onClick={() => { setDiplomaCertificate(null); if (diplomaRef.current) diplomaRef.current.value = ''; }} className="text-red-500 font-bold ml-2">×</button>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Diploma Certificate <span className="text-rose-500">*</span></label>
+                      <div className={`relative group border-2 border-dashed rounded-[1.5rem] p-4 transition-all duration-300 ${diplomaCertificate ? 'border-teal-500/30 bg-teal-50/20 dark:bg-teal-950/10' : 'border-slate-200 dark:border-slate-800 hover:border-[#14B8A6]/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/50'}`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${diplomaCertificate ? 'bg-[#14B8A6] text-white shadow-lg shadow-teal-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                            {diplomaCertificate ? <FileCheck size={24} /> : <Upload size={24} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {diplomaCertificate ? (
+                              <>
+                                <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate pr-8">
+                                  {diplomaCertificate instanceof File ? diplomaCertificate.name : 'View Uploaded File'}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {!(diplomaCertificate instanceof File) && (
+                                    <a href={`${BACKEND_URL}${diplomaCertificate}`} target="_blank" className="text-[9px] font-black text-[#14B8A6] uppercase tracking-widest hover:underline">View Document</a>
+                                  )}
+                                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Verified</span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Upload Diploma Certificate</p>
+                                <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest mt-1">Required Qualification</p>
+                              </>
+                            )}
+                          </div>
+                          {diplomaCertificate && (
+                            <button type="button" onClick={() => { setDiplomaCertificate(null); if (diplomaRef.current) diplomaRef.current.value = ''; }} className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-950/20 text-rose-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-rose-100 dark:border-rose-900/30">
+                              <X size={14} />
+                            </button>
+                          )}
                         </div>
-                      )}
-                      {errors.diploma && <div className="text-xs text-red-600 mt-1">{errors.diploma}</div>}
-                      <p className="text-[10px] text-slate-400 mt-1 italic">If certificate not available, upload combined marksheets below.</p>
+                        <input ref={diplomaRef} type="file" accept="image/*,application/pdf" onChange={e => setDiplomaCertificate(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                      </div>
+                      {errors.diploma && <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 px-2 mt-1 uppercase tracking-widest"><AlertCircle size={12} /> {errors.diploma}</div>}
                     </div>
 
-                    <div className="bg-white p-3 rounded border border-slate-200">
-                      <label className="text-sm font-semibold text-slate-700 block mb-2">Optional Degree</label>
-                      <input ref={bachelorRef} type="file" accept="image/*,application/pdf" onChange={e => setBachelorDegree(e.target.files[0])} className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                      {bachelorDegree && (
-                        <div className="mt-2 flex items-center justify-between bg-slate-50 px-2 py-1 rounded">
-                          {bachelorDegree instanceof File ? <span className="text-xs text-slate-700 truncate">{bachelorDegree.name}</span> : <a href={`${BACKEND_URL}${bachelorDegree}`} target="_blank" className="text-xs text-blue-600 underline">View File</a>}
-                          <button type="button" onClick={() => { setBachelorDegree(null); if (bachelorRef.current) bachelorRef.current.value = ''; }} className="text-red-500 font-bold ml-2">×</button>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Optional Degree</label>
+                      <div className={`relative group border-2 border-dashed rounded-[1.5rem] p-4 transition-all duration-300 ${bachelorDegree ? 'border-teal-500/30 bg-teal-50/20 dark:bg-teal-950/10' : 'border-slate-200 dark:border-slate-800 hover:border-[#14B8A6]/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/50'}`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${bachelorDegree ? 'bg-[#14B8A6] text-white shadow-lg shadow-teal-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                            {bachelorDegree ? <FileCheck size={24} /> : <Upload size={24} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {bachelorDegree ? (
+                              <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate pr-8">
+                                {bachelorDegree instanceof File ? bachelorDegree.name : 'View Uploaded File'}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Higher Degree (If any)</p>
+                            )}
+                          </div>
+                          {bachelorDegree && (
+                            <button type="button" onClick={() => { setBachelorDegree(null); if (bachelorRef.current) bachelorRef.current.value = ''; }} className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-950/20 text-rose-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-rose-100 dark:border-rose-900/30">
+                              <X size={14} />
+                            </button>
+                          )}
                         </div>
-                      )}
+                        <input ref={bachelorRef} type="file" accept="image/*,application/pdf" onChange={e => setBachelorDegree(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                      </div>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="bg-white p-3 rounded border border-slate-200">
-                      <label className="text-sm font-semibold text-slate-700 block mb-2">12th Standard Marksheet <span className="text-red-500">*</span></label>
-                      <input ref={c12Ref} type="file" accept="image/*,application/pdf" onChange={e => setClass12Marksheet(e.target.files[0])} className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                      {class12Marksheet && (
-                        <div className="mt-2 flex items-center justify-between bg-slate-50 px-2 py-1 rounded">
-                          {class12Marksheet instanceof File ? <span className="text-xs text-slate-700 truncate">{class12Marksheet.name}</span> : <a href={`${BACKEND_URL}${class12Marksheet}`} target="_blank" className="text-xs text-blue-600 underline">View File</a>}
-                          <button type="button" onClick={() => { setClass12Marksheet(null); if (c12Ref.current) c12Ref.current.value = ''; }} className="text-red-500 font-bold ml-2">×</button>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">12th Marksheet <span className="text-rose-500">*</span></label>
+                      <div className={`relative group border-2 border-dashed rounded-[1.5rem] p-4 transition-all duration-300 ${class12Marksheet ? 'border-teal-500/30 bg-teal-50/20 dark:bg-teal-950/10' : 'border-slate-200 dark:border-slate-800 hover:border-[#14B8A6]/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/50'}`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${class12Marksheet ? 'bg-[#14B8A6] text-white shadow-lg shadow-teal-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                            {class12Marksheet ? <FileCheck size={24} /> : <Upload size={24} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {class12Marksheet ? (
+                              <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate pr-8">
+                                {class12Marksheet instanceof File ? class12Marksheet.name : 'View Uploaded File'}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Upload 12th Marksheet</p>
+                            )}
+                          </div>
+                          {class12Marksheet && (
+                            <button type="button" onClick={() => { setClass12Marksheet(null); if (c12Ref.current) c12Ref.current.value = ''; }} className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-950/20 text-rose-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-rose-100 dark:border-rose-900/30">
+                              <X size={14} />
+                            </button>
+                          )}
                         </div>
-                      )}
-                      {errors.class12 && <div className="text-xs text-red-600 mt-1">{errors.class12}</div>}
+                        <input ref={c12Ref} type="file" accept="image/*,application/pdf" onChange={e => setClass12Marksheet(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                      </div>
+                      {errors.class12 && <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 px-2 mt-1 uppercase tracking-widest"><AlertCircle size={12} /> {errors.class12}</div>}
                     </div>
 
-                    <div className="bg-white p-3 rounded border border-slate-200">
-                      <label className="text-sm font-semibold text-slate-700 block mb-2">Bachelor Degree {eduType === 'Bachelor' && <span className="text-red-500">*</span>}</label>
-                      <input ref={bachelorRef} type="file" accept="image/*,application/pdf" onChange={e => setBachelorDegree(e.target.files[0])} className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                      {bachelorDegree && (
-                        <div className="mt-2 flex items-center justify-between bg-slate-50 px-2 py-1 rounded">
-                          {bachelorDegree instanceof File ? <span className="text-xs text-slate-700 truncate">{bachelorDegree.name}</span> : <a href={`${BACKEND_URL}${bachelorDegree}`} target="_blank" className="text-xs text-blue-600 underline">View File</a>}
-                          <button type="button" onClick={() => { setBachelorDegree(null); if (bachelorRef.current) bachelorRef.current.value = ''; }} className="text-red-500 font-bold ml-2">×</button>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Bachelor Degree <span className="text-rose-500">*</span></label>
+                      <div className={`relative group border-2 border-dashed rounded-[1.5rem] p-4 transition-all duration-300 ${bachelorDegree ? 'border-teal-500/30 bg-teal-50/20 dark:bg-teal-950/10' : 'border-slate-200 dark:border-slate-800 hover:border-[#14B8A6]/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/50'}`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${bachelorDegree ? 'bg-[#14B8A6] text-white shadow-lg shadow-teal-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                            {bachelorDegree ? <FileCheck size={24} /> : <Upload size={24} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {bachelorDegree ? (
+                              <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate pr-8">
+                                {bachelorDegree instanceof File ? bachelorDegree.name : 'View Uploaded File'}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Bachelor Qualification</p>
+                            )}
+                          </div>
+                          {bachelorDegree && (
+                            <button type="button" onClick={() => { setBachelorDegree(null); if (bachelorRef.current) bachelorRef.current.value = ''; }} className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-950/20 text-rose-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-rose-100 dark:border-rose-900/30">
+                              <X size={14} />
+                            </button>
+                          )}
                         </div>
-                      )}
-                      {errors.bachelor && <div className="text-xs text-red-600 mt-1">{errors.bachelor}</div>}
+                        <input ref={bachelorRef} type="file" accept="image/*,application/pdf" onChange={e => setBachelorDegree(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                      </div>
+                      {errors.bachelor && <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 px-2 mt-1 uppercase tracking-widest"><AlertCircle size={12} /> {errors.bachelor}</div>}
                     </div>
 
-                    <div className="bg-white p-3 rounded border border-slate-200">
-                      <label className="text-sm font-semibold text-slate-700 block mb-2">Master Degree (Optional)</label>
-                      <input ref={masterRef} type="file" accept="image/*,application/pdf" onChange={e => setMasterDegree(e.target.files[0])} className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                      {masterDegree && (
-                        <div className="mt-2 flex items-center justify-between bg-slate-50 px-2 py-1 rounded">
-                          {masterDegree instanceof File ? <span className="text-xs text-slate-700 truncate">{masterDegree.name}</span> : <a href={`${BACKEND_URL}${masterDegree}`} target="_blank" className="text-xs text-blue-600 underline">View File</a>}
-                          <button type="button" onClick={() => { setMasterDegree(null); if (masterRef.current) masterRef.current.value = ''; }} className="text-red-500 font-bold ml-2">×</button>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Master Degree (Optional)</label>
+                      <div className={`relative group border-2 border-dashed rounded-[1.5rem] p-4 transition-all duration-300 ${masterDegree ? 'border-teal-500/30 bg-teal-50/20 dark:bg-teal-950/10' : 'border-slate-200 dark:border-slate-800 hover:border-[#14B8A6]/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/50'}`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${masterDegree ? 'bg-[#14B8A6] text-white shadow-lg shadow-teal-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                            {masterDegree ? <FileCheck size={24} /> : <Upload size={24} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {masterDegree ? (
+                              <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate pr-8">
+                                {masterDegree instanceof File ? masterDegree.name : 'View Uploaded File'}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Master Qualification</p>
+                            )}
+                          </div>
+                          {masterDegree && (
+                            <button type="button" onClick={() => { setMasterDegree(null); if (masterRef.current) masterRef.current.value = ''; }} className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-950/20 text-rose-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-rose-100 dark:border-rose-900/30">
+                              <X size={14} />
+                            </button>
+                          )}
                         </div>
-                      )}
+                        <input ref={masterRef} type="file" accept="image/*,application/pdf" onChange={e => setMasterDegree(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                      </div>
                     </div>
                   </>
                 )}
               </div>
 
-              {/* Alternative */}
-              <div className="mt-6 pt-4 border-t border-slate-100">
-                <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Alternative: Last 3 Semester Marksheets</h5>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Alternative Section */}
+              <div className="mt-12 pt-10 border-t border-slate-100 dark:border-slate-800/60">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-[2px] bg-slate-200 dark:bg-slate-800"></div>
+                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Alternative Verification</h5>
+                </div>
+
+                <p className="text-[10px] text-slate-500 mb-6 flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-800 w-fit">
+                  <AlertCircle size={14} className="text-teal-500" />
+                  If degree certificates are pending, please upload last 3 semester marksheets.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   {[ls1Ref, ls2Ref, ls3Ref].map((ref, i) => {
                     const stateVal = i === 0 ? lastSem1 : i === 1 ? lastSem2 : lastSem3;
                     const setter = i === 0 ? setLastSem1 : i === 1 ? setLastSem2 : setLastSem3;
                     return (
-                      <div key={i} className="bg-white p-2 rounded border border-slate-200">
-                        <label className="text-[10px] font-semibold text-slate-400 block mb-1">Sem {i + 1} Marksheet</label>
-                        <input ref={ref} type="file" accept="image/*,application/pdf" onChange={e => setter(e.target.files[0])} className="block w-full text-[10px] text-slate-500 file:mr-1 file:py-0.5 file:px-2 file:rounded-full file:border-0 file:text-[10px] file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200" />
-                        {stateVal && (
-                          <div className="mt-1 flex items-center justify-between">
-                            {stateVal instanceof File ? <span className="text-[10px] text-slate-600 truncate max-w-[80px]">{stateVal.name}</span> : <a href={`${BACKEND_URL}${stateVal}`} target="_blank" className="text-[10px] text-blue-500 underline">View</a>}
-                            <button type="button" onClick={() => { setter(null); if (ref.current) ref.current.value = ''; }} className="text-red-400 font-bold ml-1 text-[10px]">×</button>
+                      <div key={i} className="flex flex-col gap-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Semester {i + 1} Marksheet</label>
+                        <div className={`relative group border-[1.5px] rounded-2xl p-3 transition-all duration-300 ${stateVal ? 'border-teal-500/20 bg-teal-50/10 dark:bg-teal-950/5' : 'border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700'}`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${stateVal ? 'bg-[#14B8A6] text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                              {stateVal ? <Check size={16} /> : <Upload size={16} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase truncate">
+                                {stateVal ? (stateVal instanceof File ? stateVal.name : 'View Upload') : 'Upload File'}
+                              </p>
+                            </div>
+                            {stateVal && (
+                              <button type="button" onClick={() => { setter(null); if (ref.current) ref.current.value = ''; }} className="text-rose-400 hover:text-rose-600 transition-colors">
+                                <X size={14} />
+                              </button>
+                            )}
                           </div>
-                        )}
+                          <input ref={ref} type="file" accept="image/*,application/pdf" onChange={e => setter(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                        </div>
                       </div>
                     )
                   })}
                 </div>
               </div>
-
             </div>
           </div>
         )}
@@ -1758,131 +2048,128 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
         {/* Step 6: Documents & Identity */}
         {/* Step 6: Documents & Identity */}
         {step === 6 && (
-          <div className="space-y-6">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Section 1: Education Documents Preview (Read-Only) */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Uploaded Education Documents</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900/40 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-3 mb-8 border-l-[3px] border-[#14B8A6] pl-4">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Education Verification</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Review uploaded academic records</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   { label: '10th Marksheet', file: class10Marksheet },
                   { label: '12th Marksheet', file: class12Marksheet, show: eduType !== 'Diploma' },
                   { label: 'Diploma Cert', file: diplomaCertificate, show: eduType === 'Diploma' },
                   { label: 'Bachelor Degree', file: bachelorDegree },
                   { label: 'Master Degree', file: masterDegree },
-                  { label: 'Last Sem 1', file: lastSem1 },
-                  { label: 'Last Sem 2', file: lastSem2 },
-                  { label: 'Last Sem 3', file: lastSem3 },
+                  { label: 'Sem 1', file: lastSem1 },
+                  { label: 'Sem 2', file: lastSem2 },
+                  { label: 'Sem 3', file: lastSem3 },
                 ].map((item, idx) => {
                   if (item.show === false || !item.file) return null;
                   return (
-                    <div key={idx} className="bg-white border rounded p-3 flex flex-col items-center shadow-sm">
-                      <div className="w-full h-24 bg-slate-100 mb-2 rounded overflow-hidden flex items-center justify-center border border-slate-200">
+                    <div key={idx} className="group bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800/50 rounded-2xl p-4 transition-all duration-300 hover:shadow-lg hover:border-[#14B8A6]/20">
+                      <div className="relative aspect-[4/3] bg-white dark:bg-slate-900 rounded-xl mb-3 overflow-hidden border border-slate-100 dark:border-slate-800 flex items-center justify-center group-hover:scale-[1.02] transition-transform duration-300 shadow-inner">
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-900/20 backdrop-blur-[2px] transition-all flex items-center justify-center z-10">
+                          <a href={item.file instanceof File ? '#' : `${BACKEND_URL}${item.file}`} target="_blank" className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 p-2 rounded-xl shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                            <Search size={16} />
+                          </a>
+                        </div>
                         {renderFilePreview(item.file, item.label)}
                       </div>
-                      <span className="text-xs font-semibold text-center text-slate-700 block truncate w-full" title={item.label}>{item.label}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest truncate">{item.label}</span>
+                        <div className="w-4 h-4 rounded-full bg-teal-50 dark:bg-teal-950/30 flex items-center justify-center">
+                          <Check size={8} className="text-[#14B8A6]" />
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
-                {/* Empty State if no docs */}
-                {![class10Marksheet, class12Marksheet, diplomaCertificate, bachelorDegree, masterDegree, lastSem1, lastSem2, lastSem3].some(f => f) && (
-                  <div className="col-span-full text-center text-sm text-slate-500 py-4 italic">No education documents uploaded in Step 5.</div>
-                )}
               </div>
+
+              {![class10Marksheet, class12Marksheet, diplomaCertificate, bachelorDegree, masterDegree, lastSem1, lastSem2, lastSem3].some(f => f) && (
+                <div className="flex flex-col items-center justify-center py-12 bg-slate-50/50 dark:bg-slate-900/20 rounded-[1.5rem] border border-dashed border-slate-200 dark:border-slate-800">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mb-4">
+                    <AlertCircle size={24} />
+                  </div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">No Documents Uploaded</p>
+                  <p className="text-[9px] font-bold text-slate-400/60 uppercase tracking-widest mt-1">Please go back to Step 5 to upload academic records</p>
+                </div>
+              )}
             </div>
 
             {/* Section 2: Personal Identity (Aadhar/Pan) */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-200 pb-2">Identity Verification</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Aadhar Front */}
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-3 mb-10 border-l-[3px] border-[#14B8A6] pl-4">
                 <div>
-                  <label className="text-sm font-semibold text-slate-700 block mb-2">Aadhar Front <span className="text-red-500">*</span></label>
-                  <div className="bg-white p-3 rounded border border-slate-200 flex flex-col gap-3">
-                    {aadharFront ? (
-                      <div className="relative group">
-                        <div className="w-full h-32 bg-slate-100 rounded overflow-hidden border flex items-center justify-center">
-                          {renderFilePreview(aadharFront, 'Aadhar Front')}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => { setAadharFront(null); if (aadharFrontRef.current) aadharFrontRef.current.value = ''; }}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600 opacity-0 group-hover:opacity-100 transition"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-300 rounded cursor-pointer hover:bg-slate-50 transition">
-                        <div className="text-center">
-                          <svg className="mx-auto h-8 w-8 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                          <p className="mt-1 text-xs text-slate-500">Upload Front</p>
-                        </div>
-                        <input ref={aadharFrontRef} type="file" className="hidden" accept="image/*,application/pdf" onChange={e => setAadharFront(e.target.files[0])} />
-                      </label>
-                    )}
-                    {errors.aadharFront && <div className="text-xs text-red-600">{errors.aadharFront}</div>}
-                  </div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Identity Verification</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Government Issued Identification</p>
                 </div>
+              </div>
 
-                {/* Aadhar Back */}
-                <div>
-                  <label className="text-sm font-semibold text-slate-700 block mb-2">Aadhar Back <span className="text-red-500">*</span></label>
-                  <div className="bg-white p-3 rounded border border-slate-200 flex flex-col gap-3">
-                    {aadharBack ? (
-                      <div className="relative group">
-                        <div className="w-full h-32 bg-slate-100 rounded overflow-hidden border flex items-center justify-center">
-                          {renderFilePreview(aadharBack, 'Aadhar Back')}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {/* Identity Cards */}
+                {[
+                  { label: 'Aadhar Front', state: aadharFront, setter: setAadharFront, ref: aadharFrontRef, icon: <Fingerprint size={24} />, required: true },
+                  { label: 'Aadhar Back', state: aadharBack, setter: setAadharBack, ref: aadharBackRef, icon: <Fingerprint size={24} />, required: true },
+                  { label: 'PAN Card', state: panCard, setter: setPanCard, ref: panRef, icon: <ShieldCheck size={24} />, required: true },
+                ].map((idCard, i) => (
+                  <div key={i} className="flex flex-col gap-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">
+                      {idCard.label} {idCard.required && <span className="text-rose-500">*</span>}
+                    </label>
+                    <div className={`relative group border-2 border-dashed rounded-[2rem] p-4 h-[240px] flex flex-col transition-all duration-300 ${idCard.state ? 'border-teal-500/30 bg-teal-50/10 dark:bg-teal-950/5' : 'border-slate-100 dark:border-slate-800 hover:border-[#14B8A6]/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/50'}`}>
+                      {idCard.state ? (
+                        <>
+                          <div className="relative flex-1 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-inner group-hover:scale-[1.01] transition-transform duration-500">
+                            {renderFilePreview(idCard.state, idCard.label)}
+                            <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-3">
+                              {!(idCard.state instanceof File) && (
+                                <a href={`${BACKEND_URL}${idCard.state}`} target="_blank" className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-all">
+                                  <Search size={18} />
+                                </a>
+                              )}
+                              <button type="button" onClick={() => { idCard.setter(null); if (idCard.ref.current) idCard.ref.current.value = ''; }} className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-all delay-75">
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-4 flex items-center justify-between px-1">
+                            <div>
+                              <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate max-w-[150px]">
+                                {idCard.state instanceof File ? idCard.state.name : `${idCard.label} Verified`}
+                              </p>
+                              <p className="text-[8px] font-bold text-[#14B8A6] uppercase tracking-[0.2em] mt-0.5">Stored Securely</p>
+                            </div>
+                            <div className="w-8 h-8 rounded-xl bg-[#14B8A6] flex items-center justify-center text-white shadow-lg shadow-teal-500/20">
+                              <Check size={16} />
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl">
+                          <div className="w-16 h-16 rounded-[1.5rem] bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700 mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                            {idCard.icon}
+                          </div>
+                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
+                            Click or Drag to upload<br />{idCard.label}
+                          </p>
+                          <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest mt-4">Required Document</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => { setAadharBack(null); if (aadharBackRef.current) aadharBackRef.current.value = ''; }}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600 opacity-0 group-hover:opacity-100 transition"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
+                      )}
+                      <input ref={idCard.ref} type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*,application/pdf" onChange={e => idCard.setter(e.target.files[0])} />
+                    </div>
+                    {errors[i === 0 ? 'aadharFront' : i === 1 ? 'aadharBack' : 'panCard'] && (
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 px-2 mt-1 uppercase tracking-widest animate-shake">
+                        <AlertCircle size={12} /> {errors[i === 0 ? 'aadharFront' : i === 1 ? 'aadharBack' : 'panCard']}
                       </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-300 rounded cursor-pointer hover:bg-slate-50 transition">
-                        <div className="text-center">
-                          <svg className="mx-auto h-8 w-8 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                          <p className="mt-1 text-xs text-slate-500">Upload Back</p>
-                        </div>
-                        <input ref={aadharBackRef} type="file" className="hidden" accept="image/*,application/pdf" onChange={e => setAadharBack(e.target.files[0])} />
-                      </label>
                     )}
-                    {errors.aadharBack && <div className="text-xs text-red-600">{errors.aadharBack}</div>}
                   </div>
-                </div>
-
-                {/* PAN Card */}
-                <div>
-                  <label className="text-sm font-semibold text-slate-700 block mb-2">PAN Card <span className="text-red-500">*</span></label>
-                  <div className="bg-white p-3 rounded border border-slate-200 flex flex-col gap-3">
-                    {panCard ? (
-                      <div className="relative group">
-                        <div className="w-full h-32 bg-slate-100 rounded overflow-hidden border flex items-center justify-center">
-                          {renderFilePreview(panCard, 'PAN Card')}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => { setPanCard(null); if (panRef.current) panRef.current.value = ''; }}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600 opacity-0 group-hover:opacity-100 transition"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-300 rounded cursor-pointer hover:bg-slate-50 transition">
-                        <div className="text-center">
-                          <svg className="mx-auto h-8 w-8 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                          <p className="mt-1 text-xs text-slate-500">Upload PAN</p>
-                        </div>
-                        <input ref={panRef} type="file" className="hidden" accept="image/*,application/pdf" onChange={e => setPanCard(e.target.files[0])} />
-                      </label>
-                    )}
-                    {errors.panCard && <div className="text-xs text-red-600">{errors.panCard}</div>}
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
@@ -1890,224 +2177,286 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
 
         {/* Step 7: Account Credentials */}
         {step === 7 && (
-          <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-3 mb-6 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
-              Account Credentials
-            </h3>
-
-            <div className="bg-white p-4 rounded-lg flex items-center justify-between border border-blue-100 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className="bg-blue-50 p-2 rounded-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" /></svg>
-                </div>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center gap-3 mb-10 border-l-[3px] border-[#14B8A6] pl-4">
                 <div>
-                  <span className="text-xs text-blue-600 font-bold uppercase tracking-wider block mb-1">Employee ID</span>
-                  <span className="text-2xl font-bold text-slate-800 tracking-tight">{employeeCode || (employee?.employeeId ? employee.employeeId : 'Generating...')}</span>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Access Credentials</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">System login & identification</p>
                 </div>
-                {(!employeeCode && !employee?.employeeId) || employeeCode.startsWith('Error') ? (
-                  <button
-                    type="button"
-                    onClick={() => { setEmployeeCode('Generating...'); loadEmployeeCodePreview(); }}
-                    className="text-xs bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded hover:bg-blue-50 font-medium transition"
-                  >
-                    Retry
-                  </button>
-                ) : null}
-              </div>
-              <div className="text-xs text-slate-500 max-w-xs text-right hidden sm:block leading-relaxed bg-slate-100 p-2 rounded border border-slate-200">
-                <span className="font-semibold text-slate-700">Auto-Generated:</span> Based on company prefix, department code, and sequence number.
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6 mt-6">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Login Email <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                      <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                    </svg>
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    className={`w-full pl-10 p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${errors.email ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-white'}`}
-                    placeholder="employee@company.com"
-                    disabled={viewOnly && step !== 7}
-                  />
-                </div>
-                {errors.email && <p className="text-red-600 text-xs mt-1 font-medium">{errors.email}</p>}
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Login Password <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                    </svg>
+              {/* ID Card Display */}
+              <div className="bg-slate-50/50 dark:bg-slate-900/40 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
+                <div className="flex items-center gap-6">
+                  <div className="w-16 h-16 rounded-[1.5rem] bg-[#14B8A6] flex items-center justify-center text-white shadow-lg shadow-teal-500/20">
+                    <User size={32} />
                   </div>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    className={`w-full pl-10 p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${errors.password ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-white'}`}
-                    placeholder="Create strong password"
-                    disabled={viewOnly && step !== 7}
-                  />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition">
-                    {showPassword ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                    )}
-                  </button>
+                  <div>
+                    <p className="text-[10px] font-black text-[#14B8A6] uppercase tracking-[0.2em] mb-1">Generated Employee ID</p>
+                    <p className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter">
+                      {employeeCode || (employee?.employeeId ? employee.employeeId : 'SYSTEM_GEN')}
+                    </p>
+                  </div>
                 </div>
-                {errors.password && <p className="text-red-600 text-xs mt-1 font-medium">{errors.password}</p>}
+
+                <div className="flex flex-col items-end gap-2">
+                  {(!employeeCode && !employee?.employeeId) || employeeCode.startsWith('Error') ? (
+                    <button
+                      type="button"
+                      onClick={() => { setEmployeeCode('Generating...'); loadEmployeeCodePreview(); }}
+                      className="group flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest hover:border-[#14B8A6] hover:text-[#14B8A6] transition-all"
+                    >
+                      <Plus size={14} className="group-hover:rotate-90 transition-transform" />
+                      Regenerate ID
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-teal-50 dark:bg-teal-900/20 rounded-xl border border-teal-100 dark:border-teal-800/50">
+                      <div className="w-2 h-2 rounded-full bg-[#14B8A6] animate-pulse"></div>
+                      <span className="text-[10px] font-black text-[#14B8A6] uppercase tracking-widest">Active System ID</span>
+                    </div>
+                  )}
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">Auto-generated via sequence</p>
+                </div>
+              </div>
+
+              {/* Inputs */}
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Login Email <span className="text-rose-500">*</span></label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-[#14B8A6]">
+                      <Mail size={18} className="text-slate-400 group-focus-within:text-[#14B8A6]" />
+                    </div>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      className={`w-full pl-12 pr-4 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all duration-300 text-sm font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-700 ${errors.email ? 'border-rose-100 dark:border-rose-900/30 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6] focus:bg-white dark:focus:bg-slate-900'}`}
+                      placeholder="employee@gitakshmi.com"
+                      disabled={viewOnly && step !== 7}
+                    />
+                  </div>
+                  {errors.email && <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 px-2 mt-1 uppercase tracking-widest"><AlertCircle size={12} /> {errors.email}</div>}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Security Password <span className="text-rose-500">*</span></label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-[#14B8A6]">
+                      <Lock size={18} className="text-slate-400 group-focus-within:text-[#14B8A6]" />
+                    </div>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      className={`w-full pl-12 pr-12 py-3.5 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all duration-300 text-sm font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-700 ${errors.password ? 'border-rose-100 dark:border-rose-900/30 focus:border-rose-500' : 'border-slate-100 dark:border-slate-800 focus:border-[#14B8A6] focus:bg-white dark:focus:bg-slate-900'}`}
+                      placeholder="Create secret access"
+                      disabled={viewOnly && step !== 7}
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#14B8A6] transition-colors">
+                      {showPassword ? <X size={18} /> : <div className="w-5 h-5 flex items-center justify-center font-black text-[8px] uppercase border-2 border-slate-200 rounded-md">Show</div>}
+                    </button>
+                  </div>
+                  {errors.password && <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500 px-2 mt-1 uppercase tracking-widest"><AlertCircle size={12} /> {errors.password}</div>}
+                </div>
               </div>
             </div>
           </div>
         )}
+
         {/* Step 8: Payroll / Compensation */}
         {step === 8 && (
-          <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 shadow-sm space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <IndianRupee className="w-5 h-5 text-emerald-600" />
-                Payroll / Compensation
-              </h3>
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">
-                {salaryStatus}
-              </span>
-            </div>
-
-            {/* Form Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Salary Template <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className={`w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white ${errors.salaryTemplate ? 'border-red-500' : 'border-slate-300'}`}
-                  value={salaryTemplateId}
-                  onChange={handleTemplateChange}
-                >
-                  <option value="">-- Select Template --</option>
-                  {salaryTemplates.map(t => (
-                    <option key={t._id} value={t._id}>{t.name} (CTC: {t.annualCTC})</option>
-                  ))}
-                </select>
-                {errors.salaryTemplate && <p className="text-red-600 text-xs mt-1">{errors.salaryTemplate}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Effective From <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  className={`w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white ${errors.effectiveDate ? 'border-red-500' : 'border-slate-300'}`}
-                  value={salaryEffectiveDate}
-                  onChange={e => setSalaryEffectiveDate(e.target.value)}
-                />
-                {errors.effectiveDate && <p className="text-red-600 text-xs mt-1">{errors.effectiveDate}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Pay Frequency</label>
-                <input type="text" value="Monthly" disabled className="w-full p-2.5 border border-slate-200 bg-slate-100 text-slate-500 rounded-lg cursor-not-allowed" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="salaryStatus" value="Active" checked={salaryStatus === 'Active'} onChange={e => setSalaryStatus(e.target.value)} />
-                    <span className="text-sm">Active</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="salaryStatus" value="Inactive" checked={salaryStatus === 'Inactive'} onChange={e => setSalaryStatus(e.target.value)} />
-                    <span className="text-sm">Inactive</span>
-                  </label>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+              <div className="flex items-center justify-between mb-10 border-l-[3px] border-[#14B8A6] pl-4">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Compensation Setup</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Payroll mapping & salary scale</p>
+                </div>
+                <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${salaryStatus === 'Active' ? 'bg-teal-50 text-[#14B8A6] border border-teal-100' : 'bg-slate-50 text-slate-400 border border-slate-200'}`}>
+                  {salaryStatus} Status
                 </div>
               </div>
-            </div>
 
-            {/* Preview Section */}
-            {selectedTemplateDetails && (
-              <div className="bg-white p-4 rounded border border-slate-200 mt-4">
-                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3 border-b pb-2">Compensation Preview</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div className="bg-slate-50 p-2 rounded">
-                    <div className="text-xs text-slate-500">Annual CTC</div>
-                    <div className="font-bold text-slate-800">₹{selectedTemplateDetails.annualCTC?.toLocaleString()}</div>
-                  </div>
-                  <div className="bg-slate-50 p-2 rounded">
-                    <div className="text-xs text-slate-500">Monthly Gross</div>
-                    <div className="font-bold text-slate-800">₹{selectedTemplateDetails.monthlyGross?.toLocaleString()}</div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h5 className="text-xs font-bold text-green-700 mb-2">Earnings</h5>
-                    <ul className="text-xs space-y-1">
-                      {selectedTemplateDetails.earnings.map((e, i) => (
-                        <li key={i} className="flex justify-between">
-                          <span>{e.salaryComponentId?.name || 'Component'}</span>
-                          <span className="font-mono">₹{e.monthlyAmount?.toLocaleString()}</span>
-                        </li>
+              {/* Salary Config Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Salary Template <span className="text-rose-500">*</span></label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Landmark size={18} className="text-slate-400" />
+                    </div>
+                    <select
+                      className={`w-full pl-12 pr-4 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none appearance-none transition-all ${errors.salaryTemplate ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 focus:border-[#14B8A6] focus:bg-white dark:border-slate-800'}`}
+                      value={salaryTemplateId}
+                      onChange={handleTemplateChange}
+                    >
+                      <option value="">Select Template</option>
+                      {salaryTemplates.map(t => (
+                        <option key={t._id} value={t._id}>{t.name} (₹{t.annualCTC})</option>
                       ))}
-                    </ul>
+                    </select>
                   </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-red-700 mb-2">Deductions</h5>
-                    <ul className="text-xs space-y-1">
-                      {selectedTemplateDetails.deductions.map((d, i) => (
-                        <li key={i} className="flex justify-between">
-                          <span>{d.salaryComponentId?.name || 'Component'}</span>
-                          <span className="font-mono">₹{d.monthlyAmount?.toLocaleString()}</span>
-                        </li>
-                      ))}
-                    </ul>
+                  {errors.salaryTemplate && <div className="text-[9px] font-bold text-rose-500 px-2 uppercase tracking-widest">{errors.salaryTemplate}</div>}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Effective From <span className="text-rose-500">*</span></label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Calendar size={18} className="text-slate-400" />
+                    </div>
+                    <input
+                      type="date"
+                      className={`w-full pl-12 pr-4 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-2 rounded-2xl outline-none transition-all ${errors.effectiveDate ? 'border-rose-100 focus:border-rose-500' : 'border-slate-100 focus:border-[#14B8A6] focus:bg-white dark:border-slate-800'}`}
+                      value={salaryEffectiveDate}
+                      onChange={e => setSalaryEffectiveDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Pay Cycle</label>
+                  <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-100 dark:border-slate-800 text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                    Monthly Disbursement
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Employment Status</label>
+                  <div className="flex p-1.5 bg-slate-50 dark:bg-slate-900/30 rounded-[1.2rem] border border-slate-100 dark:border-slate-800">
+                    {['Active', 'Inactive'].map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setSalaryStatus(status)}
+                        className={`flex-1 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 ${salaryStatus === status ? 'bg-[#14B8A6] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        {status}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
-            )}
 
-            <div className="flex justify-end pt-4">
-              {!viewOnly && (
-                <button
-                  type="button"
-                  onClick={saveSalaryAssignment}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 flex items-center gap-2 text-sm font-medium"
-                  disabled={saving}
-                >
-                  {saving ? 'Saving...' : 'Save Assignment'}
-                </button>
+              {/* Selection Preview */}
+              {selectedTemplateDetails ? (
+                <div className="mt-8 p-8 bg-slate-50/50 dark:bg-slate-950/20 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                  <div className="flex flex-wrap items-center justify-between gap-6 mb-8 border-b border-slate-100 dark:border-slate-800 pb-6">
+                    <div className="flex items-center gap-6">
+                      <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center text-[#14B8A6]">
+                        <IndianRupee size={28} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-[#14B8A6] uppercase tracking-[0.2em] mb-1">Financial Forecast</p>
+                        <h4 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">{selectedTemplateDetails.name}</h4>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                      <div className="px-6 py-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Annual CTC</p>
+                        <p className="text-xl font-black text-slate-800 dark:text-white tracking-tighter">₹{selectedTemplateDetails.annualCTC?.toLocaleString()}</p>
+                      </div>
+                      <div className="px-6 py-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <p className="text-[8px] font-black text-[#14B8A6] uppercase tracking-widest mb-1">Take Home (Est.)</p>
+                        <p className="text-xl font-black text-slate-800 dark:text-white tracking-tighter">₹{selectedTemplateDetails.monthlyGross?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    {/* Earnings */}
+                    <div>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-6 h-6 rounded-lg bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center text-[#14B8A6]">
+                          <Plus size={14} />
+                        </div>
+                        <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Earnings / Allowances</p>
+                      </div>
+                      <div className="space-y-2">
+                        {selectedTemplateDetails.earnings.map((e, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-50 dark:border-slate-800/50">
+                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">{e.salaryComponentId?.name || 'Component'}</span>
+                            <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-tight">₹{e.monthlyAmount?.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Deductions */}
+                    <div>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-6 h-6 rounded-lg bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center text-rose-500">
+                          <Trash2 size={14} />
+                        </div>
+                        <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Statutory Deductions</p>
+                      </div>
+                      <div className="space-y-2">
+                        {selectedTemplateDetails.deductions.map((d, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-50 dark:border-slate-800/50">
+                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">{d.salaryComponentId?.name || 'Component'}</span>
+                            <span className="text-xs font-black text-rose-600 tracking-tight">-₹{d.monthlyAmount?.toLocaleString()}</span>
+                          </div>
+                        ))}
+                        {selectedTemplateDetails.deductions.length === 0 && (
+                          <p className="text-[10px] text-slate-400 italic py-4 text-center">No deductions configured</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!viewOnly && (
+                    <div className="mt-10 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={saveSalaryAssignment}
+                        className="group flex items-center gap-3 px-8 py-3 bg-[#14B8A6] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-teal-500/30 hover:shadow-teal-500/40 hover:-translate-y-0.5 transition-all disabled:opacity-50"
+                        disabled={saving}
+                      >
+                        {saving ? 'Processing...' : 'Assign Compensation'}
+                        {!saving && <Check size={16} />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="py-20 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 rounded-[2rem] bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700 mb-6">
+                    <Landmark size={32} />
+                  </div>
+                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Select a template to view forecast</p>
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between gap-2 mt-6 pt-4 border-t border-slate-200">
-          <button type="button" onClick={() => step > 1 ? handlePrev() : onClose()} className="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition shadow-sm">{step > 1 ? 'Previous' : (viewOnly ? 'Close' : 'Cancel')}</button>
+        {/* Global Navigation Footer */}
+        <div className="flex items-center justify-between gap-6 pt-10 mt-10 border-t border-slate-100 dark:border-slate-800/60">
+          <button
+            type="button"
+            onClick={() => step > 1 ? handlePrev() : onClose()}
+            className="group flex items-center gap-3 px-6 py-3.5 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-2xl transition-all hover:border-slate-200 dark:hover:border-slate-700"
+          >
+            <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:-translate-x-1 transition-transform">
+              <ArrowLeft size={16} />
+            </div>
+            <span className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-[0.2em]">
+              {step > 1 ? 'Go Back' : (viewOnly ? 'Finish' : 'Cancel')}
+            </span>
+          </button>
 
-          <div className="flex gap-3">
-
-            {(!viewOnly) && (
+          <div className="flex items-center gap-4">
+            {!viewOnly && (
               <button
                 type="button"
                 onClick={(e) => saveDraft(e)}
-                className="px-5 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 font-medium transition shadow-sm"
+                className="hidden md:flex items-center gap-3 px-6 py-3.5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-slate-100 dark:border-slate-800/40 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] hover:bg-white dark:hover:bg-slate-900 transition-all"
                 disabled={saving}
               >
-                Save as Draft
+                Save Draft
               </button>
             )}
 
@@ -2115,23 +2464,35 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); handleNext(); }}
-                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md hover:shadow-lg transition flex items-center gap-2"
+                className="group flex items-center gap-4 px-10 py-4 bg-slate-900 dark:bg-[#14B8A6] text-white rounded-[1.5rem] shadow-2xl transition-all hover:-translate-y-1 hover:shadow-[#14B8A6]/20"
               >
-                Next
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                <span className="text-[11px] font-black uppercase tracking-[0.3em]">Continue</span>
+                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center group-hover:translate-x-1 transition-transform">
+                  <ArrowRight size={18} />
+                </div>
               </button>
             ) : (
               (!viewOnly) ? (
                 <button
                   onClick={(e) => submit(e)}
                   disabled={saving}
-                  className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-md hover:shadow-lg transition flex items-center gap-2"
+                  className="group flex items-center gap-4 px-10 py-4 bg-[#14B8A6] text-white rounded-[1.5rem] shadow-2xl shadow-teal-500/30 transition-all hover:-translate-y-1"
                 >
-                  {saving ? 'Saving...' : 'Finish & Close'}
-                  {!saving && <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                  <span className="text-[11px] font-black uppercase tracking-[0.3em]">
+                    {saving ? 'Processing...' : 'Complete Profile'}
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                    {saving ? <Plus size={18} className="animate-spin" /> : <Check size={18} />}
+                  </div>
                 </button>
               ) : (
-                <button type="button" onClick={onClose} className="px-5 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-medium shadow-sm">Close</button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-10 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black text-[11px] uppercase tracking-[0.3em] shadow-xl"
+                >
+                  Close
+                </button>
               )
             )}
           </div>
@@ -2158,29 +2519,3 @@ export default function EmployeeForm({ employee, onClose, viewOnly = false }) {
   );
 }
 
-// Helper components for EmployeeProfileView
-const InfoItem = ({ label, value }) => (
-  <div className="mb-4">
-    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{label}</span>
-    <span className="text-sm font-medium text-slate-900 break-words">{value || '-'}</span>
-  </div>
-);
-
-const SectionTitle = ({ title, icon }) => (
-  <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center gap-2">
-    {icon} {title}
-  </h3>
-);
-
-const FileLink = ({ url, label }) => {
-  if (!url) return <span className="text-slate-400 text-sm italic py-1 block">Not uploaded</span>;
-  return (
-    <a href={`${BACKEND_URL}${url}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-2 rounded-lg transition border border-blue-100 hover:border-blue-200 mb-2">
-      <div className="bg-white p-1 rounded text-blue-500">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-      </div>
-      <span className="text-sm font-medium truncate flex-1">{label || 'View Document'}</span>
-      <svg className="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-    </a>
-  );
-};
