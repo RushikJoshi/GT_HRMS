@@ -7,11 +7,12 @@ const fs = require('fs');
 const fsPromises = require('fs').promises;
 const Docxtemplater = require('docxtemplater');
 const PizZip = require('pizzip');
+const mammoth = require('mammoth');
 const joiningLetterUtils = require('../utils/joiningLetterUtils');
 const emailService = require('../services/email.service');
 
 // PDF conversion uses LibreOfficeService (reliable cross-platform solution)
-console.log('🚀 LETTER CONTROLLER VERSION: 3.1 (LibreOffice PDF conversion)');
+console.log('🚀 LETTER CONTROLLER VERSION: 3.2 (Async LibreOffice + Fast Preview)');
 
 async function extractPlaceholders(filePath) {
     try {
@@ -1005,9 +1006,9 @@ exports.previewWordTemplatePDF = async (req, res) => {
 
             // Convert the preview DOCX to PDF
             try {
-                console.log('🔄 [PREVIEW] Converting preview template to PDF (LibreOffice)...');
+                console.log('🔄 [PREVIEW] Converting preview template to PDF (LibreOffice/Fallback)...');
                 const libreOfficeService = require('../services/LibreOfficeService');
-                libreOfficeService.convertToPdfSync(tempDocxPath, templateDir);
+                await libreOfficeService.convertToPdf(tempDocxPath, templateDir);
             } catch (err) {
                 console.error('⚠️ [PREVIEW] Preview conversion failed:', err.message);
                 // Fallback to original PDF if it exists
@@ -1031,9 +1032,9 @@ exports.previewWordTemplatePDF = async (req, res) => {
                 }
 
                 if (needsConversion) {
-                    console.log('🔄 [PREVIEW] Converting template to PDF (LibreOffice)...');
+                    console.log('🔄 [PREVIEW] Converting template to PDF (LibreOffice/Fallback)...');
                     const libreOfficeService = require('../services/LibreOfficeService');
-                    libreOfficeService.convertToPdfSync(normalizedFilePath, templateDir);
+                    await libreOfficeService.convertToPdf(normalizedFilePath, templateDir);
                 }
             } catch (err) {
                 console.error('⚠️ [PREVIEW] Conversion failed:', err.message);
@@ -1199,9 +1200,9 @@ exports.downloadWordTemplatePDF = async (req, res) => {
             }
 
             if (needsConversion) {
-                console.log('🔄 [DOWNLOAD PDF] Converting template to PDF (LibreOffice)...');
+                console.log('🔄 [DOWNLOAD PDF] Converting template to PDF (LibreOffice/Fallback)...');
                 const libreOfficeService = require('../services/LibreOfficeService');
-                libreOfficeService.convertToPdfSync(normalizedFilePath, templateDir);
+                await libreOfficeService.convertToPdf(normalizedFilePath, templateDir);
             }
         } catch (err) {
             console.error('⚠️ [DOWNLOAD] Conversion failed:', err.message);
@@ -1681,8 +1682,8 @@ exports.generateJoiningLetter = async (req, res) => {
             console.log('🔄 [JOINING LETTER] Starting Synchronous PDF Conversion (LibreOffice)...');
             const libreOfficeService = require('../services/LibreOfficeService');
 
-            // Synchronous Call - blocks until done
-            const pdfAbsolutePath = libreOfficeService.convertToPdfSync(docxPath, outputDir);
+            // Asynchronous Call with Fallback
+            const pdfAbsolutePath = await libreOfficeService.convertToPdf(docxPath, outputDir);
             const pdfFileName = path.basename(pdfAbsolutePath);
 
             finalRelativePath = `offers/${pdfFileName}`;
@@ -1828,8 +1829,17 @@ exports.generateJoiningLetter = async (req, res) => {
 exports.generateOfferLetter = async (req, res) => {
     try {
         // Accept params from the Generate Modal
-        const { applicantId, templateId, imageData, refNo, joiningDate, address, department, location, fatherName, salutation, issueDate, preview, name, dearName, dateFormat } = req.body;
+        const { applicantId, templateId, imageData, refNo, joiningDate, address, department, location, fatherName, salutation, issueDate, preview, name, dearName, dateFormat, expiryAt } = req.body;
         console.log('🐞 [DEBUG INPUTS] Salutation:', salutation, '| IssueDate:', issueDate, '| preview:', preview, '| Name:', name, '| DearName:', dearName, '| DateFormat:', dateFormat);
+
+        // Validate required IDs before any DB query
+        if (!templateId) {
+            return res.status(400).json({ message: "Template is required. Please select a template.", code: "MISSING_TEMPLATE" });
+        }
+        if (!applicantId) {
+            return res.status(400).json({ message: "Applicant ID is required.", code: "MISSING_APPLICANT" });
+        }
+
         const Applicant = getApplicantModel(req);
 
         // Get tenant-specific models
@@ -1849,6 +1859,25 @@ exports.generateOfferLetter = async (req, res) => {
         }
 
         console.log('✅ [OFFER LETTER] Found Applicant:', applicant.name, '| Template:', template.templateName);
+
+        // Ensure only ONE active SENT offer per candidate/application
+        if (!preview) {
+            const now = new Date();
+            const existingExpiry = applicant.offerExpiryAt ? new Date(applicant.offerExpiryAt) : null;
+            const hasActiveSent = applicant.offerLetterPath && applicant.offerStatus === 'SENT' && existingExpiry && now <= existingExpiry;
+            if (hasActiveSent) {
+                return res.status(400).json({
+                    message: 'An active offer is already SENT for this candidate. Wait for expiry or acceptance.',
+                    code: 'ACTIVE_OFFER_EXISTS'
+                });
+            }
+            if (applicant.offerStatus === 'ACCEPTED') {
+                return res.status(400).json({
+                    message: 'Offer already accepted. Cannot generate a new offer.',
+                    code: 'OFFER_ALREADY_ACCEPTED'
+                });
+            }
+        }
 
         // --- BGV INTEGRATION ---
         const { BGVCase } = getModels(req);
@@ -2039,12 +2068,32 @@ exports.generateOfferLetter = async (req, res) => {
             const docxPath = path.join(outputDir, `${fileName}.docx`);
             await fsPromises.writeFile(docxPath, buf);
 
-            // --- SYNCHRONOUS PDF CONVERSION ---
+            // --- OPTIMIZATION: FAST HTML PREVIEW FOR WORD ---
+            if (preview) {
+                try {
+                    console.log('⚡ [OFFER LETTER] Generating Fast HTML Preview using Mammoth...');
+                    const result = await mammoth.convertToHtml({ path: docxPath });
+                    const html = result.value;
+
+                    // Return HTML and base info
+                    return res.json({
+                        success: true,
+                        isPreview: true,
+                        htmlContent: html,
+                        templateType: 'WORD_PREVIEW'
+                    });
+                } catch (previewErr) {
+                    console.warn('⚠️ [OFFER LETTER] Mammoth preview failed, falling back to PDF:', previewErr.message);
+                    // Fall through to PDF generation if mammoth fails
+                }
+            }
+
+            // --- ASYNCHRONOUS PDF CONVERSION ---
             try {
-                console.log('🔄 [OFFER LETTER] Starting Synchronous PDF Conversion...');
+                console.log('🔄 [OFFER LETTER] Starting Asynchronous PDF Conversion...');
                 const libreOfficeService = require('../services/LibreOfficeService');
 
-                const pdfAbsolutePath = libreOfficeService.convertToPdfSync(docxPath, outputDir);
+                const pdfAbsolutePath = await libreOfficeService.convertToPdf(docxPath, outputDir);
                 pdfFileName = path.basename(pdfAbsolutePath);
 
                 relativePath = `offers/${pdfFileName}`;
@@ -2128,7 +2177,7 @@ exports.generateOfferLetter = async (req, res) => {
 
             try {
                 const libreOfficeService = require('../services/LibreOfficeService');
-                const pdfAbsolutePath = libreOfficeService.convertToPdfSync(htmlPath, outputDir);
+                const pdfAbsolutePath = await libreOfficeService.convertToPdf(htmlPath, outputDir);
                 pdfFileName = path.basename(pdfAbsolutePath);
                 relativePath = `offers/${pdfFileName}`;
                 downloadUrl = `/uploads/${relativePath}`;
@@ -2139,7 +2188,21 @@ exports.generateOfferLetter = async (req, res) => {
             }
         }
 
+        // Validate expiryAt (mandatory for offer send/generation; preview can skip)
+        let expiryAtDate = null;
+        if (expiryAt) {
+            expiryAtDate = new Date(expiryAt);
+            if (Number.isNaN(expiryAtDate.getTime())) {
+                return res.status(400).json({ message: "Invalid expiryAt datetime" });
+            }
+        }
         if (!preview) {
+            if (!expiryAtDate) {
+                return res.status(400).json({ message: "Offer Expiry Date & Time is required", code: "MISSING_EXPIRY" });
+            }
+            if (expiryAtDate <= new Date(Date.now() - 300000)) {
+                return res.status(400).json({ message: "Offer expiry must be a future datetime", code: "EXPIRY_NOT_FUTURE" });
+            }
             // Save generated letter record
             const generated = new GeneratedLetter({
                 tenantId: req.user?.tenantId || req.tenantId,
@@ -2160,7 +2223,9 @@ exports.generateOfferLetter = async (req, res) => {
             const updateData = {
                 offerLetterPath: storedFileName,
                 offerRefCode: refNo,
-                status: 'Offer Issued'
+                status: 'Offer Issued',
+                offerExpiryAt: expiryAtDate,
+                offerStatus: 'SENT'
             };
 
             if (joiningDate) updateData.joiningDate = new Date(joiningDate);
@@ -2173,6 +2238,35 @@ exports.generateOfferLetter = async (req, res) => {
             const { Applicant: ApplicantModel } = getModels(req);
             const updatedApplicant = await ApplicantModel.findById(applicantId);
 
+            // Controlled revise/versioning: only revise when previously expired
+            const now = new Date();
+            const isCurrentlyExpired = updatedApplicant?.offerStatus === 'SENT'
+                && updatedApplicant?.offerExpiryAt
+                && now > new Date(updatedApplicant.offerExpiryAt);
+            if (isCurrentlyExpired) {
+                updatedApplicant.offerStatus = 'EXPIRED';
+                if (!updatedApplicant.timeline) updatedApplicant.timeline = [];
+                updatedApplicant.timeline.push({
+                    status: 'Offer Expired',
+                    message: 'Offer expired automatically (system).',
+                    updatedBy: 'System',
+                    timestamp: new Date()
+                });
+            }
+
+            const isRevise = updatedApplicant?.offerStatus === 'EXPIRED' || updatedApplicant?.offerStatus === 'REQUESTED' || updatedApplicant?.offerStatus === 'REJECTED' || updatedApplicant?.offerRevisionRequested;
+            if (isRevise) {
+                updateData.offerVersion = (Number(updatedApplicant.offerVersion || 1) + 1);
+                // Mark previous as revised or handle new issuance
+                updatedApplicant.offerStatus = 'REVISED';
+                // ALWAYS Clear the candidate's revision request flag when HR generates a new offer
+                updateData.offerRevisionRequested = false;
+                updateData.revisionRequestedAt = null;
+            } else {
+                // First time send
+                updateData.offerVersion = Number(updatedApplicant.offerVersion || 1) || 1;
+            }
+
             // Apply updates
             Object.keys(updateData).forEach(key => {
                 updatedApplicant[key] = updateData[key];
@@ -2181,7 +2275,7 @@ exports.generateOfferLetter = async (req, res) => {
             if (!updatedApplicant.timeline) updatedApplicant.timeline = [];
             updatedApplicant.timeline.push({
                 status: 'Offer Issued',
-                message: `🎉 Offer Letter Generated(${refNo}).Joining date: ${joiningDate ? new Date(joiningDate).toLocaleDateString('en-IN') : 'TBD'}.`,
+                message: `🎉 Offer Letter Generated(${refNo}). Joining date: ${joiningDate ? new Date(joiningDate).toLocaleDateString('en-IN') : 'TBD'}. Valid till: ${expiryAtDate ? expiryAtDate.toLocaleString('en-IN') : 'N/A'}.`,
                 updatedBy: req.user?.name || "HR",
                 timestamp: new Date()
             });
@@ -3167,7 +3261,7 @@ exports.generateGenericLetter = async (req, res) => {
                 console.log(`📄 [generateGenericLetter] Output Dir: ${outputDir}`);
 
                 const libreOfficeService = require('../services/LibreOfficeService');
-                libreOfficeService.convertToPdfSync(tempDocxPath, outputDir);
+                await libreOfficeService.convertToPdf(tempDocxPath, outputDir);
 
                 // Verify PDF was created with the expected name
                 if (!fs.existsSync(outputPath)) {

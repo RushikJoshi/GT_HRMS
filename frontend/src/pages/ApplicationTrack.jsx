@@ -5,10 +5,44 @@ import {
     ArrowLeft, Clock, Briefcase, Building2, MapPin,
     ExternalLink, ShieldCheck, AlertCircle,
     CheckCircle2, Download, X, Upload, FileText,
-    Check
+    Check, XCircle
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getTenantId } from '../utils/auth';
+
+const OfferCountdown = ({ expiryDate }) => {
+    const [timeLeft, setTimeLeft] = useState(null);
+
+    useEffect(() => {
+        const calculateTimeLeft = () => {
+            if (!expiryDate) return null;
+            const difference = new Date(expiryDate) - new Date();
+            if (difference > 0) {
+                return {
+                    hours: Math.floor(difference / (1000 * 60 * 60)),
+                    minutes: Math.floor((difference / 1000 / 60) % 60),
+                    seconds: Math.floor((difference / 1000) % 60),
+                };
+            }
+            return null;
+        };
+
+        setTimeLeft(calculateTimeLeft());
+        const timer = setInterval(() => {
+            setTimeLeft(calculateTimeLeft());
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [expiryDate]);
+
+    if (!timeLeft) return null;
+
+    return (
+        <div className="mt-1.5 text-[10px] text-blue-500 font-black uppercase tracking-wider animate-pulse transition-all">
+            {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s valid
+        </div>
+    );
+};
 
 export default function ApplicationTrack() {
     // 1. All Hooks Must Be at the Top
@@ -21,10 +55,6 @@ export default function ApplicationTrack() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showOfferModal, setShowOfferModal] = useState(false);
-    const [uploadedDocs, setUploadedDocs] = useState([]);
-    const [uploadingDoc, setUploadingDoc] = useState(null);
-    const [bgvInitiated, setBgvInitiated] = useState(false);
-    const [requiredDocs, setRequiredDocs] = useState([]);
 
     const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
@@ -70,24 +100,6 @@ export default function ApplicationTrack() {
         fetchTimeline();
     }, [applicationId]);
 
-    // Fetch BGV docs when status is Offer Accepted
-    useEffect(() => {
-        if (jobDetails?.status === 'Offer Accepted' && applicationId) {
-            const fetchDocs = async () => {
-                try {
-                    const res = await api.get(`/candidate/application/bgv-documents/${applicationId}`);
-                    if (res.data) {
-                        setBgvInitiated(res.data.bgvInitiated);
-                        setUploadedDocs(res.data.documents || []);
-                        setRequiredDocs(res.data.requiredDocs || []);
-                    }
-                } catch (err) {
-                    console.error("Failed to fetch BGV docs", err);
-                }
-            };
-            fetchDocs();
-        }
-    }, [jobDetails?.status, applicationId]);
 
     useEffect(() => {
         const handlePopState = (event) => {
@@ -122,12 +134,28 @@ export default function ApplicationTrack() {
             setLoading(true);
             const res = await api.post(`/candidate/application/accept-offer/${applicationId}`);
             if (res.data.success) {
-                alert("Offer Accepted! Now please upload your documents below.");
+                alert("Offer Accepted!");
                 window.location.reload();
             }
         } catch (err) {
             console.error("Failed to accept offer:", err);
-            alert(err.response?.data?.error || "Failed to accept offer.");
+            alert(err.response?.data?.error || err.response?.data?.message || "Failed to accept offer.");
+            setLoading(false);
+        }
+    };
+
+    const handleRequestRevision = async () => {
+        if (!window.confirm("Do you want to request HR to issue a new offer?")) return;
+        try {
+            setLoading(true);
+            const res = await api.post(`/candidate/application/request-offer-revision/${applicationId}`);
+            if (res.data.success) {
+                alert("Your request for a new offer has been sent to HR.");
+                window.location.reload();
+            }
+        } catch (err) {
+            console.error("Failed to request revision:", err);
+            alert(err.response?.data?.error || "Failed to request revision.");
             setLoading(false);
         }
     };
@@ -165,36 +193,6 @@ export default function ApplicationTrack() {
         }
     };
 
-    const handleFileUpload = async (event, docType) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        if (file.size > 5 * 1024 * 1024) {
-            alert("File size must be less than 5MB");
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('document', file);
-        formData.append('type', docType);
-
-        setUploadingDoc(docType);
-        try {
-            await api.post(`/candidate/application/bgv-documents/${applicationId}/upload`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            const res = await api.get(`/candidate/application/bgv-documents/${applicationId}`);
-            if (res.data && res.data.documents) {
-                setUploadedDocs(res.data.documents);
-            }
-        } catch (err) {
-            console.error("Upload failed", err);
-            alert("Failed to upload document.");
-        } finally {
-            setUploadingDoc(null);
-        }
-    };
-
     // 5. Early Returns (AFTER hooks)
     if (loading) return (
         <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
@@ -223,6 +221,20 @@ export default function ApplicationTrack() {
 
     // 6. Final Render Data
     const currentStatus = (jobDetails?.status || 'Applied').toLowerCase();
+    const offerExpiryAt = jobDetails?.offerExpiryAt ? dayjs(jobDetails.offerExpiryAt) : null;
+    const offerStatus = jobDetails?.offerStatus; // SENT, EXPIRED, ACCEPTED, REQUESTED, etc.
+
+    // Robust expiry check
+    const isOfferExpired = Boolean(
+        offerStatus === 'EXPIRED' ||
+        jobDetails?.status === 'Offer Expired' ||
+        (offerStatus === 'SENT' && offerExpiryAt && dayjs().isAfter(offerExpiryAt))
+    );
+
+    const isOfferAccepted = offerStatus === 'ACCEPTED' || jobDetails?.status === 'Offer Accepted';
+    const isOfferRejected = offerStatus === 'REJECTED' || jobDetails?.status === 'Offer Rejected';
+    // Priority: If status is SENT, then it's NO LONGER just requested (it's now ACTIVE)
+    const isRevisionRequested = (offerStatus === 'REQUESTED' || jobDetails?.offerRevisionRequested || jobDetails?.totalRevisionRequests >= 1) && offerStatus !== 'SENT';
     const statusIndex = stages.findIndex(s => s.backendKeys.some(key => key.toLowerCase() === currentStatus));
 
     return (
@@ -274,6 +286,7 @@ export default function ApplicationTrack() {
                                         </button>
                                     )}
 
+
                                     {jobDetails?.joiningLetterUrl && (
                                         <button
                                             onClick={() => handleDownload(jobDetails.joiningLetterUrl, 'Joining Letter')}
@@ -283,107 +296,101 @@ export default function ApplicationTrack() {
                                         </button>
                                     )}
 
-                                    <button
-                                        onClick={() => navigate(`/apply-job/${jobDetails?.id}?tenantId=${tenantId}`)}
-                                        className="w-full bg-slate-50 text-slate-600 py-5 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-3"
-                                    >
-                                        <ShieldCheck className="w-4 h-4" /> Review Application
-                                    </button>
+                                    {/* Hide review application button if offer exists (active/expired) to keep UI clean as per requirements */}
+                                    {!(jobDetails?.offerLetterUrl || jobDetails?.letterId) && (
+                                        <button
+                                            onClick={() => navigate(`/apply-job/${jobDetails?.id}?tenantId=${tenantId}`)}
+                                            className="w-full bg-slate-50 text-slate-600 py-5 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-3"
+                                        >
+                                            <ShieldCheck className="w-4 h-4" /> Review Application
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
                         {/* OFFER ACTIONS */}
-                        {(jobDetails?.offerLetterUrl || jobDetails?.letterId) && (jobDetails?.status === 'Offer Issued' || jobDetails?.status === 'Selected' || jobDetails?.letterStatus) && (
+                        {(jobDetails?.offerLetterUrl || jobDetails?.letterId) && (
                             <div className="bg-white rounded-[2.5rem] shadow-[0px_8px_16px_rgba(0,0,0,0.06)] border border-slate-50 p-10 text-center animate-in slide-in-from-bottom-5">
                                 <div className="h-16 w-16 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 mx-auto mb-6">
                                     <FileText size={32} />
                                 </div>
-                                <h3 className="text-xl font-bold text-slate-800 mb-4">Letter Action Required</h3>
+                                <h3 className="text-xl font-bold text-slate-800 mb-4">
+                                    {isOfferAccepted ? 'Offer Accepted' : (isOfferExpired ? 'Offer Expired' : 'Letter Action Required')}
+                                </h3>
                                 <p className="text-slate-500 text-sm mb-8 px-4 leading-relaxed">
-                                    {jobDetails?.letterId
-                                        ? `Your letter is ready for review. Please review and accept below to proceed.`
-                                        : "Congratulations! Please review the offer letter and accept to proceed."}
+                                    {isOfferAccepted
+                                        ? "You have already accepted this offer. Please proceed with the onboarding process below."
+                                        : (isOfferExpired
+                                            ? "This offer has expired. You can request a new offer from HR if you are still interested."
+                                            : (isOfferRejected
+                                                ? "You have rejected this offer. If this was a mistake, please contact HR."
+                                                : (isRevisionRequested
+                                                    ? "Request sent to HR for new offer. Please wait for the update."
+                                                    : "Congratulations! Please review the offer letter and accept to proceed.")))
+                                    }
                                 </p>
 
                                 <div className="flex flex-col gap-4">
+                                    {/* View Document restricted based on rules if needed, but usually view is allowed even if expired */}
                                     <button
                                         onClick={() => setShowOfferModal(true)}
                                         className="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold text-[10px] uppercase tracking-[0.1em] hover:bg-slate-800 transition shadow-xl flex items-center justify-center gap-3"
                                     >
-                                        <ExternalLink size={16} /> Open Document Review
+                                        <ExternalLink size={16} /> View Offer Document
                                     </button>
 
-                                    {!jobDetails?.letterId ? (
+                                    {/* Show Accept/Reject only if NOT accepted and NOT expired and NOT requested and NOT rejected */}
+                                    {!isOfferAccepted && !isOfferExpired && !isRevisionRequested && !isOfferRejected && (
                                         <div className="grid grid-cols-2 gap-4">
                                             <button onClick={handleRejectOffer} className="bg-white border border-rose-100 text-rose-500 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-rose-50 transition-all">Reject</button>
-                                            <button onClick={handleAcceptOffer} className="bg-emerald-500 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all">Accept</button>
+                                            <button onClick={handleAcceptOffer} className="bg-emerald-500 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all">Accept Offer</button>
                                         </div>
-                                    ) : (
-                                        jobDetails?.letterStatus !== 'Accepted' && (
-                                            <div className="pt-2 border-t border-slate-50 mt-2">
-                                                <button
-                                                    onClick={handleFinalAccept}
-                                                    className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Check size={16} /> Accept Offer
-                                                </button>
-                                            </div>
-                                        )
                                     )}
-                                </div>
-                            </div>
-                        )}
 
-                        {/* BGV Uploader directly on this page - only show if initiated by HR */}
-                        {jobDetails?.status === 'Offer Accepted' && bgvInitiated && (
-                            <div className="bg-emerald-50 rounded-[2.5rem] border border-emerald-100 p-8 animate-in slide-in-from-bottom-5">
-                                <div className="text-center mb-6">
-                                    <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
-                                    <h3 className="text-xl font-bold text-emerald-800 mb-2">BGV Verification</h3>
-                                    <p className="text-emerald-600 text-sm px-4">
-                                        Please upload the following documents to complete your background verification.
-                                    </p>
-                                </div>
+                                    {/* Show Request Offer Again only if expired AND NOT rejected and not already requested */}
+                                    {isOfferExpired && !isOfferRejected && !isRevisionRequested && (
+                                        <div className="pt-2 border-t border-slate-50 mt-2">
+                                            <button
+                                                onClick={handleRequestRevision}
+                                                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
+                                            >
+                                                Request Offer Again
+                                            </button>
+                                        </div>
+                                    )}
 
-                                <div className="space-y-3 bg-white/50 p-4 rounded-2xl border border-emerald-100/50">
-                                    {requiredDocs.map((doc) => {
-                                        const uploaded = uploadedDocs.find(d => d.documentType === doc.key || d.name === doc.key);
-                                        return (
-                                            <div key={doc.key} className="bg-white p-4 rounded-xl border border-emerald-100 flex items-center justify-between shadow-sm">
-                                                <div>
-                                                    <p className="text-slate-700 font-bold text-sm">{doc.label}</p>
-                                                    {uploaded ? (
-                                                        <p className="text-[10px] text-emerald-600 font-bold uppercase mt-1 flex items-center gap-1">
-                                                            <CheckCircle2 size={10} /> Uploaded • {dayjs(uploaded.uploadedAt).format('MMM DD')}
-                                                        </p>
-                                                    ) : (
-                                                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Pending</p>
-                                                    )}
-                                                </div>
-                                                {uploaded ? (
-                                                    <div className="flex items-center gap-2 text-emerald-500">
-                                                        <CheckCircle2 size={20} />
-                                                    </div>
-                                                ) : (
-                                                    <label className={`cursor-pointer px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition flex items-center gap-2 border border-indigo-100 ${uploadingDoc === doc.key ? 'opacity-50 pointer-events-none' : ''}`}>
-                                                        {uploadingDoc === doc.key ? (
-                                                            <span className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
-                                                        ) : (
-                                                            <Upload size={14} />
-                                                        )}
-                                                        <span>Upload</span>
-                                                        <input
-                                                            type="file"
-                                                            className="hidden"
-                                                            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                                            onChange={(e) => handleFileUpload(e, doc.key)}
-                                                        />
-                                                    </label>
-                                                )}
+                                    {/* Status Indicator for Requested */}
+                                    {isRevisionRequested && (
+                                        <div className="mt-2 py-4 px-6 bg-amber-50 rounded-2xl border border-amber-100 text-amber-600 font-bold text-[10px] uppercase tracking-widest">
+                                            Request sent to HR for new offer
+                                        </div>
+                                    )}
+
+                                    {/* Badge for Accepted */}
+                                    {isOfferAccepted && (
+                                        <div className="mt-2 py-4 px-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-600 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                                            <CheckCircle2 size={16} /> Offer Accepted
+                                        </div>
+                                    )}
+
+                                    {/* Badge for Rejected */}
+                                    {isOfferRejected && (
+                                        <div className="mt-2 py-4 px-6 bg-rose-50 rounded-2xl border border-rose-100 text-rose-600 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                                            <XCircle size={16} /> Offer Rejected
+                                        </div>
+                                    )}
+
+                                    {/* Offer Expiry Display - Updated label for expired state */}
+                                    {offerExpiryAt && !isOfferAccepted && !isOfferRejected && (
+                                        <div className="mt-4 text-center">
+                                            <div className="text-[11px] text-blue-600 font-bold uppercase tracking-wider">
+                                                <span>{isOfferExpired ? 'Offer Expired On: ' : 'Offer Valid Till: '}</span>
+                                                {offerExpiryAt.format('DD-MM-YYYY HH:mm')}
                                             </div>
-                                        );
-                                    })}
+                                            {!isOfferExpired && <OfferCountdown expiryDate={offerExpiryAt.toDate()} />}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

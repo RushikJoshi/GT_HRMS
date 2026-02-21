@@ -148,10 +148,18 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                 // 1. Don't have an active opening (hiringStatus !== 'Open')
                 // 2. Have vacant positions available (vacantCount > 0 OR filledCount < headCount)
                 const availablePositions = allPositions.filter(pos => {
-                    const hasVacancy = (pos.vacantCount && pos.vacantCount > 0) ||
-                        (pos.headCount && pos.filledCount < pos.headCount);
-                    const noActiveHiring = pos.hiringStatus !== 'Open';
-                    return hasVacancy && noActiveHiring;
+                    // Check if position has budget for more hires
+                    const budgeted = pos.budgetedCount || 1;
+                    const current = pos.currentCount || 0;
+                    const hasVacancy = budgeted > current;
+
+
+                    // Also check if hiring is not already in progress (Open)
+                    // We want to show positions that are either Closed (new) or Paused/Vacant
+                    // const notActiveHiring = pos.hiringStatus !== 'Open';
+                    // Update: Allow Open status as well, in case user manually opened it without creating requirement
+
+                    return hasVacancy;
                 });
                 setPositions(availablePositions);
                 setEmployees(Array.isArray(empRes.data) ? empRes.data : empRes.data.data || empRes.data.employees || []);
@@ -269,7 +277,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                 department: pos.department,
                 salaryMin: pos.baseSalaryRange?.min || '',
                 salaryMax: pos.baseSalaryRange?.max || '',
-                vacancy: (pos.headCount - pos.filledCount) || 1
+                vacancy: ((pos.budgetedCount || 1) - (pos.currentCount || 0))
             }));
             setSelectedPosition(pos);
         }

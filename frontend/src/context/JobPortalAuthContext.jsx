@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import api from '../utils/api';
+import { getToken, setToken, removeToken } from '../utils/token';
 
 export const JobPortalAuthContext = createContext(null);
 
@@ -40,7 +41,7 @@ export function JobPortalAuthProvider({ children }) {
 
     const initializeJobPortalAuth = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         const cachedCandidate = localStorage.getItem('candidate');
 
         if (!token) {
@@ -70,7 +71,7 @@ export function JobPortalAuthProvider({ children }) {
 
           if (expiresAt < Date.now()) {
             console.warn('[JobPortalAuth] Token expired');
-            localStorage.removeItem('token');
+            removeToken();
             localStorage.removeItem('candidate');
             if (isMounted) {
               setCandidate(null);
@@ -139,7 +140,7 @@ export function JobPortalAuthProvider({ children }) {
 
             // Treat 404 the same as 401 for candidate sessions (candidate not found)
             if (apiErr.response?.status === 401 || apiErr.response?.status === 403 || apiErr.response?.status === 404) {
-              localStorage.removeItem('token');
+              removeToken();
               localStorage.removeItem('candidate');
               if (isMounted) {
                 setCandidate(null);
@@ -149,7 +150,7 @@ export function JobPortalAuthProvider({ children }) {
         }
       } catch (err) {
         console.error('[JobPortalAuth] Initialization error:', err);
-        localStorage.removeItem('token');
+        removeToken();
         localStorage.removeItem('candidate');
         if (isMounted) {
           setCandidate(null);
@@ -184,7 +185,7 @@ export function JobPortalAuthProvider({ children }) {
 
       const token = res.data.token;
 
-      localStorage.setItem('token', token);
+      setToken(token);
       localStorage.setItem('tenantId', tenantId);
 
       const candidateData = {
@@ -235,7 +236,7 @@ export function JobPortalAuthProvider({ children }) {
   // Logout
   // --------------------------------------------
   const logoutCandidate = useCallback(() => {
-    localStorage.removeItem('token');
+    removeToken();
     localStorage.removeItem('candidate');
     setCandidate(null);
   }, []);

@@ -18,7 +18,7 @@ const EmployeeSchema = new mongoose.Schema({
     trim: true,
     // required: function() { return this.status === 'Active'; } // Removed as per user request 
   },
-  status: { type: String, enum: ['active', 'notice', 'resigned', 'Draft'], default: 'active' },
+  status: { type: String, enum: ['Active', 'Notice', 'Resigned', 'Draft'], default: 'Active' },
   lastStep: { type: Number, default: 6 },
   resignationDate: { type: Date },
   lastWorkingDate: { type: Date },

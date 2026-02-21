@@ -420,6 +420,7 @@ function AutoHome() {
     if (user?.role === 'psa') return <Navigate to="/super-admin/dashboard" replace />;
     if (user?.role === 'hr' || user?.role === 'admin') return <Navigate to="/tenant/dashboard" replace />;
     if (user?.role === 'employee' || user?.role === 'manager') return <Navigate to="/employee/dashboard" replace />;
+    if (user?.role === 'candidate') return <Navigate to="/candidate/dashboard" replace />;
 
     return <Navigate to="/login" replace />;
 }

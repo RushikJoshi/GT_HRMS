@@ -2,10 +2,11 @@ export function setToken(token) {
   sessionStorage.setItem('token', token);
 }
 export function getToken() {
-  return sessionStorage.getItem('token');
+  return sessionStorage.getItem('token') || localStorage.getItem('token');
 }
 export function removeToken() {
   sessionStorage.removeItem('token');
+  localStorage.removeItem('token');
 }
 
 // basic token sanity check (not a substitute for server validation)

@@ -24,13 +24,14 @@ const {
  * Get models for tenant database
  */
 function getModels(db) {
-    const Application = db.models.Application || db.model('Application', require('../models/Application'));
-    const Offer = db.models.Offer || db.model('Offer', require('../models/Offer'));
-    const Requirement = db.models.Requirement || db.model('Requirement', require('../models/Requirement'));
-    const Candidate = db.models.Candidate || db.model('Candidate', require('../models/Candidate'));
-    const Employee = db.models.Employee || db.model('Employee', require('../models/Employee'));
-    const Interview = db.models.Interview || db.model('Interview', require('../models/Interview'));
-    const SalaryStructure = db.models.SalaryStructure || db.model('SalaryStructure', require('../models/SalaryStructure'));
+    if (!db) throw new Error('Tenant database not available');
+    const Application = db.models?.Application || db.model('Application', require('../models/Application'));
+    const Offer = db.models?.Offer || db.model('Offer', require('../models/Offer'));
+    const Requirement = db.models?.Requirement || db.model('Requirement', require('../models/Requirement'));
+    const Candidate = db.models?.Candidate || db.model('Candidate', require('../models/Candidate'));
+    const Employee = db.models?.Employee || db.model('Employee', require('../models/Employee'));
+    const Interview = db.models?.Interview || db.model('Interview', require('../models/Interview'));
+    const SalaryStructure = db.models?.SalaryStructure || db.model('SalaryStructure', require('../models/SalaryStructure'));
 
     return { Application, Offer, Requirement, Candidate, Employee, Interview, SalaryStructure };
 }
@@ -52,7 +53,8 @@ exports.createApplication = async (req, res) => {
     session.startTransaction();
 
     try {
-        const { tenantId, db } = req;
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId || req.body.tenantId;
         const { jobId, candidateId, candidateInfo } = req.body;
 
         const { Application, Requirement, Candidate } = getModels(db);
@@ -188,7 +190,9 @@ exports.createApplication = async (req, res) => {
  */
 exports.updateApplicationStatus = async (req, res) => {
     try {
-        const { tenantId, db, user } = req;
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId;
+        const user = req.user;
         const { applicationId } = req.params;
         const { status, reason } = req.body;
 
@@ -255,7 +259,9 @@ exports.scheduleInterview = async (req, res) => {
     session.startTransaction();
 
     try {
-        const { tenantId, db, user } = req;
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId;
+        const user = req.user;
         const { applicationId } = req.params;
         const interviewData = req.body;
 
@@ -360,7 +366,9 @@ exports.createOffer = async (req, res) => {
     session.startTransaction();
 
     try {
-        const { tenantId, db, user } = req;
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId;
+        const user = req.user;
         const { applicationId } = req.params;
         const offerData = req.body;
 
@@ -422,6 +430,7 @@ exports.createOffer = async (req, res) => {
             applicationReadableId: application.applicationId,
             candidateId: application.candidateId,
             jobId: application.jobId,
+            version: 1,
 
             candidateInfo: {
                 name: application.candidateInfo.name,
@@ -510,8 +519,11 @@ exports.sendOffer = async (req, res) => {
     session.startTransaction();
 
     try {
-        const { tenantId, db, user } = req;
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId;
+        const user = req.user;
         const { offerId } = req.params;
+        const { sentAt, expiryAt } = req.body;
 
         const { Offer, Application } = getModels(db);
 
@@ -525,21 +537,19 @@ exports.sendOffer = async (req, res) => {
             });
         }
 
-        // Use model method (includes validation)
         try {
-            offer.send(user._id, user.name || user.email);
+            offer.send(user.id || user._id, user.name || user.email, { sentAt, expiryAt });
             await offer.save({ session });
 
-            // Update application
             const application = await Application.findById(offer.applicationId);
             if (application) {
                 application.markOfferSent();
+                application.offerSentDate = offer.sentAt || offer.sentDate;
+                application.offerExpiryDate = offer.expiryAt || offer.validUntil;
                 await application.save({ session });
             }
 
             await session.commitTransaction();
-
-            // TODO: Send email to candidate
 
             res.json({
                 success: true,
@@ -547,8 +557,9 @@ exports.sendOffer = async (req, res) => {
                 data: {
                     offerId: offer.offerId,
                     status: offer.status,
-                    sentDate: offer.sentDate,
-                    validUntil: offer.validUntil
+                    version: offer.version,
+                    sentAt: offer.sentAt || offer.sentDate,
+                    expiryAt: offer.expiryAt || offer.validUntil
                 }
             });
 
@@ -585,11 +596,14 @@ exports.acceptOffer = async (req, res) => {
     session.startTransaction();
 
     try {
-        const { tenantId, db } = req;
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId;
         const { offerId } = req.params;
         const { acceptanceNotes } = req.body;
 
         const { Offer, Application } = getModels(db);
+
+        await Offer.markExpiredOffers(tenantId);
 
         const offer = await Offer.findOne({ _id: offerId, tenant: tenantId });
 
@@ -601,14 +615,45 @@ exports.acceptOffer = async (req, res) => {
             });
         }
 
+        if (offer.status === 'EXPIRED' || offer.isExpired) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: 'Offer has expired. Cannot accept.',
+                code: 'OFFER_EXPIRED'
+            });
+        }
+
+        if (offer.status !== 'SENT') {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: `Cannot accept offer. Status: ${offer.status}`,
+                code: 'INVALID_OFFER_STATUS'
+            });
+        }
+
+        const expiry = offer.expiryAt || offer.validUntil;
+        if (expiry && new Date() >= expiry) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: 'Offer has expired. Cannot accept.',
+                code: 'OFFER_EXPIRED'
+            });
+        }
+
+        const candidateId = req.candidate?.id || req.user?.id || null;
+        const candidateName = req.candidate?.name || req.user?.name || offer.candidateInfo?.name || 'Candidate';
+
         try {
-            offer.accept(acceptanceNotes);
+            offer.accept(acceptanceNotes, 'PORTAL', { candidateId, candidateName });
             await offer.save({ session });
 
-            // Update application
             const application = await Application.findById(offer.applicationId);
             if (application) {
                 application.acceptOffer();
+                application.offerAcceptedDate = new Date();
                 await application.save({ session });
             }
 
@@ -620,7 +665,8 @@ exports.acceptOffer = async (req, res) => {
                 data: {
                     offerId: offer.offerId,
                     status: offer.status,
-                    acceptedDate: offer.acceptedDate
+                    version: offer.version,
+                    acceptedAt: offer.acceptedAt || offer.acceptedDate
                 }
             });
 
@@ -646,6 +692,232 @@ exports.acceptOffer = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
+// 6A. GET LATEST OFFER
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Get latest offer for application (active or any - with expiry check)
+ */
+exports.getLatestOffer = async (req, res) => {
+    try {
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId;
+        const { applicationId } = req.params;
+
+        const { Offer } = getModels(db);
+
+        await Offer.markExpiredOffers(tenantId);
+
+        const offer = await Offer.getLatestOfferForApplication(tenantId, applicationId);
+
+        if (!offer) {
+            return res.status(404).json({ success: false, message: 'No offer found' });
+        }
+
+        const expiry = offer.expiryAt || offer.validUntil;
+        const isExpired = expiry && new Date() >= expiry;
+        const canAccept = offer.status === 'SENT' && !isExpired && !offer.isExpired;
+        const canRevise = ['EXPIRED', 'REJECTED'].includes(offer.status);
+
+        res.json({
+            success: true,
+            data: {
+                ...offer.toObject(),
+                isExpired: isExpired || offer.isExpired,
+                canAccept,
+                canRevise
+            }
+        });
+    } catch (error) {
+        console.error('Get Latest Offer Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get offer',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 6B. REVISE OFFER
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Revise offer - Create new offer version when latest is EXPIRED or REJECTED
+ * - Previous offer status → REVISED
+ * - New offer with new version, new expiry window, status SENT
+ */
+exports.reviseOffer = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId;
+        const user = req.user;
+        const { applicationId } = req.params;
+        const { sentAt, expiryAt, ...offerData } = req.body;
+
+        if (!expiryAt) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: 'expiryAt (offer expiry date/time) is mandatory for revise',
+                code: 'MISSING_EXPIRY'
+            });
+        }
+
+        const { Application, Offer, SalaryStructure } = getModels(db);
+
+        const application = await Application.findOne({
+            _id: applicationId,
+            tenant: tenantId
+        }).populate('jobId candidateId');
+
+        if (!application) {
+            await session.abortTransaction();
+            return res.status(404).json({ success: false, message: 'Application not found' });
+        }
+
+        const canRevise = await Offer.canRevise(tenantId, applicationId);
+        if (!canRevise) {
+            await session.abortTransaction();
+            const latest = await Offer.getLatestOfferForApplication(tenantId, applicationId);
+            return res.status(400).json({
+                success: false,
+                message: `Cannot revise offer. Latest offer status: ${latest?.status || 'N/A'}. Revise only when EXPIRED or REJECTED.`,
+                code: 'CANNOT_REVISE'
+            });
+        }
+
+        const previousOffer = await Offer.getLatestOfferForApplication(tenantId, applicationId);
+        if (!previousOffer) {
+            await session.abortTransaction();
+            return res.status(404).json({ success: false, message: 'No previous offer found' });
+        }
+
+        if (previousOffer.status === 'ACCEPTED') {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot revise an accepted offer',
+                code: 'OFFER_ALREADY_ACCEPTED'
+            });
+        }
+
+        const salaryStructureId = offerData.salaryStructureId || previousOffer.salaryStructureId;
+        const salaryStructure = await SalaryStructure.findOne({ _id: salaryStructureId, tenant: tenantId });
+        if (!salaryStructure) {
+            await session.abortTransaction();
+            return res.status(404).json({ success: false, message: 'Salary structure not found' });
+        }
+
+        previousOffer.status = 'REVISED';
+        previousOffer.statusHistory = previousOffer.statusHistory || [];
+        previousOffer.statusHistory.push({
+            from: previousOffer.status,
+            to: 'REVISED',
+            changedBy: user?.name || user?.email,
+            changedById: user?.id || user?._id,
+            reason: 'Superseded by revised offer',
+            timestamp: new Date()
+        });
+        await previousOffer.save({ session });
+
+        const newOfferId = await generateOfferId(db);
+        const validUntil = expiryAt ? new Date(expiryAt) : (offerData.validUntil ? new Date(offerData.validUntil) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+
+        const newOffer = new Offer({
+            offerId: newOfferId,
+            tenant: tenantId,
+            applicationId: application._id,
+            applicationReadableId: application.applicationId,
+            candidateId: application.candidateId,
+            jobId: application.jobId,
+            version: previousOffer.version + 1,
+            revisedFromOfferId: previousOffer._id,
+
+            candidateInfo: previousOffer.candidateInfo,
+            jobDetails: {
+                ...(typeof previousOffer.jobDetails?.toObject === 'function' ? previousOffer.jobDetails.toObject() : (previousOffer.jobDetails || {})),
+                ...(offerData.department && { department: offerData.department }),
+                ...(offerData.designation && { designation: offerData.designation }),
+                ...(offerData.location && { location: offerData.location }),
+                ...(offerData.reportingTo && { reportingTo: offerData.reportingTo })
+            },
+
+            salaryStructureId: salaryStructure._id,
+            salarySnapshot: {
+                ctc: salaryStructure.ctc,
+                grossSalary: salaryStructure.grossSalary,
+                netSalary: salaryStructure.netSalary,
+                earnings: salaryStructure.earnings || [],
+                deductions: salaryStructure.deductions || [],
+                employerContributions: salaryStructure.employerContributions || []
+            },
+
+            joiningDate: offerData.joiningDate || previousOffer.joiningDate,
+            probationPeriod: offerData.probationPeriod ?? previousOffer.probationPeriod,
+            noticePeriod: offerData.noticePeriod ?? previousOffer.noticePeriod,
+            workingDays: offerData.workingDays || previousOffer.workingDays,
+            workingHours: offerData.workingHours || previousOffer.workingHours,
+
+            validUntil,
+            benefits: offerData.benefits || previousOffer.benefits || [],
+            specialTerms: offerData.specialTerms || previousOffer.specialTerms || [],
+
+            status: 'DRAFT'
+        });
+
+        await newOffer.save({ session });
+
+        const sentAtVal = sentAt ? new Date(sentAt) : new Date();
+        const expiryAtVal = expiryAt ? new Date(expiryAt) : validUntil;
+
+        if (expiryAtVal <= sentAtVal) {
+            await session.abortTransaction();
+            return res.status(400).json({ success: false, message: 'Expiry must be after sent date/time' });
+        }
+
+        newOffer.send(user?.id || user?._id, user?.name || user?.email, { sentAt: sentAtVal, expiryAt: expiryAtVal });
+        await newOffer.save({ session });
+
+        application.linkRevisedOffer(newOffer._id, newOffer.offerId);
+        application.markOfferSent();
+        application.offerSentDate = newOffer.sentAt || newOffer.sentDate;
+        application.offerExpiryDate = newOffer.expiryAt || newOffer.validUntil;
+        await application.save({ session });
+
+        await session.commitTransaction();
+
+        res.status(201).json({
+            success: true,
+            message: 'Offer revised and sent successfully',
+            data: {
+                offerId: newOffer.offerId,
+                _id: newOffer._id,
+                version: newOffer.version,
+                status: newOffer.status,
+                sentAt: newOffer.sentAt || newOffer.sentDate,
+                expiryAt: newOffer.expiryAt || newOffer.validUntil,
+                revisedFromOfferId: previousOffer._id
+            }
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        console.error('Revise Offer Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to revise offer',
+            error: error.message
+        });
+    } finally {
+        session.endSession();
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════
 // 7. CONVERT TO EMPLOYEE
 // ═══════════════════════════════════════════════════════════════════
 
@@ -662,7 +934,9 @@ exports.convertToEmployee = async (req, res) => {
     session.startTransaction();
 
     try {
-        const { tenantId, db, user } = req;
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId;
+        const user = req.user;
         const { offerId } = req.params;
         const { actualJoiningDate, department } = req.body;
 
@@ -782,7 +1056,8 @@ exports.convertToEmployee = async (req, res) => {
  */
 exports.getRecruitmentPipeline = async (req, res) => {
     try {
-        const { tenantId, db } = req;
+        const db = req.tenantDB || req.db;
+        const tenantId = req.tenantId || req.user?.tenantId;
         const { jobId } = req.query;
 
         const { Application } = getModels(db);
