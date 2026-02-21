@@ -39,12 +39,24 @@ const ApplicantSchema = new mongoose.Schema({
 
   resume: { type: String, trim: true },
 
-  // AI Parsing Fields
+  // AI Parsing & Matching
   rawOCRText: { type: String }, // Raw text from Tesseract
   aiParsedData: { type: Object }, // JSON from AI (Education, Exp, etc.)
-  matchPercentage: { type: Number, default: 0 },
   parsedSkills: [{ type: String }],
   parsingStatus: { type: String, enum: ['Pending', 'Processing', 'Completed', 'Failed'], default: 'Pending' },
+
+  // Matching Engine Results
+  matchScore: { type: Number, default: 0 },
+  matchBreakdown: {
+    skills: { type: Number, default: 0 },
+    experience: { type: Number, default: 0 },
+    similarity: { type: Number, default: 0 },
+    education: { type: Number, default: 0 },
+    preferred: { type: Number, default: 0 }
+  },
+  matchedSkills: [{ type: String }],
+  missingSkills: [{ type: String }],
+
 
   status: { type: String, default: 'Applied' },
   timeline: [
@@ -226,6 +238,31 @@ const ApplicantSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PIPELINE STAGE TRACKING (for multi-step recruitment workflow)
+  // ═══════════════════════════════════════════════════════════════════
+  currentStage: {
+    stageId: { type: String }, // Reference to pipelineStages array index or stageName
+    stageName: { type: String, default: 'Applied' },
+    stageType: { type: String },
+    enteredAt: { type: Date, default: Date.now },
+    assignedInterviewer: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' }
+  },
+
+  pipelineProgress: [{
+    stageId: { type: String },
+    stageName: { type: String, required: true },
+    stageType: { type: String },
+    status: { type: String, enum: ['Pending', 'In Progress', 'Completed', 'Skipped'], default: 'Pending' },
+    result: { type: String, enum: ['Pass', 'Fail', 'On Hold', null], default: null },
+    enteredAt: { type: Date },
+    completedAt: { type: Date },
+    assignedInterviewer: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
+    feedbackSubmitted: { type: Boolean, default: false },
+    feedbackId: { type: String }, // Reference to CandidateStageFeedback
+    notes: { type: String }
+  }]
 
 });
 

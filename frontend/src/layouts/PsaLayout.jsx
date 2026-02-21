@@ -194,6 +194,14 @@ export default function PsaLayout() {
                 <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
+            <div className="h-8 w-px bg-violet-200 hidden lg:block" />
+            <button
+              onClick={() => { logout(); navigate("/super-admin/login"); }}
+              className="px-4 lg:px-5 py-2.5 bg-violet-600 text-white hover:bg-violet-500 text-xs font-semibold rounded-xl shadow-md hover:shadow-lg flex items-center gap-2 transition-all"
+            >
+              <LogOut size={14} />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
           </div>
         </header>
 
@@ -205,7 +213,6 @@ export default function PsaLayout() {
         </div>
       </main>
 
-      {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>
       )}

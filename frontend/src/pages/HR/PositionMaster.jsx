@@ -39,8 +39,9 @@ const PositionMaster = () => {
             setLoading(true);
             const res = await api.get('/positions');
             if (res.data.success) {
-                setPositions(res.data.data);
-                calculateSummary(res.data.data);
+                const data = Array.isArray(res.data.data) ? res.data.data : [];
+                setPositions(data);
+                calculateSummary(data);
             }
         } catch (error) {
             console.error('Fetch error:', error);

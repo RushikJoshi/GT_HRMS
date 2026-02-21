@@ -10,12 +10,173 @@ class RecruitmentService {
         const db = await getTenantDB(tenantId);
         return {
             Requirement: db.model('Requirement'),
+            RequirementDraft: db.model('RequirementDraft'),
             Applicant: db.model('Applicant'),
             Position: db.model('Position'),
-            // Interview: db.model('Interview'),
-            // Candidate: db.model('Candidate')
+            Employee: db.model('Employee')
         };
     }
+
+    /**
+     * Step-by-Step Draft Saving
+     */
+    async saveDraft(tenantId, step, data, userId, draftId = null) {
+        const { RequirementDraft } = await this.getModels(tenantId);
+
+        let draft;
+        if (draftId) {
+            draft = await RequirementDraft.findOne({ _id: draftId, tenant: tenantId });
+        }
+
+        if (!draft) {
+            draft = new RequirementDraft({
+                tenant: tenantId,
+                createdBy: userId
+            });
+        }
+
+        // Map the payload to the specific step
+        if (step === 1) {
+            draft.step1 = {
+                positionId: data.positionId || undefined,
+                department: data.department,
+                jobType: data.jobType,
+                workMode: data.workMode,
+                location: data.location,
+                vacancy: data.vacancy
+            };
+            draft.currentStep = 1;
+        } else if (step === 2) {
+            draft.step2 = {
+                jobTitle: data.jobTitle,
+                salaryMin: data.salaryMin,
+                salaryMax: data.salaryMax,
+                experienceMin: data.experienceMin,
+                experienceMax: data.experienceMax,
+                priority: data.priority,
+                visibility: data.visibility || 'Public',
+                hiringManager: data.hiringManager || undefined,
+                interviewPanel: (data.interviewPanel && data.interviewPanel.length > 0) ? data.interviewPanel : []
+            };
+            draft.currentStep = 2;
+        } else if (step === 3) {
+            draft.step3 = {
+                description: data.description,
+                responsibilities: data.responsibilities,
+                requiredSkills: data.requiredSkills,
+                optionalSkills: data.optionalSkills,
+                education: data.education,
+                certifications: data.certifications,
+                keywords: data.keywords
+            };
+            draft.currentStep = 3;
+        } else if (step === 4) {
+            draft.step4 = {
+                pipelineStages: data.pipelineStages || data.workflow || []
+            };
+            draft.currentStep = 4;
+        }
+
+        return await draft.save();
+    }
+
+    /**
+     * Final Transition from Draft to Requirement
+     */
+    async publishJob(tenantId, draftId, userId) {
+        const { Requirement, Position, RequirementDraft } = await this.getModels(tenantId);
+
+        const draft = await RequirementDraft.findById(draftId);
+        if (!draft) throw new Error("Draft session expired or not found.");
+
+        // 1. Generate ID
+        const jobId = await this.generateJobId(tenantId, { department: draft.step1.department });
+
+        // 2. Validate and sanitize interviewer ObjectIds
+        const validateObjectId = (id) => {
+            if (!id) return null;
+            if (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)) {
+                return new mongoose.Types.ObjectId(id);
+            }
+            if (id instanceof mongoose.Types.ObjectId) return id;
+            return null;
+        };
+
+        const sanitizedHiringManager = validateObjectId(draft.step2.hiringManager);
+        const sanitizedInterviewPanel = (draft.step2.interviewPanel || [])
+            .map(validateObjectId)
+            .filter(id => id !== null);
+
+        const sanitizedPipelineStages = (draft.step4.pipelineStages || []).map((stage, index) => ({
+            ...stage._doc, // Ensure we copy clean data + virtuals if any? No, just copy properties
+            ...stage, // If stage is plain object
+            orderIndex: index + 1,
+            assignedInterviewers: (stage.assignedInterviewers || [])
+                .map(validateObjectId)
+                .filter(id => id !== null)
+        }));
+
+        // 3. Map data to Requirement Model (matching Requirement.js schema)
+        const requirement = new Requirement({
+            tenant: tenantId,
+            jobOpeningId: jobId,
+            positionId: draft.step1.positionId,
+            department: draft.step1.department,
+            jobTitle: draft.step2.jobTitle || draft.step1.jobTitle,
+
+            jobDetails: {
+                salaryMin: draft.step2.salaryMin,
+                salaryMax: draft.step2.salaryMax,
+                experienceMin: draft.step2.experienceMin,
+                experienceMax: draft.step2.experienceMax,
+                priority: draft.step2.priority,
+                visibility: draft.step2.visibility,
+                workMode: draft.step1.workMode,
+                jobType: draft.step1.jobType,
+                hiringManager: sanitizedHiringManager,
+                interviewPanel: sanitizedInterviewPanel
+            },
+
+            jobDescription: {
+                roleOverview: draft.step3.description,
+                responsibilities: draft.step3.responsibilities,
+                keywords: draft.step3.keywords,
+                education: draft.step3.education,
+                certifications: draft.step3.certifications
+            },
+
+            requiredSkills: (draft.step3.requiredSkills || []).map(s => ({ name: s, weight: 40 })),
+            preferredSkills: (draft.step3.optionalSkills || []).map(s => ({ name: s, weight: 10 })),
+
+            // Initialize matchingConfig with default weights
+            matchingConfig: {
+                skillWeight: 40,
+                experienceWeight: 20,
+                educationWeight: 10,
+                similarityWeight: 20,
+                preferredBonus: 10
+            },
+
+            pipelineStages: sanitizedPipelineStages,
+
+            vacancy: draft.step1.vacancy || 1,
+            status: 'Open',
+            createdBy: userId
+        });
+
+        const saved = await requirement.save();
+
+        // 4. Update Position status (if linked to a position master)
+        if (draft.step1.positionId) {
+            await Position.findByIdAndUpdate(draft.step1.positionId, { hiringStatus: 'Open' });
+        }
+
+        // 5. Cleanup Draft
+        await RequirementDraft.deleteOne({ _id: draftId });
+
+        return saved;
+    }
+
 
     // Helper to generate next Job ID
     async generateJobId(tenantId, data = {}) {
@@ -96,15 +257,47 @@ class RecruitmentService {
             .skip(skip)
             .limit(limit);
 
-        // Auto-patch missing Job IDs for legacy data
-        const updates = requirements.map(async (req) => {
-            if (!req.jobOpeningId) {
-                console.log(`[Backfill] Generating ID for Requirement ${req._id}`);
-                req.jobOpeningId = await this.generateJobId(tenantId);
-                await req.save();
-            }
-        });
-        await Promise.all(updates);
+        // Auto-patch missing Job IDs and hydrate pipelineStages for legacy data
+        try {
+            const updates = requirements.map(async (req) => {
+                try {
+                    let changed = false;
+
+                    if (!req.jobOpeningId) {
+                        console.log(`[Backfill] Generating ID for Requirement ${req._id}`);
+                        req.jobOpeningId = await this.generateJobId(tenantId);
+                        changed = true;
+                    }
+
+                    // Hydrate pipelineStages from workflow if missing
+                    if ((!req.pipelineStages || req.pipelineStages.length === 0) && req.workflow && req.workflow.length > 0) {
+                        console.log(`[Migration] Hydrating pipelineStages for Requirement ${req._id}`);
+                        req.pipelineStages = req.workflow
+                            .filter(stage => !['Applied', 'Finalized', 'Rejected'].includes(stage))
+                            .map((stage, idx) => ({
+                                stageName: stage,
+                                stageType: stage.toLowerCase().includes('interview') ? 'Interview' : 'Round',
+                                order: idx + 1,
+                                durationMinutes: 30,
+                                mode: 'In-person'
+                            }));
+                        changed = true;
+                    }
+
+                    if (changed) {
+                        await req.save();
+                    }
+                } catch (err) {
+                    console.error(`[getRequirements] Failed to patch requirement ${req._id}:`, err.message);
+                    // Continue with other requirements even if one fails
+                }
+            });
+            await Promise.all(updates);
+        } catch (err) {
+            console.error('[getRequirements] Auto-patch failed, continuing anyway:', err.message);
+            // Don't throw - return requirements even if patching fails
+        }
+
 
         return {
             requirements,
@@ -130,19 +323,24 @@ class RecruitmentService {
             throw new Error("Requirement not found");
         }
 
-        // Merge updates
-        Object.keys(data).forEach(key => {
-            // Prevent updating immutable fields if necessary, or let Mongoose handle it
-            // For now allow flexible updates but audit who updated
-            if (key !== '_id' && key !== 'tenant' && key !== 'jobCode' && key !== 'createdAt') {
-                reqDoc[key] = data[key];
-            }
-        });
+        if (data.status === 'Closed' && reqDoc.positionId) {
+            const { Position } = await this.getModels(tenantId);
+            await Position.findByIdAndUpdate(reqDoc.positionId, { hiringStatus: 'Closed' });
+        }
 
-        reqDoc.updatedBy = userId;
+        // Use findByIdAndUpdate to perform partial update without validating unrelated fields
+        const updates = { ...data, updatedBy: userId };
+        delete updates._id;
+        delete updates.tenant;
+        delete updates.jobCode;
+        delete updates.createdAt;
+        delete updates.jobOpeningId; // immutable
 
-        // This will trigger pre('save') validation hooks
-        return await reqDoc.save();
+        return await Requirement.findByIdAndUpdate(
+            id,
+            { $set: updates },
+            { new: true, runValidators: true }
+        );
     }
 
     async submitForApproval(tenantId, id, userId) {
@@ -183,14 +381,19 @@ class RecruitmentService {
     }
 
     async close(tenantId, id, userId) {
-        const { Requirement } = await this.getModels(tenantId);
+        const { Requirement, Position } = await this.getModels(tenantId);
         const req = await Requirement.findOne({ _id: id, tenant: tenantId });
         if (!req) throw new Error("Requirement not found");
 
         req.status = 'Closed';
         req.closedAt = new Date();
         req.closedBy = userId;
-        return await req.save();
+        const saved = await req.save();
+
+        if (req.positionId) {
+            await Position.findByIdAndUpdate(req.positionId, { hiringStatus: 'Closed' });
+        }
+        return saved;
     }
 
     async deleteRequirement(tenantId, id) {
@@ -300,19 +503,30 @@ class RecruitmentService {
         if (existing) throw new Error("You have already applied for this position");
 
         // 4. Create Applicant
+        // Default to 'Applied' if no pipeline is defined, else use first stage
+        const defaultStatus = (job.pipelineStages && job.pipelineStages.length > 0)
+            ? job.pipelineStages[0].stageName
+            : 'Applied';
+
         const applicant = new Applicant({
             tenant: tenantId,
             requirementId: requirementId,
             name: employeeData.name,
             email: employeeData.email,
             mobile: employeeData.mobile,
-            status: 'Applied',
+            status: defaultStatus,
+            timeline: [{
+                status: defaultStatus,
+                message: `Application submitted via Internal Channel (Role: ${userTokenPayload.role})`,
+                timestamp: new Date()
+            }],
             intro: `Internal Application (ID: ${employeeData.employeeId || 'N/A'})`,
             source: 'Internal'
         });
 
         return await applicant.save();
     }
+
 
     async getApplicantApplications(tenantId, userTokenPayload) {
         const db = await getTenantDB(tenantId);

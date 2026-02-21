@@ -40,8 +40,10 @@ export function createDefaultEnabledModules(defaultValue = false, moduleCodes = 
 
 export function normalizeEnabledModules(input = {}, legacyModules = []) {
   const out = createDefaultEnabledModules(false);
+  let hasInput = false;
 
-  if (input && typeof input === 'object' && !Array.isArray(input)) {
+  if (input && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length > 0) {
+    hasInput = true;
     Object.entries(input).forEach(([key, value]) => {
       const normalizedKey = normalizeModuleCode(key);
       if (normalizedKey) out[normalizedKey] = value === true;
@@ -55,7 +57,14 @@ export function normalizeEnabledModules(input = {}, legacyModules = []) {
     });
   }
 
-  return applyModuleDependencies(out);
+  // If we only had legacy modules (and no explicit input object), 
+  // or if we have no input at all but legacy modules exist,
+  // we should apply dependencies to match legacy behavior/expectations.
+  if (!hasInput && Array.isArray(legacyModules) && legacyModules.length > 0) {
+    return applyModuleDependencies(out);
+  }
+
+  return out;
 }
 
 export function applyModuleDependencies(enabledModules = {}) {

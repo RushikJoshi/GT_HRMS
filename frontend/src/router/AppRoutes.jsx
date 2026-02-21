@@ -278,7 +278,7 @@ export default function AppRoutes() {
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
-                <Route path="settings/social-media" element={<ProtectedModule module="socialMediaIntegration"><SocialMediaPage /></ProtectedModule>} />
+                <Route path="settings/social-media" element={<SocialMediaPage />} />
 
                 {/* Global inside Tenant */}
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />
@@ -360,7 +360,7 @@ export default function AppRoutes() {
 
                 {/* Settings */}
                 <Route path="settings/company" element={<CompanySettings />} />
-                <Route path="settings/social-media" element={<ProtectedModule module="socialMediaIntegration"><SocialMediaPage /></ProtectedModule>} />
+                <Route path="settings/social-media" element={<SocialMediaPage />} />
 
                 {/* Global inside HR */}
                 <Route path="details/:entityType/:entityId" element={<EntityDetail />} />

@@ -5,15 +5,18 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api'; // Centralized axios instance with auth & tenant headers
 import { getNextStage, normalizeStatus } from './PipelineStatusManager';
 import { useAuth } from '../../context/AuthContext';
-import OfferLetterPreview from '../../components/OfferLetterPreview';
+import MatchBreakdown from '../../components/MatchBreakdown';
+
 import AssignSalaryModal from '../../components/AssignSalaryModal';
 import { DatePicker, Pagination, Select, Modal, TimePicker, notification, Dropdown, Menu } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications'; // Imports fixed
 import dayjs from 'dayjs';
-import { Eye, Download, Edit2, RefreshCw, IndianRupee, Upload, FileText, CheckCircle, Settings, Plus, Trash2, X, GripVertical, Star, XCircle, Clock, ShieldCheck, Lock, ChevronRight, ChevronDown, RotateCcw, UserCheck, UserX, PlusCircle, UserPlus, Info, Search, Calendar, Shield } from 'lucide-react';
+import { Eye, Download, Edit2, RefreshCw, IndianRupee, Upload, FileText, CheckCircle, Settings, Plus, Trash2, X, GripVertical, Star, XCircle, Clock, ShieldCheck, Lock, ChevronRight, ChevronDown, RotateCcw, UserCheck, UserX, PlusCircle, UserPlus, Info, Search, Calendar, Shield, Layout } from 'lucide-react';
 import DynamicPipelineEngine from './DynamicPipelineEngine';
 import InterviewScheduleModal from './modals/InterviewScheduleModal';
 import JobBasedBGVModal from './modals/JobBasedBGVModal';
+import StageFeedbackModal from './modals/StageFeedbackModal';
+import PipelineManagerModal from './modals/PipelineManagerModal';
 
 export default function Applicants({ internalMode = false, jobSpecific = false }) {
     const navigate = useNavigate();
@@ -98,11 +101,20 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     // New Interview Round State
     const [addRoundModalVisible, setAddRoundModalVisible] = useState(false);
     const [newRoundName, setNewRoundName] = useState('');
+
+    // Pipeline Manager State
+    const [showPipelineManager, setShowPipelineManager] = useState(false);
     const [candidateForNewRound, setCandidateForNewRound] = useState(null);
 
     // BGV Initiation State (Package-Driven)
     const [showBGVModal, setShowBGVModal] = useState(false);
     const [bgvCandidate, setBgvCandidate] = useState(null);
+
+    // Stage Feedback Modal State
+    const [showStageFeedbackModal, setShowStageFeedbackModal] = useState(false);
+    const [feedbackCandidate, setFeedbackCandidate] = useState(null);
+    const [feedbackTargetStage, setFeedbackTargetStage] = useState(null);
+    const [feedbackStageConfig, setFeedbackStageConfig] = useState(null);
 
     // Custom Other Round State
     const [addCustomRoundModalVisible, setAddCustomRoundModalVisible] = useState(false);
@@ -320,34 +332,55 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     };
 
     // Dynamic Tab Calculation (Includes Custom/Ad-hoc Stages)
-    useEffect(() => {
-        const MASTER_STAGES = ['Applied', 'Shortlisted', 'Interview', 'HR Round', 'Finalized'];
+    const handlePipelineUpdate = async () => {
+        try {
+            const res = await api.get('/requirements');
+            const data = res.data.requirements || res.data || [];
+            setRequirements(data);
 
+            if (selectedRequirement) {
+                const up = data.find(r => r._id === selectedRequirement._id);
+                if (up) setSelectedRequirement(up);
+            }
+        } catch (e) {
+            console.error("Failed to refresh requirements", e);
+        }
+    };
+
+    useEffect(() => {
         if (selectedReqId === 'all') {
             const globalStages = ['Applied', 'Finalized', 'Rejected'];
             setWorkflowTabs(globalStages);
-            // Default to first stage instead of 'all'
             if (activeTab === 'all' || !globalStages.includes(activeTab)) {
                 setActiveTab('Applied');
             }
         } else if (selectedRequirement) {
-            let baseParams = selectedRequirement.workflow && selectedRequirement.workflow.length > 0
-                ? [...selectedRequirement.workflow]
-                : ['Applied', 'Shortlisted', 'Interview', 'HR Round', 'Finalized'];
+            // Priority: pipelineStages > workflow > default
+            let baseParams = [];
 
-            // Ensure HR Round is present if requested by user for this project
-            if (!baseParams.includes('HR Round')) {
-                const intIdx = baseParams.indexOf('Interview');
-                if (intIdx > -1) baseParams.splice(intIdx + 1, 0, 'HR Round');
-                else {
-                    const finIdx = baseParams.indexOf('Finalized');
-                    if (finIdx > -1) baseParams.splice(finIdx, 0, 'HR Round');
-                    else baseParams.push('HR Round');
+            if (selectedRequirement.pipelineStages && selectedRequirement.pipelineStages.length > 0) {
+                baseParams = selectedRequirement.pipelineStages.map(s => s.stageName);
+
+                // Ensure 'Applied' is at the start if it's the intended gateway
+                if (!baseParams.includes('Applied')) {
+                    baseParams.unshift('Applied');
                 }
+
+                // Ensure 'Finalized' and 'Rejected' are at the end
+                if (!baseParams.includes('Finalized')) baseParams.push('Finalized');
+                if (!baseParams.includes('Rejected')) baseParams.push('Rejected');
+            } else if (selectedRequirement.workflow && selectedRequirement.workflow.length > 0) {
+                baseParams = [...selectedRequirement.workflow];
+                if (!baseParams.includes('Rejected')) baseParams.push('Rejected');
+            } else {
+                baseParams = ['Applied', 'Shortlisted', 'Interview', 'HR Round', 'Finalized', 'Rejected'];
             }
 
-            // Find "Ad-hoc" statuses from current applicants for this job
-            const relevantApplicants = applicants.filter(a => a.requirementId?._id === selectedReqId || a.requirementId === selectedReqId);
+            // Remove duplicates and keep order
+            baseParams = [...new Set(baseParams)];
+
+            // Find "Ad-hoc" statuses from current applicants for this job (edge cases)
+            const relevantApplicants = applicants.filter(a => (a.requirementId?._id || a.requirementId) === selectedReqId);
             const foundStatuses = [...new Set(relevantApplicants.map(a => a.status))];
 
             const extraStatuses = foundStatuses.filter(s =>
@@ -355,25 +388,25 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 !['Selected', 'Rejected', 'Finalized', 'Offer Generated', 'Salary Assigned', 'Offer Issued', 'Offer Accepted', 'Hired', 'Joining Letter Issued', 'Offer Expired', 'Interview Scheduled', 'Interview Rescheduled', 'Interview Completed', 'New Round', 'Offer Accepted – Awaiting Company Approval', 'Fully Signed'].includes(s)
             );
 
-            // Insert extra statuses before 'HR Round' if present, else before 'Finalized'
-            let insertPos = baseParams.indexOf('HR Round');
-            if (insertPos === -1) insertPos = baseParams.indexOf('Finalized');
-
+            // Insert extra statuses before 'Finalized' if present
+            let insertPos = baseParams.indexOf('Finalized');
             if (insertPos > -1) {
                 baseParams.splice(insertPos, 0, ...extraStatuses);
+            } else if (baseParams.indexOf('Rejected') > -1) {
+                baseParams.splice(baseParams.indexOf('Rejected'), 0, ...extraStatuses);
             } else {
                 baseParams.push(...extraStatuses);
             }
 
-            // Ensure Finalized is always last
-            if (!baseParams.includes('Finalized')) baseParams.push('Finalized');
-
             setWorkflowTabs(baseParams);
+
+            // If current active tab is not in the new workflow, move to first
             if (!baseParams.includes(activeTab)) {
                 setActiveTab(baseParams[0]);
             }
         }
     }, [selectedReqId, selectedRequirement, applicants]);
+
 
     // Custom Stage State
     const [isCustomStageModalVisible, setIsCustomStageModalVisible] = useState(false);
@@ -977,6 +1010,32 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             setIsCustomStageModalVisible(true);
             return;
         }
+
+        // Check if the TARGET status (Stage) has a configured feedback form or criteria
+        // We find the stage configuration from selectedRequirement (if available)
+        if (selectedRequirement && selectedRequirement.pipelineStages && status !== 'Selected' && status !== 'Rejected') {
+            const stageConfig = selectedRequirement.pipelineStages.find(s => s.stageName === status);
+
+            // If stage exists and has feedback config (formId or criteria) AND we are moving INTO it
+            // Actually, feedback is usually collected AFTER a stage (before moving to next)? 
+            // OR when moving TO a stage (to populate 'interview' details)?
+            // User requirement: "When candidate moved to stage: check if stage.feedbackFormId exists"
+            // This implies: On Move -> Open Form -> Submit -> Then Move.
+            // Wait, usually feedback is for the COMPLETED stage.
+            // But user said "When candidate moved to stage ... load form fields".
+            // Maybe it means "When moving to Interview stage, show Interview Form"?
+            // Or "When completing Interview stage"?
+            // Let's assume interception on Move To X.
+
+            if (stageConfig && (stageConfig.feedbackFormId || (stageConfig.evaluationCriteria && stageConfig.evaluationCriteria.length > 0))) {
+                setFeedbackCandidate(applicant);
+                setFeedbackTargetStage(status); // The stage we are moving TO
+                setFeedbackStageConfig(stageConfig);
+                setShowStageFeedbackModal(true);
+                return; // INTERCEPTED
+            }
+        }
+
 
         showConfirmToast({
             title: 'Update Status',
@@ -2112,12 +2171,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     </div>
 
                     <div className="w-full sm:w-auto flex gap-2">
+
+
                         <button
                             onClick={() => notification.info({ message: 'Info', description: 'Exporting...', placement: 'topRight' })}
                             className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-slate-600 border border-slate-100 shadow-sm rounded-xl hover:bg-slate-50 transition font-bold text-xs uppercase tracking-wider"
                         >
                             <Download size={16} />
-                            <span>Export</span>
+                            <span className="hidden sm:inline">Export</span>
                         </button>
                         <button
                             onClick={refreshData}
@@ -2306,6 +2367,43 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     </button>
                                 );
                             })}
+
+                            {/* Inline Pipeline Controls */}
+                            {(jobSpecific && selectedRequirement) && (
+                                <div className="flex items-center gap-2 ml-4 pl-4 border-l-2 border-slate-100 flex-shrink-0 sticky right-0 bg-gradient-to-l from-white via-white to-transparent pr-2">
+
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                showToast('info', 'Re-scoring...', 'Recalculating AI match scores for all applicants...');
+                                                const res = await api.post(`/requirements/${selectedRequirement._id}/rescore-all`);
+                                                const { updated, total, results } = res.data;
+                                                const summary = results?.slice(0, 3).map(r => `${r.name}: ${r.oldScore ?? '?'}% → ${r.newScore}%`).join(', ');
+                                                showToast('success', `Rescored ${updated}/${total} applicants`, summary || 'Scores updated!');
+                                                loadApplicants(); // Refresh the list
+                                            } catch (err) {
+                                                console.error('[RESCORE-ALL] Error:', err);
+                                                showToast('error', 'Rescore Failed', err.response?.data?.error || err.response?.data?.message || err.message);
+                                            }
+
+                                        }}
+                                        className="h-10 px-4 flex items-center gap-2 bg-white text-emerald-600 border border-emerald-200 rounded-xl shadow-sm hover:bg-emerald-50 hover:border-emerald-300 transition font-bold text-xs uppercase tracking-wider whitespace-nowrap group"
+                                        title="Re-calculate AI match scores for all applicants in this job"
+                                    >
+                                        <RefreshCw size={14} />
+                                        <span>Rescore All</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setShowPipelineManager(true)}
+                                        className="h-10 px-4 flex items-center gap-2 bg-white text-slate-600 border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition font-bold text-xs uppercase tracking-wider whitespace-nowrap group"
+                                    >
+                                        <Settings size={16} />
+                                        <span>Manage Pipeline</span>
+                                    </button>
+                                </div>
+                            )}
+
                         </div>
                     </div>
 
@@ -2338,10 +2436,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     .map((app, index) => (
                                         <div
                                             key={app._id || index}
-                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 overflow-hidden group hover:-translate-y-1 block relative"
+                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 overflow-visible group hover:-translate-y-1 block relative"
                                         >
                                             {/* Status Header Line */}
-                                            <div className={`h-1.5 w-full ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
+                                            <div className={`h-1.5 w-full rounded-t-[24px] ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
                                                 app.status === 'Rejected' ? 'bg-gradient-to-r from-rose-400 to-rose-600' :
                                                     'bg-gradient-to-r from-blue-400 to-indigo-600'
                                                 }`}></div>
@@ -2401,17 +2499,18 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     )}
                                                 </div>
 
-                                                {/* AI Skills Preview */}
-                                                {app.parsedSkills && app.parsedSkills.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1 mt-3 mb-1">
-                                                        {app.parsedSkills.slice(0, 4).map((skill, i) => (
-                                                            <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-500 font-medium rounded border border-slate-100">
-                                                                {skill}
-                                                            </span>
-                                                        ))}
-                                                        {app.parsedSkills.length > 4 && (
-                                                            <span className="text-[10px] px-1.5 py-0.5 text-slate-400">+{app.parsedSkills.length - 4}</span>
-                                                        )}
+                                                {/* Skills compact preview (full list in hover tooltip above) */}
+                                                {!app.matchedSkills?.length && app.parsedSkills?.length > 0 && (
+                                                    <div className="mb-4">
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">🔧 Skills</p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {app.parsedSkills.slice(0, 5).map((skill, i) => (
+                                                                <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-500 font-medium rounded border border-slate-100">{skill}</span>
+                                                            ))}
+                                                            {app.parsedSkills.length > 5 && (
+                                                                <span className="text-[10px] px-1.5 py-0.5 text-slate-400">+{app.parsedSkills.length - 5}</span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 )}
 
@@ -3636,7 +3735,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     )}
 
                                     {/* AI Insights Section */}
-                                    {selectedApplicant.aiParsedData && (
+                                    {(selectedApplicant.matchScore > 0 || selectedApplicant.aiParsedData) && (
                                         <>
                                             <div className="border-t border-slate-100 my-2"></div>
                                             <section>

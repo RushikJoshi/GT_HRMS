@@ -20,8 +20,8 @@ const allowedOrigins = [
     'http://localhost:5176', // Vite dev server used in this workspace
     'http://localhost:3000',
     'http://localhost:5000',
-    'https://hrms.dev.gitakshmi.com'
-    // 'https://hrms.gitakshmi.com',
+    'https://hrms.gitakshmi.com',
+    // 'https://hrms.dev.gitakshmi.com'
 ];
 
 // Configure CORS strictly to allow only expected origins in production
@@ -171,6 +171,7 @@ const vendorRoutes = require('./routes/vendor.routes');
 
 // Career Page (Optimized for 16MB limit fix)
 const careerOptimizedRoutes = require('./routes/career-optimized.routes');
+const aiRoutes = require('./routes/ai.routes');
 
 /* ===============================
    ROUTES (NO TENANT)
@@ -245,11 +246,13 @@ app.use('/api/vendor', recruitmentCheck, vendorRoutes);
 app.use('/api/career', recruitmentCheck, careerOptimizedRoutes);
 app.use('/api/interviews', recruitmentCheck, require('./routes/interview.routes'));
 app.use('/api/tracker', recruitmentCheck, require('./routes/tracker.routes'));
+app.use('/api', recruitmentCheck, require('./routes/feedback.routes'));
 
 // --- OTHER ---
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/social-media', require('./routes/socialMedia.routes'));
+app.use('/api/ai', aiRoutes);
 app.use('/api/deductions', deductionRoutes);
 app.use('/api/tracker', recruitmentCheck, require('./routes/tracker.routes'));
 
@@ -279,6 +282,7 @@ app.use(hrmsPrefix + '/holidays', attendanceCheck, holidayRoutes);
 
 // Alias recruitment under /api/hrms
 app.use(hrmsPrefix + '/requirements', recruitmentCheck, requirementRoutes);
+app.use(hrmsPrefix + '/positions', hrCheck, positionRoutes);
 app.use(hrmsPrefix + '/interviews', recruitmentCheck, require('./routes/interview.routes'));
 app.use(hrmsPrefix + '/offer-templates', recruitmentCheck, offerTemplateRoutes);
 

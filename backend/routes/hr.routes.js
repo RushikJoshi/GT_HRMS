@@ -29,6 +29,7 @@ router.post('/hr/employees', auth.authenticate, auth.requireHr, empCtrl.create);
 router.post('/hr/applicants/parse-resume', auth.authenticate, auth.requireHr, upload.single('resume'), applicantCtrl.parseResume);
 router.get('/hr/resume/:filename', auth.authenticate, auth.requireHr, applicantCtrl.getResumeFile);
 
+
 // ⚠️ SPECIFIC ROUTES BEFORE GENERIC :ID ROUTES (important for Express routing)
 // Employee ID Preview (Auto-generate preview request)
 router.post('/hr/employees/preview', auth.authenticate, auth.requireHr, empCtrl.preview);

@@ -26,10 +26,7 @@ export default function Dashboard() {
     async function loadDashboardData() {
       try {
         setLoading(true);
-        // Fetch Stats
         await api.get("/tenants/psa/stats");
-
-        // Fetch Companies List
         const compRes = await api.get('/tenants');
         const list = Array.isArray(compRes.data) ? compRes.data : (compRes.data?.tenants || compRes.data?.data || []);
 
@@ -38,7 +35,7 @@ export default function Dashboard() {
           total: list.length,
           active: list.filter(c => c.status === 'active').length,
           inactive: list.filter(c => c.status !== 'active').length,
-          totalModules: 9, // Total available in module configuration
+          totalModules: 9,
           systemUptime: '99.9%'
         });
       } catch (err) {
@@ -50,7 +47,6 @@ export default function Dashboard() {
     loadDashboardData();
   }, []);
 
-  // Calculate Real-time Module Distribution
   const moduleDistribution = useMemo(() => {
     const counts = {
       hr: 0,
@@ -122,6 +118,10 @@ export default function Dashboard() {
       description: ''
     },
   ];
+
+  const usagePercent = companies.length > 0 && stats.totalModules
+    ? Math.round((moduleDistribution.reduce((a, b) => a + b.value, 0) / (companies.length * stats.totalModules)) * 100)
+    : 0;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700 pb-12 font-sans">
