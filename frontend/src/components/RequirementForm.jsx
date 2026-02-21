@@ -141,7 +141,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
             if (res.data.success) setPositions(res.data.data);
         }).catch(err => console.error("Error fetching positions", err));
     }, []);
-
+    useEffect(() => {
         if (initialData) {
             setFormData(prev => ({ ...prev, ...initialData }));
 
