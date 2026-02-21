@@ -246,40 +246,6 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const loginCandidate = useCallback(async (tenantId, email, password) => {
-    setIsLoading(true);
-    try {
-      const res = await api.post('/candidate/login', { tenantId, email, password });
-      const token = res.data.token;
-
-      setToken(token);
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-      let companyName = 'Company';
-      try {
-        const decoded = jwtDecode(token);
-        if (decoded.tenantId) {
-          sessionStorage.setItem('tenantId', decoded.tenantId);
-          localStorage.setItem('tenantId', decoded.tenantId);
-        }
-
-        // Best effort to get company name
-        const tenantRes = await api.get(`/public/tenant/${tenantId}`);
-        companyName = tenantRes.data.name;
-        localStorage.setItem('companyName', companyName);
-      } catch (e) { /* ignore */ }
-
-      const candidateData = { ...res.data.candidate, role: 'candidate', companyName };
-      setUser(candidateData);
-      localStorage.setItem("candidate", JSON.stringify(candidateData));
-
-      return { success: true, candidate: candidateData };
-    } catch (error) {
-      return { success: false, message: error.response?.data?.error || 'Login failed' };
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   const logout = useCallback(() => {
     removeToken();
@@ -298,17 +264,6 @@ export function AuthProvider({ children }) {
   };
 
   // Missing in original file but referenced in return
-  const registerCandidate = useCallback(async (data) => {
-    setIsLoading(true);
-    try {
-      const res = await api.post('/candidate/register', data);
-      return { success: true, ...res.data };
-    } catch (error) {
-      return { success: false, message: error.response?.data?.error || error.response?.data?.message || 'Registration failed' };
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
 
   return (
@@ -321,8 +276,6 @@ export function AuthProvider({ children }) {
       login,
       loginHR,
       loginEmployee,
-      loginCandidate,
-      registerCandidate,
       refreshUser,
       logout
     }}>

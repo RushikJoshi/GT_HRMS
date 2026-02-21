@@ -41,13 +41,8 @@ const api = axios.create({
  * - Ensures all requests include proper authentication and tenant context
  */
 api.interceptors.request.use((config) => {
-  // Try HRMS token first (sessionStorage)
-  let token = sessionStorage.getItem('token');
-
-  // If no HRMS token, try Job Portal token (localStorage)
-  if (!token) {
-    token = localStorage.getItem('token');
-  }
+  // Use centralized token helper (handles sessionStorage and localStorage priority)
+  let token = getToken();
 
   // Dev convenience: fall back to env-provided HR token (kept out of builds)
   try {

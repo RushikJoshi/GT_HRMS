@@ -8,7 +8,8 @@ const CandidateProtectedRoute = ({ children }) => {
 
     useEffect(() => {
         if (isInitialized && !candidate) {
-            navigate("/candidate/login?redirect=/candidate/dashboard", { replace: true });
+            const currentPath = window.location.pathname + window.location.search;
+            navigate(`/candidate/login?redirect=${encodeURIComponent(currentPath)}`, { replace: true });
         }
     }, [isInitialized, candidate, navigate]);
 

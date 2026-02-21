@@ -4,6 +4,7 @@ const RequirementDraftSchema = new mongoose.Schema({
     tenant: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     currentStep: { type: Number, default: 1 },
+    status: { type: String, default: 'Draft' },
 
     // Step 1: Position selection
     step1: {

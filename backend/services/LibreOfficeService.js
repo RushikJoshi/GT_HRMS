@@ -1,40 +1,32 @@
-const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 class LibreOfficeService {
     constructor() {
-        // User provided path: C:\Program Files\LibreOffice\program
-        this.basePath = 'C:\\Program Files\\LibreOffice\\program';
+        // User provided path via ENV or default
+        this.basePath = process.env.LIBREOFFICE_PATH || 'C:\\Program Files\\LibreOffice\\program';
         this.executablePath = path.join(this.basePath, 'soffice.exe');
     }
 
     /**
-     * Convert a file to PDF synchronously using execFileSync
+     * Convert a file to PDF asynchronously using execFile
      * @param {string} inputPath - Absolute path to input file (docx)
      * @param {string} outputDir - Directory to save the output PDF
-     * @returns {string} - Absolute path to the generated PDF
+     * @returns {Promise<string>} - Absolute path to the generated PDF
      */
-    convertToPdfSync(inputPath, outputDir) {
+    async convertToPdfAsync(inputPath, outputDir) {
+        const { execFile } = require('child_process');
+        const util = require('util');
+        const execFilePromise = util.promisify(execFile);
+
         // 1. Verify Executable
         if (!fs.existsSync(this.executablePath)) {
-            console.warn(`⚠️ [LibreOffice] soffice.exe not found at: ${this.executablePath}`);
-
-            // Try explicit fallback to program path provided by user if exe missing (maybe just checks dir?)
-            if (fs.existsSync(this.basePath)) {
-                console.warn(`ℹ️ [LibreOffice] Directory exists but executable not found. Checking alternatives...`);
-            }
-
-            // Fallback: Check standard x86 path just in case
             const x86Path = 'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe';
             if (fs.existsSync(x86Path)) {
-                console.log(`✅ [LibreOffice] Found alternative at (x86): ${x86Path}`);
                 this.executablePath = x86Path;
             } else {
-                throw new Error(`LibreOffice not found! Checked:\n 1. ${this.executablePath} (User Provided)\n 2. ${x86Path}`);
+                throw new Error(`LibreOffice not found at: ${this.executablePath} or ${x86Path}`);
             }
-        } else {
-            // console.log(`✅ [LibreOffice] Using executable: ${this.executablePath}`);
         }
 
         if (!fs.existsSync(inputPath)) {
@@ -42,14 +34,12 @@ class LibreOfficeService {
         }
 
         if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
+            await fs.promises.mkdir(outputDir, { recursive: true });
         }
 
         try {
-            console.log(`🔄 [LibreOffice] Converting: ${path.basename(inputPath)}`);
+            console.log(`🔄 [LibreOffice] Converting (Async): ${path.basename(inputPath)}`);
 
-            // Arguments for soffice
-            // --headless --convert-to pdf --outdir <outDir> <inFile>
             const args = [
                 '--headless',
                 '--convert-to',
@@ -59,10 +49,8 @@ class LibreOfficeService {
                 inputPath
             ];
 
-            // Execute Synchronously
-            // stdio: 'pipe' allows us to capture output if needed, but 'ignore' is faster if we don't need logs.
-            // Using 'pipe' to debug if it fails.
-            execFileSync(this.executablePath, args, { stdio: 'pipe' });
+            // Execute Asynchronously
+            await execFilePromise(this.executablePath, args);
 
             // Verify Output
             const baseName = path.basename(inputPath, path.extname(inputPath));
@@ -76,20 +64,22 @@ class LibreOfficeService {
             }
         } catch (error) {
             console.error('❌ [LibreOffice] Conversion Failed:', error.message);
-            if (error.stderr) console.error('Stderr:', error.stderr.toString());
-            if (error.stdout) console.log('Stdout:', error.stdout.toString());
             throw new Error(`PDF Conversion Failed: ${error.message}`);
         }
     }
+
     /**
-     * Convert a file to HTML synchronously
+     * Convert a file to HTML asynchronously using execFile
      * @param {string} inputPath - Absolute path to input file (docx)
      * @param {string} outputDir - Directory to save the output HTML
-     * @returns {string} - Absolute path to the generated HTML file
+     * @returns {Promise<string>} - Absolute path to the generated HTML file
      */
-    convertToHtmlSync(inputPath, outputDir) {
+    async convertToHtmlAsync(inputPath, outputDir) {
+        const { execFile } = require('child_process');
+        const util = require('util');
+        const execFilePromise = util.promisify(execFile);
+
         if (!fs.existsSync(this.executablePath)) {
-            // Re-check for fallback
             const x86Path = 'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe';
             if (fs.existsSync(x86Path)) {
                 this.executablePath = x86Path;
@@ -99,13 +89,11 @@ class LibreOfficeService {
         }
 
         if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
+            await fs.promises.mkdir(outputDir, { recursive: true });
         }
 
         try {
-            console.log(`🔄 [LibreOffice] Converting to HTML: ${path.basename(inputPath)}`);
-            //  --headless --convert-to html:HTML --outdir <outDir> <inFile>
-            // Note: Use html:HTML (StarOffice HTML) or specific filter if needed. Standard 'html' usually works.
+            console.log(`🔄 [LibreOffice] Converting to HTML (Async): ${path.basename(inputPath)}`);
             const args = [
                 '--headless',
                 '--convert-to',
@@ -115,20 +103,119 @@ class LibreOfficeService {
                 inputPath
             ];
 
-            execFileSync(this.executablePath, args, { stdio: 'pipe' });
+            await execFilePromise(this.executablePath, args);
 
             const baseName = path.basename(inputPath, path.extname(inputPath));
             const htmlPath = path.join(outputDir, `${baseName}.html`);
 
             if (fs.existsSync(htmlPath)) {
-                console.log(`✅ [LibreOffice] Created HTML: ${htmlPath}`);
+                console.log(`✅ [LibreOffice] Created HTML (Async): ${htmlPath}`);
                 return htmlPath;
             } else {
                 throw new Error('HTML file was not found after conversion.');
             }
         } catch (error) {
-            console.error('❌ [LibreOffice] HTML Conversion Failed:', error.message);
+            console.error('❌ [LibreOffice] HTML Conversion Failed (Async):', error.message);
             throw error;
+        }
+    }
+
+    /**
+     * Convert a file to PDF asynchronously (Smart Fallback)
+     * Tries LibreOffice first, then falls back to Mammoth + Puppeteer
+     * @param {string} inputPath - Absolute path to input file (docx)
+     * @param {string} outputDir - Directory to save the output PDF
+     * @returns {Promise<string>} - Absolute path to the generated PDF
+     */
+    async convertToPdf(inputPath, outputDir) {
+        // 1. Try LibreOffice (Preferred)
+        try {
+            if (fs.existsSync(this.executablePath)) {
+                return await this.convertToPdfAsync(inputPath, outputDir);
+            } else {
+                console.warn(`⚠️ [LibreOffice] Executable not found. Falling back to Puppeteer...`);
+            }
+        } catch (err) {
+            console.error(`⚠️ [LibreOffice] Primary conversion failed: ${err.message}. Falling back...`);
+        }
+
+        // 2. Fallback: Mammoth -> HTML -> Puppeteer -> PDF
+        return this.convertWithPuppeteer(inputPath, outputDir);
+    }
+
+    /**
+     * Fallback conversion using Mammoth and Puppeteer
+     */
+    async convertWithPuppeteer(inputPath, outputDir) {
+        const mammoth = require('mammoth');
+        const puppeteer = require('puppeteer');
+
+        try {
+            console.log(`🔄 [Puppeteer] Converting via Fallback: ${path.basename(inputPath)}`);
+
+            // A. Convert DOCX to HTML
+            const result = await mammoth.convertToHtml({ path: inputPath });
+            const html = result.value; // The generated HTML
+            const messages = result.messages; // Any warnings
+
+            if (messages.length > 0) {
+                console.warn('⚠️ [Mammoth] Warnings:', messages);
+            }
+
+            // B. Launch Puppeteer
+            const browser = await puppeteer.launch({
+                headless: 'new',
+                args: ['--no-sandbox', '--disable-setuid-sandbox']
+            });
+            const page = await browser.newPage();
+
+            // C. Set Content with some basic styling for letters
+            const styledHtml = `
+                <html>
+                    <head>
+                        <style>
+                            body { font-family: 'Arial', sans-serif; padding: 40px; line-height: 1.5; font-size: 14px; }
+                            p { margin-bottom: 15px; }
+                            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                            th { background-color: #f2f2f2; }
+                        </style>
+                    </head>
+                    <body>
+                        ${html}
+                    </body>
+                </html>
+            `;
+            await page.setContent(styledHtml, { waitUntil: 'networkidle0' });
+
+            // D. Print to PDF
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+            }
+
+            const baseName = path.basename(inputPath, path.extname(inputPath));
+            const pdfPath = path.join(outputDir, `${baseName}.pdf`);
+
+            await page.pdf({
+                path: pdfPath,
+                format: 'A4',
+                printBackground: true,
+                margin: {
+                    top: '20mm',
+                    bottom: '20mm',
+                    left: '20mm',
+                    right: '20mm'
+                }
+            });
+
+            await browser.close();
+
+            console.log(`✅ [Puppeteer] Created Fallback PDF: ${pdfPath}`);
+            return pdfPath;
+
+        } catch (error) {
+            console.error('❌ [Puppeteer] Fallback Conversion Failed:', error);
+            throw new Error(`PDF Conversion Failed (Both LibreOffice and Fallback): ${error.message}`);
         }
     }
 }

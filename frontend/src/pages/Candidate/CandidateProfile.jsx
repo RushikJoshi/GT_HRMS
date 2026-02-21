@@ -9,6 +9,41 @@ import { useNavigate } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api'; // Centralized axios instance with auth & tenant headers
 import Cropper from 'react-easy-crop';
 import { Modal, Slider } from 'antd';
+import dayjs from 'dayjs';
+
+const OfferCountdown = ({ expiryDate }) => {
+    const [timeLeft, setTimeLeft] = useState(null);
+
+    useEffect(() => {
+        const calculateTimeLeft = () => {
+            if (!expiryDate) return null;
+            const difference = new Date(expiryDate) - new Date();
+            if (difference > 0) {
+                return {
+                    hours: Math.floor(difference / (1000 * 60 * 60)),
+                    minutes: Math.floor((difference / 1000 / 60) % 60),
+                    seconds: Math.floor((difference / 1000) % 60),
+                };
+            }
+            return null;
+        };
+
+        setTimeLeft(calculateTimeLeft());
+        const timer = setInterval(() => {
+            setTimeLeft(calculateTimeLeft());
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [expiryDate]);
+
+    if (!timeLeft) return null;
+
+    return (
+        <div className="mt-1.5 text-[10px] text-blue-500 font-black uppercase tracking-wider animate-pulse transition-all">
+            {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s valid
+        </div>
+    );
+};
 
 export default function CandidateProfile() {
     const { candidate, refreshCandidate } = useJobPortalAuth();
@@ -26,6 +61,12 @@ export default function CandidateProfile() {
     const [profileImage, setProfileImage] = useState(null);
     const [profileImageUrl, setProfileImageUrl] = useState('');
     const [showOfferModal, setShowOfferModal] = useState(false);
+    const offerExpiryAt = profileData?.offerExpiryAt ? new Date(profileData.offerExpiryAt) : null;
+    const isOfferExpired = Boolean(
+        profileData?.offerStatus === 'EXPIRED' ||
+        (offerExpiryAt && Date.now() > offerExpiryAt.getTime())
+    );
+    const isOfferRejected = profileData?.offerStatus === 'REJECTED';
 
     const fetchProfile = useCallback(async () => {
         setLoading(true);
@@ -58,6 +99,12 @@ export default function CandidateProfile() {
             return;
         }
         if (!window.confirm("Are you sure you want to ACCEPT this offer? Once accepted, you can proceed with background verification.")) return;
+
+        // Frontend guard: block accept if expired
+        if (isOfferExpired) {
+            alert("This offer has expired. Please request a revised offer from HR.");
+            return;
+        }
 
         try {
             setLoading(true);
@@ -93,6 +140,27 @@ export default function CandidateProfile() {
         } catch (err) {
             console.error(err);
             alert("Failed to reject offer.");
+            setLoading(false);
+        }
+    };
+
+    const handleRequestRevision = async () => {
+        const appId = profileData?.latestApplicationId || profileData?.bgvApplicationId;
+        if (!appId) {
+            alert("Application ID not found. Please try refreshing the page.");
+            return;
+        }
+        if (!window.confirm("Request a revised offer from HR? They will be notified.")) return;
+        try {
+            setLoading(true);
+            const res = await api.post(`/candidate/application/request-offer-revision/${appId}`);
+            if (res.data.success) {
+                alert("Revision request sent to HR successfully!");
+                await fetchProfile();
+            }
+        } catch (err) {
+            console.error("Failed to request revision:", err);
+            alert(err.response?.data?.error || "Failed to request revision.");
             setLoading(false);
         }
     };
@@ -430,7 +498,38 @@ export default function CandidateProfile() {
                                             <ExternalLink size={16} /> View Offer Letter
                                         </button>
 
-                                        {(!profileData?.bgvRequired && !profileData?.joiningLetterUrl) && (
+                                        <div className="w-full text-center">
+                                            <div className="text-[10px] font-bold uppercase tracking-widest text-blue-600">
+                                                {offerExpiryAt ? (
+                                                    <>Offer Valid Till: <span>{dayjs(offerExpiryAt).format('DD-MM-YYYY HH:mm')}</span></>
+                                                ) : (
+                                                    <>Offer Valid Till: <span>—</span></>
+                                                )}
+                                            </div>
+                                            {offerExpiryAt && !isOfferExpired && <OfferCountdown expiryDate={offerExpiryAt} />}
+                                        </div>
+
+                                        {isOfferExpired && (
+                                            <div className="w-full text-[10px] font-black uppercase tracking-widest text-rose-600 text-center">
+                                                Offer Expired
+                                            </div>
+                                        )}
+
+                                        {isOfferExpired && !isOfferRejected && !profileData?.offerRevisionRequested && (profileData?.totalRevisionRequests || 0) < 1 && (
+                                            <button
+                                                onClick={handleRequestRevision}
+                                                className="w-full bg-amber-500 text-white py-3 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-amber-100 hover:bg-amber-600 hover:-translate-y-1 transition-all flex items-center justify-center gap-2 mt-2"
+                                            >
+                                                <Edit3 size={14} /> Request Revised Offer
+                                            </button>
+                                        )}
+                                        {isOfferExpired && (profileData?.offerRevisionRequested || profileData?.totalRevisionRequests >= 1) && (
+                                            <div className="w-full text-[10px] font-black uppercase tracking-widest text-amber-600 text-center mt-2">
+                                                ✓ Revision Requested – Awaiting HR Action
+                                            </div>
+                                        )}
+
+                                        {(!profileData?.bgvRequired && !profileData?.joiningLetterUrl && !isOfferExpired && profileData?.offerStatus !== 'ACCEPTED') && (
                                             <div className="flex gap-3 mt-3 w-full">
                                                 <button
                                                     onClick={handleRejectOffer}
@@ -440,6 +539,7 @@ export default function CandidateProfile() {
                                                 </button>
                                                 <button
                                                     onClick={handleAcceptOffer}
+                                                    disabled={isOfferExpired}
                                                     className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:-translate-y-1 transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <CheckCircle2 size={16} /> Accept

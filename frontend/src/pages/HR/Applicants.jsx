@@ -753,6 +753,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     // State moved to top
     const [offerData, setOfferData] = useState({
         joiningDate: '',
+        expiryAt: '',
         location: '',
         templateId: '',
         position: '',
@@ -1421,6 +1422,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
         setOfferData({
             joiningDate: '',
+            expiryAt: dayjs().add(48, 'hour').format('YYYY-MM-DDTHH:mm'), // Default to 48 hours from now
             location: applicant.workLocation || 'Ahmedabad',
             templateId: '',
             position: applicant.requirementId?.jobTitle || '',
@@ -1460,8 +1462,22 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     };
 
     const handlePreview = async () => {
+        if (!offerData.templateId) {
+            notification.error({ message: 'Error', description: 'Please select an offer letter template', placement: 'topRight' });
+            return;
+        }
         if (!offerData.joiningDate) {
             notification.error({ message: 'Error', description: 'Please select a joining date first', placement: 'topRight' });
+            return;
+        }
+        if (!offerData.expiryAt) {
+            notification.error({ message: 'Error', description: 'Please select Offer Expiry Date & Time', placement: 'topRight' });
+            return;
+        }
+        const expiryMs = new Date(offerData.expiryAt).getTime();
+        // Allow a 5-minute buffer (300,000ms) for validation to avoid strict "past" errors during submission
+        if (!expiryMs || Number.isNaN(expiryMs) || expiryMs <= Date.now() - 300000) {
+            notification.error({ message: 'Error', description: 'Offer expiry must be a future datetime', placement: 'topRight' });
             return;
         }
 
@@ -1472,6 +1488,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     applicantId: selectedApplicant._id,
                     templateId: offerData.templateId,
                     joiningDate: offerData.joiningDate,
+                    expiryAt: offerData.expiryAt,
                     location: offerData.location,
                     address: offerData.address,
                     refNo: offerData.refNo, // Pass the user-edited Ref No
@@ -1485,11 +1502,19 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     preview: true // Tell backend this is just a preview
                 };
 
-                const res = await api.post('/letters/generate-offer', payload, { timeout: 30000 });
+                const res = await api.post('/letters/generate-offer', payload, { timeout: 90000 });
 
-                if (res.data.downloadUrl) {
+                if (res.data.isPreview && res.data.htmlContent) {
+                    setOfferData(prev => ({
+                        ...prev,
+                        htmlContent: res.data.htmlContent,
+                        isWordPreview: true
+                    }));
+                    setShowPreview(true);
+                } else if (res.data.downloadUrl) {
                     const url = `${API_ROOT}${res.data.downloadUrl}`;
                     setPreviewPdfUrl(url);
+                    setOfferData(prev => ({ ...prev, isWordPreview: false }));
                     setShowPreview(true);
                 }
             } catch (err) {
@@ -1576,6 +1601,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const submitOffer = async (e) => {
         if (e) e.preventDefault();
         if (!selectedApplicant) return;
+        if (!offerData.templateId) {
+            notification.error({ message: 'Error', description: 'Please select an offer letter template', placement: 'topRight' });
+            return;
+        }
 
         // Open window immediately to bypass popup blockers
         const newWindow = window.open('', '_blank');
@@ -1590,6 +1619,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 applicantId: selectedApplicant._id,
                 templateId: offerData.templateId,
                 joiningDate: offerData.joiningDate,
+                expiryAt: offerData.expiryAt,
                 location: offerData.location,
                 address: offerData.address,
                 refNo: offerData.refNo, // Pass user-edited Ref No
@@ -1602,7 +1632,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 // Pass other fields if needed for specific templates
             };
 
-            const res = await api.post('/letters/generate-offer', payload, { timeout: 30000 });
+            const res = await api.post('/letters/generate-offer', payload, { timeout: 90000 });
 
             if (res.data.downloadUrl) {
                 const url = `${API_ROOT}${res.data.downloadUrl}`;
@@ -2656,30 +2686,40 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        {app.offerLetterPath ? (
-                                                            <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                                                                <button onClick={() => viewOfferLetter(app)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
-                                                                    <span className={`text-[8px] sm:text-[9px] font-bold uppercase ${app.status === 'Offer Accepted – Awaiting Company Approval' ? 'text-amber-500 animate-pulse' : (app.offerStatus === 'SIGNED' ? 'text-blue-600' : 'text-emerald-500')}`}>
-                                                                        {app.status === 'Offer Accepted – Awaiting Company Approval' ? 'PENDING APPROVAL' : (app.offerStatus === 'SIGNED' ? 'SIGNED' : 'ISSUED')}
-                                                                    </span>
+                                                        {app.offerLetterPath ? (() => {
+                                                            const expiry = app.offerExpiryAt ? new Date(app.offerExpiryAt) : null;
+                                                            const isExpired = (app.offerStatus === 'EXPIRED') || (app.offerStatus === 'SENT' && expiry && Date.now() > expiry.getTime()) || (app.status === 'Offer Expired');
+                                                            const isAccepted = (app.offerStatus === 'ACCEPTED') || (app.status === 'Offer Accepted');
+                                                            const isRejected = (app.offerStatus === 'REJECTED') || (app.status === 'Offer Rejected');
+                                                            const statusText = isAccepted ? 'ACCEPTED' : (isRejected ? 'REJECTED' : (isExpired ? 'EXPIRED' : (app.offerStatus === 'REQUESTED' ? 'REQUESTED' : 'ISSUED')));
+                                                            const statusClass = isAccepted ? 'text-teal-500' : (isRejected || isExpired ? 'text-rose-500' : 'text-emerald-500');
+
+                                                            return (
+                                                                <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
+                                                                    <button onClick={() => viewOfferLetter(app.offerLetterPath)} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg sm:rounded-xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-md" title="Preview"><Eye size={16} /></button>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase tracking-tighter">OFFER</span>
+                                                                        <span className={`text-[8px] sm:text-[9px] font-bold uppercase ${statusClass}`}>{statusText}</span>
+                                                                        {expiry && (
+                                                                            <span className="text-[8px] sm:text-[9px] font-bold text-slate-400">
+                                                                                Till {expiry.toLocaleString()}
+                                                                            </span>
+                                                                        )}
+                                                                        {(isExpired || isRejected) && app.offerRevisionRequested && (
+                                                                            <span className="text-[8px] sm:text-[9px] font-bold text-amber-600 uppercase">
+                                                                                Revision Requested by Candidate
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {(isExpired || isRejected) && (
+                                                                        <button onClick={() => openOfferModal(app)} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Revise Offer">
+                                                                            <Edit2 size={12} />
+                                                                        </button>
+                                                                    )}
                                                                 </div>
-                                                                {app.status === 'Offer Accepted – Awaiting Company Approval' ? (
-                                                                    <button
-                                                                        onClick={() => openCompanyApprovalModal(app)}
-                                                                        className="ml-2 px-3 py-1.5 bg-blue-600 text-white text-[9px] font-black rounded-lg hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest whitespace-nowrap"
-                                                                    >
-                                                                        APPROVE
-                                                                    </button>
-                                                                ) : (
-                                                                    <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="ml-1 p-1.5 rounded-lg bg-slate-50 text-slate-400 hover:text-orange-600 hover:bg-white border border-transparent hover:border-orange-100 transition-all" title="Regenerate Offer">
-                                                                        <Edit2 size={12} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <button onClick={() => { setSelectedApplicant(app); setOfferData(prev => ({ ...prev, name: app.name })); setShowModal(true); }} className="w-full py-2 sm:py-3 bg-blue-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest">GENERATE</button>
+                                                            );
+                                                        })() : (
+                                                            <button onClick={() => openOfferModal(app)} className="w-full py-2 sm:py-3 bg-blue-600 text-white text-[9px] sm:text-[10px] font-black rounded-lg sm:rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100 uppercase tracking-widest">GENERATE</button>
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
@@ -3081,6 +3121,17 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                         </div>
                                     </div>
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Offer Expiry Date &amp; Time *</label>
+                                    <input
+                                        type="datetime-local"
+                                        name="expiryAt"
+                                        value={offerData.expiryAt || ''}
+                                        onChange={handleOfferChange}
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 h-[42px]"
+                                        required
+                                    />
+                                </div>
                                 <div className="hidden">
                                     <label className="block text-sm font-medium text-gray-700">Work Location</label>
                                     <input
@@ -3314,7 +3365,12 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
                             {/* Scrollable Preview Content */}
                             <div className="max-w-5xl mx-auto">
-                                {offerData.isWordTemplate && previewPdfUrl ? (
+                                {offerData.isWordPreview && offerData.htmlContent ? (
+                                    <div
+                                        className="w-full h-[80vh] rounded-lg shadow-xl bg-white overflow-y-auto p-10 prose prose-slate max-w-none"
+                                        dangerouslySetInnerHTML={{ __html: offerData.htmlContent }}
+                                    />
+                                ) : offerData.isWordTemplate && previewPdfUrl ? (
                                     <iframe
                                         src={previewPdfUrl}
                                         className="w-full h-[80vh] rounded-lg shadow-xl bg-white"

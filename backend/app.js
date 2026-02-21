@@ -241,6 +241,7 @@ app.use('/api/positions', hrCheck, positionRoutes);
 // --- RECRUITMENT MODULE ---
 const recruitmentCheck = checkModuleAccess('recruitment');
 app.use('/api/requirements', recruitmentCheck, requirementRoutes);
+app.use('/api/recruitment', recruitmentCheck, require('./routes/recruitment.workflow.routes'));
 app.use('/api/offer-templates', recruitmentCheck, offerTemplateRoutes);
 app.use('/api/vendor', recruitmentCheck, vendorRoutes);
 app.use('/api/career', recruitmentCheck, careerOptimizedRoutes);

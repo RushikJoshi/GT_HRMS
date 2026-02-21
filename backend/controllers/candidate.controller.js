@@ -53,6 +53,32 @@ exports.getCandidateProfile = async (req, res) => {
             status: { $in: ['Offer Accepted', 'Joining Letter Issued', 'Hired'] }
         });
 
+        // Auto-expire offers on every fetch (backend-controlled)
+        const now = new Date();
+        try {
+            await Applicant.updateMany(
+                {
+                    tenant: tenantId,
+                    candidateId: id,
+                    offerStatus: 'SENT',
+                    offerExpiryAt: { $exists: true, $ne: null, $lt: now }
+                },
+                {
+                    $set: { offerStatus: 'EXPIRED', status: 'Offer Expired' },
+                    $push: {
+                        timeline: {
+                            status: 'Offer Expired',
+                            message: 'Offer expired automatically (system).',
+                            updatedBy: 'System',
+                            timestamp: now
+                        }
+                    }
+                }
+            );
+        } catch (e) {
+            console.warn('[getCandidateProfile] Auto-expiry skipped:', e.message);
+        }
+
         // Find applications with letters
         const letterApp = await Applicant.findOne({
             candidateId: id,
@@ -71,7 +97,11 @@ exports.getCandidateProfile = async (req, res) => {
             bgvApplicationId: acceptedApp?._id,
             offerLetterUrl: letterApp?.offerLetterPath ? `/uploads/offers/${letterApp.offerLetterPath}` : null,
             joiningLetterUrl: letterApp?.joiningLetterPath ? `/uploads/${letterApp.joiningLetterPath}` : null,
+            offerExpiryAt: letterApp?.offerExpiryAt || null,
+            offerStatus: letterApp?.offerStatus || null,
             latestApplicationId: letterApp?._id,
+            offerRevisionRequested: letterApp?.offerRevisionRequested || false,
+            totalRevisionRequests: letterApp?.totalRevisionRequests || 0,
             ...candidate.toObject()
         });
     } catch (err) {
@@ -163,7 +193,7 @@ exports.loginCandidate = async (req, res) => {
 
         const token = jwt.sign(
             { id: candidate._id, tenantId: tenantDB.tenantId, role: 'candidate' },
-            process.env.JWT_SECRET,
+            process.env.JWT_SECRET || 'hrms_secret_key_123',
             { expiresIn: '7d' }
         );
 
@@ -333,12 +363,58 @@ exports.trackApplication = async (req, res) => {
                 // Dynamic flow fields
                 letterId: dynamicLetter?._id || null,
                 letterStatus: dynamicLetter?.status || null,
-                tenantId: tenantId
+                tenantId: tenantId,
+                offerExpiryAt: application.offerExpiryAt || null,
+                offerStatus: application.offerStatus || null,
+                offerRevisionRequested: application.offerRevisionRequested || false,
+                totalRevisionRequests: application.totalRevisionRequests || 0
             }
         });
     } catch (err) {
         console.error("[TRACK_APP] Error:", err.message);
         res.status(500).json({ error: "Failed to track application", details: err.message });
+    }
+};
+
+// Candidate requests offer revision when expired
+exports.requestOfferRevision = async (req, res) => {
+    try {
+        const { tenantId, id } = req.candidate;
+        const { applicationId } = req.params;
+        const tenantDB = await getTenantDB(tenantId);
+        const Applicant = tenantDB.model("Applicant");
+
+        const application = await Applicant.findOne({ _id: applicationId, candidateId: id });
+        if (!application) {
+            return res.status(404).json({ error: "Application not found" });
+        }
+
+        if (application.status !== 'Offer Expired' && application.offerStatus !== 'EXPIRED') {
+            return res.status(400).json({ error: "Revision can only be requested for expired offers." });
+        }
+
+        if (application.offerRevisionRequested || application.totalRevisionRequests >= 1) {
+            return res.status(400).json({ error: "Revision already requested. You can only request a revised offer once." });
+        }
+
+        application.offerRevisionRequested = true;
+        application.totalRevisionRequests = (application.totalRevisionRequests || 0) + 1;
+        application.offerStatus = 'REQUESTED'; // Set to REQUESTED for strict UI tracking
+        application.revisionRequestedAt = new Date();
+        if (!application.timeline) application.timeline = [];
+        application.timeline.push({
+            status: 'Offer Revision Requested',
+            message: 'Candidate requested offer again after expiry.',
+            updatedBy: 'Candidate',
+            timestamp: new Date()
+        });
+
+        await application.save();
+
+        res.json({ success: true, message: "Request sent to HR for new offer." });
+    } catch (err) {
+        console.error("[REQUEST_OFFER_REVISION] Error:", err.message);
+        res.status(500).json({ error: "Failed to request offer revision" });
     }
 };
 
@@ -362,8 +438,28 @@ exports.acceptOffer = async (req, res) => {
             return res.status(400).json({ error: "No pending offer found to accept." });
         }
 
+        // Backend-controlled expiry validation
+        const now = new Date();
+        const expiryDate = application.offerExpiryAt ? new Date(application.offerExpiryAt) : null;
+
+        if ((expiryDate && now > expiryDate) || application.offerStatus === 'EXPIRED' || application.status === 'Offer Expired') {
+            application.offerStatus = 'EXPIRED';
+            application.status = 'Offer Expired';
+            if (!application.timeline) application.timeline = [];
+            application.timeline.push({
+                status: 'Offer Expired',
+                message: 'Offer expired automatically (system validation).',
+                updatedBy: 'System',
+                timestamp: now
+            });
+            await application.save();
+            return res.status(400).json({ error: "Offer has expired and cannot be accepted." });
+        }
+
+        application.status = 'Offer Accepted';
         application.status = 'Offer Accepted – Awaiting Company Approval';
         application.offerAcceptedAt = new Date();
+        application.offerStatus = 'ACCEPTED';
 
         if (!application.timeline) application.timeline = [];
         application.timeline.push({
@@ -408,6 +504,78 @@ exports.acceptOffer = async (req, res) => {
     } catch (err) {
         console.error("Accept Offer Error:", err.message);
         res.status(500).json({ error: "Failed to accept offer" });
+    }
+};
+
+exports.rejectOffer = async (req, res) => {
+    try {
+        const { tenantId, id } = req.candidate;
+        const { applicationId } = req.params;
+        const tenantDB = await getTenantDB(tenantId);
+
+        const Applicant = tenantDB.model("Applicant");
+        // Ensure Notification model is loaded
+        let Notification;
+        try {
+            Notification = tenantDB.model("Notification");
+        } catch (e) {
+            Notification = tenantDB.model("Notification", require("../models/Notification"));
+        }
+
+        const application = await Applicant.findOne({ _id: applicationId, candidateId: id }).populate('requirementId');
+
+        if (!application) {
+            return res.status(404).json({ error: "Application not found" });
+        }
+
+        if (application.status !== 'Offer Issued' && application.status !== 'Selected') {
+            return res.status(400).json({ error: "No pending offer found to reject." });
+        }
+
+        // Check if already expired
+        if (application.offerStatus === 'EXPIRED') {
+            return res.status(400).json({ error: "Offer has already expired." });
+        }
+
+        application.status = 'Offer Rejected';
+        application.offerStatus = 'REJECTED';
+        application.offerRejectedAt = new Date();
+
+        if (!application.timeline) application.timeline = [];
+        application.timeline.push({
+            status: 'Offer Rejected',
+            message: 'Candidate has rejected the offer.',
+            updatedBy: 'Candidate',
+            timestamp: new Date()
+        });
+
+        await application.save();
+
+        // Notify HR
+        try {
+            console.log(`❌ [OFFER REJECT] Candidate ${id} rejected offer for App ${applicationId}`);
+            const job = application.requirementId;
+            if (job && job.createdBy) {
+                await Notification.create({
+                    tenant: tenantId,
+                    receiverId: job.createdBy,
+                    receiverRole: 'hr',
+                    entityType: 'Application',
+                    entityId: applicationId,
+                    title: 'Offer Rejected',
+                    message: `Candidate ${req.candidate.name} has rejected the offer for ${job.jobTitle}.`,
+                    isRead: false
+                });
+            }
+        } catch (e) {
+            console.warn("Failed to notify HR:", e.message);
+        }
+
+        res.json({ success: true, message: "Offer rejected successfully." });
+
+    } catch (err) {
+        console.error("Reject Offer Error:", err.message);
+        res.status(500).json({ error: "Failed to reject offer" });
     }
 };
 

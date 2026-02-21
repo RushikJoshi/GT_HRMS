@@ -73,6 +73,20 @@ const ApplicantSchema = new mongoose.Schema({
   offerStatus: { type: String },
   isSigned: { type: Boolean, default: false },
   offerRefCode: { type: String },
+  // Offer expiry & controlled revise flow (Offer module only)
+  offerExpiryAt: { type: Date, default: null, index: true },
+  offerStatus: {
+    type: String,
+    enum: ['SENT', 'EXPIRED', 'ACCEPTED', 'REVISED', 'REQUESTED', 'REJECTED', null],
+    default: null,
+    index: true
+  },
+  offerVersion: { type: Number, default: 1 },
+  offerRevisionRequested: { type: Boolean, default: false },
+  totalRevisionRequests: { type: Number, default: 0 },
+  revisionRequestedAt: { type: Date, default: null },
+  offerRejectedAt: { type: Date, default: null },
+  revisedFrom: { type: mongoose.Schema.Types.ObjectId, ref: 'Applicant', default: null },
   joiningLetterPath: { type: String },
   joiningDate: { type: Date },
 

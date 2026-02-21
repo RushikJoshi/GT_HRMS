@@ -11,9 +11,23 @@
 const express = require('express');
 const router = express.Router();
 const workflowController = require('../controllers/recruitment.workflow.controller');
-const { authenticateToken, getTenantDB } = require('../middleware/auth'); // Adjust path as needed
+const auth = require('../middleware/auth.jwt');
 
-// Apply authentication and tenant middleware to all routes
+const authenticateToken = auth.authenticate;
+
+const getTenantDB = async (req, res, next) => {
+    try {
+        if (!req.tenantDB && req.tenantId) {
+            const getTenantDBFn = require('../utils/tenantDB');
+            req.tenantDB = await getTenantDBFn(req.tenantId);
+        }
+        req.db = req.tenantDB || req.db;
+        next();
+    } catch (err) {
+        next(err);
+    }
+};
+
 router.use(authenticateToken);
 router.use(getTenantDB);
 
@@ -104,6 +118,21 @@ router.post('/applications/:applicationId/offer', workflowController.createOffer
  * @access  Private (HR)
  */
 router.post('/offers/:offerId/send', workflowController.sendOffer);
+
+/**
+ * @route   POST /api/recruitment/applications/:applicationId/offer/revise
+ * @desc    Revise offer when latest is EXPIRED or REJECTED
+ * @access  Private (HR)
+ * @body    { sentAt, expiryAt, salaryStructureId?, ... }
+ */
+router.post('/applications/:applicationId/offer/revise', workflowController.reviseOffer);
+
+/**
+ * @route   GET /api/recruitment/applications/:applicationId/offer/latest
+ * @desc    Get latest active offer for application (for candidate/HR)
+ * @access  Private
+ */
+router.get('/applications/:applicationId/offer/latest', workflowController.getLatestOffer);
 
 /**
  * @route   POST /api/recruitment/offers/:offerId/accept

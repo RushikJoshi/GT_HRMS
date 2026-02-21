@@ -250,7 +250,7 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
                 department: pos.department,
                 salaryMin: pos.baseSalaryRange?.min || '',
                 salaryMax: pos.baseSalaryRange?.max || '',
-                vacancy: (pos.headCount - pos.filledCount) || 1
+                vacancy: ((pos.budgetedCount || 1) - (pos.currentCount || 0))
             }));
             setSelectedPosition(pos);
         }

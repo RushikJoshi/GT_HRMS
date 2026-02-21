@@ -44,6 +44,8 @@ const upload = multer({
 
 // Offer Acceptance
 router.post('/application/accept-offer/:applicationId', authenticateCandidate, candidateCtrl.acceptOffer);
+router.post('/application/reject-offer/:applicationId', authenticateCandidate, candidateCtrl.rejectOffer);
+router.post('/application/request-offer-revision/:applicationId', authenticateCandidate, candidateCtrl.requestOfferRevision);
 
 // BGV Documents
 router.get('/application/bgv-documents/:applicationId', authenticateCandidate, candidateCtrl.getBGVDocuments);

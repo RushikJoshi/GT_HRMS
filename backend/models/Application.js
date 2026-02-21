@@ -194,6 +194,8 @@ const ApplicationSchema = new mongoose.Schema({
     offerAcceptedDate: { type: Date },
     offerRejectedDate: { type: Date },
     offerExpiryDate: { type: Date },
+  offerRevisionRequested: { type: Boolean, default: false },
+  revisionRequestedAt: { type: Date },
 
     // ═══════════════════════════════════════════════════════════════════
     // EMPLOYEE CONVERSION
@@ -432,6 +434,17 @@ ApplicationSchema.methods.linkOffer = function (offerId, offerReadableId) {
     this.offerStatus = 'PENDING';
     this.status = 'OFFERED';
 
+    return this;
+};
+
+/**
+ * Link revised offer (when previous expired/rejected)
+ */
+ApplicationSchema.methods.linkRevisedOffer = function (offerId, offerReadableId) {
+    this.offerId = offerId;
+    this.offerReadableId = offerReadableId;
+    this.offerStatus = 'PENDING';
+    this.status = 'OFFERED';
     return this;
 };
 

@@ -407,6 +407,31 @@ class RecruitmentService {
         const { Applicant } = await this.getModels(tenantId);
         const db = await getTenantDB(tenantId);
 
+        // Auto-expire offers on every fetch (backend-controlled)
+        const now = new Date();
+        try {
+            await Applicant.updateMany(
+                {
+                    tenant: tenantId,
+                    offerStatus: 'SENT',
+                    offerExpiryAt: { $exists: true, $ne: null, $lt: now }
+                },
+                {
+                    $set: { offerStatus: 'EXPIRED', status: 'Offer Expired' },
+                    $push: {
+                        timeline: {
+                            status: 'Offer Expired',
+                            message: 'Offer expired automatically (system).',
+                            updatedBy: 'System',
+                            timestamp: now
+                        }
+                    }
+                }
+            );
+        } catch (e) {
+            console.warn('[RecruitmentService.getTenantApplications] Auto-expiry skipped:', e.message);
+        }
+
         // Defensive: Ensure EmployeeSalarySnapshot is registered for populate to work
         if (!db.models.EmployeeSalarySnapshot) {
             try { db.model('EmployeeSalarySnapshot', require('../models/EmployeeSalarySnapshot')); } catch (e) { }

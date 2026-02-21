@@ -6,11 +6,12 @@
  * Manages offer letters with salary structure, terms, and acceptance workflow.
  * 
  * Status Flow:
- * DRAFT → SENT → ACCEPTED / REJECTED / EXPIRED
+ * DRAFT → SENT → ACCEPTED / REJECTED / EXPIRED / REVISED
  * 
  * Business Rules:
  * - Can only be created for SELECTED applications
- * - One offer per application
+ * - Multiple offer versions per application (versioning for revise flow)
+ * - Only ONE offer can be ACTIVE (SENT) at a time per application
  * - Salary structure must be defined
  * - Expiry date enforced
  * - Acceptance triggers employee creation
@@ -80,9 +81,32 @@ const OfferSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'WITHDRAWN'],
+        enum: ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'REVISED', 'WITHDRAWN'],
         default: 'DRAFT',
         required: true,
+        index: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════════
+    // VERSIONING (Offer Revise)
+    // ═══════════════════════════════════════════════════════════════════
+
+    version: {
+        type: Number,
+        default: 1,
+        required: true,
+        index: true
+    },
+
+    revisedFromOfferId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Offer',
+        default: null
+    },
+
+    isActiveVersion: {
+        type: Boolean,
+        default: true,
         index: true
     },
 
@@ -209,14 +233,21 @@ const OfferSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════════
-    // ACCEPTANCE / REJECTION
+    // ACCEPTANCE / REJECTION (HR custom time window)
     // ═══════════════════════════════════════════════════════════════════
 
     sentDate: { type: Date },
+    sentAt: { type: Date }, // Alias - when offer was sent (HR sets)
     sentBy: { type: String },
     sentById: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
+    // HR-selectable expiry: exact timestamp (date + time) for acceptance window
+    expiryAt: { type: Date, index: true },
+
     acceptedDate: { type: Date },
+    acceptedAt: { type: Date }, // Alias for acceptedDate
+    acceptedBy: { type: String }, // 'candidate' or candidate name
+    acceptedById: { type: mongoose.Schema.Types.ObjectId, ref: 'Candidate' },
     acceptedVia: { type: String, enum: ['EMAIL', 'PORTAL', 'MANUAL'], default: 'PORTAL' },
     acceptanceNotes: { type: String },
 
@@ -298,8 +329,9 @@ const OfferSchema = new mongoose.Schema({
 // INDEXES
 // ═══════════════════════════════════════════════════════════════════
 
-// Unique constraint: One offer per application
-OfferSchema.index({ tenant: 1, applicationId: 1 }, { unique: true });
+// Multiple offers per application (versioning) - no unique on applicationId
+OfferSchema.index({ tenant: 1, applicationId: 1, version: -1 });
+OfferSchema.index({ tenant: 1, applicationId: 1, status: 1, isActiveVersion: 1 });
 
 // Query optimization
 OfferSchema.index({ tenant: 1, status: 1, createdAt: -1 });
@@ -315,7 +347,10 @@ OfferSchema.virtual('canBeSent').get(function () {
 });
 
 OfferSchema.virtual('canBeAccepted').get(function () {
-    return this.status === 'SENT' && !this.isExpired;
+    const expiry = this.expiryAt || this.validUntil;
+    const now = new Date();
+    const notExpired = !expiry || now < expiry;
+    return this.status === 'SENT' && !this.isExpired && notExpired;
 });
 
 OfferSchema.virtual('canBeRejected').get(function () {
@@ -330,9 +365,10 @@ OfferSchema.virtual('canCreateEmployee').get(function () {
 // MIDDLEWARE
 // ═══════════════════════════════════════════════════════════════════
 
-// Check expiry before save
+// Auto-expire: if current time > expiryAt/validUntil and offer not accepted
 OfferSchema.pre('save', function (next) {
-    if (this.validUntil && new Date() > this.validUntil && this.status === 'SENT') {
+    const expiry = this.expiryAt || this.validUntil;
+    if (expiry && new Date() > expiry && this.status === 'SENT' && !this.isExpired) {
         this.isExpired = true;
         this.status = 'EXPIRED';
     }
@@ -345,10 +381,22 @@ OfferSchema.pre('save', function (next) {
 
 /**
  * Send offer to candidate
+ * @param {Object} opts - { userId, userName, sentAt, expiryAt }
+ * sentAt and expiryAt are mandatory (HR custom acceptance time window)
  */
-OfferSchema.methods.send = function (userId, userName) {
+OfferSchema.methods.send = function (userId, userName, opts = {}) {
     if (!this.canBeSent) {
         throw new Error(`Cannot send offer. Status: ${this.status}, Missing data: ${!this.salarySnapshot ? 'salary' : 'joining date'}`);
+    }
+
+    const sentAt = opts.sentAt ? new Date(opts.sentAt) : new Date();
+    const expiryAt = opts.expiryAt ? new Date(opts.expiryAt) : null;
+
+    if (!expiryAt) {
+        throw new Error('Offer expiry date/time (expiryAt) is mandatory when sending');
+    }
+    if (expiryAt <= sentAt) {
+        throw new Error('Offer expiry must be after sent date/time');
     }
 
     this.statusHistory.push({
@@ -360,31 +408,46 @@ OfferSchema.methods.send = function (userId, userName) {
     });
 
     this.status = 'SENT';
-    this.sentDate = new Date();
+    this.sentDate = sentAt;
+    this.sentAt = sentAt;
     this.sentBy = userName;
     this.sentById = userId;
+    this.expiryAt = expiryAt;
+    this.validUntil = expiryAt;
 
     return this;
 };
 
 /**
- * Accept offer
+ * Accept offer (by candidate)
+ * @param {Object} opts - { acceptanceNotes, via, candidateId, candidateName }
  */
-OfferSchema.methods.accept = function (acceptanceNotes = null, via = 'PORTAL') {
-    if (!this.canBeAccepted) {
-        throw new Error(`Cannot accept offer. Status: ${this.status}, Expired: ${this.isExpired}`);
+OfferSchema.methods.accept = function (acceptanceNotes = null, via = 'PORTAL', opts = {}) {
+    const expiry = this.expiryAt || this.validUntil;
+    const now = new Date();
+    if (expiry && now >= expiry) {
+        throw new Error('Offer has expired. Cannot accept.');
+    }
+    if (this.status !== 'SENT') {
+        throw new Error(`Cannot accept offer. Status: ${this.status}`);
+    }
+    if (this.isExpired) {
+        throw new Error('Offer has expired. Cannot accept.');
     }
 
     this.statusHistory.push({
         from: this.status,
         to: 'ACCEPTED',
-        changedBy: this.candidateInfo.name,
+        changedBy: opts.candidateName || this.candidateInfo?.name || 'Candidate',
         reason: 'Offer accepted by candidate',
         timestamp: new Date()
     });
 
     this.status = 'ACCEPTED';
     this.acceptedDate = new Date();
+    this.acceptedAt = new Date();
+    this.acceptedBy = opts.candidateName || 'candidate';
+    this.acceptedById = opts.candidateId || null;
     this.acceptanceNotes = acceptanceNotes;
     this.acceptedVia = via;
 
@@ -484,15 +547,19 @@ OfferSchema.statics.getPendingOffers = async function (tenantId) {
 };
 
 /**
- * Mark expired offers
+ * Mark expired offers (called on read/accept to ensure consistency - no cron needed)
  */
 OfferSchema.statics.markExpiredOffers = async function (tenantId) {
+    const now = new Date();
     const result = await this.updateMany(
         {
             tenant: tenantId,
             status: 'SENT',
-            validUntil: { $lt: new Date() },
-            isExpired: false
+            isExpired: false,
+            $or: [
+                { expiryAt: { $lt: now } },
+                { validUntil: { $lt: now } }
+            ]
         },
         {
             $set: {
@@ -503,6 +570,47 @@ OfferSchema.statics.markExpiredOffers = async function (tenantId) {
     );
 
     return result.modifiedCount;
+};
+
+/**
+ * Get latest ACTIVE offer for application (SENT, not expired)
+ * Candidate can only access this offer
+ */
+OfferSchema.statics.getLatestActiveOffer = async function (tenantId, applicationId) {
+    const now = new Date();
+    const offer = await this.findOne({
+        tenant: tenantId,
+        applicationId,
+        status: 'SENT',
+        isActiveVersion: true,
+        isActive: true,
+        $or: [
+            { expiryAt: { $gt: now } },
+            { expiryAt: null, validUntil: { $gt: now } }
+        ]
+    }).sort({ version: -1 });
+
+    return offer;
+};
+
+/**
+ * Get latest offer for application (any status) - for HR
+ */
+OfferSchema.statics.getLatestOfferForApplication = async function (tenantId, applicationId) {
+    return this.findOne({
+        tenant: tenantId,
+        applicationId,
+        isActive: true
+    }).sort({ version: -1 });
+};
+
+/**
+ * Check if HR can revise (latest offer must be EXPIRED or REJECTED)
+ */
+OfferSchema.statics.canRevise = async function (tenantId, applicationId) {
+    const latest = await this.getLatestOfferForApplication(tenantId, applicationId);
+    if (!latest) return false;
+    return ['EXPIRED', 'REJECTED'].includes(latest.status);
 };
 
 module.exports = OfferSchema;
