@@ -137,38 +137,11 @@ export default function RequirementForm({ onClose, onSuccess, initialData, isEdi
 
     // Load data
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [posRes, empRes] = await Promise.all([
-                    api.get('/positions'),
-                    api.get('/hr/employees?limit=500')
-                ]);
-                const allPositions = Array.isArray(posRes.data) ? posRes.data : posRes.data.data || [];
-                // Only show positions that:
-                // 1. Don't have an active opening (hiringStatus !== 'Open')
-                // 2. Have vacant positions available (vacantCount > 0 OR filledCount < headCount)
-                const availablePositions = allPositions.filter(pos => {
-                    // Check if position has budget for more hires
-                    const budgeted = pos.budgetedCount || 1;
-                    const current = pos.currentCount || 0;
-                    const hasVacancy = budgeted > current;
-
-
-                    // Also check if hiring is not already in progress (Open)
-                    // We want to show positions that are either Closed (new) or Paused/Vacant
-                    // const notActiveHiring = pos.hiringStatus !== 'Open';
-                    // Update: Allow Open status as well, in case user manually opened it without creating requirement
-
-                    return hasVacancy;
-                });
-                setPositions(availablePositions);
-                setEmployees(Array.isArray(empRes.data) ? empRes.data : empRes.data.data || empRes.data.employees || []);
-            } catch (err) {
-                console.error("Initialization Error:", err);
-            }
-        };
-        fetchData();
-
+        api.get('/positions').then(res => {
+            if (res.data.success) setPositions(res.data.data);
+        }).catch(err => console.error("Error fetching positions", err));
+    }, []);
+    useEffect(() => {
         if (initialData) {
             setFormData(prev => ({ ...prev, ...initialData }));
 

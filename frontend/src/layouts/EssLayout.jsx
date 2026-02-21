@@ -44,9 +44,6 @@ export default function EssLayout() {
     } else if (path.includes('/face-attendance')) {
       setActiveTab('face-attendance');
     }
-    // else if (path.includes('/vendor')) {
-    //   setActiveTab('vendor/list');
-    // }
   }, [location.pathname]);
 
   useEffect(() => {
@@ -70,8 +67,26 @@ export default function EssLayout() {
 
   const fullName = profile ? `${profile.firstName} ${profile.lastName}` : user?.name || 'Employee';
 
+
+  const PAGE_TITLES = {
+    'dashboard': 'Dashboard',
+    'attendance': 'My Attendance',
+    'regularization': 'Regularization',
+    'face-attendance': 'Face Attendance',
+    'leaves': 'My Leaves',
+    'team-attendance': 'Team Attendance',
+    'team-leaves': 'Team Leaves',
+    'team-regularization': 'Team Approval',
+    'payslips': 'My Payslips',
+    'internal-jobs': 'Internal Jobs',
+    'my-applications': 'My Applications',
+    'profile': 'My Profile'
+  };
+
+  const currentTitle = PAGE_TITLES[activeTab] || 'Employee Portal';
+
   return (
-    <div className={`flex h-screen bg-[#F8FAFC] dark:bg-[#0F172A] transition-colors duration-300 ${theme === 'dark' ? 'dark' : ''}`}>
+    <div className={`flex h-screen bg-white dark:bg-[#0F172A] transition-colors duration-300 ${theme === 'dark' ? 'dark' : ''}`}>
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
@@ -80,8 +95,9 @@ export default function EssLayout() {
         />
       )}
 
-      {/* Sidebar - Fixed on desktop */}
-      <div className={`fixed w-72 h-screen transform transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      {/* Sidebar - Fixed on desktop with Hover Expansion */}
+      {/* Added 'peer' class here to allow siblings to react to hover state */}
+      <div className={`no-print peer fixed h-screen transform transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-[60] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-2xl group overflow-hidden ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0 w-72 md:w-20 md:hover:w-72'}`}>
         <EmployeeSidebar
           activeTab={activeTab}
           setActiveTab={(tab) => {
@@ -92,10 +108,11 @@ export default function EssLayout() {
         />
       </div>
 
-      {/* Main Content Wrapper */}
-      <div className="flex-1 flex flex-col w-full md:ml-72 min-h-screen overflow-hidden">
+      {/* Main Content Wrapper - Adjusted margin for collapsed sidebar */}
+      {/* Added 'peer-hover:md:ml-72' to shift content when sidebar expands */}
+      <div className="flex-1 flex flex-col w-full md:ml-20 peer-hover:md:ml-72 h-screen overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
         {/* Header */}
-        <header className="flex justify-between items-center px-8 h-24 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 sticky top-0 z-20">
+        <header className="no-print flex justify-between items-center px-8 h-24 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 sticky top-0 z-20">
           <div className="flex items-center gap-6">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -112,14 +129,9 @@ export default function EssLayout() {
                 <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
               </button>
               <div className="h-6 w-px bg-slate-200 dark:bg-slate-800"></div>
-              <div className="flex flex-col">
-                <h2 className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em] leading-none mb-1">
-                  Security Protocol
-                </h2>
-                <p className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter italic">
-                  Employee Intelligence Portal
-                </p>
-              </div>
+              <h1 className="text-lg font-black text-slate-700 dark:text-white uppercase tracking-tight">
+                {currentTitle}
+              </h1>
             </div>
           </div>
 
@@ -148,19 +160,19 @@ export default function EssLayout() {
 
             <div className="flex items-center gap-4">
               <div className="hidden lg:block text-right">
-                <p className="text-xs font-black text-slate-800 dark:text-white leading-none uppercase tracking-tighter italic">{fullName}</p>
-                <p className="text-[9px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1.5">{user?.role} NODE</p>
+                <p className="text-xs font-black text-slate-800 dark:text-white leading-none uppercase tracking-tighter">{fullName}</p>
+                <p className="text-[9px] font-black text-[#14B8A6] dark:text-teal-400 uppercase tracking-[0.2em] mt-1.5">{user?.role}</p>
               </div>
 
               <div className="relative group cursor-pointer">
-                <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 p-[2px] shadow-2xl shadow-indigo-600/20 group-hover:scale-110 transition-all duration-500">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-[#14B8A6] to-teal-600 p-[2px] shadow-2xl shadow-teal-500/20 group-hover:scale-110 transition-all duration-500">
                   <div className="w-full h-full rounded-[14px] bg-white dark:bg-slate-900 overflow-hidden flex items-center justify-center relative">
                     {profile?.profilePic ? (
                       <img src={profile.profilePic} alt="profile" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-sm font-black text-indigo-600 dark:text-indigo-400 italic">{fullName?.[0]?.toUpperCase()}</span>
+                      <span className="text-sm font-black text-[#14B8A6] dark:text-teal-400 italic">{fullName?.[0]?.toUpperCase()}</span>
                     )}
-                    <div className="absolute inset-0 bg-indigo-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="absolute inset-0 bg-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   </div>
                 </div>
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-900 rounded-full"></div>
@@ -177,7 +189,7 @@ export default function EssLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-[#0F172A] p-4 lg:p-8 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto bg-white dark:bg-[#0F172A] p-4 lg:p-8 custom-scrollbar">
           <ErrorBoundary>
             <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
               <Outlet context={{ activeTab, setActiveTab }} />
@@ -188,4 +200,3 @@ export default function EssLayout() {
     </div>
   );
 }
-

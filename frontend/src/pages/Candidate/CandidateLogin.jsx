@@ -64,9 +64,11 @@ export default function CandidateLogin() {
         setError('');
 
         if (!tenantId) {
-            setError('Invalid Access: Company ID missing. Please return to the careers page.');
+            setError('Invalid Access: Company ID missing. Please return to the careers page and click Login from there.');
             return;
         }
+
+        console.log(`[CandidateLogin] Attempting login for tenant: ${tenantId}, email: ${email}`);
 
         setLoading(true);
         const res = await loginCandidate(tenantId, email, password);
@@ -81,9 +83,18 @@ export default function CandidateLogin() {
                 navigate(`/candidate/dashboard`, { replace: true });
             }
         } else {
-            setError(res.message);
+            // Provide a more helpful error message
+            const msg = res.message || 'Login failed';
+            if (msg.toLowerCase().includes('invalid credentials') || msg.toLowerCase().includes('not found')) {
+                setError('Email or password is incorrect. If you haven\'t registered yet, please create an account below.');
+            } else if (msg.toLowerCase().includes('required fields') || msg.toLowerCase().includes('missing')) {
+                setError('Company portal not found. Please access this page from the careers link.');
+            } else {
+                setError(msg);
+            }
         }
     }
+
 
     if (pageLoading) {
         return (

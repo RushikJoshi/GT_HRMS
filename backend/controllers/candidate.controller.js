@@ -1,3 +1,10 @@
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const getTenantDB = require('../utils/tenantDB');
+const { getBGVModels } = require('../utils/bgvModels');
+const path = require('path');
+const fs = require('fs');
+
 // Update candidate profile
 exports.updateCandidateProfile = async (req, res) => {
     try {
@@ -101,12 +108,7 @@ exports.getCandidateProfile = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch profile", details: err.message });
     }
 };
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const getTenantDB = require('../utils/tenantDB');
-const { getBGVModels } = require('../utils/bgvModels');
-const path = require('path');
-const fs = require('fs');
+
 
 exports.registerCandidate = async (req, res) => {
     try {
@@ -455,13 +457,14 @@ exports.acceptOffer = async (req, res) => {
         }
 
         application.status = 'Offer Accepted';
+        application.status = 'Offer Accepted – Awaiting Company Approval';
         application.offerAcceptedAt = new Date();
         application.offerStatus = 'ACCEPTED';
 
         if (!application.timeline) application.timeline = [];
         application.timeline.push({
-            status: 'Offer Accepted',
-            message: 'Candidate has accepted the offer.',
+            status: 'Offer Accepted – Awaiting Company Approval',
+            message: 'Candidate has accepted the offer. Awaiting company approval and BGV initiation.',
             updatedBy: 'Candidate',
             timestamp: new Date()
         });
@@ -792,5 +795,226 @@ exports.uploadBGVDocument = async (req, res) => {
             } : 'No file'
         });
         res.status(500).json({ error: "Failed to upload document", details: err.message });
+    }
+};
+
+// Letter Signing Logic
+exports.getLetterStatus = async (req, res) => {
+    try {
+        const { tenantId, id } = req.candidate;
+        const { letterId } = req.params;
+        const tenantDB = await getTenantDB(tenantId);
+
+        if (!tenantDB.models.SignedLetter) {
+            try { tenantDB.model('SignedLetter', require('../models/SignedLetter')); } catch (e) { }
+        }
+        if (!tenantDB.models.GeneratedLetter) {
+            try { tenantDB.model('GeneratedLetter', require('../models/GeneratedLetter')); } catch (e) { }
+        }
+
+        const SignedLetter = tenantDB.model("SignedLetter");
+        const GeneratedLetter = tenantDB.model("GeneratedLetter");
+
+        // Verify letter exists and belongs to this candidate
+        const letter = await GeneratedLetter.findById(letterId);
+        if (!letter) return res.status(404).json({ error: "Letter not found" });
+
+        // Check if already signed
+        const signedRecord = await SignedLetter.findOne({ letterId, candidateId: id });
+
+        res.json({
+            isSigned: !!signedRecord,
+            signedAt: signedRecord?.signedAt,
+            signaturePosition: letter.signaturePosition || { alignment: 'right' }
+        });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch letter status" });
+    }
+};
+
+exports.signLetter = async (req, res) => {
+    try {
+        const { tenantId, id } = req.candidate;
+        const { letterId } = req.params;
+        const { signatureImage, signaturePosition } = req.body;
+        const path = require('path');
+        const fs = require('fs');
+        const { PDFDocument, rgb } = require('pdf-lib');
+
+        if (!signatureImage) {
+            return res.status(400).json({ error: "Signature image is required" });
+        }
+
+        const tenantDB = await getTenantDB(tenantId);
+
+        // Ensure models are registered
+        ['SignedLetter', 'GeneratedLetter', 'Applicant', 'Candidate'].forEach(m => {
+            if (!tenantDB.models[m]) {
+                try { tenantDB.model(m, require(`../models/${m}`)); } catch (e) { }
+            }
+        });
+
+        const SignedLetter = tenantDB.model("SignedLetter");
+        const GeneratedLetter = tenantDB.model("GeneratedLetter");
+        const Applicant = tenantDB.model("Applicant");
+        const Candidate = tenantDB.model("Candidate");
+
+        // 1. Verify Ownership & Existence
+        const letter = await GeneratedLetter.findById(letterId);
+        if (!letter) return res.status(404).json({ error: "Letter not found" });
+
+        const applicant = await Applicant.findById(letter.applicantId);
+        if (!applicant || applicant.candidateId.toString() !== id.toString()) {
+            return res.status(403).json({ error: "Unauthorized: This letter does not belong to you." });
+        }
+
+        // 2. Prevent Double Signing
+        const existing = await SignedLetter.findOne({ letterId, candidateId: id });
+        if (existing) {
+            // Idempotency: If already signed, just return success
+            return res.json({ success: true, message: "Letter already signed.", alreadySigned: true });
+        }
+
+        // 3. GENERATE SIGNED PDF IMMEDIATELY
+        let signedPdfRelativePath = null;
+        try {
+            // Locate original PDF
+            const uploadsDir = path.join(process.cwd(), 'uploads');
+            let relativePdfPath = (letter.pdfPath || '').replace(/^[\\/]+/, '');
+
+            // Remove 'uploads' prefix if present to avoid double stacking
+            if (relativePdfPath.startsWith('uploads/') || relativePdfPath.startsWith('uploads\\')) {
+                relativePdfPath = relativePdfPath.replace(/^uploads[\\/]/, '');
+            }
+
+            let absoluteOriginalPath = path.join(uploadsDir, relativePdfPath);
+
+            // Fallback: if not found, maybe it didn't have uploads prefix but we stripped it? or some other weirdness.
+            // But usually stripping uploads/ and joining with uploadsDir is the safest bet.
+
+            if (!fs.existsSync(absoluteOriginalPath)) {
+                console.warn(`[SIGN_LETTER] Path not found: ${absoluteOriginalPath}. Trying explicit check.`);
+                // Try strictly as provided relative to cwd
+                const checkPath = path.join(process.cwd(), letter.pdfPath || '');
+                if (fs.existsSync(checkPath)) {
+                    absoluteOriginalPath = checkPath;
+                }
+            }
+
+            if (fs.existsSync(absoluteOriginalPath)) {
+                console.log(`[SIGN_LETTER] Overlaying signature on: ${absoluteOriginalPath}`);
+
+                const existingPdfBytes = fs.readFileSync(absoluteOriginalPath);
+                const pdfDoc = await PDFDocument.load(existingPdfBytes);
+                const pages = pdfDoc.getPages();
+                const lastPage = pages[pages.length - 1];
+                const { width, height } = lastPage.getSize();
+
+                // Process signature image
+                const base64Data = signatureImage.split(',')[1] || signatureImage;
+                const signatureBuffer = Buffer.from(base64Data, 'base64');
+
+                let embeddedImage;
+                try {
+                    embeddedImage = await pdfDoc.embedPng(signatureBuffer);
+                } catch (e) {
+                    embeddedImage = await pdfDoc.embedJpg(signatureBuffer);
+                }
+
+                // Standard Positioning (Bottom Right default)
+                // Adjust per requirements (approximate standard letter position)
+                const imgDims = embeddedImage.scale(0.35); // Scale down
+                const xPos = width - imgDims.width - 70;
+                const yPos = 95; // Y position from bottom
+
+                lastPage.drawImage(embeddedImage, {
+                    x: xPos,
+                    y: yPos,
+                    width: imgDims.width,
+                    height: imgDims.height,
+                });
+
+                // Add text timestamp
+                const dateStr = `Digitally Signed by ${applicant.name} on ${new Date().toLocaleDateString('en-GB')}`;
+                lastPage.drawText(dateStr, {
+                    x: xPos,
+                    y: yPos - 12,
+                    size: 7,
+                    color: rgb(0.4, 0.4, 0.4)
+                });
+
+                const pdfBytes = await pdfDoc.save();
+
+                // Determine Output Path
+                const originalDir = path.dirname(absoluteOriginalPath);
+                const originalName = path.basename(absoluteOriginalPath);
+                const signedFileName = `Signed_${originalName}`;
+                const absoluteSignedPath = path.join(originalDir, signedFileName);
+
+                // Save to Disk
+                fs.writeFileSync(absoluteSignedPath, Buffer.from(pdfBytes));
+                console.log(`[SIGN_LETTER] Saved signed PDF to: ${absoluteSignedPath}`);
+
+                // Construct relative path for DB
+                // We want result like: "offers/Signed_Offer_Letter_..."
+                // Get relative from 'uploads'
+                signedPdfRelativePath = path.relative(uploadsDir, absoluteSignedPath).replace(/\\\\/g, '/');
+
+            } else {
+                console.warn(`[SIGN_LETTER] Original PDF not found at ${absoluteOriginalPath}, skipping overlay.`);
+            }
+        } catch (pdfErr) {
+            console.error(`[SIGN_LETTER] PDF Overlay failed:`, pdfErr);
+            // Proceed without failing the request, but log error
+        }
+
+        // 4. Save Signature Record
+        const signedLetter = new SignedLetter({
+            tenant: tenantId,
+            letterId,
+            candidateId: id,
+            signatureImage,
+            signaturePosition: signaturePosition || letter.signaturePosition,
+            signedAt: new Date(),
+            ip: req.ip,
+            userAgent: req.headers['user-agent']
+        });
+        await signedLetter.save();
+
+        // 5. Update GeneratedLetter
+        letter.status = 'Signed';
+        if (signedPdfRelativePath) {
+            letter.signedPdfPath = signedPdfRelativePath;
+        }
+        await letter.save();
+
+        // 6. Update Applicant Status & Timeline (CRITICAL FOR HR PANEL)
+        applicant.offerStatus = 'SIGNED';
+        applicant.isSigned = true;
+        if (signedPdfRelativePath) {
+            applicant.signedOfferPath = signedPdfRelativePath;
+        }
+
+        // Add to timeline
+        if (!applicant.timeline) applicant.timeline = [];
+        applicant.timeline.push({
+            status: 'Letter Signed',
+            message: `Candidate has digitally signed the ${letter.letterType || 'Offer'} letter.`,
+            updatedBy: 'Candidate',
+            timestamp: new Date()
+        });
+
+        await applicant.save();
+
+        res.json({
+            success: true,
+            message: "Letter signed successfully!",
+            signedAt: signedLetter.signedAt,
+            signedPdfPath: signedPdfRelativePath
+        });
+
+    } catch (err) {
+        console.error("Sign Letter Error:", err);
+        res.status(500).json({ error: "Failed to sign letter", details: err.message });
     }
 };

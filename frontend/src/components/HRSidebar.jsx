@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-
 import {
   LayoutDashboard,
   Users,
@@ -30,7 +29,7 @@ import {
   ExternalLink,
   Shield,
   Share2,
-  X
+  ChevronDown
 } from 'lucide-react';
 
 /* ================= ICONS ================= */
@@ -57,13 +56,13 @@ const ICONS = {
   applicants: <UserPlus size={ICON_SIZE} />,
   tracker: <Radar size={ICON_SIZE} />,
   templates: <FileJson size={ICON_SIZE} />,
-  // letters: <FileSignature size={ICON_SIZE} />,
   bgv: <Shield size={ICON_SIZE} />,
   access: <Lock size={ICON_SIZE} />,
   settings: <Settings2 size={ICON_SIZE} />,
-  customization: <Brush size={ICON_SIZE} className="text-indigo-400" />,
-  social: <Share2 size={ICON_SIZE} className="text-green-400" />,
-  viewCareers: <ExternalLink size={ICON_SIZE} className="text-blue-400" />
+  customization: <Brush size={ICON_SIZE} />,
+  social: <Share2 size={ICON_SIZE} />,
+  viewCareers: <ExternalLink size={ICON_SIZE} />,
+  chevronDown: <ChevronDown size={14} />
 };
 
 /* ================= NAV GROUPS ================= */
@@ -72,7 +71,7 @@ const NAV_GROUPS = [
     title: 'Overview',
     items: [
       { to: '/hr', label: 'Dashboard', icon: ICONS.dashboard, end: true },
-      { to: '/hr/reports', label: 'Personnel Reports', icon: ICONS.payrollDashboard }
+      { to: '/hr/reports', label: 'Reports', icon: ICONS.payrollDashboard }
     ]
   },
   {
@@ -80,345 +79,205 @@ const NAV_GROUPS = [
     module: 'hr',
     items: [
       { to: '/hr/employees', label: 'Employees', icon: ICONS.employees },
-
       { to: '/hr/departments', label: 'Departments', icon: ICONS.departments },
       { to: '/hr/org', label: 'Org Structure', icon: ICONS.org },
-      { to: '/hr/users', label: 'User Management', icon: ICONS.users }
+      { to: '/hr/users', label: 'Users', icon: ICONS.users }
     ]
   },
   {
     title: 'Attendance',
     module: 'attendance',
     items: [
-
-      { to: '/hr/attendance', label: 'Attendance Dashboard', icon: ICONS.attendance },
-      { to: '/hr/attendance-calendar', label: 'Calendar Management', icon: ICONS.calendar },
-      { to: '/hr/face-update-requests', label: 'Face Update Requests', icon: ICONS.users }
-
+      { to: '/hr/attendance', label: 'Dashboard', icon: ICONS.attendance },
+      { to: '/hr/attendance-calendar', label: 'Calendar', icon: ICONS.calendar },
+      { to: '/hr/face-update-requests', label: 'Face Updates', icon: ICONS.users }
     ]
   },
   {
     title: 'Leave',
     module: 'leave',
     items: [
-      { to: '/hr/leave-approvals', label: 'Leave Requests', icon: ICONS.leaveRequests },
-      { to: '/hr/leave-policies', label: 'Leave Policies', icon: ICONS.leavePolicies }
+      { to: '/hr/leave-approvals', label: 'Requests', icon: ICONS.leaveRequests },
+      { to: '/hr/leave-policies', label: 'Policies', icon: ICONS.leavePolicies }
     ]
   },
   {
     title: 'Payroll',
     module: 'payroll',
     items: [
-      { to: '/hr/payroll/dashboard', label: 'Payroll Dashboard', icon: ICONS.payrollDashboard },
-      { to: '/hr/payroll/salary-components', label: 'Salary Components', icon: ICONS.salaryComponents },
-      { to: '/hr/payroll/compensation', label: 'Employee Compensation', icon: ICONS.compensation },
-      { to: '/hr/payroll/process', label: 'Process Payroll', icon: ICONS.process },
-      { to: '/hr/payroll/run', label: 'Run History', icon: ICONS.runHistory },
-      { to: '/hr/payroll/payslips', label: 'Payslips', icon: ICONS.payslips },
-      // { to: '/hr/payroll/payslip-design', label: 'Payslip Design', icon: ICONS.payslipDesign }
+      { to: '/hr/payroll/dashboard', label: 'Stats', icon: ICONS.payrollDashboard },
+      { to: '/hr/payroll/salary-components', label: 'Salary', icon: ICONS.salaryComponents },
+      { to: '/hr/payroll/compensation', label: 'Compensation', icon: ICONS.compensation },
+      { to: '/hr/payroll/process', label: 'Process', icon: ICONS.process },
+      { to: '/hr/payroll/run', label: 'History', icon: ICONS.runHistory },
+      { to: '/hr/payroll/payslips', label: 'Payslips', icon: ICONS.payslips }
     ]
   },
   {
     title: 'Hiring',
     module: 'recruitment',
     items: [
-      {
-        label: 'Recruitment',
-        icon: ICONS.requirements,
-        children: [
-
-          { to: '/hr/requirements', label: 'Job List' },
-          { to: '/hr/create-requirement', label: 'Create Requirement' },
-          { to: '/hr/positions', label: 'Position Master' }
-
-        ]
-      },
-      {
-        label: 'Applicants',
-        icon: ICONS.applicants,
-        children: [
-          { to: '/hr/applicants', label: 'External' },
-          { to: '/hr/internal-applicants', label: 'Internal' }
-        ]
-      },
-      { to: '/hr/candidate-status', label: 'Candidate Status Tracker', icon: ICONS.tracker }
+      { to: '/hr/requirements', label: 'Job List', icon: ICONS.requirements },
+      { to: '/hr/applicants', label: 'Applicants', icon: ICONS.applicants },
+      { to: '/hr/candidate-status', label: 'Tracker', icon: ICONS.tracker }
     ]
   },
   {
-    title: 'BGV',
+    title: 'Identity',
     module: 'backgroundVerification',
     items: [
       { to: '/hr/bgv', label: 'Case Master', icon: ICONS.bgv },
-      { to: '/hr/bgv/emails', label: 'Email Management', icon: ICONS.bgv }
     ]
   },
   {
-    title: 'Document Management',
+    title: 'Documents',
     module: 'documentManagement',
     items: [
-      { to: '/hr/letters', label: 'Document Dashboard', icon: ICONS.dashboard },
-      { to: '/hr/letters/issue', label: 'Issue New Letter', icon: ICONS.applicants },
+      { to: '/hr/letters', label: 'Dashboard', icon: ICONS.dashboard },
+      { to: '/hr/letters/issue', label: 'Issue New', icon: ICONS.applicants },
     ]
   },
   {
-    title: 'Configuration',
+    title: 'Config',
     items: [
-      {
-        label: 'Templates',
-        icon: ICONS.templates,
-        children: [
-          { to: '/hr/letter-templates', label: 'Template Builder', module: 'documentManagement' },
-          { to: '/hr/letter-settings', label: 'System Settings', module: 'documentManagement' },
-          { to: '/hr/payslip-templates', label: 'Payslip Templates', module: 'payroll' }
-        ]
-      },
+      { to: '/hr/letter-templates', label: 'Templates', icon: ICONS.templates },
       { to: '/hr/access', label: 'Access Control', icon: ICONS.access },
-      { to: '/hr/settings/company', label: 'Company Settings', icon: ICONS.settings, end: true },
-      { to: '/hr/settings/social-media', label: 'Social Media', icon: ICONS.social, module: 'socialMediaIntegration' }
+      { to: '/hr/settings/company', label: 'Settings', icon: ICONS.settings, end: true },
     ]
   },
   {
-    title: 'Public Portal',
+    title: 'Portals',
     items: [
-      {
-        label: 'Customization',
-        icon: ICONS.customization,
-        children: [
-          { to: '/hr/career-builder', label: 'Edit Career Page', module: 'recruitment' },
-          { to: '/hr/apply-builder', label: 'Edit Apply Page', module: 'recruitment' },
-          // { to: '/tenant/customization/vendor', label: 'Edit Vendor Forms' }
-        ]
-      },
-      {
-        label: 'View Careers Page',
-        icon: ICONS.viewCareers,
-        isExternal: true,
-        module: 'recruitment'
-      }
+      { to: '/hr/career-builder', label: 'Career Page', icon: ICONS.customization },
+      { to: '/hr/apply-builder', label: 'Apply Page', icon: ICONS.customization },
+      { label: 'View Public', icon: ICONS.viewCareers, isExternal: true }
     ]
   }
 ];
 
-/* ================= COMPONENT ================= */
-export default function HRSidebar({ collapsed = false, toggleCollapse, onNavigate }) {
+export default function HRSidebar({ onClose }) {
   const { user, isInitialized, enabledModules } = useAuth();
   const location = useLocation();
-  const [expanded, setExpanded] = useState({});
+  const navigate = useNavigate();
+  const [expandedGroups, setExpandedGroups] = useState({
+    Overview: true,
+    People: true,
+    Attendance: true,
+    Leave: true,
+    Payroll: false,
+    Hiring: false,
+    Identity: false,
+    Documents: false,
+    Config: false,
+    Portals: false
+  });
   const [tenant, setTenant] = useState(null);
 
-  const filteredGroups = NAV_GROUPS.reduce((acc, group) => {
-    // 1. Check if the GROUP itself is allowed
-    // Super Admin sees everything
-    if (user?.role !== 'psa') {
-      // If group has a module requirement, check it
-      if (group.module && (!enabledModules || enabledModules[group.module] !== true)) {
-        return acc; // Skip this group entirely
-      }
-    }
-
-    // 2. Filter ITEMS within the group
-    const filteredItems = group.items.filter(item => {
-      // If item has specific module requirement (e.g. Social Media inside Configuration)
-      if (item.module && user?.role !== 'psa') {
-        if (!enabledModules || enabledModules[item.module] !== true) {
-          return false;
-        }
-      }
-      return true;
-    });
-
-    // 3. Only add group if it has items left
-    if (filteredItems.length > 0) {
-      acc.push({ ...group, items: filteredItems });
-    }
-
-    return acc;
-  }, []);
-
-
   useEffect(() => {
-    if (!isInitialized) return;
-    if (!user) return;
-    // Prevent fetching HR data if the user is a Candidate
-    if (user.role === 'candidate') return;
-
+    if (!isInitialized || !user || user.role === 'candidate') return;
     api.get('/tenants/me').then(res => setTenant(res.data)).catch(() => { });
   }, [user, isInitialized]);
 
-  const toggleGroup = (title) =>
-    setExpanded(prev => ({ ...prev, [title]: !prev[title] }));
+  const toggleGroup = (title) => {
+    setExpandedGroups(prev => ({ ...prev, [title]: !prev[title] }));
+  };
 
-  const handleExternalNav = (item) => {
-    if (item.label === 'View Careers Page' && tenant?.code) {
-      window.open(`/jobs/${tenant.code}`, '_blank');
+  const filteredGroups = NAV_GROUPS.filter(group => {
+    if (user?.role === 'psa') return true;
+    if (group.module) {
+      return enabledModules && enabledModules[group.module] === true;
     }
+    return true;
+  });
+
+  const handleExternalNav = () => {
+    if (tenant?.code) window.open(`/jobs/${tenant.code}`, '_blank');
   };
 
   return (
-    <aside className="h-full bg-gradient-to-b from-[#0F172A] via-[#111827] to-[#0F172A] border-r border-indigo-900/40 text-slate-300 flex flex-col w-full relative">
-      <div className="absolute inset-0 bg-indigo-500/5 pointer-events-none"></div>
-      {/* Header */}
-      <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-        {!collapsed && (
-          <div>
-            <div className="font-bold text-lg text-blue-400">Company Admin</div>
-            <div className="text-xs text-slate-500">HR Platform</div>
-          </div>
-        )}
-        {toggleCollapse && (
-          <button
-            onClick={toggleCollapse}
-            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95"
-            aria-label="Close sidebar"
-          >
-            <X size={20} />
-          </button>
-        )}
+    <aside className="w-full h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 flex flex-col shadow-sm overflow-hidden relative">
+      <div className="px-4 py-8 flex-shrink-0 flex items-center justify-start gap-3 h-20">
+        <div className="w-10 h-10 min-w-[2.5rem] rounded-xl bg-gradient-to-br from-[#14B8A6] to-[#0D9488] flex items-center justify-center text-white font-bold shadow-lg shadow-teal-500/20">
+          H
+        </div>
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden flex flex-col">
+          <div className="text-sm font-bold text-slate-800 dark:text-white leading-none">Global Tech</div>
+        </div>
       </div>
 
-      {/* Navigation */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {filteredGroups.map(group => (
-          <div key={group.title}>
-            {!collapsed && (
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-2 group-hover:space-y-6 transition-all duration-300 custom-scrollbar">
+        {filteredGroups.map((group) => {
+          const isExpanded = expandedGroups[group.title];
+          return (
+            <div key={group.title} className="space-y-1">
               <button
                 onClick={() => toggleGroup(group.title)}
-                className="w-full text-left text-xs uppercase text-slate-500 font-bold mb-2"
+                className="w-full flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 transition-all duration-300 h-0 mb-0 opacity-0 overflow-hidden group-hover:h-6 group-hover:mb-2 group-hover:opacity-100"
               >
-                {group.title}
+                <span className="whitespace-nowrap">{group.title}</span>
+                <span className={`transform transition-all duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
+                  <ChevronDown size={12} />
+                </span>
               </button>
-            )}
-            {group.items.map(item => {
-              if (item.isExternal) {
-                return (
-                  <button
-                    key={item.label}
-                    onClick={() => handleExternalNav(item)}
-                    aria-label={item.label}
-                    title={item.label}
-                    className="w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition hover:bg-slate-800/50 text-blue-400 font-bold"
-                  >
-                    {item.icon}
-                    {!collapsed && <span>{item.label}</span>}
-                  </button>
-                );
-              }
-              if (item.children) {
-                const isExpanded = expanded[item.label];
-                const hasActiveChild = item.children.some(child => location.pathname === child.to);
-                return (
-                  <div key={item.label}>
-                    <button
-                      onClick={() => toggleGroup(item.label)}
-                      aria-label={item.label}
-                      title={item.label}
-                      className={`w-full flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                        ${hasActiveChild ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'hover:bg-indigo-500/10 hover:text-indigo-300'}`}
+
+              <div className={`space-y-1 transition-all duration-300 overflow-hidden ${isExpanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                {group.items.map((item) => {
+                  const isActive = item.to && location.pathname === item.to;
+                  if (item.isExternal) {
+                    return (
+                      <button
+                        key={item.label}
+                        onClick={handleExternalNav}
+                        className="relative w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm font-medium transition-all duration-300 group/item hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-[#14B8A6]"
+                      >
+                        <div className="flex-shrink-0 text-slate-400 group-hover/item:text-[#14B8A6]">
+                          {item.icon}
+                        </div>
+                        <span className="whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
+                          {item.label}
+                        </span>
+                      </button>
+                    );
+                  }
+                  return (
+                    <NavLink
+                      key={item.label}
+                      to={item.to}
+                      end={item.end}
+                      onClick={() => { if (window.innerWidth < 1024) onClose(); }}
+                      className={({ isActive }) => `relative w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm font-medium transition-all duration-300 group/item overflow-hidden
+                        ${isActive
+                          ? 'bg-[#14B8A6] text-white shadow-md shadow-teal-500/20 group-hover:bg-gradient-to-r group-hover:from-[#14B8A6] group-hover:via-[#5EEAD4] group-hover:to-[#CCFBF1] group-hover:text-[#0F766E]'
+                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200'
+                        }`}
                     >
-                      {item.icon}
-                      {!collapsed && (
-                        <>
-                          <span className="flex-1 text-left">{item.label}</span>
-                          <span className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                            ▼
-                          </span>
-                        </>
-                      )}
-                    </button>
-                    {!collapsed && isExpanded && (
-                      <div className="ml-8 mt-1 space-y-1">
-                        {item.children.map(child => (
-                          <NavLink
-                            key={child.label}
-                            to={child.to}
-                            onClick={() => onNavigate && onNavigate()}
-                            className={({ isActive }) =>
-                              `block py-1.5 px-3 rounded-md text-sm transition
-                               ${isActive ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`
-                            }
-                          >
-                            {child.label}
-                          </NavLink>
-                        ))}
+                      <div className={`flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-white' : 'text-slate-400 group-hover/item:text-slate-600'}`}>
+                        {item.icon}
                       </div>
-                    )
-                    }
-                  </div>
-                );
-              }
-              return (
-                <NavLink
-                  key={item.label}
-                  to={item.to}
-                  end={item.end}
-                  aria-label={item.label}
-                  title={item.label}
-                  onClick={() => onNavigate && onNavigate()}
-
-
-                  className={({ isActive }) => {
-                    // Custom active check for strict matching
-                    let active = isActive;
-                    const [path, query] = item.to.split('?');
-                    const currentPath = location.pathname;
-                    const currentQuery = location.search.substring(1);
-
-                    if (query) {
-                      active = currentPath === path && currentQuery === query;
-                    } else if (currentQuery && currentPath === path) {
-                      // If URL has query but this item doesn't, don't highlight (strict match)
-                      active = false;
-                    }
-
-                    return `flex items-center gap-3 py-2 px-3 rounded-md text-sm transition
-                     ${active ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`;
-                  }}
-
-                >
-                  {item.icon}
-                  {!collapsed && <span>{item.label}</span>}
-                </NavLink>
-              );
-            })}
-          </div>
-        ))}
+                      <span className={`whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100 ${isActive ? 'font-bold' : ''}`}>
+                        {item.label}
+                      </span>
+                      {isActive && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 h-full w-1 bg-[#ccfbf1] opacity-50 blur-[2px]"></div>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Company block */}
-      <div className="p-4 border-t border-slate-800">
-        {tenant && !collapsed && (
-          <div className="text-xs text-slate-400">
-            <div className="font-semibold">{tenant.name}</div>
-            <div>{tenant.code}</div>
-          </div>
-        )}
-      </div>
-    </aside >
-  );
-}
-
-function SidebarCompanyBlock({ collapsed }) {
-  const [tenant, setTenant] = useState(null);
-
-  useEffect(() => {
-    let mounted = true;
-    api.get('/tenants/me').then(res => { if (mounted) setTenant(res.data); }).catch(() => { });
-    return () => { mounted = false; };
-  }, []);
-
-  const name = tenant?.name || 'Company';
-  const code = tenant?.code || '';
-  const initials = name.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
-
-  return (
-    <div className={`flex items-center gap-3 mt-4 ${collapsed ? 'justify-center' : ''}`}>
-      <div className="h-10 w-10 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 font-semibold flex-shrink-0">{initials || 'HR'}</div>
-      {!collapsed && (
-        <div className="overflow-hidden">
-          <div className="font-semibold truncate">{name}</div>
-          {code && <div className="text-sm text-slate-500 truncate">{code}</div>}
+      <div className="p-4 mt-auto border-t border-slate-100 dark:border-slate-800 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden bg-white/50 backdrop-blur-sm">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-2 h-2 rounded-full bg-[#14B8A6] animate-pulse"></div>
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">System Active</span>
         </div>
-      )}
-    </div>
+        <div className="text-[10px] text-slate-400 truncate">
+          v2.5.0 Stable Release
+        </div>
+      </div>
+    </aside>
   );
 }

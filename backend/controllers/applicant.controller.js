@@ -46,21 +46,30 @@ exports.applyJob = async (req, res) => {
 
         // 2. Get Tenant Context & Fetch Job Details
         const { Applicant, Requirement } = getModels(req);
-        const job = await Requirement.findById(jobId).select('jobTitle description');
+        const job = await Requirement.findById(jobId).select('jobTitle description skills minExperience education preferredSkills');
         const jobTitle = job?.jobTitle || "";
         const jobDesc = job?.description || "";
 
-        // 1. Parse Resume (OCR + AI)
-        let parseResult = { rawText: "", structuredData: {} };
+        // 1. Parse Resume (OCR / Text)
+        let rawText = "";
         try {
-            parseResult = await ResumeParserService.parseResume(req.file.path, req.file.mimetype, jobDesc, jobTitle);
+            rawText = await ResumeParserService.parseResume(req.file.path, req.file.mimetype);
         } catch (e) {
-            console.error("[APPLY_JOB] Resume Parsing Failed, continuing with raw file:", e.message);
+            console.error("[APPLY_JOB] Resume Parsing Failed:", e.message);
+            // We continue? If parsing fails, we can't do much. But maybe we save file and manual entry.
+            // Let's allow rawText to be empty but log error.
         }
 
-        const { rawText, structuredData } = parseResult;
+        // 2. AI Extraction
+        const AIExtractionService = require('../services/AIExtraction.service'); // Lazy load
+        let structuredData = {};
+        try {
+            structuredData = await AIExtractionService.extractData(rawText, jobTitle, jobDesc);
+        } catch (e) {
+            console.error("[APPLY_JOB] AI Extraction Failed:", e.message);
+        }
 
-        // 4. Calculate Match Score
+        // 3. Calculate Match Score
         const MatchingEngine = require('../services/MatchingEngine.service');
         let matchResult = { totalScore: 0, breakdown: {}, matchedSkills: [], missingSkills: [] };
         try {
@@ -69,7 +78,7 @@ exports.applyJob = async (req, res) => {
             console.error("[APPLY_JOB] Matching Engine Failed:", e.message);
         }
 
-        // 3. Create Applicant
+        // 4. Create Applicant
         const applicant = new Applicant({
             requirementId: jobId,
             tenant: req.tenantId,
@@ -92,7 +101,7 @@ exports.applyJob = async (req, res) => {
 
             // Manual/Defaults
             experience: structuredData.totalExperience || "",
-            currentCompany: structuredData.currentCompany || "",
+            currentCompany: structuredData.currentCompany || "", // AI should return this if possible, else "N/A"
 
             status: 'Applied'
         });
@@ -104,7 +113,8 @@ exports.applyJob = async (req, res) => {
             message: "Application submitted successfully",
             applicantId: applicant._id,
             profile: structuredData,
-            matchPercent: matchResult.totalScore
+            matchPercent: matchResult.totalScore,
+            matchBreakdown: matchResult.breakdown
         });
 
 
@@ -501,41 +511,20 @@ exports.parseResume = async (req, res) => {
         console.log(`[RESUME_PARSE] Processing ${originalName}...`);
 
         try {
-            if (ext === '.pdf') {
-                // Use pdf-parse
-                const dataBuffer = fs.readFileSync(filePath);
-                const pdfData = await pdfParse(dataBuffer);
-                extractedText = pdfData.text;
-            } else {
-                // Image (png, jpg, jpeg)
-                const { data: { text } } = await Tesseract.recognize(filePath, 'eng');
-                extractedText = text;
-            }
+            extractedText = await ResumeParserService.parseResume(filePath, req.file.mimetype);
         } catch (ocrErr) {
             console.error("OCR Error:", ocrErr);
-            return res.status(500).json({ message: "OCR Extraction failed", error: ocrErr.message });
+            return res.status(500).json({ message: "Extraction failed", error: ocrErr.message });
         }
 
         // 2. AI Extraction
-        if (!process.env.GEMINI_API_KEY) {
-            return res.json({
-                success: true,
-                message: "Text extracted. Add GEMINI_API_KEY to .env to get structured JSON.",
-                rawText: extractedText,
-                parsed: null
-            });
-        }
-
-        const aiResponse = await callGeminiAI(extractedText);
-
-        let parsedData = null;
+        const AIExtractionService = require('../services/AIExtraction.service');
+        let parsedData = {};
         try {
-            // Clean markdown json blocks if any
-            const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-            parsedData = JSON.parse(jsonStr);
-        } catch (e) {
-            console.warn("AI JSON Parse failed", e);
-            parsedData = { raw: aiResponse };
+            parsedData = await AIExtractionService.extractData(extractedText);
+        } catch (aiErr) {
+            console.error("AI Error:", aiErr);
+            parsedData = { error: aiErr.message };
         }
 
         res.json({ success: true, parsed: parsedData, rawText: extractedText });
@@ -610,3 +599,232 @@ exports.getResumeFile = async (req, res) => {
         res.status(500).json({ message: "Failed to load resume", error: error.message });
     }
 };
+
+/**
+ * Helper: Try to get resume text — from stored rawOCRText OR re-read from disk file
+ */
+async function getResumeText(applicant) {
+    // 1. Use stored OCR text if available and substantial
+    if (applicant.rawOCRText && applicant.rawOCRText.length > 100) {
+        console.log(`[RESCORE] Using stored rawOCRText (${applicant.rawOCRText.length} chars) for ${applicant.name}`);
+        return { text: applicant.rawOCRText, source: 'stored' };
+    }
+
+    // 2. Try to re-read from disk
+    if (applicant.resume) {
+        const resumesDir = path.join(__dirname, '..', 'uploads', 'resumes');
+        const possiblePaths = [
+            path.join(resumesDir, applicant.resume),
+            path.join(__dirname, '..', 'uploads', applicant.resume),
+            applicant.resume // absolute path
+        ];
+
+        for (const filePath of possiblePaths) {
+            if (fs.existsSync(filePath)) {
+                try {
+                    console.log(`[RESCORE] Re-reading resume from disk: ${filePath}`);
+                    const text = await ResumeParserService.parseResume(filePath, 'application/pdf');
+                    if (text && text.length > 50) {
+                        return { text, source: 'disk', filePath };
+                    }
+                } catch (e) {
+                    console.warn(`[RESCORE] Failed to parse ${filePath}:`, e.message);
+                }
+            }
+        }
+    }
+
+    return { text: null, source: 'none' };
+}
+
+/**
+ * Re-score a single applicant using stored rawOCRText + fixed MatchingEngine
+ * POST /hr/applicants/:id/rescore
+ */
+exports.rescoreApplicant = async (req, res) => {
+    try {
+        const { Applicant, Requirement } = getModels(req);
+        const applicant = await Applicant.findById(req.params.id);
+        if (!applicant) return res.status(404).json({ error: "Applicant not found" });
+
+        const requirement = await Requirement.findById(applicant.requirementId);
+        if (!requirement) return res.status(404).json({ error: "Requirement not found" });
+
+        const AIExtractionService = require('../services/AIExtraction.service');
+        const MatchingEngine = require('../services/MatchingEngine.service');
+
+        const jobDescText = requirement.jobDescription?.roleOverview || requirement.jobTitle || '';
+
+        // Step 1: Get resume text (from DB or re-read from disk)
+        const { text: resumeText, source, filePath } = await getResumeText(applicant);
+
+        let structuredData = {};
+
+        if (resumeText) {
+            // Step 2: Run full AI extraction with job context
+            try {
+                structuredData = await AIExtractionService.extractData(
+                    resumeText,
+                    requirement.jobTitle,
+                    jobDescText
+                );
+                console.log(`✅ [RESCORE] AI extracted for ${applicant.name} (source: ${source}) — Skills: ${structuredData.skills?.length || 0}, Score: ${structuredData.matchPercentage}%`);
+
+                // Store the text back if it was re-read from disk
+                if (source === 'disk') {
+                    applicant.rawOCRText = resumeText;
+                    applicant.parsingStatus = 'Completed';
+                }
+            } catch (aiErr) {
+                console.warn(`⚠️ [RESCORE] AI extraction failed for ${applicant.name}:`, aiErr.message);
+                structuredData = applicant.aiParsedData || {};
+            }
+        } else {
+            // No resume text at all — use whatever was stored
+            console.warn(`⚠️ [RESCORE] No resume text for ${applicant.name} — using stored aiParsedData`);
+            structuredData = applicant.aiParsedData || {
+                fullName: applicant.name,
+                totalExperience: applicant.experience || '0',
+                skills: applicant.parsedSkills || [],
+                education: []
+            };
+        }
+
+        // Step 3: Run matching engine
+        const matchResult = await MatchingEngine.calculateMatchScore(requirement, structuredData);
+        console.log(`✅ [RESCORE] ${applicant.name}: ${applicant.matchScore}% → ${matchResult.totalScore}%`);
+
+        // Step 4: Save everything back
+        applicant.matchScore = matchResult.totalScore;
+        applicant.matchBreakdown = matchResult.breakdown;
+        applicant.matchedSkills = matchResult.matchedSkills;
+        applicant.missingSkills = matchResult.missingSkills;
+        applicant.aiParsedData = {
+            ...structuredData,
+            summary: structuredData.summary || structuredData.experienceSummary || null
+        };
+        if (Array.isArray(structuredData.skills) && structuredData.skills.length > 0) {
+            applicant.parsedSkills = structuredData.skills;
+        }
+        await applicant.save();
+
+        res.json({
+            success: true,
+            applicantId: applicant._id,
+            name: applicant.name,
+            resumeSource: source,
+            skillsFound: structuredData.skills?.length || 0,
+            newScore: matchResult.totalScore,
+            breakdown: matchResult.breakdown,
+            matchedSkills: matchResult.matchedSkills,
+            missingSkills: matchResult.missingSkills
+        });
+
+    } catch (err) {
+        console.error("❌ [RESCORE] Error:", err);
+        res.status(500).json({ error: "Re-scoring failed", details: err.message });
+    }
+};
+
+/**
+ * Re-score ALL applicants for a specific job requirement
+ * POST /hr/requirements/:requirementId/rescore-all
+ */
+exports.rescoreAllApplicants = async (req, res) => {
+    try {
+        const { Applicant, Requirement } = getModels(req);
+        const { requirementId } = req.params;
+
+        const requirement = await Requirement.findById(requirementId);
+        if (!requirement) return res.status(404).json({ error: "Requirement not found" });
+
+        const applicants = await Applicant.find({ requirementId });
+        if (!applicants.length) return res.json({ success: true, message: "No applicants found", updated: 0 });
+
+        const AIExtractionService = require('../services/AIExtraction.service');
+        const MatchingEngine = require('../services/MatchingEngine.service');
+        const jobDescText = requirement.jobDescription?.roleOverview || requirement.jobTitle || '';
+
+        let updated = 0;
+        const results = [];
+
+        for (const applicant of applicants) {
+            try {
+                const oldScore = applicant.matchScore;
+
+                // Step 1: Get resume text (stored or re-read from disk)
+                const { text: resumeText, source } = await getResumeText(applicant);
+
+                let structuredData = {};
+
+                if (resumeText) {
+                    try {
+                        structuredData = await AIExtractionService.extractData(
+                            resumeText,
+                            requirement.jobTitle,
+                            jobDescText
+                        );
+                        console.log(`✅ [RESCORE-ALL] ${applicant.name} (${source}): Skills=${structuredData.skills?.length || 0}, AI Score=${structuredData.matchPercentage}%`);
+
+                        // Store text back if re-read from disk
+                        if (source === 'disk') {
+                            applicant.rawOCRText = resumeText;
+                            applicant.parsingStatus = 'Completed';
+                        }
+                    } catch (e) {
+                        console.warn(`⚠️ [RESCORE-ALL] AI failed for ${applicant.name}:`, e.message);
+                        structuredData = applicant.aiParsedData || {};
+                    }
+                } else {
+                    console.warn(`⚠️ [RESCORE-ALL] No resume for ${applicant.name} — using stored data`);
+                    structuredData = applicant.aiParsedData || {
+                        fullName: applicant.name,
+                        totalExperience: applicant.experience || '0',
+                        skills: applicant.parsedSkills || [],
+                        education: []
+                    };
+                }
+
+                // Step 2: Run matching
+                const matchResult = await MatchingEngine.calculateMatchScore(requirement, structuredData);
+
+                // Step 3: Save
+                applicant.matchScore = matchResult.totalScore;
+                applicant.matchBreakdown = matchResult.breakdown;
+                applicant.matchedSkills = matchResult.matchedSkills;
+                applicant.missingSkills = matchResult.missingSkills;
+                applicant.aiParsedData = {
+                    ...structuredData,
+                    summary: structuredData.summary || structuredData.experienceSummary || null
+                };
+                if (Array.isArray(structuredData.skills) && structuredData.skills.length > 0) {
+                    applicant.parsedSkills = structuredData.skills;
+                }
+                await applicant.save();
+
+                updated++;
+                results.push({
+                    name: applicant.name,
+                    resumeSource: source,
+                    skillsFound: structuredData.skills?.length || 0,
+                    oldScore,
+                    newScore: matchResult.totalScore,
+                    matchedSkills: matchResult.matchedSkills,
+                    missingSkills: matchResult.missingSkills
+                });
+                console.log(`✅ [RESCORE-ALL] ${applicant.name}: ${oldScore}% → ${matchResult.totalScore}%`);
+
+            } catch (e) {
+                console.error(`❌ [RESCORE-ALL] Failed for ${applicant.name}:`, e.message);
+                results.push({ name: applicant.name, error: e.message });
+            }
+        }
+
+        res.json({ success: true, updated, total: applicants.length, results });
+
+    } catch (err) {
+        console.error("❌ [RESCORE-ALL] Fatal Error:", err);
+        res.status(500).json({ error: "Batch re-scoring failed", details: err.message });
+    }
+};
+

@@ -51,4 +51,8 @@ router.post('/application/request-offer-revision/:applicationId', authenticateCa
 router.get('/application/bgv-documents/:applicationId', authenticateCandidate, candidateCtrl.getBGVDocuments);
 router.post('/application/bgv-documents/:applicationId/upload', authenticateCandidate, upload.single('document'), candidateCtrl.uploadBGVDocument);
 
+// Letter Signing
+router.get('/letter/status/:letterId', authenticateCandidate, candidateCtrl.getLetterStatus);
+router.post('/letter/sign/:letterId', authenticateCandidate, candidateCtrl.signLetter);
+
 module.exports = router;

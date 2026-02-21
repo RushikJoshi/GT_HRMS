@@ -89,6 +89,7 @@ function registerModels(db, tenantId, forceRefresh = false) {
     const DocumentAccessSchema = require("../models/DocumentAccess");
     const LetterRevocationSchema = require("../models/LetterRevocation");
     const DocumentViewConfigSchema = require("../models/DocumentViewConfig");
+    const SignedLetterSchema = require("../models/SignedLetter");
     const RequirementDraftSchema = require("../models/RequirementDraft");
 
     // Helper to register or FORCE refresh
@@ -177,6 +178,7 @@ function registerModels(db, tenantId, forceRefresh = false) {
     register("DocumentAccess", DocumentAccessSchema);
     register("LetterRevocation", LetterRevocationSchema);
     register("DocumentViewConfig", DocumentViewConfigSchema);
+    register("SignedLetter", SignedLetterSchema);
     register("RequirementDraft", RequirementDraftSchema);
 
     // NEW: Payroll Adjustment

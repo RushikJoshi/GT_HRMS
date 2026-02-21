@@ -60,6 +60,11 @@ const { authenticateCandidate } = require('../middleware/jobPortalAuthMiddleware
 // Get Dynamic PDF (Centralized tenant middleware handles query-based auth for iframes)
 router.get('/:id/pdf', letterCtrl.generateDynamicPDF);
 
+// NOTE: /view-pdf route is mounted directly in app.js as a public route
+
+// Company Final Approval (Phase 2)
+router.post('/:id/approve-company-signature', authenticate, requireHr, letterCtrl.approveCompanySignature);
+
 // Candidate Actions
 router.post('/:id/accept', authenticateCandidate, letterCtrl.acceptLetter);
 

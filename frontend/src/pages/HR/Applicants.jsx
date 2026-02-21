@@ -1,10 +1,12 @@
-
-import React, { useEffect, useState } from 'react';
+﻿
+import React, { useEffect, useState, useRef } from 'react';
+import SignatureCanvas from 'react-signature-canvas';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api, { API_ROOT } from '../../utils/api'; // Centralized axios instance with auth & tenant headers
 import { getNextStage, normalizeStatus } from './PipelineStatusManager';
 import { useAuth } from '../../context/AuthContext';
-import OfferLetterPreview from '../../components/OfferLetterPreview';
+import MatchBreakdown from '../../components/MatchBreakdown';
+
 import AssignSalaryModal from '../../components/AssignSalaryModal';
 import { DatePicker, Pagination, Select, Modal, TimePicker, notification, Dropdown, Menu } from 'antd';
 import { showToast, showConfirmToast } from '../../utils/uiNotifications'; // Imports fixed
@@ -125,6 +127,67 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         difficulty: 'Medium',
         gameType: 'Coding'
     });
+
+    // Company Approval State (Phase 2)
+    const [companyProfile, setCompanyProfile] = useState(null);
+    const [companyApprovalModalVisible, setCompanyApprovalModalVisible] = useState(false);
+    const [applicantForApproval, setApplicantForApproval] = useState(null);
+    const [companySig, setCompanySig] = useState(null);
+    const [companyStamp, setCompanyStamp] = useState(null);
+    const [isApproving, setIsApproving] = useState(false);
+
+    useEffect(() => {
+        const fetchContext = async () => {
+            try {
+                const res = await api.get('/letters/company-profile');
+                setCompanyProfile(res.data);
+                // if (res.data?.signatory?.signatureImage) {
+                //     setCompanySig(res.data.signatory.signatureImage);
+                // }
+                // If there's a default stamp in branding or meta, we could set it too
+                if (res.data?.branding?.letterheadBg) {
+                    // setCompanyStamp(res.data.branding.letterheadBg);
+                }
+            } catch (err) {
+                console.warn("Failed to fetch company profile for approval context", err);
+            }
+        };
+        fetchContext();
+    }, []);
+
+    // Stamp Customization State
+    const [stampSettings, setStampSettings] = useState({ x: 10, y: 10, scale: 1 }); // x,y in percentage relative to container bottom-left logic if needed, but here relative to top-left of container
+    const [isDraggingStamp, setIsDraggingStamp] = useState(false);
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null); // URL for iframe preview
+    const stampContainerRef = useRef(null);
+
+    const handleStampDragStart = (e) => {
+        setIsDraggingStamp(true);
+    };
+
+    const handleStampDragEnd = (e) => {
+        setIsDraggingStamp(false);
+    };
+
+    const handleStampDrag = (e) => {
+        if (!isDraggingStamp || !stampContainerRef.current) return;
+
+        // Calculate new position
+        const rect = stampContainerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top; // This is top-left based
+
+        // Constrain to container
+        const xPercent = (x / rect.width) * 100;
+        const yPercent = (y / rect.height) * 100;
+
+        // Limit 0-100
+        const clampedX = Math.max(0, Math.min(100, xPercent));
+        const clampedY = Math.max(0, Math.min(100, yPercent));
+
+        setStampSettings(prev => ({ ...prev, x: clampedX, y: clampedY }));
+    };
+
 
 
     const openWorkflowEditor = () => {
@@ -321,8 +384,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             const foundStatuses = [...new Set(relevantApplicants.map(a => a.status))];
 
             const extraStatuses = foundStatuses.filter(s =>
-                s && !baseParams.includes(s) &&
-                !['Selected', 'Finalized', 'Offer Generated', 'Salary Assigned', 'Offer Issued', 'Offer Accepted', 'Hired', 'Joining Letter Issued', 'Offer Expired', 'Interview Scheduled', 'Interview Rescheduled', 'Interview Completed', 'New Round'].includes(s)
+                !baseParams.includes(s) &&
+                !['Selected', 'Rejected', 'Finalized', 'Offer Generated', 'Salary Assigned', 'Offer Issued', 'Offer Accepted', 'Hired', 'Joining Letter Issued', 'Offer Expired', 'Interview Scheduled', 'Interview Rescheduled', 'Interview Completed', 'New Round', 'Offer Accepted – Awaiting Company Approval', 'Fully Signed'].includes(s)
             );
 
             // Insert extra statuses before 'Finalized' if present
@@ -559,11 +622,11 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
         // Step 2: Handle Terminal/Special statuses
         if (normalizedTarget === 'Finalized') {
-            return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired'].includes(applicantStatus);
+            return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Offer Accepted – Awaiting Company Approval', 'Fully Signed', 'Hired', 'Offer Expired'].includes(applicantStatus);
         }
 
         // Candidates who are Finalized or Selected have passed all steps
-        if (['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired'].includes(applicantStatus)) {
+        if (['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Offer Accepted – Awaiting Company Approval', 'Fully Signed', 'Hired'].includes(applicantStatus)) {
             return true; // Visible in all tabs
         }
 
@@ -654,7 +717,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [showCandidateModal, setShowCandidateModal] = useState(false);
 
     // File Upload State
-    const fileInputRef = React.useRef(null);
+    const sigCanvasRef = useRef({});
+    const fileInputRef = useRef(null);
     const [uploading, setUploading] = useState(false);
 
     const triggerFileUpload = (applicant) => {
@@ -703,7 +767,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         issueDate: dayjs().format('YYYY-MM-DD'), // Default to today
         name: '',
         dearName: '',
-        dateFormat: 'Do MMM. YYYY' // Default format
+        dateFormat: 'Do MMM. YYYY', // Default format
+        signaturePosition: { alignment: 'right' }
     });
     const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
 
@@ -715,6 +780,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
     const [showJoiningPreview, setShowJoiningPreview] = useState(false);
     const [joiningRefNo, setJoiningRefNo] = useState('');
     const [joiningIssueDate, setJoiningIssueDate] = useState(dayjs().format('YYYY-MM-DD'));
+    const [joiningSignaturePosition, setJoiningSignaturePosition] = useState({ alignment: 'right' });
 
     // Salary Assignment State
     const [showSalaryModal, setShowSalaryModal] = useState(false);
@@ -1316,6 +1382,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             case 'Selected': return 'bg-green-100 text-green-800';
             case 'Offer Issued': return 'bg-purple-100 text-purple-800';
             case 'Offer Accepted': return 'bg-teal-100 text-teal-800';
+            case 'Offer Accepted – Awaiting Company Approval': return 'bg-cyan-100 text-cyan-800';
+            case 'Fully Signed': return 'bg-emerald-600 text-white';
             case 'Joining Letter Issued': return 'bg-cyan-100 text-cyan-800';
             case 'Hired': return 'bg-emerald-600 text-white';
             case 'Rejected': return 'bg-red-100 text-red-800';
@@ -1335,6 +1403,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             case 'Selected': return 'bg-emerald-500 text-white border-emerald-600';
             case 'Offer Issued': return 'bg-purple-50/50 text-purple-600 border-purple-100';
             case 'Offer Accepted': return 'bg-teal-50/50 text-teal-600 border-teal-100';
+            case 'Offer Accepted – Awaiting Company Approval': return 'bg-cyan-50/50 text-cyan-600 border-cyan-100';
+            case 'Fully Signed': return 'bg-emerald-500 text-white border-emerald-600 shadow-lg';
             case 'Joining Letter Issued': return 'bg-cyan-50/50 text-cyan-600 border-cyan-100';
             case 'Hired': return 'bg-emerald-600 text-white border-emerald-700';
             case 'Rejected': return 'bg-red-50/50 text-red-600 border-red-100';
@@ -1365,7 +1435,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             issueDate: dayjs().format('YYYY-MM-DD'),
             name: applicant.name,
             dearName: applicant.name, // Default to full name
-            dateFormat: 'Do MMM. YYYY'
+            dateFormat: 'Do MMM. YYYY',
+            signaturePosition: { alignment: 'right' }
         });
         setPreviewPdfUrl(null);
         setShowModal(true);
@@ -1427,6 +1498,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     name: offerData.name,
                     dearName: offerData.dearName,
                     dateFormat: offerData.dateFormat,
+                    signaturePosition: offerData.signaturePosition,
                     preview: true // Tell backend this is just a preview
                 };
 
@@ -1462,6 +1534,70 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
     };
 
+    const openCompanyApprovalModal = async (applicant) => {
+        setApplicantForApproval(applicant);
+        setCompanyApprovalModalVisible(true);
+        setPdfPreviewUrl(null); // Reset
+
+        // Fetch the PDF URL for preview
+        try {
+            const resLetters = await api.get(`/letters/generated-letters?applicantId=${applicant._id}`);
+            const offerLetter = (resLetters.data?.data || []).find(l => l.letterType?.toLowerCase().includes('offer'));
+
+            if (offerLetter) {
+                const tenantId = user?.tenantId || api.defaults.headers['X-Tenant-ID'] || api.defaults.headers['x-tenant-id'];
+                // Use the view-pdf route which serves the file
+                // We add timestamp to avoid cache
+                const url = `${API_ROOT}/api/public/letters/${offerLetter._id}/view-pdf?tenantId=${tenantId}&ts=${Date.now()}#toolbar=0&navpanes=0&scrollbar=0`;
+                setPdfPreviewUrl(url);
+            }
+        } catch (err) {
+            console.error("Failed to load PDF preview for approval modal", err);
+        }
+    };
+
+    const handleApproveCompany = async () => {
+        // if (!companySig) {
+        //     notification.error({ message: 'Error', description: 'Company signature is required', placement: 'topRight' });
+        //     return;
+        // }
+
+        setIsApproving(true);
+        try {
+            // Find the letter ID for this applicant
+            const resLetters = await api.get(`/letters/generated-letters?applicantId=${applicantForApproval._id}`);
+            const offerLetter = (resLetters.data?.data || []).find(l => l.letterType?.toLowerCase().includes('offer'));
+
+            if (!offerLetter) {
+                throw new Error("Offer letter not found for this applicant. Please ensure the offer letter was generated correctly.");
+            }
+
+            await api.post(`/letters/${offerLetter._id}/approve-company-signature`, {
+                signatureImage: null, // companySig,
+                stampImage: companyStamp,
+                stampSettings // { x: %, y: %, scale: number }
+            });
+
+            notification.success({
+                message: 'Success',
+                description: 'Offer letter approved and fully signed by company. Next steps: BGV initiation.',
+                placement: 'topRight'
+            });
+            setCompanyApprovalModalVisible(false);
+            setApplicantForApproval(null);
+            loadApplicants();
+        } catch (err) {
+            console.error('[APPROVE_COMPANY] Error:', err);
+            notification.error({
+                message: 'Approval Failed',
+                description: err.response?.data?.message || err.message,
+                placement: 'topRight'
+            });
+        } finally {
+            setIsApproving(false);
+        }
+    };
+
     const submitOffer = async (e) => {
         if (e) e.preventDefault();
         if (!selectedApplicant) return;
@@ -1492,6 +1628,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 name: offerData.name,
                 dearName: offerData.dearName,
                 dateFormat: offerData.dateFormat,
+                signaturePosition: offerData.signaturePosition,
                 // Pass other fields if needed for specific templates
             };
 
@@ -1523,7 +1660,12 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             if (newWindow) {
                 newWindow.close();
             }
-            notification.error({ message: 'Error', description: err.response?.data?.message || 'Failed to generate offer letter', placement: 'topRight' });
+            const msg = err.response?.data?.message || err.message || "Failed to generate offer letter";
+            if (err.response?.status === 404 && !err.response?.data?.message) {
+                notification.error({ message: 'Error', description: `Generation failed: Server endpoint not found (404). Please ensure the backend server is running and the route '/api/letters/generate-offer' exists.`, placement: 'topRight' });
+            } else {
+                notification.error({ message: 'Error', description: `Generation failed: ${msg}`, placement: 'topRight' });
+            }
         } finally {
             setGenerating(false);
         }
@@ -1540,15 +1682,60 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         window.open(url, '_blank');
     };
 
-    const viewOfferLetter = (filePath) => {
-        // Handle both cases: just filename or full path
-        let cleanPath = filePath;
-        if (filePath && filePath.includes('/')) {
-            // If path contains slashes, extract just the filename
-            cleanPath = filePath.split('/').pop();
+    const viewOfferLetter = async (app) => {
+        if (!app) return;
+
+        try {
+            // Find the letter ID for this applicant
+            const resLetters = await api.get(`/letters/generated-letters?applicantId=${app._id}`);
+            // Check for 'offer' or 'offer letter' (case insensitive)
+            const offerLetter = (resLetters.data?.data || []).find(l => l.letterType?.toLowerCase().includes('offer'));
+
+            if (offerLetter) {
+                console.log('📄 [VIEW_OFFER_LETTER] Record found:', offerLetter._id);
+                // Use the public view route with tenantId query param
+                // This route is specifically optimized for viewing signed/stamped versions correctly
+                const tenantId = user?.tenantId || api.defaults.headers['X-Tenant-ID'] || api.defaults.headers['x-tenant-id'];
+                // Step 5: Add timestamp to prevent caching
+                const url = `${API_ROOT}/api/public/letters/${offerLetter._id}/view-pdf?tenantId=${tenantId}&ts=${Date.now()}`;
+                window.open(url, '_blank');
+            } else if (app.signedOfferPath || app.offerLetterPath) {
+                console.warn('⚠️ [VIEW_OFFER_LETTER] No GeneratedLetter record found, falling back to static path');
+
+                let cleanPath = app.signedOfferPath;
+
+                // Fallback: If no signed path but status says signed, try to guess the signed filename
+                if (!cleanPath && app.offerLetterPath && (app.offerStatus === 'SIGNED' || app.status?.includes('Accepted'))) {
+                    const originalName = app.offerLetterPath.split(/[/\\]/).pop();
+                    cleanPath = `Signed_${originalName}`;
+                }
+
+                if (!cleanPath) cleanPath = app.offerLetterPath;
+
+                if (cleanPath && cleanPath.includes('/')) {
+                    cleanPath = cleanPath.split(/[/\\]/).pop();
+                }
+                const url = `${API_ROOT}/uploads/offers/${cleanPath}?ts=${Date.now()}`;
+                window.open(url, '_blank');
+            } else {
+                notification.warning({ message: 'Letter Not Found', description: 'No offer letter record found.' });
+            }
+        } catch (err) {
+            console.error('[VIEW_OFFER_LETTER] Error:', err);
+            if (app.signedOfferPath || app.offerLetterPath) {
+                let cleanPath = app.signedOfferPath;
+                if (!cleanPath && app.offerLetterPath && (app.offerStatus === 'SIGNED' || app.status?.includes('Accepted'))) {
+                    const originalName = app.offerLetterPath.split(/[/\\]/).pop();
+                    cleanPath = `Signed_${originalName}`;
+                }
+                if (!cleanPath) cleanPath = app.offerLetterPath;
+
+                if (cleanPath.includes('/')) cleanPath = cleanPath.split(/[/\\]/).pop();
+
+                const url = `${API_ROOT}/uploads/offers/${cleanPath}?ts=${Date.now()}`;
+                window.open(url, '_blank');
+            }
         }
-        const url = `${API_ROOT}/uploads/offers/${cleanPath}`;
-        window.open(url, '_blank');
     };
 
     const viewJoiningLetter = async (applicantId) => {
@@ -1757,6 +1944,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
         }
 
         setJoiningIssueDate(dayjs().format('YYYY-MM-DD'));
+        setJoiningSignaturePosition({ alignment: 'right' });
         setShowJoiningModal(true);
         setJoiningPreviewUrl(null);
         setShowJoiningPreview(false);
@@ -1784,11 +1972,11 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 applicantId: applicant._id,
                 reason: 'JOINING'
             });
-            alert("✅ Salary confirmed and locked!");
+            alert("âœ… Salary confirmed and locked!");
             loadApplicants();
         } catch (err) {
             console.error(err);
-            alert("❌ Lock failed: " + (err.response?.data?.message || err.message));
+            alert("âŒ Lock failed: " + (err.response?.data?.message || err.message));
         } finally {
             setLoading(false);
         }
@@ -1806,7 +1994,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 applicantId: selectedApplicant._id,
                 templateId: joiningTemplateId,
                 refNo: joiningRefNo,
-                issueDate: joiningIssueDate
+                issueDate: joiningIssueDate,
+                signaturePosition: joiningSignaturePosition
             }, { timeout: 90000 }); // 90 second timeout for PDF conversion
 
             if (res.data.previewUrl) {
@@ -1817,12 +2006,11 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             }
         } catch (err) {
             console.error("Failed to preview joining letter", err);
-
-            // FORCE DISPLAY OF BACKEND ERROR MESSAGE
-            if (err.response && err.response.data && err.response.data.message) {
-                alert(`SERVER ERROR: ${err.response.data.message}`);
+            const msg = err.response?.data?.message || err.message || "Failed to preview joining letter";
+            if (err.response?.status === 404 && !err.response?.data?.message) {
+                notification.error({ message: 'Error', description: `Preview failed: Server endpoint not found (404). Please ensure the backend server is running and the route '/api/letters/preview-joining' exists.`, placement: 'topRight' });
             } else {
-                alert(`Failed to preview joining letter: ${err.message}`);
+                notification.error({ message: 'Error', description: `Preview failed: ${msg}`, placement: 'topRight' });
             }
         } finally {
             setGenerating(false);
@@ -1841,7 +2029,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 applicantId: selectedApplicant._id,
                 templateId: joiningTemplateId,
                 refNo: joiningRefNo,
-                issueDate: joiningIssueDate
+                issueDate: joiningIssueDate,
+                signaturePosition: joiningSignaturePosition
             });
 
             if (res.data.downloadUrl) {
@@ -1861,16 +2050,20 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             }
         } catch (err) {
             console.error("Failed to generate joining letter", err);
-            const errorMsg = err.response?.data?.message ||
-                err.response?.data?.error ||
-                'Failed to generate joining letter';
 
-            // Check if it's a salary not assigned error
-            if (errorMsg.toLowerCase().includes('salary not assigned') ||
-                err.response?.data?.code === 'SALARY_NOT_ASSIGNED') {
-                notification.error({ message: 'Error', description: 'Please assign salary before generating joining letter.', placement: 'topRight' });
+            if (err.response?.status === 404 && !err.response?.data?.message) {
+                notification.error({ message: 'Error', description: `Generation failed: Server endpoint not found (404). Please ensure the backend server is running and the route '/api/letters/generate-joining' exists.`, placement: 'topRight' });
             } else {
-                notification.error({ message: 'Error', description: errorMsg, placement: 'topRight' });
+                const errorMsg = err.response?.data?.message ||
+                    err.response?.data?.error ||
+                    'Failed to generate joining letter';
+
+                if (errorMsg.toLowerCase().includes('salary not assigned') ||
+                    err.response?.data?.code === 'SALARY_NOT_ASSIGNED') {
+                    notification.error({ message: 'Error', description: 'Please assign salary before generating joining letter.', placement: 'topRight' });
+                } else {
+                    notification.error({ message: 'Error', description: `Generation failed: ${errorMsg}`, placement: 'topRight' });
+                }
             }
         } finally {
             setGenerating(false);
@@ -1957,7 +2150,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                 <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
                     {/* Search Bar - PMG Style */}
                     <div className="relative flex-grow lg:flex-grow-0 lg:w-48 xl:w-64">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">ðŸ”</span>
                         <input
                             type="text"
                             placeholder="Search name, email..."
@@ -2039,7 +2232,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                         <div className="p-6">
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 flex items-center justify-center shadow-lg">
-                                    <span className="text-white text-lg font-black">🌐</span>
+                                    <span className="text-white text-lg font-black">ðŸŒ</span>
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">
@@ -2119,7 +2312,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
 
                                     <div className="mt-3 p-2 bg-blue-50/50 rounded-lg border border-blue-100">
                                         <p className="text-[10px] text-slate-600 line-clamp-2">
-                                            📍 {req.location || 'Remote'} • {req.jobType || 'Full-time'}
+                                            ðŸ“ {req.location || 'Remote'} â€¢ {req.jobType || 'Full-time'}
                                         </p>
                                     </div>
                                 </div>
@@ -2160,7 +2353,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     }
                                     if (a.status === 'Rejected' && tab !== 'Rejected') return false;
                                     if (selectedReqId === 'all') {
-                                        if (tab === 'Finalized') return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Hired', 'Offer Expired'].includes(a.status);
+                                        if (tab === 'Finalized') return ['Finalized', 'Selected', 'Joining Letter Issued', 'Offer Issued', 'Offer Accepted', 'Offer Accepted – Awaiting Company Approval', 'Fully Signed', 'Hired', 'Offer Expired'].includes(a.status);
                                         if (tab === 'Rejected') return (a.status === 'Rejected');
                                         return a.status !== 'Finalized' && a.status !== 'Rejected';
                                     }
@@ -2209,6 +2402,27 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                             {(jobSpecific && selectedRequirement) && (
                                 <div className="flex items-center gap-2 ml-4 pl-4 border-l-2 border-slate-100 flex-shrink-0 sticky right-0 bg-gradient-to-l from-white via-white to-transparent pr-2">
 
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                showToast('info', 'Re-scoring...', 'Recalculating AI match scores for all applicants...');
+                                                const res = await api.post(`/requirements/${selectedRequirement._id}/rescore-all`);
+                                                const { updated, total, results } = res.data;
+                                                const summary = results?.slice(0, 3).map(r => `${r.name}: ${r.oldScore ?? '?'}% → ${r.newScore}%`).join(', ');
+                                                showToast('success', `Rescored ${updated}/${total} applicants`, summary || 'Scores updated!');
+                                                loadApplicants(); // Refresh the list
+                                            } catch (err) {
+                                                console.error('[RESCORE-ALL] Error:', err);
+                                                showToast('error', 'Rescore Failed', err.response?.data?.error || err.response?.data?.message || err.message);
+                                            }
+
+                                        }}
+                                        className="h-10 px-4 flex items-center gap-2 bg-white text-emerald-600 border border-emerald-200 rounded-xl shadow-sm hover:bg-emerald-50 hover:border-emerald-300 transition font-bold text-xs uppercase tracking-wider whitespace-nowrap group"
+                                        title="Re-calculate AI match scores for all applicants in this job"
+                                    >
+                                        <RefreshCw size={14} />
+                                        <span>Rescore All</span>
+                                    </button>
 
                                     <button
                                         onClick={() => setShowPipelineManager(true)}
@@ -2219,6 +2433,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     </button>
                                 </div>
                             )}
+
                         </div>
                     </div>
 
@@ -2251,10 +2466,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     .map((app, index) => (
                                         <div
                                             key={app._id || index}
-                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 overflow-hidden group hover:-translate-y-1 block relative"
+                                            className="bg-white rounded-[24px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 border border-slate-100 overflow-visible group hover:-translate-y-1 block relative"
                                         >
                                             {/* Status Header Line */}
-                                            <div className={`h-1.5 w-full ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
+                                            <div className={`h-1.5 w-full rounded-t-[24px] ${app.status === 'Selected' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
                                                 app.status === 'Rejected' ? 'bg-gradient-to-r from-rose-400 to-rose-600' :
                                                     'bg-gradient-to-r from-blue-400 to-indigo-600'
                                                 }`}></div>
@@ -2292,46 +2507,40 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                 {/* Info Grid */}
                                                 <div className="flex flex-col gap-2.5 mb-6">
                                                     <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50">
-                                                        <span className="w-5 flex justify-center">📧</span>
+                                                        <span className="w-5 flex justify-center">ðŸ“§</span>
                                                         <span className="font-medium truncate">{app.email}</span>
                                                     </div>
                                                     <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50">
-                                                        <span className="w-5 flex justify-center">📅</span>
+                                                        <span className="w-5 flex justify-center">ðŸ“…</span>
                                                         <span className="font-medium">Applied {dayjs(app.appliedAt).format('MMM D, YYYY')}</span>
                                                     </div>
                                                     {app.source && (
                                                         <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-50">
-                                                            <span className="w-5 flex justify-center">🔗</span>
+                                                            <span className="w-5 flex justify-center">ðŸ”—</span>
                                                             <span className="font-medium">{app.source}</span>
                                                         </div>
                                                     )}
                                                     {/* AI Match Score */}
                                                     {app.matchPercentage !== undefined && (
                                                         <div className="flex items-center gap-3 text-xs text-slate-500 bg-purple-50/50 p-2 rounded-lg border border-purple-50">
-                                                            <span className="w-5 flex justify-center text-purple-500">✨</span>
+                                                            <span className="w-5 flex justify-center text-purple-500">âœ¨</span>
                                                             <span className="font-bold text-purple-700">{app.matchPercentage}% Match</span>
-                                                        </div>
-                                                    )}
-                                                    {/* Feedback Badge */}
-                                                    {app.rating > 0 && (
-                                                        <div className="flex items-center gap-3 text-xs text-slate-500 bg-yellow-50/50 p-2 rounded-lg border border-yellow-50">
-                                                            <span className="w-5 flex justify-center text-yellow-500"><Star size={14} fill="currentColor" /></span>
-                                                            <span className="font-bold text-yellow-700">{app.rating}/5 Feedback</span>
                                                         </div>
                                                     )}
                                                 </div>
 
-                                                {/* AI Skills Preview */}
-                                                {app.parsedSkills && app.parsedSkills.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1 mt-3 mb-1">
-                                                        {app.parsedSkills.slice(0, 4).map((skill, i) => (
-                                                            <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-500 font-medium rounded border border-slate-100">
-                                                                {skill}
-                                                            </span>
-                                                        ))}
-                                                        {app.parsedSkills.length > 4 && (
-                                                            <span className="text-[10px] px-1.5 py-0.5 text-slate-400">+{app.parsedSkills.length - 4}</span>
-                                                        )}
+                                                {/* Skills compact preview (full list in hover tooltip above) */}
+                                                {!app.matchedSkills?.length && app.parsedSkills?.length > 0 && (
+                                                    <div className="mb-4">
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">🔧 Skills</p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {app.parsedSkills.slice(0, 5).map((skill, i) => (
+                                                                <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-500 font-medium rounded border border-slate-100">{skill}</span>
+                                                            ))}
+                                                            {app.parsedSkills.length > 5 && (
+                                                                <span className="text-[10px] px-1.5 py-0.5 text-slate-400">+{app.parsedSkills.length - 5}</span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 )}
 
@@ -2351,7 +2560,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                                 <div>
                                                                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Interview</p>
                                                                     <p className="text-xs font-bold text-slate-700">
-                                                                        {dayjs(app.interview.date).format('MMM D')} • {app.interview.time}
+                                                                        {dayjs(app.interview.date).format('MMM D')} â€¢ {app.interview.time}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -2525,14 +2734,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                             <button
                                                                 onClick={() => {
                                                                     if (app.bgvStatus && app.bgvStatus !== 'NOT_INITIATED') return navigate('/hr/bgv');
-                                                                    if (['Offer Accepted', 'Joining Letter Issued', 'Hired'].includes(app.status)) handleInitiateBGV(app);
+                                                                    if (['Offer Accepted', 'Offer Accepted – Awaiting Company Approval', 'Signed', 'Fully Signed', 'Joining Letter Issued', 'Hired'].includes(app.status)) handleInitiateBGV(app);
                                                                 }}
-                                                                disabled={(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') && !['Offer Accepted', 'Joining Letter Issued', 'Hired'].includes(app.status)}
-                                                                className={`text-[9px] font-bold flex items-center gap-1 ${(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') && !['Offer Accepted', 'Joining Letter Issued', 'Hired'].includes(app.status)
+                                                                disabled={(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') && !['Offer Accepted', 'Offer Accepted – Awaiting Company Approval', 'Signed', 'Fully Signed', 'Joining Letter Issued', 'Hired'].includes(app.status)}
+                                                                className={`text-[9px] font-bold flex items-center gap-1 ${(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') && !['Offer Accepted', 'Offer Accepted – Awaiting Company Approval', 'Signed', 'Fully Signed', 'Joining Letter Issued', 'Hired'].includes(app.status)
                                                                     ? 'text-slate-300 cursor-not-allowed'
                                                                     : 'text-blue-600 hover:underline'
                                                                     }`}
-                                                                title={(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') && !['Offer Accepted', 'Joining Letter Issued', 'Hired'].includes(app.status) ? "Candidate must accept offer first" : ""}
+                                                                title={(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') && !['Offer Accepted', 'Offer Accepted – Awaiting Company Approval', 'Signed', 'Fully Signed', 'Joining Letter Issued', 'Hired'].includes(app.status) ? "Candidate must accept offer first" : ""}
                                                             >
                                                                 {(!app.bgvStatus || app.bgvStatus === 'NOT_INITIATED') ? 'Initiate' : 'Manage'}
                                                             </button>
@@ -2604,7 +2813,201 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                         />
                     </div>
                 </div>
-            )}
+            )
+            }
+
+            {/* Company Approval Modal (Phase 2) */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 text-slate-800 font-black">
+                        <ShieldCheck className="text-blue-600" size={20} />
+                        <span>COMPANY SIGNATURE & APPROVAL</span>
+                    </div>
+                }
+                open={companyApprovalModalVisible}
+                onCancel={() => setCompanyApprovalModalVisible(false)}
+                footer={null}
+                centered
+                width={500}
+                className="premium-modal"
+            >
+                <div className="space-y-6 py-4">
+                    <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex gap-3">
+                        <Info className="text-blue-500 shrink-0" size={20} />
+                        <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                            Candidate <span className="font-bold">{applicantForApproval?.name}</span> has accepted the offer conditions.
+                            Please apply the company signature and stamp to finalize the document.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Company Stamp & Position</label>
+                                {companyStamp && (
+                                    <button
+                                        onClick={() => setCompanyStamp(null)}
+                                        className="text-[10px] text-rose-500 font-bold hover:underline flex items-center gap-1"
+                                    >
+                                        <Trash2 size={12} /> Remove Stamp
+                                    </button>
+                                )}
+                            </div>
+
+                            {!companyStamp ? (
+                                <div className="h-32 bg-slate-50 border border-dashed border-slate-200 rounded-xl flex items-center justify-center overflow-hidden relative group hover:border-blue-400 transition-colors cursor-pointer" onClick={() => document.getElementById('stampUpload').click()}>
+                                    <div className="text-center p-4">
+                                        <Upload className="mx-auto text-slate-300 mb-2" size={24} />
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Click to upload stamp</p>
+                                    </div>
+                                    <input
+                                        type="file"
+                                        id="stampUpload"
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            const file = e.target.files[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    setCompanyStamp(reader.result);
+                                                    setStampSettings({ x: 10, y: 80, scale: 0.3 }); // Reset to default position
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {/* Preview Container - Aspect Ratio Approx A4 (1:1.414) */}
+                                    {/* We use a fixed height container to simulate the page bottom area or full page */}
+                                    {/* Let's simulate the full page scaled down */}
+                                    <div
+                                        className="relative w-full aspect-[1/1.414] bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden select-none"
+                                        ref={stampContainerRef}
+                                        onMouseMove={(e) => isDraggingStamp && handleStampDrag(e)}
+                                        onMouseUp={handleStampDragEnd}
+                                        onMouseLeave={handleStampDragEnd}
+                                        style={{ cursor: isDraggingStamp ? 'grabbing' : 'default' }}
+                                    >
+                                        {/* Reference Grid (Only visible if no PDF) */}
+                                        {!pdfPreviewUrl && (
+                                            <div className="absolute inset-0 pointer-events-none opacity-10"
+                                                style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+                                            </div>
+                                        )}
+
+                                        {/* PDF PREVIEW IFRAME */}
+                                        {pdfPreviewUrl ? (
+                                            <div className="absolute inset-0 w-full h-full bg-slate-100">
+                                                <iframe
+                                                    src={pdfPreviewUrl}
+                                                    className="w-full h-full border-none"
+                                                    title="Document Preview"
+                                                    style={{ pointerEvents: isDraggingStamp ? 'none' : 'auto' }} // Disable pointer events ONLY when dragging stamp
+                                                />
+                                            </div>
+                                        ) : (
+                                            /* Mockup Fallback if PDF fails to load */
+                                            <>
+                                                <div className="absolute top-8 left-8 right-8 space-y-2 pointer-events-none opacity-20">
+                                                    <div className="h-4 bg-slate-800 w-1/3 rounded"></div>
+                                                    <div className="h-2 bg-slate-400 w-full rounded"></div>
+                                                    <div className="h-2 bg-slate-400 w-full rounded"></div>
+                                                    <div className="h-2 bg-slate-400 w-2/3 rounded"></div>
+                                                </div>
+
+                                                <div className="absolute bottom-8 left-8 space-y-2 pointer-events-none opacity-20">
+                                                    <div className="h-px bg-slate-800 w-40 mb-1"></div>
+                                                    <div className="text-[8px] font-bold text-slate-800 uppercase">Authorized Signatory</div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {/* The Stamp (Draggable Layer) */}
+                                        <div
+                                            className="absolute cursor-grab active:cursor-grabbing p-1 border-2 border-transparent hover:border-blue-400/50 rounded-lg transition-colors"
+                                            style={{
+                                                left: `${stampSettings.x}%`,
+                                                top: `${stampSettings.y}%`,
+                                                transform: `translate(-50%, -50%) scale(${stampSettings.scale})`,
+                                                transformOrigin: 'center center',
+                                                zIndex: 50
+                                            }}
+                                            onMouseDown={handleStampDragStart}
+                                        >
+                                            <img
+                                                src={companyStamp}
+                                                className="max-w-[200px] object-contain pointer-events-none drop-shadow-md"
+                                                alt="Stamp"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Customization Controls */}
+                                    <div className="bg-slate-50 p-3 rounded-xl space-y-3">
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-slate-400">Size / Scale</label>
+                                                <span className="text-[9px] font-bold text-blue-600">{Math.round(stampSettings.scale * 100)}%</span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="0.1"
+                                                max="1.5"
+                                                step="0.05"
+                                                value={stampSettings.scale}
+                                                onChange={(e) => setStampSettings({ ...stampSettings, scale: parseFloat(e.target.value) })}
+                                                className="w-full"
+                                            />
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 space-y-1">
+                                                <label className="text-[9px] font-black uppercase text-slate-400">X Position</label>
+                                                <input
+                                                    type="number"
+                                                    value={Math.round(stampSettings.x)}
+                                                    onChange={(e) => setStampSettings({ ...stampSettings, x: Number(e.target.value) })}
+                                                    className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1"
+                                                />
+                                            </div>
+                                            <div className="flex-1 space-y-1">
+                                                <label className="text-[9px] font-black uppercase text-slate-400">Y Position</label>
+                                                <input
+                                                    type="number"
+                                                    value={Math.round(stampSettings.y)}
+                                                    onChange={(e) => setStampSettings({ ...stampSettings, y: Number(e.target.value) })}
+                                                    className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100">
+                        <button
+                            onClick={handleApproveCompany}
+                            disabled={isApproving || (!companySig && !companyStamp)}
+                            className={`w-full h-12 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all flex items-center justify-center gap-2
+                                ${isApproving || (!companySig && !companyStamp)
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100 active:scale-[0.98]'}`}
+                        >
+                            {isApproving ? <RefreshCw className="animate-spin" size={18} /> : (
+                                <>
+                                    <CheckCircle size={18} />
+                                    <span>APPROVE & SIGN OFFER LETTER</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Offer Generation Modal */}
             {
@@ -2751,6 +3154,19 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                         placeholder="Full address with pin code..."
                                     />
                                 </div>
+                                <div className="col-span-full">
+                                    <label className="block text-sm font-medium text-gray-700">Candidate Signature Position</label>
+                                    <select
+                                        value={offerData.signaturePosition?.alignment || 'right'}
+                                        onChange={(e) => setOfferData(prev => ({ ...prev, signaturePosition: { alignment: e.target.value } }))}
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                    >
+                                        <option value="left">Left Alignment</option>
+                                        <option value="center">Center Alignment</option>
+                                        <option value="right">Right Alignment (Standard)</option>
+                                    </select>
+                                    <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">Where the candidate signature block will appear in the PDF</p>
+                                </div>
 
                                 <div className="flex justify-between items-center bg-slate-50 -mx-6 -mb-6 p-6 mt-6 rounded-b-lg">
                                     <button
@@ -2837,6 +3253,18 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                         onChange={(date) => setJoiningIssueDate(date ? date.format('YYYY-MM-DD') : '')}
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Candidate Signature Position</label>
+                                    <select
+                                        value={joiningSignaturePosition.alignment}
+                                        onChange={(e) => setJoiningSignaturePosition({ alignment: e.target.value })}
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                    >
+                                        <option value="left">Left Alignment</option>
+                                        <option value="center">Center Alignment</option>
+                                        <option value="right">Right Alignment (Standard)</option>
+                                    </select>
+                                </div>
 
                                 <div className="flex justify-end space-x-3 mt-6">
                                     <button
@@ -2873,14 +3301,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                             onClick={() => setShowJoiningPreview(false)}
                                             className="px-4 py-2 bg-white text-slate-700 rounded-lg hover:bg-slate-100 shadow-lg font-medium transition"
                                         >
-                                            ✕ Close Preview
+                                            âœ• Close Preview
                                         </button>
                                         <button
                                             onClick={handleJoiningGenerate}
                                             disabled={generating}
                                             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg font-medium disabled:opacity-50 transition"
                                         >
-                                            {generating ? 'Generating...' : '✓ Generate & Download'}
+                                            {generating ? 'Generating...' : 'âœ“ Generate & Download'}
                                         </button>
                                     </div>
                                 </div>
@@ -2922,14 +3350,14 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                             onClick={() => setShowPreview(false)}
                                             className="px-4 py-2 bg-white text-slate-700 rounded-lg hover:bg-slate-100 shadow-lg font-medium transition"
                                         >
-                                            ✕ Close Preview
+                                            âœ• Close Preview
                                         </button>
                                         <button
                                             onClick={(e) => submitOffer(e)}
                                             disabled={generating}
                                             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg font-medium disabled:opacity-50 transition"
                                         >
-                                            {generating ? 'Downloading...' : '✓ Download PDF'}
+                                            {generating ? 'Downloading...' : 'âœ“ Download PDF'}
                                         </button>
                                     </div>
                                 </div>
@@ -3000,10 +3428,10 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                 <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
                                     <div>
                                         <h3 className="text-lg font-bold text-slate-800">Salary Structure</h3>
-                                        <p className="text-sm text-slate-500">{selectedApplicant.name} • {selectedApplicant.requirementId?.jobTitle}</p>
+                                        <p className="text-sm text-slate-500">{selectedApplicant.name} â€¢ {selectedApplicant.requirementId?.jobTitle}</p>
                                     </div>
                                     <button onClick={() => setShowSalaryPreview(false)} className="p-2 hover:bg-slate-200 rounded-full transition text-slate-500">
-                                        ✕
+                                        âœ•
                                     </button>
                                 </div>
 
@@ -3018,13 +3446,13 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                 {earnings.map((e, i) => (
                                                     <div key={i} className="flex justify-between text-sm group border-b border-dashed border-slate-100 pb-1 last:border-0">
                                                         <span className="text-slate-600 group-hover:text-slate-900">{e.name}</span>
-                                                        <span className="font-medium text-slate-800">₹{e.monthlyAmount?.toLocaleString()}</span>
+                                                        <span className="font-medium text-slate-800">â‚¹{e.monthlyAmount?.toLocaleString()}</span>
                                                     </div>
                                                 ))}
                                             </div>
                                             <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-slate-800 mt-2">
                                                 <span>Gross Earnings</span>
-                                                <span>₹{grossMonthly.toLocaleString()}</span>
+                                                <span>â‚¹{grossMonthly.toLocaleString()}</span>
                                             </div>
                                         </div>
 
@@ -3036,7 +3464,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     deductions.map((d, i) => (
                                                         <div key={i} className="flex justify-between text-sm group border-b border-dashed border-slate-100 pb-1 last:border-0">
                                                             <span className="text-slate-600 group-hover:text-slate-900">{d.name}</span>
-                                                            <span className="font-medium text-rose-600">-₹{d.monthlyAmount?.toLocaleString()}</span>
+                                                            <span className="font-medium text-rose-600">-â‚¹{d.monthlyAmount?.toLocaleString()}</span>
                                                         </div>
                                                     ))
                                                 ) : (
@@ -3051,11 +3479,11 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                         <div className="grid grid-cols-2 gap-4 text-center divide-x divide-slate-700/50">
                                             <div>
                                                 <div className="text-slate-400 text-[10px] uppercase tracking-widest mb-1">Monthly Net Pay</div>
-                                                <div className="text-2xl font-bold text-emerald-400">₹{takeHome.toLocaleString()}</div>
+                                                <div className="text-2xl font-bold text-emerald-400">â‚¹{takeHome.toLocaleString()}</div>
                                             </div>
                                             <div>
                                                 <div className="text-slate-400 text-[10px] uppercase tracking-widest mb-1">Annual CTC</div>
-                                                <div className="text-xl font-bold text-white">₹{ctcYearly.toLocaleString()}</div>
+                                                <div className="text-xl font-bold text-white">â‚¹{ctcYearly.toLocaleString()}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -3285,7 +3713,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                 </div>
                                             </div>
                                             <div className="flex items-start gap-3">
-                                                <div className="mt-0.5 text-slate-400">📅</div>
+                                                <div className="mt-0.5 text-slate-400">ðŸ“…</div>
                                                 <div>
                                                     <p className="text-xs text-slate-500">Date of Birth</p>
                                                     <p className="text-sm font-medium text-slate-800">
@@ -3294,7 +3722,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                 </div>
                                             </div>
                                             <div className="flex items-start gap-3">
-                                                <div className="mt-0.5 text-slate-400">📍</div>
+                                                <div className="mt-0.5 text-slate-400">ðŸ“</div>
                                                 <div>
                                                     <p className="text-xs text-slate-500">Address</p>
                                                     <p className="text-sm text-slate-700 leading-relaxed">{selectedApplicant.address || '-'}</p>
@@ -3363,12 +3791,12 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                     )}
 
                                     {/* AI Insights Section */}
-                                    {selectedApplicant.aiParsedData && (
+                                    {(selectedApplicant.matchScore > 0 || selectedApplicant.aiParsedData) && (
                                         <>
                                             <div className="border-t border-slate-100 my-2"></div>
                                             <section>
                                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                                    <span className="text-purple-600">✨</span> AI Insights
+                                                    <span className="text-purple-600">âœ¨</span> AI Insights
                                                 </h3>
                                                 <div className="bg-purple-50 p-3 rounded-xl border border-purple-100">
                                                     <div className="flex justify-between items-center mb-2">
@@ -3662,8 +4090,8 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                                                     <div className="flex-1">
                                                         <div className="text-sm font-bold text-slate-800">{doc.name}</div>
                                                         <div className="text-xs text-slate-500 mt-1">
-                                                            {doc.fileName} • {(doc.fileSize / 1024).toFixed(1)} KB
-                                                            {doc.verified && <span className="ml-2 text-emerald-600">✓ Verified</span>}
+                                                            {doc.fileName} â€¢ {(doc.fileSize / 1024).toFixed(1)} KB
+                                                            {doc.verified && <span className="ml-2 text-emerald-600">âœ“ Verified</span>}
                                                         </div>
                                                     </div>
                                                     {!doc.verified && (
@@ -3868,11 +4296,11 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                             onChange={(e) => setCustomRoundType(e.target.value)}
                             className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all font-bold text-slate-700"
                         >
-                            <option value="Game">🎮 Game-Based Assessment</option>
-                            <option value="Coding">💻 Coding Challenge</option>
-                            <option value="Task">📋 Task/Project</option>
-                            <option value="Assessment">✏️ Assessment</option>
-                            <option value="Custom">⚙️ Custom Round</option>
+                            <option value="Game">ðŸŽ® Game-Based Assessment</option>
+                            <option value="Coding">ðŸ’» Coding Challenge</option>
+                            <option value="Task">ðŸ“‹ Task/Project</option>
+                            <option value="Assessment">âœï¸ Assessment</option>
+                            <option value="Custom">âš™ï¸ Custom Round</option>
                         </select>
                     </div>
 
@@ -3891,7 +4319,7 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
                     {customRoundType === 'Game' && (
                         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 space-y-3">
                             <h4 className="text-sm font-black text-slate-700 flex items-center gap-2">
-                                <span className="text-blue-600">🎮</span> Game Configuration
+                                <span className="text-blue-600">ðŸŽ®</span> Game Configuration
                             </h4>
 
                             <div className="space-y-1.5">
@@ -4014,71 +4442,20 @@ export default function Applicants({ internalMode = false, jobSpecific = false }
             </Modal>
 
             {/* BGV Initiation Modal (Package-Driven) */}
-            {showBGVModal && bgvCandidate && (
-                <JobBasedBGVModal
-                    applicant={bgvCandidate}
-                    jobTitle={bgvCandidate.requirementId?.jobTitle || 'N/A'}
-                    onClose={() => {
-                        setShowBGVModal(false);
-                        setBgvCandidate(null);
-                    }}
-                    onSuccess={handleBGVSuccess}
-                />
-            )}
-
-            {showStageFeedbackModal && (
-                <StageFeedbackModal
-                    visible={showStageFeedbackModal}
-                    onClose={() => setShowStageFeedbackModal(false)}
-                    applicant={feedbackCandidate}
-                    stage={{
-                        ...feedbackStageConfig,
-                        stageName: feedbackStageConfig?.stageName || feedbackTargetStage
-                    }}
-                    onSuccess={async (data) => {
-                        await updateStatus(feedbackCandidate, feedbackTargetStage, {
-                            rating: data.rating,
-                            feedback: data.feedback
-                        });
-                        setShowStageFeedbackModal(false);
-                    }}
-                />
-            )}
-
-            {/* Floating Pipeline Actions - Bottom Right */}
-            {false && (
-                <div className="fixed bottom-8 right-8 z-40 flex flex-col gap-3 items-end">
-                    <button
-                        onClick={() => {
-                            window.triggerAddStage = true;
-                            setShowPipelineManager(true);
+            {
+                showBGVModal && bgvCandidate && (
+                    <JobBasedBGVModal
+                        applicant={bgvCandidate}
+                        jobTitle={bgvCandidate.requirementId?.jobTitle || 'N/A'}
+                        onClose={() => {
+                            setShowBGVModal(false);
+                            setBgvCandidate(null);
                         }}
-                        className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 hover:shadow-indigo-500/30 transition-all transform hover:-translate-y-1 font-bold"
-                    >
-                        <Plus size={20} />
-                        <span>Add Stage</span>
-                    </button>
-
-                    <button
-                        onClick={() => setShowPipelineManager(true)}
-                        className="flex items-center gap-2 px-5 py-3 bg-white text-slate-700 border border-slate-200 rounded-full shadow-lg hover:bg-slate-50 hover:text-indigo-600 transition-all transform hover:-translate-y-1 font-bold"
-                    >
-                        <Layout size={20} />
-                        <span>Manage Pipeline</span>
-                    </button>
-                </div>
-            )}
-
-            {/* Pipeline Manager Modal */}
-            {showPipelineManager && selectedRequirement && (
-                <PipelineManagerModal
-                    visible={showPipelineManager}
-                    onClose={() => setShowPipelineManager(false)}
-                    requirement={selectedRequirement}
-                    onUpdate={handlePipelineUpdate}
-                />
-            )}
-        </div>
+                        onSuccess={handleBGVSuccess}
+                    />
+                )
+            }
+        </div >
     );
 }
 

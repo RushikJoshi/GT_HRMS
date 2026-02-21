@@ -68,19 +68,24 @@ module.exports = async function tenantResolver(req, res, next) {
     // If no req.user yet (middleware may run before auth middleware), try to extract tenantId from JWT
     if (!tenantId || (!req.user && !req.candidate)) {
       const authHeader = req.headers.authorization || req.headers.Authorization;
-      if (authHeader) {
+      const queryToken = req.query.token;
+      let token = queryToken;
+
+      if (!token && authHeader) {
         const parts = authHeader.split(' ');
         if (parts.length === 2 && /^Bearer$/i.test(parts[0])) {
-          const token = parts[1];
-          try {
-            const payload = jwt.verify(token, process.env.JWT_SECRET || "hrms_secret_key_123");
-            tenantId = payload.tenantId || payload.tenant || tenantId;
-            tokenCompanyCode = payload.companyCode || payload.company_code || tokenCompanyCode;
-            console.log(`[TENANT_MIDDLEWARE] Extracted tenantId from token: ${tenantId}`);
-          } catch (e) {
-            console.log(`[TENANT_MIDDLEWARE] Failed to verify token: ${e.message}`);
-            // ignore invalid token here; auth middleware will handle auth failures
-          }
+          token = parts[1];
+        }
+      }
+
+      if (token) {
+        try {
+          const payload = jwt.verify(token, process.env.JWT_SECRET || "hrms_secret_key_123");
+          tenantId = payload.tenantId || payload.tenant || tenantId;
+          tokenCompanyCode = payload.companyCode || payload.company_code || tokenCompanyCode;
+          console.log(`[TENANT_MIDDLEWARE] Extracted tenantId from token: ${tenantId} via ${queryToken ? 'query' : 'header'}`);
+        } catch (e) {
+          console.log(`[TENANT_MIDDLEWARE] Failed to verify token: ${e.message}`);
         }
       }
     }

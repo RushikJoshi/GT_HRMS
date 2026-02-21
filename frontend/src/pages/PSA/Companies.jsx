@@ -29,7 +29,7 @@ export default function Companies() {
   const pageSize = 10;
   const [openForm, setOpenForm] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [openModules, setOpenModules] = useState(false);
+
   const [openView, setOpenView] = useState(false);
   const [revealMap, setRevealMap] = useState({});
   const _navigate = useNavigate();
@@ -85,22 +85,19 @@ export default function Companies() {
       label: 'TOTAL COMPANIES',
       value: stats.total,
       icon: LayoutGrid,
-      iconColor: 'text-blue-600',
-      iconBg: 'bg-blue-50',
+      bg: 'bg-[#00C292]',
     },
     {
       label: 'ACTIVE COMPANIES',
       value: stats.active,
-      icon: Users,
-      iconColor: 'text-emerald-600',
-      iconBg: 'bg-emerald-50',
+      icon: Zap,
+      bg: 'bg-[#7047EB]',
     },
     {
       label: 'INACTIVE COMPANIES',
       value: stats.inactive,
       icon: Activity,
-      iconColor: 'text-slate-400',
-      iconBg: 'bg-slate-100',
+      bg: 'bg-[#FF5C8D]',
     },
   ];
 
@@ -130,38 +127,39 @@ export default function Companies() {
         {/* Local Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-4">
           {statsCards.map((card, idx) => (
-            <div
-              key={idx}
-              className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all hover:shadow-md h-32"
-            >
-              <div className="space-y-2">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  {card.label}
+            <div key={idx} className={`${card.bg} p-6 rounded-[32px] shadow-lg shadow-slate-200/20 hover:-translate-y-1 transition-all duration-500 group flex flex-col justify-between h-40 text-white relative overflow-hidden cursor-default`}>
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 blur-2xl rounded-full -mr-8 -mt-8"></div>
+
+              <div className="flex justify-between items-start relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/10">
+                  <card.icon size={18} strokeWidth={2} />
+                </div>
+                <p className="text-[8px] font-semibold uppercase tracking-[0.2em] opacity-30">
+                  ID-0{idx + 1}
                 </p>
-                <h3 className="text-3xl font-bold text-slate-900">
-                  {card.value}
-                </h3>
               </div>
-              <div className={`${card.iconBg} ${card.iconColor} w-12 h-12 rounded-xl flex items-center justify-center shadow-sm`}>
-                <card.icon size={22} />
+
+              <div className="space-y-0.5 relative z-10">
+                <p className="text-[9px] font-semibold text-white/50 uppercase tracking-[0.2em]">{card.label}</p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-semibold tracking-tight leading-none">{card.value}</span>
+                  <span className="text-[10px] font-semibold opacity-40 uppercase tracking-widest">Units</span>
+                </div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Search & Filter Bar */}
+        {/* Search Bar */}
         <div className="flex flex-col md:flex-row gap-4 px-4">
           <div className="flex-1 relative group">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={18} />
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#14B8A6] transition-colors" size={18} />
             <input
               type="text"
               placeholder="Filter companies by name, code or email..."
-              className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200/60 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-400 transition-all text-sm font-medium text-slate-600 placeholder:text-slate-300 shadow-sm"
+              className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200/60 rounded-2xl focus:outline-none focus:border-[#14B8A6] transition-all text-sm font-medium text-slate-600 placeholder:text-slate-300"
             />
           </div>
-          <button className="flex items-center justify-center gap-2 px-8 py-4 bg-white border border-slate-200/60 text-slate-500 rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm">
-            <Filter size={14} /> Filter
-          </button>
         </div>
 
         {/* Content Table Card (Full Width) */}
@@ -237,7 +235,7 @@ export default function Companies() {
                         <button onClick={() => { setSelected(c); setOpenForm(true); }} className="p-2 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all" title="Edit">
                           <Edit2 size={16} />
                         </button>
-                        <button onClick={() => { setSelected(c); setOpenModules(true); }} className="p-2 text-slate-300 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all" title="Modules">
+                        <button onClick={() => _navigate(`/super-admin/modules/${c._id}`)} className="p-2 text-slate-300 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all" title="Modules">
                           <Settings size={16} />
                         </button>
                         <button onClick={() => toggleActive(c)} className={`p-2 rounded-lg transition-all ${c.status === 'active' ? 'text-slate-300 hover:text-rose-500 hover:bg-rose-50' : 'text-slate-300 hover:text-emerald-500 hover:bg-emerald-50'}`} title={c.status === 'active' ? 'Deactivate' : 'Activate'}>
@@ -309,15 +307,7 @@ export default function Companies() {
         />
       )}
 
-      {openModules && (
-        <ModuleConfig
-          company={selected}
-          onClose={() => {
-            setOpenModules(false);
-            load();
-          }}
-        />
-      )}
+
     </div>
   );
 }

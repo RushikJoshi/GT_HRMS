@@ -5,7 +5,6 @@ import {
     Calendar as CalendarIcon,
     AlertCircle,
     CheckCircle,
-    Clock,
     ChevronLeft,
     ChevronRight,
     Info,
@@ -16,23 +15,23 @@ import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 // --- Static configs for fallback if no category/color provided ---
 const FALLBACK_CONFIG = {
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    text: 'text-blue-700',
-    main: '#3b82f6',
-    light: '#dbeafe',
-    active: 'bg-blue-600'
+    bg: 'bg-[#F0F9FF]',
+    border: 'border-[#BAE6FD]',
+    text: 'text-[#0284C7]',
+    main: '#0EA5E9',
+    light: '#E0F2FE',
+    active: 'bg-[#0EA5E9]'
 };
 
 const LOP_CONFIG = {
     id: 'LOP',
     label: 'Unpaid / Personal',
-    bg: 'bg-rose-50',
-    border: 'border-rose-200',
-    text: 'text-rose-700',
-    main: '#ef4444',
-    light: '#fee2e2',
-    active: 'bg-rose-600'
+    bg: 'bg-[#FEF2F2]',
+    border: 'border-[#FECACA]',
+    text: 'text-[#DC2626]',
+    main: '#EF4444',
+    light: '#FEE2E2',
+    active: 'bg-[#EF4444]'
 };
 
 const HOLIDAY_ICONS = {
@@ -104,15 +103,15 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
     const dynamicLeaveConfig = useMemo(() => {
         const config = {};
         effectiveBalances.forEach(b => {
-            const mainColor = b.color || '#3b82f6';
+            const mainColor = b.color || '#14B8A6'; // Default Teal
             config[b.leaveType] = {
                 id: b.leaveType,
                 label: b.leaveType,
                 main: mainColor,
-                light: `${mainColor}20`, // 20% opacity
+                light: `${mainColor}15`, // 15% opacity
                 bg: 'bg-white',
-                border: 'border-slate-200',
-                text: 'text-slate-700'
+                border: 'border-[#E5E7EB]',
+                text: 'text-[#374151]'
             };
         });
         // Always add Unpaid/Personal Leave
@@ -424,36 +423,36 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
     };
 
     return (
-        <div className="bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl transition-all">
+        <div className="bg-white p-6 rounded-[20px] shadow-md border border-[#E5E7EB] transition-all">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
                     {onClose && (
                         <button
                             onClick={onClose}
-                            className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition text-slate-500"
+                            className="p-2 hover:bg-slate-50 rounded-xl transition text-[#6B7280]"
                             title="Go Back"
                         >
-                            <ArrowLeft size={24} />
+                            <ArrowLeft size={20} />
                         </button>
                     )}
-                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl">
+                    <div className="p-3 bg-[#CCFBF1] text-[#14B8A6] rounded-xl">
                         <CalendarIcon size={24} />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black text-slate-800 dark:text-white leading-tight">
+                        <h2 className="text-xl font-bold text-[#111827] leading-tight">
                             {editData ? 'Edit Request' : 'Time Off'}
                         </h2>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Leave Application Form</p>
+                        <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-widest mt-0.5">Leave Application</p>
                     </div>
                 </div>
-                <div className="hidden lg:block bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-800/50 max-w-xs transition-all hover:shadow-sm">
-                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 leading-relaxed text-center">
-                        “Select the start and end dates of your leave. You may optionally apply a half-day on the first or last day. The system will calculate the total leave automatically.”
+                <div className="hidden lg:block bg-white p-3 rounded-xl border border-[#E5E7EB] max-w-xs transition-all">
+                    <p className="text-[9px] font-bold text-[#6B7280] leading-relaxed text-center">
+                        “Select the start and end dates of your leave. The system will calculate the total leave days automatically including sandwich rules.”
                     </p>
                 </div>
                 {editData && (
-                    <button onClick={onCancelEdit} className="text-xs font-black text-rose-500 hover:text-rose-600 uppercase tracking-tighter border-b-2 border-rose-100 dark:border-rose-900/30">Cancel Edit</button>
+                    <button onClick={onCancelEdit} className="text-[10px] font-bold text-[#EF4444] hover:text-rose-700 uppercase tracking-widest border-b border-rose-200">Cancel Edit</button>
                 )}
             </div>
 
@@ -461,10 +460,10 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                 {/* Employee Selection (HR only) */}
                 {isHR && !targetEmployeeId && (
                     <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block px-1">Select Employee</label>
+                        <label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest mb-1.5 block">Select Employee</label>
                         <select
                             required
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all dark:text-white"
+                            className="w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 text-xs font-bold text-[#111827] outline-none focus:ring-1 focus:ring-[#14B8A6] focus:border-[#14B8A6] transition-all"
                             value={form.employeeId}
                             onChange={e => setForm({ ...form, employeeId: e.target.value })}
                         >
@@ -479,14 +478,14 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                 {/* Leave Type Grid */}
                 <div>
                     <div className="flex items-center justify-between mb-4 px-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Select Category</label>
+                        <label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Select Category</label>
                         {form.leaveType && (
-                            <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500">
+                            <span className="text-[9px] font-bold bg-[#F3F4F6] text-[#6B7280] px-2 py-0.5 rounded uppercase tracking-widest">
                                 {form.leaveType === 'Personal Leave' ? 'UNPAID / LOP' : `BAL: ${balances.find(b => b.leaveType === form.leaveType)?.available || 0}`}
                             </span>
                         )}
                         {!hasLeavePolicy && (
-                            <span className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded uppercase tracking-wider">Contact HR to assign leave policy</span>
+                            <span className="text-[9px] font-bold bg-[#FFFBEB] text-[#D97706] px-2 py-0.5 rounded uppercase tracking-widest">Policy Not Assigned</span>
                         )}
                     </div>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -495,41 +494,41 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                                 key={key}
                                 type="button"
                                 onClick={() => setForm(prev => ({ ...prev, leaveType: key }))}
-                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${form.leaveType === key
-                                    ? `shadow-lg scale-105 ring-2 ring-blue-500/10`
-                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-slate-200'
+                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${form.leaveType === key
+                                    ? `shadow-md scale-[1.02] ring-1 ring-[#14B8A6]`
+                                    : 'bg-white border-[#E5E7EB] hover:border-[#D1D5DB] hover:shadow-sm'
                                     }`}
-                                style={form.leaveType === key ? { borderColor: config.main, backgroundColor: config.light || '#f8fafc' } : {}}
+                                style={form.leaveType === key ? { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' } : {}}
                             >
-                                <div className="h-3 w-3 rounded-full mb-1" style={{ backgroundColor: config.main }}></div>
-                                <span className={`text-[10px] font-black uppercase text-center ${form.leaveType === key ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>
+                                <div className="h-2.5 w-2.5 rounded-full mb-1" style={{ backgroundColor: config.main }}></div>
+                                <span className={`text-[9px] font-bold uppercase tracking-widest text-center ${form.leaveType === key ? 'text-[#111827]' : 'text-[#6B7280]'}`}>
                                     {key}
                                 </span>
                             </button>
                         ))}
                     </div>
                     {form.leaveType === 'Personal Leave' && (
-                        <p className="mt-3 text-[10px] font-bold text-rose-500 uppercase bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg border border-rose-100 dark:border-rose-900/30">
+                        <p className="mt-3 text-[9px] font-bold text-[#EF4444] uppercase tracking-widest bg-[#FEF2F2] p-2 rounded-lg border border-[#FECACA]">
                             Note: This leave will be treated as unpaid personal leave.
                         </p>
                     )}
                 </div>
 
                 {/* Calendar View */}
-                <div className="bg-slate-50 dark:bg-slate-950/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
+                <div className="bg-white p-6 rounded-[20px] border border-[#E5E7EB] shadow-sm">
                     <div className="flex items-center justify-between mb-6">
-                        <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+                        <h4 className="text-sm font-bold text-[#111827] uppercase tracking-widest">
                             {currentCalDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                         </h4>
                         <div className="flex gap-2">
-                            <button type="button" onClick={() => setCurrentCalDate(new Date(currentCalDate.setMonth(currentCalDate.getMonth() - 1)))} className={`p-2 rounded-full transition shadow-sm ${!hasLeavePolicy ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white dark:hover:bg-slate-800'}`} disabled={!hasLeavePolicy} title={!hasLeavePolicy ? 'Date selection disabled: No leave policy assigned' : ''}><ChevronLeft size={20} /></button>
-                            <button type="button" onClick={() => setCurrentCalDate(new Date(currentCalDate.setMonth(currentCalDate.getMonth() + 1)))} className={`p-2 rounded-full transition shadow-sm ${!hasLeavePolicy ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white dark:hover:bg-slate-800'}`} disabled={!hasLeavePolicy} title={!hasLeavePolicy ? 'Date selection disabled: No leave policy assigned' : ''}><ChevronRight size={20} /></button>
+                            <button type="button" onClick={() => setCurrentCalDate(new Date(currentCalDate.setMonth(currentCalDate.getMonth() - 1)))} className={`p-1.5 rounded-md text-[#6B7280] bg-white hover:bg-slate-50 border border-[#E5E7EB] shadow-sm transition-all ${!hasLeavePolicy ? 'opacity-40 cursor-not-allowed' : ''}`} disabled={!hasLeavePolicy} title={!hasLeavePolicy ? 'Date selection disabled: No leave policy assigned' : ''}><ChevronLeft size={16} /></button>
+                            <button type="button" onClick={() => setCurrentCalDate(new Date(currentCalDate.setMonth(currentCalDate.getMonth() + 1)))} className={`p-1.5 rounded-md text-[#6B7280] bg-white hover:bg-slate-50 border border-[#E5E7EB] shadow-sm transition-all ${!hasLeavePolicy ? 'opacity-40 cursor-not-allowed' : ''}`} disabled={!hasLeavePolicy} title={!hasLeavePolicy ? 'Date selection disabled: No leave policy assigned' : ''}><ChevronRight size={16} /></button>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-7 gap-1">
                         {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                            <div key={day} className="text-center py-2 text-[10px] font-black text-slate-400 uppercase">{day}</div>
+                            <div key={day} className={`text-center py-2 text-[9px] font-bold uppercase tracking-widest ${day === 'Su' ? 'text-[#EF4444]' : 'text-[#9CA3AF]'}`}>{day}</div>
                         ))}
                         {calendarArray.map((d, i) => {
                             if (!d) return <div key={`empty-${i}`} className="p-1"></div>;
@@ -545,7 +544,7 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                             const isStart = d === form.startDate;
                             const isEnd = d === form.endDate;
 
-                            const config = dynamicLeaveConfig[form.leaveType] || { main: '#334145', light: '#f1f5f9' };
+                            const config = dynamicLeaveConfig[form.leaveType] || { main: '#374151', light: '#F3F4F6' };
 
                             return (
                                 <div
@@ -553,31 +552,29 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                                     onMouseEnter={() => setHoverDate(d)}
                                     onMouseLeave={() => setHoverDate(null)}
                                     onClick={() => handleDateClick(d)}
-                                    className={`relative h-12 flex items-center justify-center rounded-xl text-sm transition-all
-                                        ${!selectable ? 'opacity-20 grayscale cursor-not-allowed' : 'cursor-pointer hover:bg-white dark:hover:bg-slate-800'}
-                                        ${sunday ? 'text-rose-500 font-bold' : ''}
+                                    className={`relative h-10 w-full flex items-center justify-center rounded-lg text-xs font-bold transition-all
+                                        ${!selectable ? 'opacity-30 cursor-not-allowed bg-white' : 'cursor-pointer hover:bg-slate-50'}
+                                        ${sunday && !selected ? 'text-[#EF4444]' : 'text-[#374151]'}
                                     `}
                                     style={selected ? {
-                                        backgroundColor: (isStart || isEnd) ? config.main : config.light,
-                                        color: (isStart || isEnd) ? 'white' : (form.leaveType ? getComputedStyle(document.documentElement).getPropertyValue(`--leave-${config.id.toLowerCase()}-text`) || 'inherit' : 'inherit'),
-                                        fontWeight: 800
+                                        backgroundColor: (isStart || isEnd) ? '#14B8A6' : '#F0FDFA', // Custom Teal
+                                        color: (isStart || isEnd) ? 'white' : '#14B8A6',
+                                        border: (isStart || isEnd) ? 'none' : '1px solid #CCFBF1'
                                     } : {}}
                                 >
                                     {new Date(d).getDate()}
 
                                     {holiday && (
-                                        <div className="absolute top-1 right-1 text-[8px]" title={holiday.name}>{getHolidayIcon(holiday.name)}</div>
+                                        <div className="absolute top-0.5 right-0.5 text-[7px]" title={holiday.name}>{getHolidayIcon(holiday.name)}</div>
                                     )}
 
                                     {hoverDate === d && (getDisabledReason(d) || holiday || (!hasLeavePolicy && 'No leave policy assigned')) && (
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 px-3 py-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-xl pointer-events-none w-max max-w-[170px] animate-in fade-in zoom-in-95 duration-200">
-                                            <div className="flex items-center gap-2">
-                                                {holiday ? <Info size={10} className="text-blue-400" /> : !hasLeavePolicy ? <AlertCircle size={10} className="text-amber-400" /> : <Lock size={10} className="text-rose-400" />}
-                                                <span className="font-bold">{!hasLeavePolicy ? 'No leave policy assigned' : getDisabledReason(d) || holiday?.name}</span>
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 px-2 py-1.5 bg-[#1F2937] text-white text-[9px] font-bold uppercase tracking-widest rounded shadow-xl pointer-events-none w-max max-w-[150px] animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="flex items-center gap-1.5">
+                                                {holiday ? <Info size={10} className="text-[#60A5FA]" /> : !hasLeavePolicy ? <AlertCircle size={10} className="text-[#FBBF24]" /> : <Lock size={10} className="text-[#F87171]" />}
+                                                <span>{!hasLeavePolicy ? 'No Policy' : getDisabledReason(d) || holiday?.name}</span>
                                             </div>
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
-                                                <div className="w-2 h-2 bg-slate-800 rotate-45"></div>
-                                            </div>
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-[#1F2937]"></div>
                                         </div>
                                     )}
                                 </div>
@@ -589,81 +586,81 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
 
                 {/* Range Info */}
                 {form.startDate && (
-                    <div className="flex flex-col md:flex-row items-center justify-between p-6 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-3xl gap-4">
+                    <div className="flex flex-col md:flex-row items-center justify-between p-5 bg-[#F0FDFA] border border-[#CCFBF1] rounded-2xl gap-4">
                         <div className="flex items-center gap-6">
                             <div>
-                                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Period</p>
-                                <h5 className="text-sm font-black text-slate-800 dark:text-white">
+                                <p className="text-[9px] font-bold text-[#14B8A6] uppercase tracking-widest mb-0.5">Period</p>
+                                <h5 className="text-xs font-bold text-[#111827]">
                                     {formatDateDDMMYYYY(form.startDate)}
                                     {form.endDate && ` — ${formatDateDDMMYYYY(form.endDate)}`}
                                 </h5>
                             </div>
-                            <div className="h-8 w-px bg-blue-200 dark:bg-blue-800"></div>
+                            <div className="h-6 w-px bg-[#CCFBF1]"></div>
                             <div>
-                                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Net Days</p>
-                                <h5 className="text-xl font-black text-blue-700 dark:text-blue-400">{duration} <span className="text-[10px]">DAYS</span></h5>
+                                <p className="text-[9px] font-bold text-[#14B8A6] uppercase tracking-widest mb-0.5">Net Days</p>
+                                <h5 className="text-lg font-bold text-[#14B8A6]">{duration} <span className="text-[9px]">DAYS</span></h5>
                             </div>
                         </div>
 
                         {/* Half Day Variant */}
                         {form.startDate && duration > 0 && (
-                            <div className="flex flex-col gap-3 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-blue-100 dark:border-blue-900/50 transition-all">
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <div className={`w-5 h-5 rounded-lg border-2 transition-all flex items-center justify-center ${form.isHalfDay ? 'bg-blue-600 border-blue-600' : 'bg-transparent border-slate-300 group-hover:border-blue-400'}`}>
-                                        {form.isHalfDay && <CheckCircle size={14} className="text-white" />}
+                            <div className="flex flex-col gap-2 bg-white p-3 rounded-xl shadow-sm border border-[#E5E7EB] transition-all w-full md:w-auto">
+                                <label className="flex items-center gap-2 cursor-pointer group">
+                                    <div className={`w-4 h-4 rounded border transition-all flex items-center justify-center ${form.isHalfDay ? 'bg-[#14B8A6] border-[#14B8A6]' : 'bg-white border-[#D1D5DB] group-hover:border-[#14B8A6]'}`}>
+                                        {form.isHalfDay && <CheckCircle size={10} className="text-white" />}
                                     </div>
                                     <input type="checkbox" className="hidden" checked={form.isHalfDay} onChange={e => setForm({ ...form, isHalfDay: e.target.checked, halfDayTarget: form.endDate ? 'End' : 'Start', halfDaySession: 'First Half' })} />
-                                    <span className="text-xs font-black text-slate-600 dark:text-slate-400 uppercase tracking-tighter">Enable Half Day</span>
+                                    <span className="text-[10px] font-bold text-[#374151] uppercase tracking-widest">Enable Half Day</span>
                                 </label>
 
                                 {form.isHalfDay && (
-                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
                                         {/* If Range selection, choose WHICH day is half-day */}
                                         {form.endDate && form.startDate !== form.endDate && (
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-1">
                                                 <button
                                                     type="button"
                                                     onClick={() => setForm({ ...form, halfDayTarget: 'Start' })}
-                                                    className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg border transition-all ${form.halfDayTarget === 'Start'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
-                                                        : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                                                    className={`flex-1 py-1 text-[8px] font-bold uppercase tracking-widest rounded border transition-all ${form.halfDayTarget === 'Start'
+                                                        ? 'bg-[#14B8A6] text-white border-[#14B8A6]'
+                                                        : 'bg-[#F9FAFB] text-[#6B7280] border-[#E5E7EB] hover:bg-white'
                                                         }`}
                                                 >
-                                                    On Start Day
+                                                    Start Day
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setForm({ ...form, halfDayTarget: 'End' })}
-                                                    className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg border transition-all ${form.halfDayTarget === 'End'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
-                                                        : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                                                    className={`flex-1 py-1 text-[8px] font-bold uppercase tracking-widest rounded border transition-all ${form.halfDayTarget === 'End'
+                                                        ? 'bg-[#14B8A6] text-white border-[#14B8A6]'
+                                                        : 'bg-[#F9FAFB] text-[#6B7280] border-[#E5E7EB] hover:bg-white'
                                                         }`}
                                                 >
-                                                    On End Day
+                                                    End Day
                                                 </button>
                                             </div>
                                         )}
 
-                                        <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <div className="flex gap-1 p-0.5 bg-white rounded-lg border border-[#E5E7EB]">
                                             <button
                                                 type="button"
                                                 onClick={() => setForm({ ...form, halfDaySession: 'First Half' })}
-                                                className={`flex-1 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all ${form.halfDaySession === 'First Half'
-                                                    ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-                                                    : 'text-slate-400 hover:text-slate-600'
+                                                className={`flex-1 py-1 text-[8px] font-bold uppercase tracking-widest rounded-md transition-all ${form.halfDaySession === 'First Half'
+                                                    ? 'bg-white text-[#14B8A6] shadow-sm ring-1 ring-[#E5E7EB]'
+                                                    : 'text-[#9CA3AF] hover:text-[#6B7280]'
                                                     }`}
                                             >
-                                                First Half
+                                                1st Half
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setForm({ ...form, halfDaySession: 'Second Half' })}
-                                                className={`flex-1 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all ${form.halfDaySession === 'Second Half'
-                                                    ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-                                                    : 'text-slate-400 hover:text-slate-600'
+                                                className={`flex-1 py-1 text-[8px] font-bold uppercase tracking-widest rounded-md transition-all ${form.halfDaySession === 'Second Half'
+                                                    ? 'bg-white text-[#14B8A6] shadow-sm ring-1 ring-[#E5E7EB]'
+                                                    : 'text-[#9CA3AF] hover:text-[#6B7280]'
                                                     }`}
                                             >
-                                                Second Half
+                                                2nd Half
                                             </button>
                                         </div>
                                     </div>
@@ -675,39 +672,39 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
 
                 {/* Alerts */}
                 {error && (
-                    <div className="flex items-center gap-4 p-5 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 rounded-2xl border border-rose-100 dark:border-rose-900/50 animate-pulse">
-                        <AlertCircle size={20} />
-                        <p className="text-sm font-bold tracking-tight">{error}</p>
+                    <div className="flex items-start gap-3 p-3 bg-[#FEF2F2] text-[#B91C1C] rounded-xl border border-[#FECACA] animate-pulse">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                        <p className="text-[10px] font-bold uppercase tracking-widest leading-tight">{error}</p>
                     </div>
                 )}
 
                 {!hasLeavePolicy && (
-                    <div className="flex items-center gap-4 p-5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-2xl border border-amber-100 dark:border-amber-900/50">
-                        <AlertCircle size={20} />
+                    <div className="flex items-start gap-3 p-3 bg-[#FFFBEB] text-[#D97706] rounded-xl border border-[#FEF3C7]">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-sm font-bold tracking-tight">Policy Restriction — No leave policy assigned yet.</p>
-                            <p className="text-xs mt-1">Contact HR to assign a leave policy before applying for leaves.</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest leading-tight">Policy Restriction</p>
+                            <p className="text-[9px] mt-0.5">No leave policy assigned yet. Please contact your HR administrator.</p>
                         </div>
                     </div>
                 )}
 
                 {infoMessage && (
-                    <div className="flex items-center gap-4 p-5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-2xl border border-amber-100 dark:border-amber-900/50">
-                        <Info size={20} />
-                        <p className="text-sm font-bold tracking-tight">{infoMessage}</p>
+                    <div className="flex items-start gap-3 p-3 bg-[#F0FDFA] text-[#0F766E] rounded-xl border border-[#CCFBF1]">
+                        <Info size={16} className="mt-0.5 shrink-0" />
+                        <p className="text-[10px] font-bold uppercase tracking-widest leading-tight">{infoMessage}</p>
                     </div>
                 )}
 
                 {/* Reason */}
                 <div>
-                    <label className="flex items-center justify-between px-1 mb-2">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Reason / Justification</span>
-                        <span className="text-[10px] text-rose-500 font-bold uppercase">Required</span>
+                    <label className="flex items-center justify-between px-1 mb-1.5">
+                        <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Reason / Justification</span>
+                        <span className="text-[8px] text-[#EF4444] font-bold uppercase tracking-widest">Required</span>
                     </label>
                     <textarea
                         required
-                        rows="3"
-                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all dark:text-white resize-none"
+                        rows="2"
+                        className="w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 text-xs font-bold text-[#111827] outline-none focus:ring-1 focus:ring-[#14B8A6] focus:border-[#14B8A6] resize-none transition-all placeholder:text-[#9CA3AF]"
                         placeholder="Why do you need this time off?..."
                         value={form.reason}
                         onChange={e => setForm({ ...form, reason: e.target.value })}
@@ -718,23 +715,22 @@ export default function ApplyLeaveForm({ balances = [], existingLeaves = [], edi
                 <button
                     type="submit"
                     disabled={!hasLeavePolicy || isSubmitting || !!error || duration <= 0 || !form.leaveType}
-                    className={`w-full py-5 rounded-2xl text-white font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95 disabled:grayscale disabled:opacity-50
-                        ${form.leaveType ? 'shadow-blue-500/20' : 'shadow-slate-500/20'}
+                    className={`w-full py-3.5 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 disabled:grayscale disabled:opacity-50
+                        ${form.leaveType ? 'bg-[#14B8A6] text-white hover:bg-[#0D9488]' : 'bg-[#1F2937] text-white hover:bg-black'}
                     `}
-                    style={{ backgroundColor: !hasLeavePolicy ? '#f59e0b' : (form.leaveType ? dynamicLeaveConfig[form.leaveType]?.main : '#334155') }}
                     title={!hasLeavePolicy ? 'Contact HR to assign leave policy' : ''}
                 >
                     {isSubmitting ? (
-                        <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                     ) : (
                         <>
                             <span>
                                 {!form.leaveType ? 'Select Leave Category' :
                                     !form.startDate ? 'Select Dates' :
                                         duration <= 0 ? 'Invalid Dates' :
-                                            editData ? 'Update Application' : 'Request Time Off'}
+                                            editData ? 'Update Request' : 'Submit Request'}
                             </span>
-                            {(form.leaveType && duration > 0) && <CheckCircle size={20} />}
+                            {(form.leaveType && duration > 0) && <CheckCircle size={14} />}
                         </>
                     )}
                 </button>

@@ -51,14 +51,14 @@ export default function MyDocuments() {
                     <input
                         type="text"
                         placeholder="Search documents by name..."
-                        className="w-full pl-12 pr-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition text-sm font-black uppercase tracking-tight shadow-inner"
+                        className="w-full pl-12 pr-6 py-4 bg-white dark:bg-slate-800 border-2 border-slate-100 focus:border-blue-500 rounded-2xl outline-none transition text-sm font-black uppercase tracking-tight shadow-sm"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 border-r border-slate-200 dark:border-slate-800">Showing {documents.length} items</span>
-                    <button className="flex-1 sm:flex-none px-6 py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-600 dark:text-slate-300 transition border border-slate-200 dark:border-slate-700">
+                    <button className="flex-1 sm:flex-none px-6 py-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-600 dark:text-slate-300 transition border border-slate-200 dark:border-slate-700">
                         Sort by: Newest
                     </button>
                 </div>
@@ -130,9 +130,9 @@ export default function MyDocuments() {
             </div>
 
             {/* Assistance Section */}
-            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] p-8 border-2 border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="bg-white dark:bg-slate-800/50 rounded-[2.5rem] p-8 border-2 border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-[1.5rem] shadow-sm flex items-center justify-center text-blue-600">
+                    <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-[1.5rem] shadow-sm flex items-center justify-center text-blue-600 border border-slate-100">
                         <Clock size={32} />
                     </div>
                     <div>

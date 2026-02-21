@@ -30,9 +30,10 @@ class PuppeteerPDFService {
             // Intercept requests for fonts if they timeout, but let's try a safer wait first
             console.log('📄 [PUPPETEER] Setting HTML content...');
 
-            // We use domcontentloaded + a small wait to be faster than networkidle0
+            // We use networkidle2 to ensure most resources are loaded (faster than networkidle0)
             await page.setContent(htmlContent, {
-                waitUntil: 'domcontentloaded'
+                waitUntil: 'networkidle2',
+                timeout: 30000
             });
 
             // Wait a bit for fonts/styles to apply if any
@@ -63,6 +64,11 @@ class PuppeteerPDFService {
                 try { await browser.close(); } catch (e) { }
             }
         }
+    }
+
+    // Alias for better developer experience
+    async generatePDF(htmlContent, options = {}) {
+        return this.generatePDFBuffer(htmlContent, options);
     }
 }
 
