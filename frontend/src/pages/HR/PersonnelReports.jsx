@@ -49,125 +49,157 @@ const PersonnelReports = () => {
     };
 
     const renderExistingReport = () => (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="space-y-4 animate-in fade-in duration-500">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {data.existing.map((item, idx) => (
-                    <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.department}</span>
-                            <div className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${item.utilization > 90 ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                {item.utilization.toFixed(1)}% Utilized
+                    <div key={idx} className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm group hover:border-[#14B8A6]/30 transition-all">
+                        <div className="flex justify-between items-start mb-1.5">
+                            <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-slate-800 dark:text-white uppercase tracking-widest truncate max-w-[120px] leading-tight">{item.department}</span>
+                                <span className="text-[7px] font-medium text-slate-400 uppercase tracking-tighter">Team Staffing Overview</span>
+                            </div>
+                            <div className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-tight ${item.utilization > 90 ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/20' : 'bg-teal-50 text-teal-600 dark:bg-teal-950/20'}`}>
+                                {item.utilization.toFixed(0)}% Utilized
                             </div>
                         </div>
-                        <div className="flex items-end gap-2">
-                            <span className="text-2xl font-black text-slate-800">{item.active}</span>
-                            <span className="text-xs font-bold text-slate-400 mb-1">/ {item.budgeted} Headcount</span>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="text-xl font-black text-slate-800 dark:text-white leading-none">{item.active}</span>
+                            <span className="text-[10px] font-bold text-slate-400 leading-none">/ {item.budgeted} Currently Working</span>
                         </div>
-                        <div className="mt-4 flex gap-2">
-                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="mt-3 flex gap-2">
+                            <div className="flex-1 h-1.5 bg-slate-50 dark:bg-slate-950 rounded-full overflow-hidden shadow-inner border border-slate-200/20 dark:border-slate-800/20">
                                 <div
-                                    className="h-full bg-emerald-500"
+                                    className="h-full bg-gradient-to-r from-[#14B8A6] to-teal-400 rounded-full transition-all duration-1000"
                                     style={{ width: `${Math.min(100, item.utilization)}%` }}
                                 ></div>
                             </div>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-                            <div className="bg-slate-50 p-2 rounded-lg">
-                                <div className="text-xs font-black text-slate-700">{item.vacant}</div>
-                                <div className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Vacant</div>
+                            <div className="bg-slate-50 dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200/30 dark:border-slate-800/30">
+                                <div className="text-xs font-black text-slate-800 dark:text-white leading-none">{item.vacant}</div>
+                                <div className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">Open Positions</div>
                             </div>
-                            <div className="bg-slate-50 p-2 rounded-lg">
-                                <div className="text-xs font-black text-slate-700">{item.notice + item.resigned}</div>
-                                <div className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Exiting</div>
+                            <div className="bg-slate-50 dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200/30 dark:border-slate-800/30">
+                                <div className="text-xs font-black text-slate-800 dark:text-white leading-none">{item.notice + item.resigned}</div>
+                                <div className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">Leaving Soon</div>
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50 border-b border-slate-100">
-                        <tr>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Department</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Budgeted</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Active</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Vacant</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">On Notice</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Resigned</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Utilization %</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {data.existing.map((row, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="px-6 py-4 text-xs font-bold text-slate-700">{row.department}</td>
-                                <td className="px-6 py-4 text-xs font-black text-slate-800">{row.budgeted}</td>
-                                <td className="px-6 py-4 text-xs font-bold text-slate-600">{row.active}</td>
-                                <td className="px-6 py-4 text-xs font-bold text-rose-500">{row.vacant}</td>
-                                <td className="px-6 py-4 text-xs font-bold text-amber-500">{row.notice}</td>
-                                <td className="px-6 py-4 text-xs font-bold text-slate-400">{row.resigned}</td>
-                                <td className="px-6 py-4 text-right">
-                                    <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${row.utilization > 95 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                        {row.utilization.toFixed(1)}%
-                                    </span>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            {/* Premium Table Analysis */}
+            {/* Dashboard Card-List Analysis */}
+            <div className="space-y-3 pt-2">
+                {/* Header Labels - Aligned to card sections */}
+                <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1fr_1.2fr] px-10 py-2 opacity-60">
+                    <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <Building2 size={12} className="text-[#14B8A6]" /> Department
+                    </div>
+                    <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Allowed</div>
+                    <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Working</div>
+                    <div className="text-right text-[10px] font-black text-rose-500 uppercase tracking-[0.2em]">Open</div>
+                    <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Notice</div>
+                    <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Left</div>
+                    <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] pr-4">Utilization</div>
+                </div>
+
+                {/* Individual Data Cards */}
+                {data.existing.map((row, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-900 grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1fr_1.2fr] items-center px-10 py-4 rounded-[2rem] border border-transparent dark:border-slate-800/40 shadow-sm hover:shadow-md hover:border-[#14B8A6]/30 transition-all group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-slate-50 dark:bg-slate-950 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-slate-800/50 group-hover:bg-white dark:group-hover:bg-slate-900 transition-colors shadow-inner">
+                                <Briefcase size={16} className="text-[#14B8A6]" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[12px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight leading-none">{row.department}</span>
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">HR Operations</span>
+                            </div>
+                        </div>
+                        <div className="text-right text-sm font-black text-slate-600 dark:text-slate-400">{row.budgeted}</div>
+                        <div className="text-right text-sm font-black text-teal-600 dark:text-teal-400">{row.active}</div>
+                        <div className="text-right text-sm font-black text-rose-500">{row.vacant}</div>
+                        <div className="text-right text-sm font-black text-amber-500">{row.notice}</div>
+                        <div className="text-right text-sm font-black text-slate-400">{row.resigned}</div>
+                        <div className="flex items-center justify-end gap-3">
+                            <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-gradient-to-r from-[#14B8A6] to-cyan-400 rounded-full transition-all duration-1000"
+                                    style={{ width: `${row.utilization}%` }}
+                                ></div>
+                            </div>
+                            <span className={`text-[11px] font-black min-w-[35px] ${row.utilization > 95 ? 'text-rose-500' : 'text-[#14B8A6]'}`}>
+                                {row.utilization.toFixed(0)}%
+                            </span>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
 
     const renderReplacementReport = () => (
-        <div className="space-y-6">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50 border-b border-slate-100">
-                        <tr>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Position & Dept</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Previous Employee</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Resign Date</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Avg SLA</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Performance</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {data.replacements.map((row, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="px-6 py-4">
-                                    <div className="text-xs font-black text-slate-800">{row.position}</div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{row.department}</div>
-                                </td>
-                                <td className="px-6 py-4 text-xs font-bold text-slate-600">{row.oldEmployeeName}</td>
-                                <td className="px-6 py-4 text-xs font-medium text-slate-500">{row.resignationDate ? new Date(row.resignationDate).toLocaleDateString() : 'N/A'}</td>
-                                <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${row.replacementStatus === 'open' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                                        row.replacementStatus === 'hiring' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                            'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                        }`}>
-                                        {row.replacementStatus}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 text-xs font-black text-slate-700">{row.slaDays} Days</td>
-                                <td className="px-6 py-4 text-right">
-                                    {row.isSlaBreached ? (
-                                        <div className="flex items-center justify-end gap-1 text-rose-500 font-bold text-[10px] uppercase tracking-widest">
-                                            <AlertCircle size={12} /> SLA Breached
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-end gap-1 text-emerald-500 font-bold text-[10px] uppercase tracking-widest">
-                                            <CheckCircle2 size={12} /> On Track
-                                        </div>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+        <div className="space-y-3 pt-2 animate-in fade-in duration-500">
+            {/* Header Labels - Aligned with the cards below */}
+            <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1.2fr] px-10 py-2 opacity-60">
+                <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <UserPlus size={12} className="text-[#14B8A6]" /> Position & Dept
+                </div>
+                <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Previous Staff</div>
+                <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Resigned On</div>
+                <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Status</div>
+                <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Avg SLA</div>
+                <div className="text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] pr-4">Performance</div>
             </div>
+
+            {/* Individual Replacement Cards */}
+            {data.replacements.map((row, idx) => (
+                <div key={idx} className="bg-white dark:bg-slate-900 grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1.2fr] items-center px-10 py-4 rounded-[2rem] border border-transparent dark:border-slate-800/40 shadow-sm hover:shadow-md hover:border-[#14B8A6]/30 transition-all group">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-slate-50 dark:bg-slate-950 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-slate-800/50 group-hover:bg-white dark:group-hover:bg-slate-900 transition-colors shadow-inner">
+                            <UserMinus size={16} className="text-[#14B8A6]" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[12px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight leading-none">{row.position}</span>
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{row.department}</span>
+                        </div>
+                    </div>
+
+                    <div className="text-right flex flex-col items-end">
+                        <span className="text-xs font-black text-slate-600 dark:text-slate-400 leading-none">{row.oldEmployeeName}</span>
+                        <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter mt-1">Previous Holder</span>
+                    </div>
+
+                    <div className="text-right text-xs font-bold text-slate-500">
+                        {row.resignationDate ? new Date(row.resignationDate).toLocaleDateString() : 'N/A'}
+                    </div>
+
+                    <div className="flex justify-end">
+                        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${row.replacementStatus === 'open' ? 'bg-blue-50/50 text-blue-600 border-blue-100/50' :
+                            row.replacementStatus === 'hiring' ? 'bg-amber-50/50 text-amber-600 border-amber-100/50' :
+                                'bg-emerald-50/50 text-emerald-600 border-emerald-100/50'
+                            }`}>
+                            {row.replacementStatus}
+                        </span>
+                    </div>
+
+                    <div className="text-right text-xs font-black text-slate-700">
+                        {row.slaDays} <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Days</span>
+                    </div>
+
+                    <div className="flex items-center justify-end">
+                        {row.isSlaBreached ? (
+                            <div className="bg-rose-50/50 px-4 py-2 rounded-2xl flex items-center gap-2 text-rose-500 font-black text-[9px] uppercase tracking-widest border border-rose-100/50">
+                                <AlertCircle size={14} /> Breached
+                            </div>
+                        ) : (
+                            <div className="bg-teal-50/50 px-4 py-2 rounded-2xl flex items-center gap-2 text-teal-600 font-black text-[9px] uppercase tracking-widest border border-teal-100/50">
+                                <CheckCircle2 size={14} /> On Track
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ))}
         </div>
     );
 
@@ -179,46 +211,69 @@ const PersonnelReports = () => {
         }));
 
         return (
-            <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
-                            <TrendingUp size={32} />
+            <div className="space-y-6 pt-2 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200/50 dark:border-slate-800/50 shadow-sm flex flex-col items-center text-center transition-all hover:border-[#14B8A6]/20" title="Employees who resigned or left">
+                        <div className="w-12 h-12 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-2xl flex items-center justify-center mb-4 shadow-inner">
+                            <TrendingUp size={24} />
                         </div>
-                        <div className="text-4xl font-black text-slate-800">{data.analytics.attritionRate.toFixed(2)}%</div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Attrition Rate (Last Month)</div>
+                        <div className="text-3xl font-black text-slate-800 dark:text-white leading-none">{data.analytics.attritionRate.toFixed(2)}%</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3">Employee Exit Rate</div>
                     </div>
 
-                    <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-4">
-                            <Users size={32} />
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200/50 dark:border-slate-800/50 shadow-sm flex flex-col items-center text-center transition-all hover:border-[#14B8A6]/20" title="Number of employees currently working in the company">
+                        <div className="w-12 h-12 bg-teal-50 dark:bg-teal-950/20 text-[#14B8A6] rounded-2xl flex items-center justify-center mb-4 shadow-inner">
+                            <Users size={24} />
                         </div>
-                        <div className="text-4xl font-black text-slate-800">{data.analytics.totalActive}</div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Current Active Workforce</div>
+                        <div className="text-3xl font-black text-slate-800 dark:text-white leading-none">{data.analytics.totalActive}</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3">Currently Working</div>
                     </div>
 
-                    <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mb-4">
-                            <Clock size={32} />
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200/50 dark:border-slate-800/50 shadow-sm flex flex-col items-center text-center transition-all hover:border-[#14B8A6]/20" title="Average number of months employees stay in the company">
+                        <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/20 text-amber-600 rounded-2xl flex items-center justify-center mb-4 shadow-inner">
+                            <Clock size={24} />
                         </div>
-                        <div className="text-4xl font-black text-slate-800">14.2</div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Avg Tenure (Months)</div>
+                        <div className="text-3xl font-black text-slate-800 dark:text-white leading-none">14.2</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3">Average Stay (Months)</div>
                     </div>
                 </div>
 
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-8">Monthly Hiring Trend</h3>
-                    <div className="h-80 w-full">
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200/50 dark:border-slate-800/50 shadow-sm" title="Number of employees hired this month">
+                    <h3 className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-[0.3em] mb-10 flex items-center gap-2">
+                        <div className="w-1 h-3 bg-[#14B8A6] rounded-full"></div>
+                        Monthly Hiring Activity
+                    </h3>
+                    <div className="h-80 w-full px-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" fontSize={10} fontWeight="bold" tick={{ fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                <YAxis fontSize={10} fontWeight="bold" tick={{ fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                <XAxis
+                                    dataKey="name"
+                                    fontSize={10}
+                                    fontWeight="900"
+                                    tick={{ fill: '#94a3b8' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    dy={10}
+                                />
+                                <YAxis
+                                    fontSize={10}
+                                    fontWeight="900"
+                                    tick={{ fill: '#94a3b8' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
                                 <Tooltip
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                    contentStyle={{
+                                        borderRadius: '1.5rem',
+                                        border: 'none',
+                                        boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                                        backgroundColor: '#fff',
+                                        padding: '12px 16px'
+                                    }}
                                     cursor={{ fill: '#f8fafc' }}
                                 />
-                                <Bar dataKey="hires" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={40} />
+                                <Bar dataKey="hires" fill="#14B8A6" radius={[6, 6, 0, 0]} barSize={24} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -254,66 +309,43 @@ const PersonnelReports = () => {
     );
 
     return (
-        <div className="p-6 md:p-8 space-y-8 min-h-screen bg-slate-50/50">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Personnel Intelligence</h1>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time workforce & replacement analytics</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all">
-                        <Filter size={14} /> Filter
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
-                        <Download size={14} /> Export Report
-                    </button>
-                </div>
-            </div>
+        <div className="w-full space-y-6 animate-in fade-in duration-700">
 
-            <div className="bg-white p-1 rounded-2xl border border-slate-200 shadow-sm inline-flex gap-1 overflow-x-auto max-w-full">
-                <button
-                    onClick={() => setActiveTab('existing')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === 'existing' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
-                        }`}
-                >
-                    <Users size={16} /> Existing Workforce
-                </button>
-                <button
-                    onClick={() => setActiveTab('replacement')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === 'replacement' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
-                        }`}
-                >
-                    <UserPlus size={16} /> Replacements
-                </button>
-                <button
-                    onClick={() => setActiveTab('analytics')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === 'analytics' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
-                        }`}
-                >
-                    <BarChart3 size={16} /> Headcount Trends
-                </button>
-                <button
-                    onClick={() => setActiveTab('sla')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === 'sla' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
-                        }`}
-                >
-                    <Clock size={16} /> SLA Performance
-                </button>
+
+            <div className="bg-slate-50/50 dark:bg-slate-950/20 p-1 rounded-2xl border border-slate-200/40 dark:border-slate-800/40 inline-flex gap-1 overflow-x-auto max-w-full no-scrollbar shadow-inner">
+                {[
+                    { id: 'existing', label: 'Staffing Overview', icon: Users },
+                    { id: 'replacement', label: 'Replacement Movements', icon: UserPlus },
+                    { id: 'analytics', label: 'Hiring Trends', icon: BarChart3 },
+                    { id: 'sla', label: 'Performance', icon: Clock }
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex items-center gap-2 px-5 py-2 rounded-[14px] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id
+                            ? 'bg-white dark:bg-slate-900 text-[#14B8A6] shadow-sm border border-slate-200/30 dark:border-slate-800/30 scale-[1.02]'
+                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                            }`}
+                    >
+                        <tab.icon size={14} className={activeTab === tab.id ? 'text-[#14B8A6]' : ''} />
+                        {tab.label}
+                    </button>
+                ))}
             </div>
 
             <div className="transition-all duration-300">
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-24 space-y-4">
-                        <div className="w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Crunching Data...</div>
+                    <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                        <div className="w-10 h-10 border-4 border-slate-100 dark:border-slate-800 border-t-[#14B8A6] rounded-full animate-spin shadow-inner"></div>
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">Analyzing...</div>
                     </div>
                 ) : (
-                    <>
+                    <div className="w-full">
                         {activeTab === 'existing' && renderExistingReport()}
                         {activeTab === 'replacement' && renderReplacementReport()}
                         {activeTab === 'analytics' && renderAnalytics()}
                         {activeTab === 'sla' && renderSLAReport()}
-                    </>
+                    </div>
                 )}
             </div>
         </div>

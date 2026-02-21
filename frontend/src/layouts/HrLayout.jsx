@@ -1,99 +1,151 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import HRSidebar from '../components/HRSidebar';
 import SidebarCompanyBlock from '../components/SidebarCompanyBlock';
-import NotificationDropdown from '../components/NotificationDropdown';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UIContext } from '../context/UIContext';
+import { Menu, ArrowLeft, Sun, Moon, LogOut } from 'lucide-react';
+import NotificationDropdown from '../components/NotificationDropdown';
+import ErrorBoundary from '../components/ErrorBoundary';
+import api from '../utils/api';
 
 export default function HRLayout() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [profile, setProfile] = useState(null);
+
   const uiContext = useContext(UIContext);
   const { theme, toggleTheme } = uiContext || { theme: 'light', toggleTheme: () => { } };
+
+  useEffect(() => {
+    if (user) {
+      api.get('/employee/profile').then(res => setProfile(res.data)).catch(() => { });
+    }
+  }, [user]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  const fullName = profile ? `${profile.firstName} ${profile.lastName}` : user?.name || 'HR Admin';
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex">
+    <div className={`flex h-screen bg-white dark:bg-[#0F172A] transition-colors duration-300 ${theme === 'dark' ? 'dark' : ''}`}>
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-30 md:hidden transition-all duration-300"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
-      <div className={`fixed w-64 md:w-72 h-screen transform transition-transform duration-300 ease-in-out z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Sidebar - Fixed on desktop with Hover Expansion */}
+      <div className={`no-print peer fixed h-screen transform transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-[60] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-2xl group overflow-hidden ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0 w-72 md:w-20 md:hover:w-72'}`}>
         <HRSidebar
-          onNavigate={() => { if (window.innerWidth < 768) setSidebarOpen(false); }}
-          toggleCollapse={() => setSidebarOpen(false)}
+          activeTab={activeTab}
+          onClose={() => setSidebarOpen(false)}
         />
       </div>
 
-      {/* Main Content */}
-      <div className={`flex-1 flex flex-col w-full transition-all duration-300 ease-in-out min-h-screen ${sidebarOpen ? 'md:ml-72' : 'ml-0'}`}>
+      {/* Main Content Wrapper - Adjusted margin for collapsed sidebar */}
+      <div className="flex-1 flex flex-col w-full md:ml-20 peer-hover:md:ml-72 h-screen overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-3 md:p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            {/* <button
-              onClick={() => navigate(-1)}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition flex-shrink-0"
-              title="Go Back"
-            >
-              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </button> */}
+        <header className="no-print flex justify-between items-center px-8 h-24 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 sticky top-0 z-20">
+          <div className="flex items-center gap-6">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition flex-shrink-0"
-              aria-label="Toggle sidebar"
+              className="md:hidden p-3 rounded-2xl hover:bg-white dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shadow-sm"
             >
-              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              <Menu size={20} />
             </button>
-            <div className="hidden sm:block text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-100 truncate">HRMS SaaS</div>
+            <div className="hidden md:flex items-center gap-4">
+              <button
+                onClick={() => navigate(-1)}
+                className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-all text-slate-400 dark:text-slate-500 group border border-transparent hover:border-slate-200 dark:hover:border-slate-700 shadow-hover"
+                title="Go Back"
+              >
+                <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+              </button>
+              <div className="h-6 w-px bg-slate-200 dark:bg-slate-800"></div>
+              <h1 className="text-lg font-black text-slate-700 dark:text-white uppercase tracking-tight">
+                {location.pathname.includes('/reports') ? 'Reports' :
+                  location.pathname.includes('/employees') ? 'Employees' :
+                    location.pathname.includes('/departments') ? 'Departments' :
+                      location.pathname.includes('/org') ? 'Org Structure' :
+                        location.pathname.includes('/attendance') ? 'Attendance' :
+                          location.pathname.includes('/payroll') ? 'Payroll' :
+                            location.pathname.includes('/leaves') ? 'Leaves' : 'Dashboard'}
+              </h1>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-5">
             <SidebarCompanyBlock />
-            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden lg:block"></div>
-            <NotificationDropdown />
-            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden lg:block"></div>
-            <button
-              onClick={toggleTheme}
-              className="p-1.5 sm:p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition flex-shrink-0"
-              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
-              {theme === 'dark' ? (
-                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              )}
-            </button>
-            <button
-              onClick={handleLogout}
-              className="px-2 sm:px-3 py-1.5 sm:py-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded border border-red-100 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/50 transition text-xs sm:text-sm whitespace-nowrap"
-            >
-              Logout
-            </button>
+
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 p-1.5 rounded-[1.25rem] border border-slate-200/50 dark:border-slate-800/50">
+              <button
+                onClick={toggleTheme}
+                className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-all shadow-sm group"
+                title="Toggle Environment"
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-400 group-hover:rotate-90 transition-transform duration-700" />
+                ) : (
+                  <Moon className="w-4 h-4 text-slate-600 group-hover:-rotate-12 transition-transform duration-700" />
+                )}
+              </button>
+
+              <div className="h-4 w-px bg-slate-200 dark:bg-slate-800"></div>
+
+              <div className="relative">
+                <NotificationDropdown />
+              </div>
+            </div>
+
+            <div className="h-10 w-px bg-slate-200 dark:bg-slate-800"></div>
+
+            <div className="flex items-center gap-4">
+              <div className="hidden lg:block text-right">
+                <p className="text-xs font-black text-slate-800 dark:text-white leading-none uppercase tracking-tighter">{fullName}</p>
+                <p className="text-[9px] font-black text-[#14B8A6] dark:text-teal-400 uppercase tracking-[0.2em] mt-1.5">{user?.role}</p>
+              </div>
+
+              <div className="relative group cursor-pointer">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-[#14B8A6] to-teal-600 p-[2px] shadow-2xl shadow-teal-500/20 group-hover:scale-110 transition-all duration-500">
+                  <div className="w-full h-full rounded-[14px] bg-white dark:bg-slate-900 overflow-hidden flex items-center justify-center relative">
+                    {profile?.profilePic ? (
+                      <img src={profile.profilePic} alt="profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-sm font-black text-[#14B8A6] dark:text-teal-400 italic">{fullName?.[0]?.toUpperCase()}</span>
+                    )}
+                    <div className="absolute inset-0 bg-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  </div>
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-900 rounded-full"></div>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="p-3 text-slate-400 hover:text-rose-500 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-2xl transition-all border border-slate-200/50 dark:border-slate-800/50 hover:border-rose-200 dark:hover:border-rose-900/40 group shadow-sm"
+                title="Terminate Session"
+              >
+                <LogOut size={18} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-3 md:p-6 overflow-auto min-w-0">
-          <Outlet />
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto bg-white dark:bg-[#0F172A] custom-scrollbar">
+          <ErrorBoundary>
+            <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <Outlet />
+            </div>
+          </ErrorBoundary>
         </main>
       </div>
     </div>
